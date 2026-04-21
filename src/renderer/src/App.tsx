@@ -2056,12 +2056,12 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                  className={`group relative flex items-center gap-2.5 rounded-2xl p-1 transition-all duration-300 ${isAccountMenuOpen
-                    ? 'bg-white shadow-xl ring-1 ring-black/5 scale-[1.02]'
-                    : 'hover:bg-white/15 active:scale-95'}`}
+                  className={`group relative flex items-center justify-center rounded-full p-0.5 transition-all duration-300 ${isAccountMenuOpen
+                    ? 'bg-white shadow-xl ring-2 ring-white/20 scale-[1.05]'
+                    : 'hover:bg-white/20 active:scale-95'}`}
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-white to-gray-100 p-[1px] shadow-sm transition-transform duration-300 group-hover:rotate-3">
-                    <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-white text-[11px] font-black text-primary">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-white to-gray-100 p-[1px] shadow-sm transition-all duration-300 group-hover:rotate-6">
+                    <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[11px] font-black text-primary">
                       {currentUser.full_name
                         .split(' ')
                         .filter(Boolean)
@@ -2070,25 +2070,12 @@ const App: React.FC = () => {
                         .join('')}
                     </div>
                   </div>
-
-                  <div className="hidden text-left sm:block pr-1">
-                    <div className={`text-[10px] font-black leading-tight uppercase tracking-tight transition-colors ${isAccountMenuOpen ? 'text-slate-900' : 'text-white'}`}>
-                      {currentUser.full_name}
-                    </div>
-                    <div className={`mt-0.5 text-[8px] font-bold uppercase tracking-widest transition-colors ${isAccountMenuOpen ? 'text-slate-400' : 'text-white/60'}`}>
-                      {currentUser.role}
-                    </div>
-                  </div>
-
-                  <div className={`flex h-5 w-5 items-center justify-center rounded-lg transition-all duration-300 ${isAccountMenuOpen ? 'bg-slate-100 text-slate-400' : 'text-white/30 group-hover:text-white/60'}`}>
-                    <i className={`fa-solid fa-chevron-down text-[9px] transition-transform duration-300 ${isAccountMenuOpen ? 'rotate-180' : ''}`}></i>
-                  </div>
                 </button>
 
                 {isAccountMenuOpen && (
                   <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
                     <div className="mb-2 flex items-center gap-3 px-4 py-4 rounded-[22px] bg-slate-50/80">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary font-black text-lg shadow-inner ring-4 ring-white">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-black text-lg shadow-inner ring-4 ring-white">
                         {currentUser.full_name[0]}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -2253,360 +2240,405 @@ const App: React.FC = () => {
 
       {/* MAIN SCROLLABLE CONTENT */}
       <div key={activeTab} className="flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]">
-      {activeTab === 'rooms' ? (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {dueRoomsCount > 0 && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500">
-                  <i className="fa-solid fa-bell animate-[swing_0.5s_ease-out]"></i>
-                </div>
-                <div>
-                  <strong className="font-bold">Đến kỳ lập hóa đơn!</strong>
-                  <span className="block text-xs mt-0.5 opacity-90">
-                    Có {dueRoomsCount} phòng cần lập hóa đơn của tháng {currentMonth}/{currentYear}.
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-          {/* SUMMARY WIDGETS (Removed per user request) */}
-
-          {/* MAIN TABLE WHITE BOX */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
-            {/* Table Header Area */}
-            <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
-                  <i className="fa-solid fa-house"></i>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
-                  <p className="text-sm text-gray-500">
-                    Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
-                    <span className="font-bold text-primary">K-Map House</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsAddRoomOpen(true)}
-                  className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
-                >
-                  <i className="fa-solid fa-plus text-xs"></i>
-                  <span>Thêm phòng</span>
-                </button>
-                <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
-                  <i className="fa-solid fa-file-excel text-green-600"></i>
-                  <span>Xuất Excel</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Filter Area */}
-            <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
-                  <i className="fa-solid fa-filter text-xs"></i>
-                  <span className="text-xs font-bold font-heading">{rooms.length}</span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={resetRoomFilters}
-                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${isAllRoomFilter
-                    ? 'bg-primary text-white shadow-md shadow-primary/20'
-                    : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'}`}
-                >
-                  Tất cả
-                </button>
-
-                {[
-                  { id: 'occupied' as const, label: 'Đang ở', count: counts.occupied, color: 'primary' },
-                  { id: 'vacant' as const, label: 'Đang trống', count: counts.vacant, color: 'gray' },
-                  { id: 'ending' as const, label: 'Sắp trả', count: counts.ending, color: 'red' },
-                  { id: 'expiring' as const, label: 'Hết hạn', count: counts.expiring, color: 'blue' }
-                ].map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => toggleFilter(f.id)}
-                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${filters[f.id]
-                      ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
-                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                  >
-                    <div className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}></div>
-                    <span>{f.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}>
-                      {f.count}
+        {activeTab === 'rooms' ? (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {dueRoomsCount > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500">
+                    <i className="fa-solid fa-bell animate-[swing_0.5s_ease-out]"></i>
+                  </div>
+                  <div>
+                    <strong className="font-bold">Đến kỳ lập hóa đơn!</strong>
+                    <span className="block text-xs mt-0.5 opacity-90">
+                      Có {dueRoomsCount} phòng cần lập hóa đơn của tháng {currentMonth}/{currentYear}.
                     </span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="relative w-full max-w-[300px]">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-magnifying-glass text-xs"></i>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm số phòng..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
-                />
               </div>
-            </div>
+            )}
+            {/* SUMMARY WIDGETS (Removed per user request) */}
 
-            {/* Table content */}
-            <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
-              <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="text-[11px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
-                  <tr>
-                    <th
-                      rowSpan={2}
-                      className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
+            {/* MAIN TABLE WHITE BOX */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
+              {/* Table Header Area */}
+              <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
+                    <i className="fa-solid fa-house"></i>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
+                    <p className="text-sm text-gray-500">
+                      Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
+                      <span className="font-bold text-primary">K-Map House</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsAddRoomOpen(true)}
+                    className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
+                  >
+                    <i className="fa-solid fa-plus text-xs"></i>
+                    <span>Thêm phòng</span>
+                  </button>
+                  <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+                    <i className="fa-solid fa-file-excel text-green-600"></i>
+                    <span>Xuất Excel</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filter Area */}
+              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
+                    <i className="fa-solid fa-filter text-xs"></i>
+                    <span className="text-xs font-bold font-heading">{rooms.length}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={resetRoomFilters}
+                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${isAllRoomFilter
+                      ? 'bg-primary text-white shadow-md shadow-primary/20'
+                      : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'}`}
+                  >
+                    Tất cả
+                  </button>
+
+                  {[
+                    { id: 'occupied' as const, label: 'Đang ở', count: counts.occupied, color: 'primary' },
+                    { id: 'vacant' as const, label: 'Đang trống', count: counts.vacant, color: 'gray' },
+                    { id: 'ending' as const, label: 'Sắp trả', count: counts.ending, color: 'red' },
+                    { id: 'expiring' as const, label: 'Hết hạn', count: counts.expiring, color: 'blue' }
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => toggleFilter(f.id)}
+                      className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${filters[f.id]
+                        ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
+                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
                     >
-                      <i className="fa-solid fa-bars-staggered"></i>
-                    </th>
-                    <th
-                      rowSpan={2}
-                      className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
-                    >
-                      <div className="flex items-center gap-2">
-                        <i className="fa-solid fa-door-open text-primary/60"></i>
-                        <span>Tên phòng</span>
-                      </div>
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-tag mr-1.5 text-green-500/70"></i> Giá thuê
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-bolt mr-1.5 text-yellow-500/70"></i> Phí dịch vụ
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-shield-halved mr-1.5 text-blue-400/70"></i> Tiền cọc
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-triangle-exclamation mr-1.5 text-red-400/70"></i> Nợ cũ
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-users mr-1.5 text-teal-500/70"></i> Khách thuê
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                      <i className="fa-solid fa-calendar-check mr-1.5 text-orange-400/70"></i> Ngày vào
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
-                      Tình trạng
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
-                      Tài chính
-                    </th>
-                    <th rowSpan={2} className="px-4 py-4 w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {isLoading ? (
+                      <div className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}></div>
+                      <span>{f.label}</span>
+                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}>
+                        {f.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full max-w-[300px]">
+                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                    <i className="fa-solid fa-magnifying-glass text-xs"></i>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm số phòng..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* Table content */}
+              <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
+                <table className="w-full text-left text-sm whitespace-nowrap">
+                  <thead className="text-[11px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
                     <tr>
-                      <td colSpan={12} className="text-center py-10 text-gray-400">
-                        Đang tải danh sách phòng...
-                      </td>
+                      <th
+                        rowSpan={2}
+                        className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
+                      >
+                        <i className="fa-solid fa-bars-staggered"></i>
+                      </th>
+                      <th
+                        rowSpan={2}
+                        className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
+                      >
+                        <div className="flex items-center gap-2">
+                          <i className="fa-solid fa-door-open text-primary/60"></i>
+                          <span>Tên phòng</span>
+                        </div>
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-tag mr-1.5 text-green-500/70"></i> Giá thuê
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-bolt mr-1.5 text-yellow-500/70"></i> Phí dịch vụ
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-shield-halved mr-1.5 text-blue-400/70"></i> Tiền cọc
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-triangle-exclamation mr-1.5 text-red-400/70"></i> Nợ cũ
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-users mr-1.5 text-teal-500/70"></i> Khách thuê
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                        <i className="fa-solid fa-calendar-check mr-1.5 text-orange-400/70"></i> Ngày vào
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                        Tình trạng
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                        Tài chính
+                      </th>
+                      <th rowSpan={2} className="px-4 py-4 w-10"></th>
                     </tr>
-                  ) : (
-                    filteredRooms.map((origRoom) => {
-                      const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
-                      const zone = serviceZones.find((z) => z.id === room.service_zone_id) || {
-                        name: 'Chưa có',
-                        electric_price: 0,
-                        water_price: 0,
-                        internet_price: 0,
-                        cleaning_price: 0
-                      }
-                      const activeContract = contracts.find(
-                        (c) => c.room_id === room.id && c.status === 'active'
-                      )
-                      const roomInvoices = invoices.filter(
-                        (i) =>
-                          i.room_id === room.id &&
-                          i.payment_status !== 'cancelled' &&
-                          i.payment_status !== 'merged'
-                      )
-                      const roomMoveInReceipts = moveInReceipts.filter((r) => r.room_id === room.id)
-                      const checkInvoices = invoices.filter(
-                        (i) =>
-                          i.room_id === room.id &&
-                          (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id) &&
-                          new Date(
-                            i.created_at || i.invoice_date || activeContract?.created_at || Date.now()
-                          ).getTime() >=
-                          new Date(
-                            activeContract?.created_at || activeContract?.move_in_date || Date.now()
-                          ).getTime()
-                      )
-                      const endingOutstandingInvoice = checkInvoices
-                        .filter(
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={12} className="text-center py-10 text-gray-400">
+                          Đang tải danh sách phòng...
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredRooms.map((origRoom) => {
+                        const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
+                        const zone = serviceZones.find((z) => z.id === room.service_zone_id) || {
+                          name: 'Chưa có',
+                          electric_price: 0,
+                          water_price: 0,
+                          internet_price: 0,
+                          cleaning_price: 0
+                        }
+                        const activeContract = contracts.find(
+                          (c) => c.room_id === room.id && c.status === 'active'
+                        )
+                        const roomInvoices = invoices.filter(
                           (i) =>
+                            i.room_id === room.id &&
                             i.payment_status !== 'cancelled' &&
-                            i.payment_status !== 'merged' &&
-                            (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                            i.payment_status !== 'merged'
                         )
-                        .sort((a, b) => {
-                          if (!!a.is_first_month !== !!b.is_first_month) return a.is_first_month ? -1 : 1
-                          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                        })[0] || null
-                      const unpaidFirstMonthForCurrentTenant = checkInvoices.find(
-                        (i) =>
-                          i.is_first_month &&
-                          i.payment_status === 'unpaid' &&
-                          (i.paid_amount || 0) === 0
-                      )
-                      const canCancel =
-                        activeContract &&
-                        !checkInvoices.some(
+                        const roomMoveInReceipts = moveInReceipts.filter((r) => r.room_id === room.id)
+                        const checkInvoices = invoices.filter(
                           (i) =>
-                            i.payment_status === 'paid' ||
-                            i.payment_status === 'partial' ||
-                            i.paid_amount > 0
+                            i.room_id === room.id &&
+                            (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id) &&
+                            new Date(
+                              i.created_at || i.invoice_date || activeContract?.created_at || Date.now()
+                            ).getTime() >=
+                            new Date(
+                              activeContract?.created_at || activeContract?.move_in_date || Date.now()
+                            ).getTime()
                         )
-                      const canAbortUnpaidFirstMonthMenu =
-                        !!activeContract && !!unpaidFirstMonthForCurrentTenant
-                      const canDeleteRoom =
-                        roomInvoices.length === 0 && roomMoveInReceipts.length === 0
+                        const endingOutstandingInvoice = checkInvoices
+                          .filter(
+                            (i) =>
+                              i.payment_status !== 'cancelled' &&
+                              i.payment_status !== 'merged' &&
+                              (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                          )
+                          .sort((a, b) => {
+                            if (!!a.is_first_month !== !!b.is_first_month) return a.is_first_month ? -1 : 1
+                            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                          })[0] || null
+                        const unpaidFirstMonthForCurrentTenant = checkInvoices.find(
+                          (i) =>
+                            i.is_first_month &&
+                            i.payment_status === 'unpaid' &&
+                            (i.paid_amount || 0) === 0
+                        )
+                        const canCancel =
+                          activeContract &&
+                          !checkInvoices.some(
+                            (i) =>
+                              i.payment_status === 'paid' ||
+                              i.payment_status === 'partial' ||
+                              i.paid_amount > 0
+                          )
+                        const canAbortUnpaidFirstMonthMenu =
+                          !!activeContract && !!unpaidFirstMonthForCurrentTenant
+                        const canDeleteRoom =
+                          roomInvoices.length === 0 && roomMoveInReceipts.length === 0
 
-                      const menuItemClass =
-                        'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
-                      const roomActionMenu = (
-                        <div
-                          className={`absolute right-0 w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 animate-[fadeIn_0.15s_ease-out] ${menuPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
-                        >
-                          <div className="grid grid-cols-2 gap-2">
-                            {room.status === 'vacant' ? (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setNewContractSeed(null)
-                                    setNewContractRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
-                                >
-                                  <i className="fa-solid fa-file-signature w-4 text-green-600"></i> Lập hợp đồng
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setEditRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-blue-50 text-blue-700 font-medium`}
-                                >
-                                  <i className="fa-solid fa-pen-to-square w-4 text-blue-500"></i>{' '}
-                                  Sửa phòng
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setServiceZoneRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                >
-                                  <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
-                                  dịch vụ
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setAssetModuleInitialRoomId(room.id)
-                                    requestActiveTab('assets')
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                >
-                                  <i className="fa-solid fa-list-check w-4 text-gray-500"></i> Thiết
-                                  lập tài sản
-                                </button>
-                                {canDeleteRoom && (
+                        const menuItemClass =
+                          'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
+                        const roomActionMenu = (
+                          <div
+                            className={`absolute right-0 w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 animate-[fadeIn_0.15s_ease-out] ${menuPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+                          >
+                            <div className="grid grid-cols-2 gap-2">
+                              {room.status === 'vacant' ? (
+                                <>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      setRoomToDelete(room)
+                                      setNewContractSeed(null)
+                                      setNewContractRoom(room)
                                       setMenuOpenId(null)
                                     }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium`}
+                                    className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
                                   >
-                                    <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                    phòng
+                                    <i className="fa-solid fa-file-signature w-4 text-green-600"></i> Lập hợp đồng
                                   </button>
-                                )}
-                              </>
-                            ) : room.status === 'ending' ? (
-                              <>
-                                {/* === MENU CHO PHÒNG "SẮP KẾT THÚC" === */}
-                                {endingOutstandingInvoice && (
-                                  <>
-                                    <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
-                                      <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
-                                      <span>
-                                        <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần thu xong
-                                        trước khi xác nhận trả phòng.
-                                      </span>
-                                    </div>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setEditRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-pen-to-square w-4 text-blue-500"></i>{' '}
+                                    Sửa phòng
+                                  </button>
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setServiceZoneRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                    dịch vụ
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setAssetModuleInitialRoomId(room.id)
+                                      requestActiveTab('assets')
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-list-check w-4 text-gray-500"></i> Thiết
+                                    lập tài sản
+                                  </button>
+                                  {canDeleteRoom && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        setPaymentInvoice(endingOutstandingInvoice)
+                                        setRoomToDelete(room)
                                         setMenuOpenId(null)
                                       }}
-                                      className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold col-span-2`}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium`}
                                     >
-                                      <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền
-                                      hóa đơn còn nợ
+                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
+                                      phòng
                                     </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDetailRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
-                                >
-                                  <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    updateRoom(room.id, {
-                                      status: 'occupied',
-                                      expected_end_date: undefined
-                                    } as any).then(() => {
-                                      playSuccess()
-                                      queryClient.invalidateQueries({ queryKey: ['rooms'] })
-                                    })
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
-                                >
-                                  <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
-                                  Hủy báo kết thúc
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setTerminateRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
-                                >
-                                  <i className="fa-solid fa-door-closed w-4 text-red-400"></i> Xác
-                                  nhận trả phòng
-                                </button>
-                                {canCancel && (
+                                  )}
+                                </>
+                              ) : room.status === 'ending' ? (
+                                <>
+                                  {/* === MENU CHO PHÒNG "SẮP KẾT THÚC" === */}
+                                  {endingOutstandingInvoice && (
+                                    <>
+                                      <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
+                                        <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
+                                        <span>
+                                          <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần thu xong
+                                          trước khi xác nhận trả phòng.
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setPaymentInvoice(endingOutstandingInvoice)
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold col-span-2`}
+                                      >
+                                        <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền
+                                        hóa đơn còn nợ
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setDetailRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      updateRoom(room.id, {
+                                        status: 'occupied',
+                                        expected_end_date: undefined
+                                      } as any).then(() => {
+                                        playSuccess()
+                                        queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                                      })
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
+                                    Hủy báo kết thúc
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setTerminateRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
+                                  >
+                                    <i className="fa-solid fa-door-closed w-4 text-red-400"></i> Xác
+                                    nhận trả phòng
+                                  </button>
+                                  {canCancel && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setCancelContractRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-500 font-semibold`}
+                                    >
+                                      <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp
+                                      đồng
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
+                                  >
+                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
+                                    Đóng menu
+                                  </button>
+                                </>
+                              ) : (canCancel || canAbortUnpaidFirstMonthMenu) ? (
+                                <>
+                                  {/* === MENU KHI CHƯA THANH TOÁN HÓA ĐƠN ĐẦU === */}
+                                  <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
+                                    <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
+                                    <span>
+                                      <strong>Hóa đơn chưa được thanh toán.</strong> Thu tiền trước,
+                                      sau đó mới có thể thực hiện các thao tác khác. Hoặc hủy hợp đồng
+                                      nếu nhập nhầm.
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openInvoiceFlow(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
+                                  >
+                                    <i className="fa-solid fa-money-bill-wave w-4"></i>{' '}
+                                    {unpaidFirstMonthForCurrentTenant ? 'Thu tiền hóa đơn' : 'Lập hóa đơn đầu tiên'}
+                                  </button>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -2615,726 +2647,715 @@ const App: React.FC = () => {
                                     }}
                                     className={`${menuItemClass} hover:bg-red-50 text-red-500 font-semibold`}
                                   >
-                                    <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp
-                                    đồng
+                                    <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp đồng
                                   </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
-                                >
-                                  <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                  Đóng menu
-                                </button>
-                              </>
-                            ) : (canCancel || canAbortUnpaidFirstMonthMenu) ? (
-                              <>
-                                {/* === MENU KHI CHƯA THANH TOÁN HÓA ĐƠN ĐẦU === */}
-                                <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
-                                  <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
-                                  <span>
-                                    <strong>Hóa đơn chưa được thanh toán.</strong> Thu tiền trước,
-                                    sau đó mới có thể thực hiện các thao tác khác. Hoặc hủy hợp đồng
-                                    nếu nhập nhầm.
-                                  </span>
-                                </div>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openInvoiceFlow(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
-                                >
-                                  <i className="fa-solid fa-money-bill-wave w-4"></i>{' '}
-                                  {unpaidFirstMonthForCurrentTenant ? 'Thu tiền hóa đơn' : 'Lập hóa đơn đầu tiên'}
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setCancelContractRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-red-50 text-red-500 font-semibold`}
-                                >
-                                  <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp đồng
-                                </button>
-                                {canDeleteRoom && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setRoomToDelete(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
-                                  >
-                                    <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                    phòng
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
-                                >
-                                  <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                  Đóng menu
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {/* === MENU ĐẦY ĐỦ CHO PHÒNG "ĐANG Ở" === */}
-                                {/* Hàng 1 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openInvoiceFlow(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
-                                >
-                                  <i className="fa-solid fa-file-invoice-dollar w-4"></i> Lập hóa
-                                  đơn
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openInvoiceFlow(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold`}
-                                >
-                                  <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền hàng
-                                  tháng
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setDetailRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
-                                >
-                                  <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
-                                </button>
-                                {/* Hàng 2 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setChangeTargetRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                >
-                                  <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
-                                  Chuyển đổi phòng
-                                </button>
-
-                                {/* Hàng 3 */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setEndNoticeRoom(room)
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
-                                >
-                                  <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo kết
-                                  thúc hợp đồng phòng
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setAssetModuleInitialRoomId(room.id)
-                                    requestActiveTab('assets')
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                >
-                                  <i className="fa-solid fa-table-list w-4 text-gray-500"></i> Thiết
-                                  lập tài sản
-                                </button>
-                                {canDeleteRoom && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setRoomToDelete(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
-                                  >
-                                    <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                    phòng
-                                  </button>
-                                )}
-                                {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
-                                {!activeContract && room.status === 'occupied' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMenuOpenId(null)
-                                      if (window.confirm('Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin tenant và reset phòng về "Đang trống".')) {
-                                        updateRoom(room.id, {
-                                          status: 'vacant',
-                                          tenant_name: undefined,
-                                          tenant_phone: undefined,
-                                          tenant_email: undefined,
-                                          tenant_id_card: undefined,
-                                          move_in_date: undefined,
-                                          contract_expiration: undefined,
-                                        } as any).then(() => {
-                                          queryClient.invalidateQueries({ queryKey: ['rooms'] })
-                                        })
-                                      }
-                                    }}
-                                    className={`${menuItemClass} hover:bg-amber-50 text-amber-700 font-semibold col-span-2 border border-amber-200 rounded-lg mt-1`}
-                                  >
-                                    <i className="fa-solid fa-person-walking-arrow-right w-4 text-amber-600"></i>{' '}
-                                    Đánh dấu đã chuyển đi (không có HĐ)
-                                  </button>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setMenuOpenId(null)
-                                  }}
-                                  className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center mt-2`}
-                                >
-                                  <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                  Đóng menu
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      )
-
-                      return (
-                        <tr
-                          key={room.id}
-                          className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
-                        >
-                          <td className="px-4 py-3 text-center text-gray-400">
-                            <i className="fa-solid fa-bars"></i>
-                          </td>
-                          <td className="px-4 py-3 font-bold flex items-center gap-2 text-gray-800">
-                            <div
-                              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
-                            >
-                              <i className="fa-solid fa-door-open"></i>
-                            </div>
-                            <span className="block truncate py-1">{room.name}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
-                              {formatVND(room.base_rent)} đ
-                            </div>
-                            {room.status === 'occupied' &&
-                              (() => {
-                                const contract = contracts.find(
-                                  (c) => c.room_id === room.id && c.status === 'active'
-                                )
-                                if (!contract) return null
-                                const paidRentInvoices = invoices.filter(
-                                  (i) => i.room_id === room.id && i.paid_amount > 0
-                                )
-
-                                return (
-                                  <div className="text-[10px] mt-0.5 flex flex-col items-start leading-tight">
-                                    {paidRentInvoices.length === 0 && (
-                                      <span className="text-red-500 font-medium whitespace-nowrap">
-                                        Chưa thu lần nào
-                                      </span>
-                                    )}
-                                  </div>
-                                )
-                              })()}
-                          </td>
-                          <td className="px-4 py-3">
-                            {(() => {
-                              // Bảng màu cho mỗi vùng
-                              const zoneColors = [
-                                {
-                                  bg: 'bg-emerald-100',
-                                  text: 'text-emerald-700',
-                                  border: 'border-emerald-200',
-                                  dot: 'bg-emerald-500',
-                                  tooltipBg: 'bg-emerald-800',
-                                  arrow: 'border-b-emerald-800'
-                                },
-                                {
-                                  bg: 'bg-violet-100',
-                                  text: 'text-violet-700',
-                                  border: 'border-violet-200',
-                                  dot: 'bg-violet-500',
-                                  tooltipBg: 'bg-violet-800',
-                                  arrow: 'border-b-violet-800'
-                                },
-                                {
-                                  bg: 'bg-amber-100',
-                                  text: 'text-amber-700',
-                                  border: 'border-amber-200',
-                                  dot: 'bg-amber-500',
-                                  tooltipBg: 'bg-amber-800',
-                                  arrow: 'border-b-amber-800'
-                                },
-                                {
-                                  bg: 'bg-sky-100',
-                                  text: 'text-sky-700',
-                                  border: 'border-sky-200',
-                                  dot: 'bg-sky-500',
-                                  tooltipBg: 'bg-sky-800',
-                                  arrow: 'border-b-sky-800'
-                                },
-                                {
-                                  bg: 'bg-rose-100',
-                                  text: 'text-rose-700',
-                                  border: 'border-rose-200',
-                                  dot: 'bg-rose-500',
-                                  tooltipBg: 'bg-rose-800',
-                                  arrow: 'border-b-rose-800'
-                                },
-                                {
-                                  bg: 'bg-teal-100',
-                                  text: 'text-teal-700',
-                                  border: 'border-teal-200',
-                                  dot: 'bg-teal-500',
-                                  tooltipBg: 'bg-teal-800',
-                                  arrow: 'border-b-teal-800'
-                                }
-                              ]
-                              const zoneIndex = serviceZones.findIndex(
-                                (z) => z.id === (zone as any)?.id
-                              )
-                              const color =
-                                zoneColors[zoneIndex >= 0 ? zoneIndex % zoneColors.length : 0]
-                              const fixedTotal =
-                                (zone.internet_price || 0) + (zone.cleaning_price || 0)
-
-                              return (
-                                <div className="relative group/tooltip inline-block cursor-help">
-                                  <div
-                                    className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
-                                  >
-                                    <span
-                                      className={`w-2 h-2 rounded-full ${color.dot} shrink-0`}
-                                    ></span>
-                                    <span className="tabular-nums">{formatVND(fixedTotal)} đ</span>
-                                  </div>
-                                  {/* Tooltip Content */}
-                                  <div
-                                    className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 ${color.tooltipBg} text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50`}
-                                  >
-                                    <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
-                                      {zone.name}
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <div className="flex justify-between">
-                                        <span>
-                                          <i className="fa-solid fa-bolt text-yellow-400 w-4"></i>{' '}
-                                          Điện:
-                                        </span>{' '}
-                                        <span className="font-semibold tabular-nums">
-                                          {formatVND(zone.electric_price)} đ/kWh
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>
-                                          <i className="fa-solid fa-droplet text-blue-300 w-4"></i>{' '}
-                                          Nước:
-                                        </span>{' '}
-                                        <span className="font-semibold tabular-nums">
-                                          {formatVND(zone.water_price)} đ/m³
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>
-                                          <i className="fa-solid fa-wifi text-green-300 w-4"></i>{' '}
-                                          Nét:
-                                        </span>{' '}
-                                        <span className="font-semibold tabular-nums">
-                                          {formatVND(zone.internet_price)} đ/ph
-                                        </span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>
-                                          <i className="fa-solid fa-broom text-gray-300 w-4"></i>{' '}
-                                          Rác:
-                                        </span>{' '}
-                                        <span className="font-semibold tabular-nums">
-                                          {formatVND(zone.cleaning_price)} đ/ph
-                                        </span>
-                                      </div>
-                                    </div>
-                                    <div className="mt-2 pt-1.5 border-t border-white/20 flex justify-between font-bold text-sm">
-                                      <span>Cố định:</span>
-                                      <span className="tabular-nums">
-                                        {formatVND(fixedTotal)} đ/th
-                                      </span>
-                                    </div>
-                                    {/* Arrow pointing up */}
-                                    <div
-                                      className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${color.arrow}`}
-                                    ></div>
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                          </td>
-
-                          <td className="px-4 py-3">
-                            {(() => {
-                              // Chỉ tính tiền cọc khi phòng đang có người ở
-                              if (room.status === 'vacant') {
-                                return <span className="text-gray-300 text-xs">—</span>
-                              }
-                              const receipt = moveInReceipts.find(
-                                (r) =>
-                                  r.room_id === room.id &&
-                                  r.payment_status === 'paid' &&
-                                  (!activeContract?.move_in_date ||
-                                    r.move_in_date === activeContract.move_in_date)
-                              )
-                              const currentTenantInvoices = invoices.filter(
-                                (i) =>
-                                  i.room_id === room.id &&
-                                  i.payment_status !== 'cancelled' &&
-                                  (!activeContract?.tenant_id ||
-                                    i.tenant_id === activeContract.tenant_id)
-                              )
-                              const depositCollected =
-                                Boolean(receipt) ||
-                                currentTenantInvoices.some(
-                                  (i) =>
-                                    (i.payment_status === 'paid' ||
-                                      i.payment_status === 'partial') &&
-                                    (i.deposit_amount || 0) > 0 &&
-                                    i.paid_amount > 0
-                                )
-                              if (depositCollected) {
-                                return (
-                                  <div>
-                                    <div className="font-bold text-gray-800">
-                                      {formatVND(
-                                        activeContract?.deposit_amount || room.default_deposit || 0
-                                      )}{' '}
-                                      đ
-                                    </div>
-                                    <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-600">
-                                      <i className="fa-solid fa-lock"></i> Đã thu
-                                    </div>
-                                  </div>
-                                )
-                              }
-                              return (
-                                <div>
-                                  <EditableCell
-                                    value={room.default_deposit || 0}
-                                    displayValue={`${formatVND(room.default_deposit || 0)} đ`}
-                                    type="number"
-                                    className="font-bold text-gray-800"
-                                    onSave={(v) =>
-                                      handleQueueChange(room.id, { default_deposit: Number(v) })
-                                    }
-                                  />
-                                  {room.status === 'occupied' && (
-                                    <div className="text-[10px] text-red-500 mt-0.5 leading-tight">
-                                      <span className="italic whitespace-nowrap">
-                                        (Chưa thu tiền cọc)
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {(() => {
-                              // Nợ thuộc về tenant, không thuộc phòng.
-                              // Phòng trống → không hiển thị nợ cũ.
-                              if (room.status === 'vacant') {
-                                return <span className="text-gray-300 text-xs">—</span>
-                              }
-                              const activeContract = contracts.find(
-                                (c) => c.room_id === room.id && c.status === 'active'
-                              )
-                              const debt = invoices
-                                .filter(
-                                  (i) =>
-                                    i.room_id === room.id &&
-                                    i.payment_status !== 'paid' &&
-                                    i.payment_status !== 'cancelled' &&
-                                    (!activeContract?.tenant_id ||
-                                      i.tenant_id === activeContract.tenant_id)
-                                )
-                                .reduce(
-                                  (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
-                                  0
-                                )
-                              return debt > 0 ? (
-                                <span className="text-red-500">{formatVND(debt)} đ</span>
-                              ) : (
-                                <span className="text-gray-400">0 đ</span>
-                              )
-                            })()}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            <EditableCell
-                              value={room.max_occupants || 2}
-                              type="select"
-                              options={[
-                                { value: '0', label: '0 người' },
-                                { value: '1', label: '1 người' },
-                                { value: '2', label: '2 người' },
-                                { value: '3', label: '3 người' },
-                                { value: '4', label: '4 người' },
-                                { value: '5', label: '5 người' },
-                                { value: '6', label: '6 người' }
-                              ]}
-                              displayValue={`${room.max_occupants || 2} người`}
-                              onSave={(v) =>
-                                handleQueueChange(room.id, { max_occupants: Number(v) })
-                              }
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 text-sm">
-                            {(() => {
-                              if (room.status === 'vacant') {
-                                return <span className="text-gray-400 italic text-xs">Chưa có</span>
-                              }
-                              const activeContract = contracts.find(
-                                (c) => c.room_id === room.id && c.status === 'active'
-                              )
-                              const moveInDate = activeContract?.move_in_date || room.move_in_date
-
-                              if (moveInDate) {
-                                return (
-                                  <span className="font-medium">
-                                    {new Date(moveInDate).toLocaleDateString('vi-VN', {
-                                      day: '2-digit',
-                                      month: '2-digit',
-                                      year: 'numeric'
-                                    })}
-                                  </span>
-                                )
-                              }
-                              return <span className="text-gray-400 italic text-xs">Chưa có</span>
-                            })()}
-                          </td>
-                          <td
-                            className="px-4 py-3 text-center"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <div>
-                              <span
-                                title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
-                                className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-wide ${room.status === 'vacant'
-                                  ? 'bg-orange-500'
-                                  : room.status === 'occupied'
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_4px_14px_-8px_rgba(16,185,129,0.75)]'
-                                    : room.status === 'ending'
-                                      ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md shadow-orange-300/30'
-                                      : 'bg-yellow-500 text-white'
-                                  }`}
-                              >
-                                {room.status === 'occupied' && (
-                                  <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-                                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
-                                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-emerald-300 opacity-80 animate-pulse"></span>
-                                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 shadow-[0_0_0_2px_rgba(16,185,129,0.18),0_0_10px_rgba(16,185,129,0.65)]"></span>
-                                  </span>
-                                )}
-                                {room.status === 'ending' && (
-                                  <i className="fa-solid fa-bell text-[9px]"></i>
-                                )}
-                                {room.status === 'vacant'
-                                  ? 'Đang trống'
-                                  : room.status === 'occupied'
-                                    ? 'Đang ở'
-                                    : room.status === 'ending'
-                                      ? 'Sắp chuyển phòng'
-                                      : 'Bảo trì'}
-                              </span>
-                              {room.status === 'ending' &&
-                                room.expected_end_date &&
-                                (() => {
-                                  const daysLeft = Math.ceil(
-                                    (new Date(room.expected_end_date).getTime() -
-                                      new Date().getTime()) /
-                                    (1000 * 60 * 60 * 24)
-                                  )
-                                  const dateStr = new Date(
-                                    room.expected_end_date
-                                  ).toLocaleDateString('vi-VN', {
-                                    day: '2-digit',
-                                    month: '2-digit'
-                                  })
-                                  return (
-                                    <div
-                                      className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 3 ? 'text-red-500' : 'text-orange-500'}`}
+                                  {canDeleteRoom && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setRoomToDelete(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
                                     >
-                                      Còn {daysLeft} ngày ({dateStr})
-                                    </div>
-                                  )
-                                })()}
-                            </div>
-                          </td>
-                          {(() => {
-                            const today = new Date()
-                            const currentMonth = today.getMonth() + 1
-                            const currentYear = today.getFullYear()
-                            const hasActiveContract = contracts.find(
-                              (c) => c.room_id === room.id && c.status === 'active'
-                            )
-                            const roomMonthInvoices = invoices
-                              .filter(
-                                (i) =>
-                                  i.room_id === room.id &&
-                                  i.month === currentMonth &&
-                                  i.year === currentYear &&
-                                  i.payment_status !== 'cancelled' &&
-                                  i.payment_status !== 'merged' &&
-                                  !i.is_settlement &&
-                                  (!hasActiveContract?.tenant_id ||
-                                    i.tenant_id === hasActiveContract.tenant_id)
-                              )
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.created_at).getTime() -
-                                  new Date(a.created_at).getTime()
-                              )
-
-                            const currentTenantInvoices = invoices
-                              .filter(
-                                (i) =>
-                                  i.room_id === room.id &&
-                                  i.payment_status !== 'cancelled' &&
-                                  i.payment_status !== 'merged' &&
-                                  (!hasActiveContract?.tenant_id ||
-                                    i.tenant_id === hasActiveContract.tenant_id)
-                              )
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.created_at).getTime() -
-                                  new Date(a.created_at).getTime()
-                              )
-
-                            const unpaidFirstMonthInvoice = currentTenantInvoices.find(
-                              (i) =>
-                                i.is_first_month &&
-                                (i.payment_status === 'unpaid' || i.payment_status === 'partial')
-                            )
-
-                            const roomInvoice =
-                              unpaidFirstMonthInvoice ||
-                              roomMonthInvoices.find(
-                                (i) =>
-                                  i.is_first_month &&
-                                  (i.payment_status === 'unpaid' || i.payment_status === 'partial')
-                              ) ||
-                              roomMonthInvoices.find(
-                                (i) =>
-                                  i.payment_status === 'unpaid' || i.payment_status === 'partial'
-                              ) ||
-                              roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
-                              null
-
-                            // Tính ngày đầu tháng sau
-                            const nextMonthFirst = new Date(currentYear, currentMonth, 1)
-                            const daysUntilNext = Math.ceil(
-                              (nextMonthFirst.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-                            )
-
-                            // Helper: phòng mới = có contract active nhưng chưa từng trả tiền lần nào
-                            const firstMonthInvoice = currentTenantInvoices.find(
-                              (i) => i.is_first_month
-                            )
-                            const isNewContract = !!hasActiveContract && !firstMonthInvoice
-                            const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
-
-                            const btnNewContract = (
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedRoom(room)
-                                  }}
-                                  className="bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
-                                >
-                                  <i className="fa-solid fa-triangle-exclamation mr-1"></i>
-                                  Cần lập HĐ đầu tiên
-                                </button>
-                              </td>
-                            )
-
-                            const btnReceiveRoom = (
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setAssetModuleInitialRoomId(room.id)
-                                    setAssetModuleGuideMode('move_in')
-                                    requestActiveTab('assets')
-                                  }}
-                                  className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
-                                >
-                                  <i className="fa-solid fa-clipboard-check mr-1"></i>
-                                  Cần nhận phòng
-                                </button>
-                              </td>
-                            )
-
-                            if (!roomInvoice || room.status === 'vacant') {
-                              if (!room.move_in_date || room.status === 'vacant') {
-                                return (
-                                  <td className="px-4 py-3 text-center">
-                                    <span className="text-gray-400 text-[10px] italic">—</span>
-                                  </td>
-                                )
-                              }
-                              // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
-                              if (room.status === 'ending') {
-                                return (
-                                  <td className="px-4 py-3 text-center">
-                                    <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
-                                      <i className="fa-solid fa-clock mr-1"></i>Chờ trả phòng
-                                    </span>
-                                  </td>
-                                )
-                              }
-                              if (isNewContract && !hasReceivedAssets) return btnReceiveRoom
-                              if (isNewContract) {
-                                return btnNewContract
-                              }
-                              return (
-                                <td className="px-4 py-3 text-center">
+                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
+                                      phòng
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
+                                  >
+                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
+                                    Đóng menu
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {/* === MENU ĐẦY ĐỦ CHO PHÒNG "ĐANG Ở" === */}
+                                  {/* Hàng 1 */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
                                       openInvoiceFlow(room)
+                                      setMenuOpenId(null)
                                     }}
-                                    className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
+                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
                                   >
-                                    Có thể lập HĐ ngay
+                                    <i className="fa-solid fa-file-invoice-dollar w-4"></i> Lập hóa
+                                    đơn
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openInvoiceFlow(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold`}
+                                  >
+                                    <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền hàng
+                                    tháng
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setDetailRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
+                                  </button>
+                                  {/* Hàng 2 */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setChangeTargetRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
+                                    Chuyển đổi phòng
+                                  </button>
+
+                                  {/* Hàng 3 */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setEndNoticeRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo kết
+                                    thúc hợp đồng phòng
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setAssetModuleInitialRoomId(room.id)
+                                      requestActiveTab('assets')
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-table-list w-4 text-gray-500"></i> Thiết
+                                    lập tài sản
+                                  </button>
+                                  {canDeleteRoom && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setRoomToDelete(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                    >
+                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
+                                      phòng
+                                    </button>
+                                  )}
+                                  {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
+                                  {!activeContract && room.status === 'occupied' && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMenuOpenId(null)
+                                        if (window.confirm('Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin tenant và reset phòng về "Đang trống".')) {
+                                          updateRoom(room.id, {
+                                            status: 'vacant',
+                                            tenant_name: undefined,
+                                            tenant_phone: undefined,
+                                            tenant_email: undefined,
+                                            tenant_id_card: undefined,
+                                            move_in_date: undefined,
+                                            contract_expiration: undefined,
+                                          } as any).then(() => {
+                                            queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                                          })
+                                        }
+                                      }}
+                                      className={`${menuItemClass} hover:bg-amber-50 text-amber-700 font-semibold col-span-2 border border-amber-200 rounded-lg mt-1`}
+                                    >
+                                      <i className="fa-solid fa-person-walking-arrow-right w-4 text-amber-600"></i>{' '}
+                                      Đánh dấu đã chuyển đi (không có HĐ)
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center mt-2`}
+                                  >
+                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
+                                    Đóng menu
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+
+                        return (
+                          <tr
+                            key={room.id}
+                            className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
+                          >
+                            <td className="px-4 py-3 text-center text-gray-400">
+                              <i className="fa-solid fa-bars"></i>
+                            </td>
+                            <td className="px-4 py-3 font-bold flex items-center gap-2 text-gray-800">
+                              <div
+                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
+                              >
+                                <i className="fa-solid fa-door-open"></i>
+                              </div>
+                              <span className="block truncate py-1">{room.name}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
+                                {formatVND(room.base_rent)} đ
+                              </div>
+                              {room.status === 'occupied' &&
+                                (() => {
+                                  const contract = contracts.find(
+                                    (c) => c.room_id === room.id && c.status === 'active'
+                                  )
+                                  if (!contract) return null
+                                  const paidRentInvoices = invoices.filter(
+                                    (i) => i.room_id === room.id && i.paid_amount > 0
+                                  )
+
+                                  return (
+                                    <div className="text-[10px] mt-0.5 flex flex-col items-start leading-tight">
+                                      {paidRentInvoices.length === 0 && (
+                                        <span className="text-red-500 font-medium whitespace-nowrap">
+                                          Chưa thu lần nào
+                                        </span>
+                                      )}
+                                    </div>
+                                  )
+                                })()}
+                            </td>
+                            <td className="px-4 py-3">
+                              {(() => {
+                                // Bảng màu cho mỗi vùng
+                                const zoneColors = [
+                                  {
+                                    bg: 'bg-emerald-100',
+                                    text: 'text-emerald-700',
+                                    border: 'border-emerald-200',
+                                    dot: 'bg-emerald-500',
+                                    tooltipBg: 'bg-emerald-800',
+                                    arrow: 'border-b-emerald-800'
+                                  },
+                                  {
+                                    bg: 'bg-violet-100',
+                                    text: 'text-violet-700',
+                                    border: 'border-violet-200',
+                                    dot: 'bg-violet-500',
+                                    tooltipBg: 'bg-violet-800',
+                                    arrow: 'border-b-violet-800'
+                                  },
+                                  {
+                                    bg: 'bg-amber-100',
+                                    text: 'text-amber-700',
+                                    border: 'border-amber-200',
+                                    dot: 'bg-amber-500',
+                                    tooltipBg: 'bg-amber-800',
+                                    arrow: 'border-b-amber-800'
+                                  },
+                                  {
+                                    bg: 'bg-sky-100',
+                                    text: 'text-sky-700',
+                                    border: 'border-sky-200',
+                                    dot: 'bg-sky-500',
+                                    tooltipBg: 'bg-sky-800',
+                                    arrow: 'border-b-sky-800'
+                                  },
+                                  {
+                                    bg: 'bg-rose-100',
+                                    text: 'text-rose-700',
+                                    border: 'border-rose-200',
+                                    dot: 'bg-rose-500',
+                                    tooltipBg: 'bg-rose-800',
+                                    arrow: 'border-b-rose-800'
+                                  },
+                                  {
+                                    bg: 'bg-teal-100',
+                                    text: 'text-teal-700',
+                                    border: 'border-teal-200',
+                                    dot: 'bg-teal-500',
+                                    tooltipBg: 'bg-teal-800',
+                                    arrow: 'border-b-teal-800'
+                                  }
+                                ]
+                                const zoneIndex = serviceZones.findIndex(
+                                  (z) => z.id === (zone as any)?.id
+                                )
+                                const color =
+                                  zoneColors[zoneIndex >= 0 ? zoneIndex % zoneColors.length : 0]
+                                const fixedTotal =
+                                  (zone.internet_price || 0) + (zone.cleaning_price || 0)
+
+                                return (
+                                  <div className="relative group/tooltip inline-block cursor-help">
+                                    <div
+                                      className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
+                                    >
+                                      <span
+                                        className={`w-2 h-2 rounded-full ${color.dot} shrink-0`}
+                                      ></span>
+                                      <span className="tabular-nums">{formatVND(fixedTotal)} đ</span>
+                                    </div>
+                                    {/* Tooltip Content */}
+                                    <div
+                                      className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 ${color.tooltipBg} text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50`}
+                                    >
+                                      <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
+                                        {zone.name}
+                                      </div>
+                                      <div className="space-y-1.5">
+                                        <div className="flex justify-between">
+                                          <span>
+                                            <i className="fa-solid fa-bolt text-yellow-400 w-4"></i>{' '}
+                                            Điện:
+                                          </span>{' '}
+                                          <span className="font-semibold tabular-nums">
+                                            {formatVND(zone.electric_price)} đ/kWh
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>
+                                            <i className="fa-solid fa-droplet text-blue-300 w-4"></i>{' '}
+                                            Nước:
+                                          </span>{' '}
+                                          <span className="font-semibold tabular-nums">
+                                            {formatVND(zone.water_price)} đ/m³
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>
+                                            <i className="fa-solid fa-wifi text-green-300 w-4"></i>{' '}
+                                            Nét:
+                                          </span>{' '}
+                                          <span className="font-semibold tabular-nums">
+                                            {formatVND(zone.internet_price)} đ/ph
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span>
+                                            <i className="fa-solid fa-broom text-gray-300 w-4"></i>{' '}
+                                            Rác:
+                                          </span>{' '}
+                                          <span className="font-semibold tabular-nums">
+                                            {formatVND(zone.cleaning_price)} đ/ph
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="mt-2 pt-1.5 border-t border-white/20 flex justify-between font-bold text-sm">
+                                        <span>Cố định:</span>
+                                        <span className="tabular-nums">
+                                          {formatVND(fixedTotal)} đ/th
+                                        </span>
+                                      </div>
+                                      {/* Arrow pointing up */}
+                                      <div
+                                        className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${color.arrow}`}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                )
+                              })()}
+                            </td>
+
+                            <td className="px-4 py-3">
+                              {(() => {
+                                // Chỉ tính tiền cọc khi phòng đang có người ở
+                                if (room.status === 'vacant') {
+                                  return <span className="text-gray-300 text-xs">—</span>
+                                }
+                                const receipt = moveInReceipts.find(
+                                  (r) =>
+                                    r.room_id === room.id &&
+                                    r.payment_status === 'paid' &&
+                                    (!activeContract?.move_in_date ||
+                                      r.move_in_date === activeContract.move_in_date)
+                                )
+                                const currentTenantInvoices = invoices.filter(
+                                  (i) =>
+                                    i.room_id === room.id &&
+                                    i.payment_status !== 'cancelled' &&
+                                    (!activeContract?.tenant_id ||
+                                      i.tenant_id === activeContract.tenant_id)
+                                )
+                                const depositCollected =
+                                  Boolean(receipt) ||
+                                  currentTenantInvoices.some(
+                                    (i) =>
+                                      (i.payment_status === 'paid' ||
+                                        i.payment_status === 'partial') &&
+                                      (i.deposit_amount || 0) > 0 &&
+                                      i.paid_amount > 0
+                                  )
+                                if (depositCollected) {
+                                  return (
+                                    <div>
+                                      <div className="font-bold text-gray-800">
+                                        {formatVND(
+                                          activeContract?.deposit_amount || room.default_deposit || 0
+                                        )}{' '}
+                                        đ
+                                      </div>
+                                      <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-600">
+                                        <i className="fa-solid fa-lock"></i> Đã thu
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return (
+                                  <div>
+                                    <EditableCell
+                                      value={room.default_deposit || 0}
+                                      displayValue={`${formatVND(room.default_deposit || 0)} đ`}
+                                      type="number"
+                                      className="font-bold text-gray-800"
+                                      onSave={(v) =>
+                                        handleQueueChange(room.id, { default_deposit: Number(v) })
+                                      }
+                                    />
+                                    {room.status === 'occupied' && (
+                                      <div className="text-[10px] text-red-500 mt-0.5 leading-tight">
+                                        <span className="italic whitespace-nowrap">
+                                          (Chưa thu tiền cọc)
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {(() => {
+                                // Nợ thuộc về tenant, không thuộc phòng.
+                                // Phòng trống → không hiển thị nợ cũ.
+                                if (room.status === 'vacant') {
+                                  return <span className="text-gray-300 text-xs">—</span>
+                                }
+                                const activeContract = contracts.find(
+                                  (c) => c.room_id === room.id && c.status === 'active'
+                                )
+                                const debt = invoices
+                                  .filter(
+                                    (i) =>
+                                      i.room_id === room.id &&
+                                      i.payment_status !== 'paid' &&
+                                      i.payment_status !== 'cancelled' &&
+                                      (!activeContract?.tenant_id ||
+                                        i.tenant_id === activeContract.tenant_id)
+                                  )
+                                  .reduce(
+                                    (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
+                                    0
+                                  )
+                                return debt > 0 ? (
+                                  <span className="text-red-500">{formatVND(debt)} đ</span>
+                                ) : (
+                                  <span className="text-gray-400">0 đ</span>
+                                )
+                              })()}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <EditableCell
+                                value={room.max_occupants || 2}
+                                type="select"
+                                options={[
+                                  { value: '0', label: '0 người' },
+                                  { value: '1', label: '1 người' },
+                                  { value: '2', label: '2 người' },
+                                  { value: '3', label: '3 người' },
+                                  { value: '4', label: '4 người' },
+                                  { value: '5', label: '5 người' },
+                                  { value: '6', label: '6 người' }
+                                ]}
+                                displayValue={`${room.max_occupants || 2} người`}
+                                onSave={(v) =>
+                                  handleQueueChange(room.id, { max_occupants: Number(v) })
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 text-sm">
+                              {(() => {
+                                if (room.status === 'vacant') {
+                                  return <span className="text-gray-400 italic text-xs">Chưa có</span>
+                                }
+                                const activeContract = contracts.find(
+                                  (c) => c.room_id === room.id && c.status === 'active'
+                                )
+                                const moveInDate = activeContract?.move_in_date || room.move_in_date
+
+                                if (moveInDate) {
+                                  return (
+                                    <span className="font-medium">
+                                      {new Date(moveInDate).toLocaleDateString('vi-VN', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric'
+                                      })}
+                                    </span>
+                                  )
+                                }
+                                return <span className="text-gray-400 italic text-xs">Chưa có</span>
+                              })()}
+                            </td>
+                            <td
+                              className="px-4 py-3 text-center"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div>
+                                <span
+                                  title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
+                                  className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-wide ${room.status === 'vacant'
+                                    ? 'bg-orange-500'
+                                    : room.status === 'occupied'
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_4px_14px_-8px_rgba(16,185,129,0.75)]'
+                                      : room.status === 'ending'
+                                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md shadow-orange-300/30'
+                                        : 'bg-yellow-500 text-white'
+                                    }`}
+                                >
+                                  {room.status === 'occupied' && (
+                                    <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+                                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
+                                      <span className="absolute inline-flex h-2 w-2 rounded-full bg-emerald-300 opacity-80 animate-pulse"></span>
+                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 shadow-[0_0_0_2px_rgba(16,185,129,0.18),0_0_10px_rgba(16,185,129,0.65)]"></span>
+                                    </span>
+                                  )}
+                                  {room.status === 'ending' && (
+                                    <i className="fa-solid fa-bell text-[9px]"></i>
+                                  )}
+                                  {room.status === 'vacant'
+                                    ? 'Đang trống'
+                                    : room.status === 'occupied'
+                                      ? 'Đang ở'
+                                      : room.status === 'ending'
+                                        ? 'Sắp chuyển phòng'
+                                        : 'Bảo trì'}
+                                </span>
+                                {room.status === 'ending' &&
+                                  room.expected_end_date &&
+                                  (() => {
+                                    const daysLeft = Math.ceil(
+                                      (new Date(room.expected_end_date).getTime() -
+                                        new Date().getTime()) /
+                                      (1000 * 60 * 60 * 24)
+                                    )
+                                    const dateStr = new Date(
+                                      room.expected_end_date
+                                    ).toLocaleDateString('vi-VN', {
+                                      day: '2-digit',
+                                      month: '2-digit'
+                                    })
+                                    return (
+                                      <div
+                                        className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 3 ? 'text-red-500' : 'text-orange-500'}`}
+                                      >
+                                        Còn {daysLeft} ngày ({dateStr})
+                                      </div>
+                                    )
+                                  })()}
+                              </div>
+                            </td>
+                            {(() => {
+                              const today = new Date()
+                              const currentMonth = today.getMonth() + 1
+                              const currentYear = today.getFullYear()
+                              const hasActiveContract = contracts.find(
+                                (c) => c.room_id === room.id && c.status === 'active'
+                              )
+                              const roomMonthInvoices = invoices
+                                .filter(
+                                  (i) =>
+                                    i.room_id === room.id &&
+                                    i.month === currentMonth &&
+                                    i.year === currentYear &&
+                                    i.payment_status !== 'cancelled' &&
+                                    i.payment_status !== 'merged' &&
+                                    !i.is_settlement &&
+                                    (!hasActiveContract?.tenant_id ||
+                                      i.tenant_id === hasActiveContract.tenant_id)
+                                )
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.created_at).getTime() -
+                                    new Date(a.created_at).getTime()
+                                )
+
+                              const currentTenantInvoices = invoices
+                                .filter(
+                                  (i) =>
+                                    i.room_id === room.id &&
+                                    i.payment_status !== 'cancelled' &&
+                                    i.payment_status !== 'merged' &&
+                                    (!hasActiveContract?.tenant_id ||
+                                      i.tenant_id === hasActiveContract.tenant_id)
+                                )
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.created_at).getTime() -
+                                    new Date(a.created_at).getTime()
+                                )
+
+                              const unpaidFirstMonthInvoice = currentTenantInvoices.find(
+                                (i) =>
+                                  i.is_first_month &&
+                                  (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                              )
+
+                              const roomInvoice =
+                                unpaidFirstMonthInvoice ||
+                                roomMonthInvoices.find(
+                                  (i) =>
+                                    i.is_first_month &&
+                                    (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                                ) ||
+                                roomMonthInvoices.find(
+                                  (i) =>
+                                    i.payment_status === 'unpaid' || i.payment_status === 'partial'
+                                ) ||
+                                roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
+                                null
+
+                              // Tính ngày đầu tháng sau
+                              const nextMonthFirst = new Date(currentYear, currentMonth, 1)
+                              const daysUntilNext = Math.ceil(
+                                (nextMonthFirst.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+                              )
+
+                              // Helper: phòng mới = có contract active nhưng chưa từng trả tiền lần nào
+                              const firstMonthInvoice = currentTenantInvoices.find(
+                                (i) => i.is_first_month
+                              )
+                              const isNewContract = !!hasActiveContract && !firstMonthInvoice
+                              const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
+
+                              const btnNewContract = (
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedRoom(room)
+                                    }}
+                                    className="bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                  >
+                                    <i className="fa-solid fa-triangle-exclamation mr-1"></i>
+                                    Cần lập HĐ đầu tiên
                                   </button>
                                 </td>
                               )
-                            }
 
-                            if (hasActiveContract && room.status === 'occupied' && !hasReceivedAssets) {
-                              return btnReceiveRoom
-                            }
+                              const btnReceiveRoom = (
+                                <td className="px-4 py-3 text-center">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setAssetModuleInitialRoomId(room.id)
+                                      setAssetModuleGuideMode('move_in')
+                                      requestActiveTab('assets')
+                                    }}
+                                    className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                  >
+                                    <i className="fa-solid fa-clipboard-check mr-1"></i>
+                                    Cần nhận phòng
+                                  </button>
+                                </td>
+                              )
 
-                            if (
-                              roomInvoice.payment_status === 'unpaid' ||
-                              roomInvoice.payment_status === 'partial'
-                            ) {
-                              if (room.status === 'ending') {
+                              if (!roomInvoice || room.status === 'vacant') {
+                                if (!room.move_in_date || room.status === 'vacant') {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="text-gray-400 text-[10px] italic">—</span>
+                                    </td>
+                                  )
+                                }
+                                // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
+                                if (room.status === 'ending') {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
+                                        <i className="fa-solid fa-clock mr-1"></i>Chờ trả phòng
+                                      </span>
+                                    </td>
+                                  )
+                                }
+                                if (isNewContract && !hasReceivedAssets) return btnReceiveRoom
+                                if (isNewContract) {
+                                  return btnNewContract
+                                }
+                                return (
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openInvoiceFlow(room)
+                                      }}
+                                      className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
+                                    >
+                                      Có thể lập HĐ ngay
+                                    </button>
+                                  </td>
+                                )
+                              }
+
+                              if (hasActiveContract && room.status === 'occupied' && !hasReceivedAssets) {
+                                return btnReceiveRoom
+                              }
+
+                              if (
+                                roomInvoice.payment_status === 'unpaid' ||
+                                roomInvoice.payment_status === 'partial'
+                              ) {
+                                if (room.status === 'ending') {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setPaymentInvoice(roomInvoice)
+                                        }}
+                                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                      >
+                                        <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                        Thu hóa đơn còn nợ
+                                      </button>
+                                    </td>
+                                  )
+                                }
+                                // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
+                                if (roomInvoice.is_first_month) {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                      >
+                                        <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                        {roomInvoice.payment_status === 'partial'
+                                          ? 'Tháng đầu còn nợ'
+                                          : 'Chưa thu tiền tháng đầu'}
+                                      </button>
+                                    </td>
+                                  )
+                                }
                                 return (
                                   <td className="px-4 py-3 text-center">
                                     <button
@@ -3345,126 +3366,92 @@ const App: React.FC = () => {
                                       className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
                                     >
                                       <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                      Thu hóa đơn còn nợ
+                                      {roomInvoice.payment_status === 'partial'
+                                        ? `Còn nợ tháng ${roomInvoice.month}`
+                                        : `Chưa thu tháng ${roomInvoice.month}`}
                                     </button>
                                   </td>
                                 )
                               }
-                              // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
-                              if (roomInvoice.is_first_month) {
-                                return (
-                                  <td className="px-4 py-3 text-center">
+
+                              // Đã thu (đủ hoặc thiếu)
+                              return (
+                                <td className="px-4 py-3 text-center">
+                                  {daysUntilNext > 0 ? (
+                                    <span className="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded border border-green-200 font-bold inline-flex items-center gap-1.5">
+                                      Đã thu
+                                      <span className="bg-green-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                                        Còn {daysUntilNext}d
+                                      </span>
+                                    </span>
+                                  ) : (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         openInvoiceFlow(room)
                                       }}
-                                      className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                      className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
                                     >
-                                      <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                      {roomInvoice.payment_status === 'partial'
-                                        ? 'Tháng đầu còn nợ'
-                                        : 'Chưa thu tiền tháng đầu'}
+                                      Có thể lập HĐ mới
                                     </button>
-                                  </td>
-                                )
-                              }
-                              return (
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setPaymentInvoice(roomInvoice)
-                                    }}
-                                    className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
-                                  >
-                                    <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                    {roomInvoice.payment_status === 'partial'
-                                      ? `Còn nợ tháng ${roomInvoice.month}`
-                                      : `Chưa thu tháng ${roomInvoice.month}`}
-                                  </button>
+                                  )}
                                 </td>
                               )
-                            }
-
-                            // Đã thu (đủ hoặc thiếu)
-                            return (
-                              <td className="px-4 py-3 text-center">
-                                {daysUntilNext > 0 ? (
-                                  <span className="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded border border-green-200 font-bold inline-flex items-center gap-1.5">
-                                    Đã thu
-                                    <span className="bg-green-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                                      Còn {daysUntilNext}d
-                                    </span>
-                                  </span>
-                                ) : (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openInvoiceFlow(room)
-                                    }}
-                                    className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
-                                  >
-                                    Có thể lập HĐ mới
-                                  </button>
+                            })()}
+                            <td className="px-4 py-3 text-center">
+                              <div className="relative inline-block">
+                                {menuOpenId === room.id && (
+                                  <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setMenuOpenId(null)}
+                                  />
                                 )}
-                              </td>
-                            )
-                          })()}
-                          <td className="px-4 py-3 text-center">
-                            <div className="relative inline-block">
-                              {menuOpenId === room.id && (
-                                <div
-                                  className="fixed inset-0 z-40"
-                                  onClick={() => setMenuOpenId(null)}
-                                />
-                              )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  toggleRoomMenu(e, room.id)
-                                }}
-                                className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-xs font-medium text-gray-600 shadow-sm relative z-10 flex items-center gap-1.5 transition"
-                              >
-                                Xem thêm <i className="fa-solid fa-chevron-down text-[9px]"></i>
-                              </button>
-                              {menuOpenId === room.id && roomActionMenu}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    toggleRoomMenu(e, room.id)
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-xs font-medium text-gray-600 shadow-sm relative z-10 flex items-center gap-1.5 transition"
+                                >
+                                  Xem thêm <i className="fa-solid fa-chevron-down text-[9px]"></i>
+                                </button>
+                                {menuOpenId === room.id && roomActionMenu}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Removed Table Footer to save space as requested */}
+              {/* Removed Table Footer to save space as requested */}
+            </div>
           </div>
-        </div>
-      ) : activeTab === 'invoices' ? (
-        <InvoicesTab />
-      ) : activeTab === 'assets' ? (
-        <AssetsTab
-          initialRoomId={assetModuleInitialRoomId}
-          onReceivePendingChange={handleAssetReceivePendingChange}
-          guideMode={assetModuleGuideMode}
-          guideRoomId={assetModuleInitialRoomId}
-          onGuideHandled={() => setAssetModuleGuideMode(null)}
-        />
-      ) : activeTab === 'contracts' ? (
-        <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
-      ) : activeTab === 'reports' ? (
-        reportSubTab === 'cashflow' ? (
-          <CashFlowTab />
-        ) : (
-          <BusinessReport />
-        )
-      ) : activeTab === 'tenants' ? (
-        <TenantsTab />
-      ) : activeTab === 'settings' ? (
-        <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
-      ) : null}
+        ) : activeTab === 'invoices' ? (
+          <InvoicesTab />
+        ) : activeTab === 'assets' ? (
+          <AssetsTab
+            initialRoomId={assetModuleInitialRoomId}
+            onReceivePendingChange={handleAssetReceivePendingChange}
+            guideMode={assetModuleGuideMode}
+            guideRoomId={assetModuleInitialRoomId}
+            onGuideHandled={() => setAssetModuleGuideMode(null)}
+          />
+        ) : activeTab === 'contracts' ? (
+          <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
+        ) : activeTab === 'reports' ? (
+          reportSubTab === 'cashflow' ? (
+            <CashFlowTab />
+          ) : (
+            <BusinessReport />
+          )
+        ) : activeTab === 'tenants' ? (
+          <TenantsTab />
+        ) : activeTab === 'settings' ? (
+          <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+        ) : null}
       </div>
 
       {updateBanner && (

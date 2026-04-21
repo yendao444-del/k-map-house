@@ -53,6 +53,7 @@ interface UpdateCheckResult {
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
 let updateInProgress = false
+let forcedInstallQueued = false
 const CACHE_DURATION = 5 * 60 * 1000
 const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
 
@@ -416,6 +417,40 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
   return { ...result, latestVersion: update.latestVersion }
 }
 
+function forceInstallUpdate(update: UpdateCheckResult): void {
+  if (!app.isPackaged || !update.hasUpdate || forcedInstallQueued || updateInProgress) return
+
+  if (!update.downloadUrl) {
+    sendToRenderer('update:status', {
+      status: 'error',
+      message: 'Ban phat hanh khong co tep cap nhat phu hop.',
+      data: update
+    })
+    return
+  }
+
+  forcedInstallQueued = true
+  sendToRenderer('update:status', {
+    status: 'available',
+    message: `Co ban moi v${update.latestVersion}. Dang tu dong cap nhat...`,
+    data: update
+  })
+
+  setTimeout(() => {
+    void installUpdate(update.downloadUrl as string)
+      .catch((error) => {
+        sendToRenderer('update:status', {
+          status: 'error',
+          message: error instanceof Error ? error.message : 'Tu dong cap nhat that bai.',
+          data: update
+        })
+      })
+      .finally(() => {
+        forcedInstallQueued = false
+      })
+  }, 1500)
+}
+
 async function runAutoUpdateCheck(): Promise<void> {
   sendToRenderer('update:status', {
     status: 'checking',
@@ -432,14 +467,7 @@ async function runAutoUpdateCheck(): Promise<void> {
 
     if (data.hasUpdate) {
       sendToRenderer('update:available', data)
-      setTimeout(() => {
-        void installLatestUpdate().catch((error) => {
-          sendToRenderer('update:status', {
-            status: 'error',
-            message: error instanceof Error ? error.message : 'Tu dong cap nhat that bai.'
-          })
-        })
-      }, 1500)
+      forceInstallUpdate(data)
     }
   } catch (error) {
     sendToRenderer('update:status', {
@@ -586,6 +614,7 @@ export function registerUpdateHandlers(): void {
       })
       if (data.hasUpdate) {
         sendToRenderer('update:available', data)
+        forceInstallUpdate(data)
       }
       return { success: true, data }
     } catch (error) {
