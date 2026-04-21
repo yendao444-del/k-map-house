@@ -1,5 +1,5 @@
 appId: com.kmaphouse.app
-productName: K-Map House
+productName: DBY HOME
 directories:
   buildResources: build
 files:
@@ -28,14 +28,17 @@ extraFiles:
   - from: node_modules/electron/dist/version
     to: .
 win:
-  executableName: electron
-  signAndEditExecutable: false
+  executableName: DBY Home
+  icon: build/icon.ico
+  signAndEditExecutable: true
 nsis:
-  artifactName: KMapHouse-${version}-setup.${ext}
+  artifactName: DBYHOME-${version}-setup.${ext}
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
   oneClick: false
   allowToChangeInstallationDirectory: true
-  shortcutName: K-Map House
-  uninstallDisplayName: K-Map House
+  shortcutName: DBY HOME
+  uninstallDisplayName: DBY HOME
   createDesktopShortcut: always
   createStartMenuShortcut: true
 mac:

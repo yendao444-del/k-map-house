@@ -117,7 +117,7 @@ const GeneralSettings = (): React.JSX.Element => {
               label="Tên nhà trọ"
               value={settings.property_name || ''}
               onChange={(value) => setSettings((prev) => ({ ...prev, property_name: value }))}
-              placeholder="K-Map House"
+              placeholder="DBY HOME"
             />
             <Field
               label="Người đại diện thu"

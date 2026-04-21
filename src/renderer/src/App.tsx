@@ -50,8 +50,8 @@ type AppTab = 'rooms' | 'invoices' | 'assets' | 'contracts' | 'tenants' | 'repor
 type PendingAssetReceive = { roomId: string; roomName: string }
 type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
 type UpdateBannerInfo = {
-  latestVersion: string
-  downloadUrl: string | null
+  latestVersion?: string
+  downloadUrl?: string | null
   status?: string
   message?: string
   progress?: number
@@ -1266,7 +1266,7 @@ const App: React.FC = () => {
         latestVersion: data.latestVersion,
         downloadUrl: data.downloadUrl,
         status: 'available',
-        message: `C\u00f3 b\u1ea3n c\u1eadp nh\u1eadt v${data.latestVersion}. H\u1ec7 th\u1ed1ng \u0111ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt...`,
+        message: `Có bản cập nhật v${data.latestVersion}. Hệ thống đang tự động cập nhật...`,
         progress: 0
       })
     })
@@ -1274,14 +1274,9 @@ const App: React.FC = () => {
     const removeStatus = window.api.update.onStatus((event) => {
       setUpdateBanner((current) => {
         const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & { currentVersion?: string }
-        const latestVersion = eventData.latestVersion || current?.latestVersion || eventData.currentVersion || ''
-        const downloadUrl = eventData.downloadUrl || current?.downloadUrl || null
-
-        if (!latestVersion) return current
-
         return {
-          latestVersion,
-          downloadUrl,
+          latestVersion: eventData.latestVersion || current?.latestVersion || eventData.currentVersion,
+          downloadUrl: eventData.downloadUrl || current?.downloadUrl || null,
           status: event.status,
           message: event.message,
           progress: current?.progress || 0
@@ -1293,21 +1288,31 @@ const App: React.FC = () => {
       setUpdateBanner((current) => current ? { ...current, progress: event.percent } : current)
     })
 
-    const autoCheckTimer = window.setTimeout(() => {
-      void window.api.update.check().then((result) => {
-        if (!result.success || !result.data?.hasUpdate) return
-        setUpdateBanner({
-          latestVersion: result.data.latestVersion,
-          downloadUrl: result.data.downloadUrl,
-          status: 'available',
-          message: `C\u00f3 b\u1ea3n c\u1eadp nh\u1eadt v${result.data.latestVersion}. H\u1ec7 th\u1ed1ng \u0111ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt...`,
-          progress: 0
-        })
+    const autoInstallTimer = window.setTimeout(() => {
+      setUpdateBanner({
+        status: 'checking',
+        message: 'Đang kiểm tra bản cập nhật...',
+        progress: 0
       })
-    }, 5000)
+
+      void window.api.update.installLatest().then((result) => {
+        if (!result.success) {
+          setUpdateBanner({
+            status: 'error',
+            message: result.error || 'Không thể tự động cập nhật.',
+            progress: 0
+          })
+          return
+        }
+
+        if (!result.data?.applied) {
+          setUpdateBanner(null)
+        }
+      })
+    }, 2500)
 
     return () => {
-      window.clearTimeout(autoCheckTimer)
+      window.clearTimeout(autoInstallTimer)
       removeAvailable()
       removeStatus()
       removeProgress()
@@ -1986,14 +1991,14 @@ const App: React.FC = () => {
           <div className="flex shrink-0 items-center gap-3">
             <div className="flex items-center gap-2.5">
               <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/35 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-1.5 shadow-[0_12px_28px_-12px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <img src={logoNavbar} alt="K-Map House" className="h-full w-full object-contain drop-shadow-sm" />
+                <img src={logoNavbar} alt="DBY HOME" className="h-full w-full object-contain drop-shadow-sm" />
                 <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-amber-300 to-yellow-500 shadow-sm">
                   <i className="fa-solid fa-crown text-[7px] text-white"></i>
                 </span>
               </div>
               <div>
                 <div className="text-base font-extrabold leading-none tracking-tight">
-                  K-Map House
+                  DBY HOME
                 </div>
                 <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.2em] text-white/60">
                   Hệ thống quản trị
@@ -2275,7 +2280,7 @@ const App: React.FC = () => {
                     <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
                     <p className="text-sm text-gray-500">
                       Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
-                      <span className="font-bold text-primary">K-Map House</span>
+                      <span className="font-bold text-primary">DBY HOME</span>
                     </p>
                   </div>
                 </div>
@@ -3459,41 +3464,42 @@ const App: React.FC = () => {
       </div>
 
       {updateBanner && updateBanner.status !== 'idle' && (
-        <div className="fixed right-5 top-24 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl shadow-slate-900/15">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : 'fa-cloud-arrow-down'}`}></i>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-black text-slate-900">
-                {updateBanner.status === 'error' ? 'C\u1eadp nh\u1eadt t\u1ef1 \u0111\u1ed9ng l\u1ed7i' : updateBanner.status === 'restarting' ? '\u0110ang kh\u1edfi \u0111\u1ed9ng l\u1ea1i' : `\u0110ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt v${updateBanner.latestVersion}`}
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/85 p-6 text-white backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-slate-900 shadow-2xl">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}></i>
               </div>
-              <div className="mt-1 text-xs leading-5 text-slate-500">
-                {updateBanner.message || 'H\u1ec7 th\u1ed1ng s\u1ebd t\u1ef1 t\u1ea3i, c\u00e0i \u0111\u1eb7t v\u00e0 kh\u1edfi \u0111\u1ed9ng l\u1ea1i khi s\u1eb5n s\u00e0ng.'}
-              </div>
-              {typeof updateBanner.progress === 'number' && updateBanner.progress > 0 && updateBanner.status !== 'error' && (
-                <div className="mt-3">
-                  <div className="mb-1 flex justify-between text-[10px] font-bold text-slate-400">
-                    <span>Ti\u1ebfn tr\u00ecnh</span>
-                    <span>{updateBanner.progress}%</span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${updateBanner.progress}%` }}></div>
-                  </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-base font-black text-slate-900">
+                  {updateBanner.status === 'error'
+                    ? 'Cập nhật tự động lỗi'
+                    : updateBanner.status === 'checking'
+                      ? 'Đang kiểm tra cập nhật'
+                      : updateBanner.status === 'restarting'
+                        ? 'Đang khởi động lại'
+                        : 'Đang tự động cập nhật' + (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
                 </div>
-              )}
-              {updateBanner.status === 'error' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSettingsInitialTab('updates')
-                    requestActiveTab('settings')
-                  }}
-                  className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-                >
-                  Xem chi ti\u1ebft
-                </button>
-              )}
+                <div className="mt-2 text-sm leading-6 text-slate-600">
+                  {updateBanner.message || 'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
+                </div>
+                {updateBanner.status !== 'error' && (
+                  <div className="mt-5">
+                    <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      <span>Tiến trình</span>
+                      <span>{updateBanner.progress || 0}%</span>
+                    </div>
+                    <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: String(updateBanner.progress || 0) + '%' }}></div>
+                    </div>
+                  </div>
+                )}
+                {updateBanner.status === 'error' && (
+                  <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
+                    Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử lại.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

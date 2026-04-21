@@ -6,7 +6,7 @@ cd /d "%~dp0"
 
 echo.
 echo   ==========================================
-echo   ^|   K-Map House - Phong Tro Manager    ^|
+echo   ^|   DBY HOME - Phong Tro Manager       ^|
 echo   ^|   Dev Mode                           ^|
 echo   ==========================================
 echo.

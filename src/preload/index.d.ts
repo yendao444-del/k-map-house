@@ -92,7 +92,7 @@ interface UpdateAPI {
   ) => Promise<{ success: boolean; data?: { version: string }; error?: string }>
   installLatest: () => Promise<{
     success: boolean
-    data?: { version: string; latestVersion: string }
+    data?: { version: string; latestVersion: string; applied: boolean }
     error?: string
   }>
   getCurrentVersion: () => Promise<{ success: boolean; data?: string; error?: string }>

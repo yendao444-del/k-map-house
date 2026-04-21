@@ -131,7 +131,7 @@ function fetchLatestRelease(repoInfo: { owner: string; repo: string }): Promise<
         path: `/repos/${repoInfo.owner}/${repoInfo.repo}/releases/latest`,
         method: 'GET',
         headers: {
-          'User-Agent': 'K-Map-House-Desktop',
+          'User-Agent': 'DBY-HOME-Desktop',
           Accept: 'application/vnd.github.v3+json'
         }
       },
@@ -174,7 +174,7 @@ function downloadFile(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const requestFn = url.startsWith('https:') ? httpsGet : get
-    const request = requestFn(url, { headers: { 'User-Agent': 'K-Map-House-Desktop' } }, (response) => {
+    const request = requestFn(url, { headers: { 'User-Agent': 'DBY-HOME-Desktop' } }, (response) => {
       if (
         response.statusCode &&
         [301, 302, 307, 308].includes(response.statusCode) &&
@@ -330,7 +330,7 @@ function selectReleaseAsset(release: GithubRelease): ReleaseAsset | null {
     null
   const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
   const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
+  const fullZip = zipAssets.find((asset) => /DBYHOME|KMAPHOUSE/i.test(asset.name))
 
   return installerAsset || patchZip || fullZip || zipAssets[0] || null
 }
@@ -397,7 +397,7 @@ async function installUpdate(downloadUrl: string): Promise<{ version: string }> 
   }
 }
 
-async function installLatestUpdate(): Promise<{ version: string; latestVersion: string }> {
+async function installLatestUpdate(): Promise<{ version: string; latestVersion: string; applied: boolean }> {
   const update = await checkForUpdate()
   if (!update.hasUpdate) {
     sendToRenderer('update:status', {
@@ -405,7 +405,7 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
       message: 'Đang sử dụng bản mới nhất.',
       data: update
     })
-    return { version: update.currentVersion, latestVersion: update.latestVersion }
+    return { version: update.currentVersion, latestVersion: update.latestVersion, applied: false }
   }
 
   if (!update.downloadUrl) {
@@ -414,7 +414,7 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
 
   sendToRenderer('update:available', update)
   const result = await installUpdate(update.downloadUrl)
-  return { ...result, latestVersion: update.latestVersion }
+  return { ...result, latestVersion: update.latestVersion, applied: true }
 }
 
 function forceInstallUpdate(update: UpdateCheckResult): void {
@@ -479,7 +479,7 @@ async function runAutoUpdateCheck(): Promise<void> {
 
 async function installWithSetup(downloadUrl: string): Promise<{ version: string }> {
   const tempDir = join(app.getPath('temp'), `kmaphouse-installer-${Date.now()}`)
-  const installerPath = join(tempDir, downloadUrl.split('/').pop() || 'KMapHouse-update-setup.exe')
+  const installerPath = join(tempDir, downloadUrl.split('/').pop() || 'DBYHOME-update-setup.exe')
   mkdirSync(tempDir, { recursive: true })
 
   sendToRenderer('update:status', { status: 'downloading', message: 'Đang tải bộ cài cập nhật...' })
@@ -558,7 +558,7 @@ function fetchReleases(repoInfo: { owner: string; repo: string }): Promise<Githu
         path: `/repos/${repoInfo.owner}/${repoInfo.repo}/releases?per_page=10`,
         method: 'GET',
         headers: {
-          'User-Agent': 'K-Map-House-Desktop',
+          'User-Agent': 'DBY-HOME-Desktop',
           Accept: 'application/vnd.github.v3+json'
         }
       },

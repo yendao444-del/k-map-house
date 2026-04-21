@@ -262,7 +262,7 @@ function createWindow(): void {
     height: 900,
     show: false,
     autoHideMenuBar: true,
-    title: 'K-Map House',
+    title: 'DBY HOME',
     icon: useSafeWindow ? undefined : icon,
     webPreferences: {
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
@@ -306,7 +306,7 @@ function createWindow(): void {
   })
 
   if (useSafeWindow) {
-    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>K-Map House Safe Window</h1></body></html>')
+    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>DBY HOME Safe Window</h1></body></html>')
   } else if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -315,7 +315,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  app.setName('K-Map House')
+  app.setName('DBY HOME')
   electronApp.setAppUserModelId('com.kmaphouse.app')
   writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()

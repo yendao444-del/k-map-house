@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ============================================
-echo   K-Map House - PATCH Release
+echo   DBY HOME - PATCH Release
 echo ============================================
 echo.
 
@@ -58,6 +58,7 @@ if errorlevel 1 ( echo [X] Khong cap nhat duoc version. & pause & exit /b 1 )
 
 echo [1/4] Tat app neu dang chay va build electron-vite...
 taskkill /F /IM electron.exe >nul 2>&1
+taskkill /F /IM "DBY HOME.exe" >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
 taskkill /F /IM esbuild.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
@@ -69,7 +70,7 @@ if errorlevel 1 (
 
 echo [2/4] Nen patch zip...
 if not exist "dist" mkdir "dist"
-set PATCH_ZIP=dist\KMapHouse-PATCH-v!NEW_VERSION!.zip
+set PATCH_ZIP=dist\DBYHOME-PATCH-v!NEW_VERSION!.zip
 if exist "!PATCH_ZIP!" del "!PATCH_ZIP!"
 if exist "_patch_temp" rmdir /S /Q "_patch_temp"
 mkdir "_patch_temp\resources\app\out"
@@ -107,7 +108,7 @@ if "!ENABLE_GITHUB!"=="1" (
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & goto fail_after_commit )
 
     echo [4/4] Tao GitHub Release...
-    gh release create v!NEW_VERSION! "!PATCH_ZIP!" --title "K-Map House v!NEW_VERSION! (PATCH)" --notes "!NOTES!"
+    gh release create v!NEW_VERSION! "!PATCH_ZIP!" --title "DBY HOME v!NEW_VERSION! (PATCH)" --notes "!NOTES!"
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & goto fail_after_commit )
     if exist "!PATCH_ZIP!" del /Q "!PATCH_ZIP!"
 ) else (

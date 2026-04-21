@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 echo ========================================
-echo   K-Map House - Rebuild and Restart
+echo   DBY HOME - Rebuild and Restart
 echo ========================================
 echo.
 
@@ -10,6 +10,7 @@ cd /d "%~dp0"
 echo [1/3] Tat Electron cu...
 taskkill /F /IM electron.exe 2>nul
 taskkill /F /IM "K-Map House.exe" 2>nul
+taskkill /F /IM "DBY HOME.exe" 2>nul
 timeout /t 1 /nobreak >nul
 
 echo [2/3] Xoa out/ cu va build lai...
