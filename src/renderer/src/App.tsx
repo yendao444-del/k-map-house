@@ -1293,7 +1293,21 @@ const App: React.FC = () => {
       setUpdateBanner((current) => current ? { ...current, progress: event.percent } : current)
     })
 
+    const autoCheckTimer = window.setTimeout(() => {
+      void window.api.update.check().then((result) => {
+        if (!result.success || !result.data?.hasUpdate) return
+        setUpdateBanner({
+          latestVersion: result.data.latestVersion,
+          downloadUrl: result.data.downloadUrl,
+          status: 'available',
+          message: `C\u00f3 b\u1ea3n c\u1eadp nh\u1eadt v${result.data.latestVersion}. H\u1ec7 th\u1ed1ng \u0111ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt...`,
+          progress: 0
+        })
+      })
+    }, 5000)
+
     return () => {
+      window.clearTimeout(autoCheckTimer)
       removeAvailable()
       removeStatus()
       removeProgress()
