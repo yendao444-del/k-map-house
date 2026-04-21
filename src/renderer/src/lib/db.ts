@@ -24,7 +24,7 @@ export interface CashTransaction { id: string; type: CashTransactionType; catego
 export interface AssetTemplate { id: string; name: string; sort_order: number; is_active: boolean; }
 export type AssetType = 'furniture' | 'appliance' | 'plumbing' | 'electrical'
 export interface RoomAsset { id: string; room_id: string; name: string; quantity: number; sort_order: number; type?: AssetType; status?: 'ok' | 'error' | 'repairing'; issue_note?: string; icon?: string; repairman_name?: string; repairman_phone?: string; repair_called_at?: string; repaired_at?: string; }
-export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; asset_name: string; previous_name?: string; new_name?: string; previous_quantity?: number; new_quantity?: number; reason: string; recorded_at: string; }
+export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; name: string; quantity: number; reason: string; recorded_at: string; }
 export interface AssetSnapshot { id: string; room_id: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
 export interface RoomVehicle { id: string; room_id: string; owner_name?: string; license_plate: string; vehicle_type?: string; brand?: string; color?: string; registered_at: string; }
 export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; }
@@ -35,11 +35,57 @@ export interface AppSettings { bank_id?: string; account_no?: string; account_na
 const formatRoomName = (name: string) => {
   const cleanedName = name.trim().replace(/\s+/g, ' ')
   if (!cleanedName) return ''
-  return /^phòng\s+/i.test(cleanedName) ? cleanedName : `Phòng ${cleanedName}`
+  return /^phong\s+/i.test(cleanedName) ? cleanedName : `Phong ${cleanedName}`
 }
 
-const createEntityId = (prefix: string): string => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+const createEntityId = (prefix: string): string =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
+const isValidNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const normalizeDateToMonthYear = (dateInput?: string): { month: number; year: number } | null => {
+  if (!dateInput) return null
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) return null
+  return { month: date.getMonth() + 1, year: date.getFullYear() }
+}
+
+const getRoomById = async (roomId: string): Promise<Pick<Room, 'id' | 'name' | 'status'> | null> => {
+  const { data, error } = await supabase.from('rooms').select('id,name,status').eq('id', roomId).maybeSingle()
+  if (error) throw new Error(error.message)
+  return (data as Pick<Room, 'id' | 'name' | 'status'> | null) || null
+}
+
+const getTenantById = async (
+  tenantId: string
+): Promise<
+  Pick<
+    Tenant,
+    | 'id'
+    | 'is_active'
+    | 'full_name'
+    | 'phone'
+    | 'identity_card'
+  > | null
+> => {
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id,is_active,full_name,phone,identity_card')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return (
+    data as Pick<
+      Tenant,
+      | 'id'
+      | 'is_active'
+      | 'full_name'
+      | 'phone'
+      | 'identity_card'
+    > | null
+  ) || null
+}
 // =========================================================
 // ROOMS
 // =========================================================
@@ -125,7 +171,72 @@ export const getContracts = async (): Promise<Contract[]> => {
 }
 
 export const createContract = async (data: Partial<Contract>): Promise<Contract> => {
-  const newContract = { ...data, id: createEntityId('contract'), status: 'active', created_at: new Date().toISOString() }
+  if (!data.room_id) throw new Error('Missing room_id when creating contract')
+  if (!data.move_in_date) throw new Error('Missing move_in_date when creating contract')
+
+  const room = await getRoomById(data.room_id)
+  if (!room) throw new Error('Room not found')
+  let tenantForContract: Awaited<ReturnType<typeof getTenantById>> = null
+
+  const roomActiveContracts = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id')
+      .eq('room_id', data.room_id as string)
+      .eq('status', 'active')
+  )
+  const activeRoomContracts = (roomActiveContracts || []) as Array<{ id: string }>
+
+  if (activeRoomContracts.length > 0) {
+    if (room.status === 'occupied') {
+      throw new Error('Room already has an active contract')
+    }
+    await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .update({ status: 'expired' } as any)
+        .in(
+          'id',
+          activeRoomContracts.map((item) => item.id)
+        )
+    )
+  }
+
+  if (data.tenant_id) {
+    const tenant = await getTenantById(data.tenant_id)
+    if (!tenant || !tenant.is_active) {
+      throw new Error('Tenant does not exist or is inactive')
+    }
+    tenantForContract = tenant
+
+    const tenantActiveContracts = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select('id,room_id')
+        .eq('tenant_id', data.tenant_id as string)
+        .eq('status', 'active')
+        .neq('room_id', data.room_id as string)
+        .limit(1)
+    )
+    if ((tenantActiveContracts || []).length > 0) {
+      throw new Error('Tenant already has an active contract in another room')
+    }
+  }
+
+  const tenantName = (data.tenant_name || tenantForContract?.full_name || '').trim()
+  if (!tenantName) {
+    throw new Error('Missing tenant_name when creating contract')
+  }
+
+  const newContract = {
+    ...data,
+    tenant_name: tenantName,
+    tenant_phone: data.tenant_phone || tenantForContract?.phone || undefined,
+    tenant_id_card: data.tenant_id_card || tenantForContract?.identity_card || undefined,
+    id: createEntityId('contract'),
+    status: 'active',
+    created_at: new Date().toISOString()
+  }
   const result = await safeQuery(() => supabase.from('contracts').insert(newContract).select().single())
   const contract = result as any as Contract
   await supabase.from('rooms').update({ status: 'occupied', tenant_name: contract.tenant_name, tenant_phone: contract.tenant_phone, move_in_date: contract.move_in_date, electric_old: contract.electric_init, electric_new: contract.electric_init, water_old: contract.water_init, water_new: contract.water_init } as any).eq('id', contract.room_id)
@@ -137,10 +248,52 @@ export const updateContract = async (id: string, updates: Partial<Contract>): Pr
   return result as any as Contract
 }
 
+export const cancelContract = async (id: string, notes?: string): Promise<void> => {
+  const { data: contract, error: contractError } = await supabase
+    .from('contracts')
+    .select('id,room_id,tenant_id')
+    .eq('id', id)
+    .single()
+  if (contractError) throw new Error(contractError.message)
+
+  if (contract?.room_id && contract?.tenant_id) {
+    const paidInvoices = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('id')
+        .eq('room_id', contract.room_id)
+        .eq('tenant_id', contract.tenant_id)
+        .in('payment_status', ['paid', 'partial'])
+        .limit(1)
+    )
+    if ((paidInvoices || []).length > 0) {
+      throw new Error('Cannot cancel contract with paid/partial invoices; use terminate flow')
+    }
+  }
+
+  if (contract?.room_id) {
+    await supabase
+      .from('rooms')
+      .update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null } as any)
+      .eq('id', contract.room_id)
+  }
+  await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Cancel contract]' }).eq('id', id))
+}
+
 export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
   await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
   await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
   if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
+}
+
+export const changeRoom = async (data: { old_room_id: string; new_room_id: string; change_date: string; final_electric: number; final_water: number; new_base_rent: number; new_deposit: number; new_electric_init: number; new_water_init: number; }): Promise<void> => {
+  const { data: oldContract } = await supabase.from('contracts').select('*').eq('room_id', data.old_room_id).eq('status', 'active').single()
+  if (!oldContract) throw new Error('Không tìm thấy hợp đồng cũ')
+  await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.old_room_id)
+  await supabase.from('contracts').update({ status: 'terminated', end_date: data.change_date, end_note: `Chuyển sang phòng ${data.new_room_id}`, final_electric: data.final_electric, final_water: data.final_water }).eq('id', oldContract.id)
+  const newContract = { ...oldContract, id: createEntityId('contract'), room_id: data.new_room_id, move_in_date: data.change_date, base_rent: data.new_base_rent, deposit_amount: data.new_deposit, electric_init: data.new_electric_init, water_init: data.new_water_init, status: 'active', created_at: new Date().toISOString() }
+  delete (newContract as any).end_date; delete (newContract as any).end_note; await supabase.from('contracts').insert(newContract)
+  await supabase.from('rooms').update({ status: 'occupied', tenant_name: oldContract.tenant_name, tenant_phone: oldContract.tenant_phone, move_in_date: data.change_date, electric_old: data.new_electric_init, electric_new: data.new_electric_init, water_old: data.new_water_init, water_new: data.new_water_init } as any).eq('id', data.new_room_id)
 }
 
 // =========================================================
@@ -157,6 +310,58 @@ export const getInvoicesByRoom = async (roomId: string): Promise<Invoice[]> => {
 }
 
 export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invoice> => {
+  if (!invoiceData.room_id) throw new Error('Missing room_id when creating invoice')
+  if (!invoiceData.tenant_id) throw new Error('Missing tenant_id when creating invoice')
+  if (!isValidNumber(invoiceData.month) || !isValidNumber(invoiceData.year)) {
+    throw new Error('Missing invoice period (month/year)')
+  }
+
+  const month = invoiceData.month
+  const year = invoiceData.year
+  const shouldCheckReasonDuplicate =
+    !!invoiceData.billing_reason && !invoiceData.is_first_month && !invoiceData.allow_duplicate
+
+  const duplicateBase = () =>
+    supabase
+      .from('invoices')
+      .select('id')
+      .eq('room_id', invoiceData.room_id as string)
+      .eq('tenant_id', invoiceData.tenant_id as string)
+      .eq('month', month)
+      .eq('year', year)
+      .neq('payment_status', 'cancelled')
+
+  const checks: any[] = []
+  if (invoiceData.is_first_month) {
+    checks.push(duplicateBase().eq('is_first_month', true).limit(1))
+  } else if (shouldCheckReasonDuplicate) {
+    checks.push(duplicateBase().eq('billing_reason', invoiceData.billing_reason as string).limit(1))
+  } else {
+    checks.push(Promise.resolve({ data: [] }))
+  }
+
+  if (!invoiceData.is_first_month && !invoiceData.is_settlement) {
+    checks.push(duplicateBase().eq('is_first_month', true).limit(1))
+  } else {
+    checks.push(Promise.resolve({ data: [] }))
+  }
+
+  const [dupRes, firstMonthGateRes] = await Promise.all(checks)
+  if ((dupRes?.data || []).length > 0) {
+    if (invoiceData.is_first_month) {
+      throw new Error('First-month invoice already exists for this tenant in this month')
+    }
+    throw new Error('Duplicate invoice type for this tenant in the same month')
+  }
+  if ((firstMonthGateRes?.data || []).length > 0) {
+    throw new Error('Current month already has a first-month invoice; create from next month')
+  }
+
+  const period = normalizeDateToMonthYear(invoiceData.billing_period_start || invoiceData.invoice_date)
+  if (invoiceData.is_first_month && period && (period.month !== month || period.year !== year)) {
+    throw new Error('First-month invoice must match move-in month/year')
+  }
+
   const newInvoice = { ...invoiceData, id: createEntityId('inv'), created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('invoices').insert(newInvoice).select().single())
   const inv = result as any as Invoice
@@ -188,6 +393,11 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
 // =========================================================
 export const getRoomAssets = async (roomId: string): Promise<RoomAsset[]> => {
   const data = await safeQuery(() => supabase.from('room_assets').select('*').eq('room_id', roomId).order('sort_order', { ascending: true }))
+  return data || []
+}
+
+export const getAllRoomAssets = async (): Promise<RoomAsset[]> => {
+  const data = await safeQuery(() => supabase.from('room_assets').select('*').order('sort_order', { ascending: true }))
   return data || []
 }
 
@@ -233,6 +443,11 @@ export const getAssetSnapshots = async (roomId: string, type?: string): Promise<
   return data || []
 }
 
+export const createAssetSnapshots = async (data: Partial<AssetSnapshot>[]): Promise<AssetSnapshot[]> => {
+  const snaps = data.map(s => ({ ...s, id: createEntityId('snap'), recorded_at: new Date().toISOString() }))
+  const result = await safeQuery(() => supabase.from('asset_snapshots').insert(snaps).select()); return result as any as AssetSnapshot[]
+}
+
 export const createAssetSnapshot = async (data: Partial<AssetSnapshot>): Promise<AssetSnapshot> => {
   const newSnap = { ...data, id: createEntityId('snap'), recorded_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('asset_snapshots').insert(newSnap).select().single())
@@ -258,6 +473,8 @@ export const createRoomAssetAdjustment = async (data: Partial<RoomAssetAdjustmen
   const result = await safeQuery(() => supabase.from('room_asset_adjustments').insert(newAdj).select().single())
   return result as any as RoomAssetAdjustment
 }
+
+export const getInvoicePaymentRecords = (invoice: Invoice): InvoicePaymentRecord[] => invoice.payment_records || []
 
 // =========================================================
 // VEHICLES
@@ -372,24 +589,21 @@ export const updateUser = async (id: string, updates: Partial<AppUser>): Promise
   return result as any as AppUser
 }
 
-export const updateUserRole = async (userId: string, role: UserRole): Promise<AppUser> => {
-  return updateUser(userId, { role })
-}
-
-export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => {
-  return updateUser(userId, { status })
-}
-
-export const resetUserPassword = async (userId: string, password_hash: string): Promise<AppUser> => {
-  return updateUser(userId, { password_hash })
-}
+export const updateUserRole = async (userId: string, role: UserRole): Promise<AppUser> => { return updateUser(userId, { role }) }
+export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => { return updateUser(userId, { status }) }
+export const resetUserPassword = async (userId: string, password_hash: string): Promise<AppUser> => { return updateUser(userId, { password_hash }) }
 
 export const deleteUser = async (id: string): Promise<void> => {
   await safeQuery(() => supabase.from('users').delete().eq('id', id))
 }
 
 // =========================================================
-// COMPATIBILITY
+// COMPATIBILITY (LEGACY)
 // =========================================================
 export const dbOptions = { readDB: () => ({ users: [], app_settings: {} }), writeDB: () => { } }
 export async function getDB() { return {} }
+
+
+
+
+

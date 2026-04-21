@@ -30,7 +30,22 @@ const api = {
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     download: (url: string): Promise<unknown> => ipcRenderer.invoke('update:download', url),
-    getCurrentVersion: (): Promise<unknown> => ipcRenderer.invoke('update:getCurrentVersion')
+    getCurrentVersion: (): Promise<unknown> => ipcRenderer.invoke('update:getCurrentVersion'),
+    onAvailable: (callback: (data: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
+      ipcRenderer.on('update:available', listener)
+      return () => ipcRenderer.removeListener('update:available', listener)
+    },
+    onStatus: (callback: (data: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
+      ipcRenderer.on('update:status', listener)
+      return () => ipcRenderer.removeListener('update:status', listener)
+    },
+    onProgress: (callback: (data: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
+      ipcRenderer.on('update:progress', listener)
+      return () => ipcRenderer.removeListener('update:progress', listener)
+    }
   }
 }
 

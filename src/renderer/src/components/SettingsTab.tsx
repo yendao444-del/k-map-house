@@ -71,7 +71,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
         {activeTab === 'general' && <GeneralSettings />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
         {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettings />}
-        {activeTab === 'updates' && <UpdateSettings />}
+        {activeTab === 'updates' && <ProductionUpdateSettings />}
       </div>
     </div>
   )
@@ -518,7 +518,7 @@ const UsersSettings = (): React.JSX.Element => {
   )
 }
 
-const UpdateSettings = (): React.JSX.Element => {
+export const UpdateSettings = (): React.JSX.Element => {
   const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'downloading'>('idle')
   const [message, setMessage] = useState('')
   const [updateInfo, setUpdateInfo] = useState<{
@@ -626,6 +626,185 @@ const UpdateSettings = (): React.JSX.Element => {
               >
                 {status === 'downloading' ? 'Đang cập nhật...' : 'Cập nhật ngay'}
               </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type ProductionUpdateInfo = {
+  currentVersion: string
+  latestVersion: string
+  hasUpdate: boolean
+  releaseNotes: string
+  publishedAt: string
+  downloadUrl: string | null
+  downloadSize: number
+  artifactType: 'installer' | 'zip' | 'none'
+  fileName: string | null
+}
+
+type UpdateRuntimeStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'extracting'
+  | 'installing'
+  | 'restarting'
+  | 'error'
+
+const ProductionUpdateSettings = (): React.JSX.Element => {
+  const [status, setStatus] = useState<UpdateRuntimeStatus>('idle')
+  const [message, setMessage] = useState('App se tu kiem tra cap nhat khi mo phan mem.')
+  const [updateInfo, setUpdateInfo] = useState<ProductionUpdateInfo | null>(null)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    const removeStatus = window.api.update.onStatus((event) => {
+      setStatus(event.status)
+      setMessage(event.message)
+      if (event.data) setUpdateInfo(event.data)
+    })
+    const removeProgress = window.api.update.onProgress((event) => {
+      setProgress(event.percent)
+    })
+    const removeAvailable = window.api.update.onAvailable((data) => {
+      setUpdateInfo(data)
+      setStatus('available')
+      setMessage(`Co ban moi v${data.latestVersion}.`)
+    })
+
+    return () => {
+      removeStatus()
+      removeProgress()
+      removeAvailable()
+    }
+  }, [])
+
+  const checkForUpdate = async () => {
+    setStatus('checking')
+    setMessage('Dang kiem tra ban cap nhat...')
+    setProgress(0)
+    const result = await window.api.update.check()
+    if (!result.success || !result.data) {
+      setMessage(result.error || 'Khong the kiem tra cap nhat.')
+      setStatus('error')
+      return
+    }
+
+    setUpdateInfo(result.data)
+    setMessage(
+      result.data.hasUpdate
+        ? `Co ban moi v${result.data.latestVersion}.`
+        : 'Dang su dung ban moi nhat.'
+    )
+    setStatus(result.data.hasUpdate ? 'available' : 'idle')
+  }
+
+  const applyUpdate = async () => {
+    if (!updateInfo?.downloadUrl) {
+      setMessage('Release chua co file cap nhat phu hop.')
+      return
+    }
+
+    setStatus('downloading')
+    setMessage(
+      updateInfo.artifactType === 'installer'
+        ? 'Dang tai bo cai cap nhat...'
+        : 'Dang tai va ap dung ban cap nhat...'
+    )
+    setProgress(0)
+    const result = await window.api.update.download(updateInfo.downloadUrl)
+    if (!result.success) {
+      setMessage(result.error || 'Cap nhat that bai.')
+      setStatus('available')
+      return
+    }
+    setMessage(
+      updateInfo.artifactType === 'installer'
+        ? 'Bo cai da duoc mo. App se thoat de qua trinh cai dat tiep tuc.'
+        : `Da ap dung ban v${result.data?.version || updateInfo.latestVersion}. App se khoi dong lai.`
+    )
+  }
+
+  const busy = ['checking', 'downloading', 'extracting', 'installing', 'restarting'].includes(status)
+  const sizeLabel =
+    updateInfo?.downloadSize && updateInfo.downloadSize > 0
+      ? `${(updateInfo.downloadSize / 1024 / 1024).toFixed(2)} MB`
+      : 'Khong ro'
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <div className="border-b border-gray-100 p-6 md:p-8">
+        <h3 className="text-lg font-bold text-gray-800">Cap nhat phan mem</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          App tu kiem tra GitHub Release khi mo va cai dat bang installer production.
+        </p>
+      </div>
+      <div className="flex-1 p-6 md:p-8">
+        <div className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">
+                Production updater
+              </div>
+              <div className="mt-2 text-2xl font-black text-slate-900">
+                K-Map House v{updateInfo?.currentVersion || '...'}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={checkForUpdate}
+                disabled={busy}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                {status === 'checking' ? 'Dang kiem tra...' : 'Kiem tra ban cap nhat'}
+              </button>
+              {updateInfo?.hasUpdate && (
+                <button
+                  onClick={applyUpdate}
+                  disabled={busy}
+                  className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md shadow-primary/20 transition hover:bg-primary-dark disabled:opacity-60"
+                >
+                  {status === 'downloading' ? 'Dang tai...' : 'Tai va cai dat'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {message}
+          </div>
+
+          {progress > 0 && (
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
+                <span>Tien trinh tai</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          )}
+
+          {updateInfo && (
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <InfoTile label="Phien ban hien tai" value={`v${updateInfo.currentVersion}`} />
+              <InfoTile label="Ban moi nhat" value={`v${updateInfo.latestVersion}`} />
+              <InfoTile
+                label="Kieu cap nhat"
+                value={updateInfo.artifactType === 'installer' ? 'Installer NSIS' : 'Portable zip'}
+              />
+              <InfoTile label="Dung luong" value={sizeLabel} />
+              <InfoTile label="File" value={updateInfo.fileName || '-'} />
+              <InfoTile
+                label="Ngay phat hanh"
+                value={new Date(updateInfo.publishedAt).toLocaleDateString('vi-VN')}
+              />
             </div>
           )}
         </div>

@@ -1,10 +1,21 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import AdmZip from 'adm-zip'
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync, copyFileSync, readdirSync } from 'fs'
-import { cpus } from 'os'
-import { dirname, join, relative } from 'path'
+import {
+  copyFileSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync
+} from 'fs'
 import { get } from 'http'
 import { get as httpsGet, request as httpsRequest } from 'https'
+import { cpus } from 'os'
+import { dirname, join, relative } from 'path'
 
 interface ReleaseAsset {
   name: string
@@ -19,6 +30,13 @@ interface GithubRelease {
   assets: ReleaseAsset[]
 }
 
+interface LatestYmlInfo {
+  version: string
+  path: string
+  size: number
+  releaseDate: string
+}
+
 interface UpdateCheckResult {
   currentVersion: string
   latestVersion: string
@@ -27,16 +45,18 @@ interface UpdateCheckResult {
   publishedAt: string
   downloadUrl: string | null
   downloadSize: number
+  artifactType: 'installer' | 'zip' | 'none'
+  fileName: string | null
 }
 
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
 const CACHE_DURATION = 5 * 60 * 1000
+const GENERIC_RELEASE_BASE_URL = 'https://github.com/kmaphouse/windows-app/releases/latest/download/'
 
 function readPackageJson(): { homepage?: string; version?: string } {
   try {
-    const packageJsonPath = join(app.getAppPath(), 'package.json')
-    return JSON.parse(readFileSync(packageJsonPath, 'utf-8'))
+    return JSON.parse(readFileSync(join(app.getAppPath(), 'package.json'), 'utf-8'))
   } catch {
     return {}
   }
@@ -71,6 +91,29 @@ function compareVersions(v1: string, v2: string): number {
     if (a < b) return -1
   }
   return 0
+}
+
+function resolveReleaseAssetUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl
+  return `${GENERIC_RELEASE_BASE_URL}${encodeURIComponent(pathOrUrl)}`
+}
+
+function parseLatestYml(raw: string): LatestYmlInfo | null {
+  const version = raw.match(/^version:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
+  const path =
+    raw.match(/^path:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim() ||
+    raw.match(/^\s*-\s*url:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
+  const sizeValue = raw.match(/^\s*size:\s*(\d+)/m)?.[1]
+  const releaseDate = raw.match(/^releaseDate:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
+
+  if (!version || !path) return null
+
+  return {
+    version,
+    path,
+    size: sizeValue ? Number(sizeValue) : 0,
+    releaseDate: releaseDate || new Date().toISOString()
+  }
 }
 
 function fetchLatestRelease(repoInfo: { owner: string; repo: string }): Promise<GithubRelease> {
@@ -128,75 +171,88 @@ function downloadFile(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const requestFn = url.startsWith('https:') ? httpsGet : get
-    const request = requestFn(
-      url,
-      { headers: { 'User-Agent': 'K-Map-House-Desktop' } },
-      (response) => {
-        if (
-          response.statusCode &&
-          [301, 302, 307, 308].includes(response.statusCode) &&
-          response.headers.location
-        ) {
-          downloadFile(response.headers.location, destinationPath, onProgress)
-            .then(resolve)
-            .catch(reject)
-          return
-        }
-
-        if (response.statusCode !== 200) {
-          reject(new Error(`Download failed: HTTP ${response.statusCode}`))
-          return
-        }
-
-        const total = Number(response.headers['content-length'] || 0)
-        let downloaded = 0
-        let lastPercent = -1
-        const fileStream = createWriteStream(destinationPath)
-
-        response.on('data', (chunk) => {
-          downloaded += chunk.length
-          if (total > 0) {
-            const percent = Math.round((downloaded / total) * 100)
-            if (percent !== lastPercent) {
-              lastPercent = percent
-              onProgress?.(downloaded, total, percent)
-            }
-          }
-        })
-
-        response.pipe(fileStream)
-        fileStream.on('finish', () => {
-          fileStream.close()
-          resolve()
-        })
-        fileStream.on('error', (error) => {
-          try {
-            unlinkSync(destinationPath)
-          } catch {
-            // ignore
-          }
-          reject(error)
-        })
+    const request = requestFn(url, { headers: { 'User-Agent': 'K-Map-House-Desktop' } }, (response) => {
+      if (
+        response.statusCode &&
+        [301, 302, 307, 308].includes(response.statusCode) &&
+        response.headers.location
+      ) {
+        downloadFile(response.headers.location, destinationPath, onProgress).then(resolve).catch(reject)
+        return
       }
-    )
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`Download failed: HTTP ${response.statusCode}`))
+        return
+      }
+
+      const total = Number(response.headers['content-length'] || 0)
+      let downloaded = 0
+      let lastPercent = -1
+      const fileStream = createWriteStream(destinationPath)
+
+      response.on('data', (chunk) => {
+        downloaded += chunk.length
+        if (total > 0) {
+          const percent = Math.round((downloaded / total) * 100)
+          if (percent !== lastPercent) {
+            lastPercent = percent
+            onProgress?.(downloaded, total, percent)
+          }
+        }
+      })
+
+      response.pipe(fileStream)
+      fileStream.on('finish', () => {
+        fileStream.close()
+        resolve()
+      })
+      fileStream.on('error', (error) => {
+        try {
+          unlinkSync(destinationPath)
+        } catch {
+          // ignore cleanup errors
+        }
+        reject(error)
+      })
+    })
 
     request.on('error', (error) => reject(new Error(`Download error: ${error.message}`)))
+    request.setTimeout(30000, () => {
+      request.destroy()
+      reject(new Error('Download timeout'))
+    })
   })
+}
+
+async function fetchText(url: string): Promise<string> {
+  const tempDir = join(app.getPath('temp'), `kmaphouse-update-meta-${Date.now()}`)
+  const tempPath = join(tempDir, 'latest.yml')
+  mkdirSync(tempDir, { recursive: true })
+  try {
+    await downloadFile(url, tempPath)
+    return readFileSync(tempPath, 'utf-8')
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+}
+
+async function fetchLatestYml(): Promise<LatestYmlInfo | null> {
+  try {
+    return parseLatestYml(await fetchText(`${GENERIC_RELEASE_BASE_URL}latest.yml`))
+  } catch {
+    return null
+  }
 }
 
 function findAppRoot(rootDir: string): string | null {
   const directAppPackage = join(rootDir, 'resources', 'app', 'package.json')
-  if (existsSync(directAppPackage)) {
-    return join(rootDir, 'resources', 'app')
-  }
+  if (existsSync(directAppPackage)) return join(rootDir, 'resources', 'app')
 
   const directPackage = join(rootDir, 'package.json')
-  if (existsSync(directPackage)) {
-    return rootDir
-  }
+  if (existsSync(directPackage)) return rootDir
 
-  const entries = readdirSync(rootDir)
-  for (const entry of entries) {
+  for (const entry of readdirSync(rootDir)) {
     const fullPath = join(rootDir, entry)
     if (statSync(fullPath).isDirectory()) {
       const nested = findAppRoot(fullPath)
@@ -242,35 +298,166 @@ exit
   require('child_process').spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
 }
 
+async function checkForUpdate(): Promise<UpdateCheckResult> {
+  const currentVersion = app.getVersion()
+  const latestYml = await fetchLatestYml()
+
+  if (latestYml) {
+    return {
+      currentVersion,
+      latestVersion: latestYml.version,
+      hasUpdate: compareVersions(latestYml.version, currentVersion) > 0,
+      releaseNotes: 'Ban cap nhat san sang cai dat.',
+      publishedAt: latestYml.releaseDate,
+      downloadUrl: resolveReleaseAssetUrl(latestYml.path),
+      downloadSize: latestYml.size,
+      artifactType: latestYml.path.toLowerCase().endsWith('.exe') ? 'installer' : 'zip',
+      fileName: latestYml.path
+    }
+  }
+
+  const repoInfo = resolveRepoInfo()
+  if (!repoInfo) {
+    throw new Error('Chua cau hinh GitHub repo trong package.json homepage.')
+  }
+
+  const release = await fetchLatestRelease(repoInfo)
+  const latestVersion = release.tag_name.replace(/^v/i, '')
+  const installerAsset =
+    release.assets.find((asset) => asset.name.toLowerCase().endsWith('-setup.exe')) ||
+    release.assets.find((asset) => asset.name.toLowerCase().endsWith('.exe')) ||
+    null
+  const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
+  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
+  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
+  const selectedAsset = installerAsset || patchZip || fullZip || zipAssets[0] || null
+
+  return {
+    currentVersion,
+    latestVersion,
+    hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
+    releaseNotes: release.body || 'Khong co ghi chu.',
+    publishedAt: release.published_at,
+    downloadUrl: selectedAsset?.browser_download_url || null,
+    downloadSize: selectedAsset?.size || 0,
+    artifactType: installerAsset ? 'installer' : selectedAsset ? 'zip' : 'none',
+    fileName: selectedAsset?.name || null
+  }
+}
+
+async function runAutoUpdateCheck(): Promise<void> {
+  sendToRenderer('update:status', {
+    status: 'checking',
+    message: 'Dang tu dong kiem tra ban cap nhat...'
+  })
+
+  try {
+    const data = await checkForUpdate()
+    sendToRenderer('update:status', {
+      status: data.hasUpdate ? 'available' : 'idle',
+      message: data.hasUpdate ? `Co ban moi v${data.latestVersion}.` : 'Dang su dung ban moi nhat.',
+      data
+    })
+
+    if (data.hasUpdate) {
+      sendToRenderer('update:available', data)
+    }
+  } catch (error) {
+    sendToRenderer('update:status', {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Khong the kiem tra cap nhat.'
+    })
+  }
+}
+
+async function installWithSetup(downloadUrl: string): Promise<{ version: string }> {
+  const tempDir = join(app.getPath('temp'), `kmaphouse-installer-${Date.now()}`)
+  const installerPath = join(tempDir, downloadUrl.split('/').pop() || 'KMapHouse-update-setup.exe')
+  mkdirSync(tempDir, { recursive: true })
+
+  sendToRenderer('update:status', { status: 'downloading', message: 'Dang tai bo cai cap nhat...' })
+  await downloadFile(downloadUrl, installerPath, (downloaded, total, percent) => {
+    sendToRenderer('update:progress', { downloaded, total, percent })
+  })
+
+  sendToRenderer('update:status', { status: 'installing', message: 'Dang mo bo cai cap nhat...' })
+  const openError = await shell.openPath(installerPath)
+  if (openError) {
+    throw new Error(openError)
+  }
+
+  setTimeout(() => app.quit(), 1000)
+  return { version: 'installer' }
+}
+
+async function installWithZip(downloadUrl: string): Promise<{ version: string }> {
+  const tempDir = join(app.getPath('temp'), `kmaphouse-update-${Date.now()}-${cpus().length}`)
+  const zipPath = join(tempDir, 'update.zip')
+  const extractDir = join(tempDir, 'extracted')
+  mkdirSync(tempDir, { recursive: true })
+  mkdirSync(extractDir, { recursive: true })
+
+  sendToRenderer('update:status', { status: 'downloading', message: 'Dang tai ban cap nhat...' })
+  await downloadFile(downloadUrl, zipPath, (downloaded, total, percent) => {
+    sendToRenderer('update:progress', { downloaded, total, percent })
+  })
+
+  sendToRenderer('update:status', { status: 'extracting', message: 'Dang giai nen...' })
+  new AdmZip(zipPath).extractAllTo(extractDir, true)
+
+  const sourceRoot = findAppRoot(extractDir) || extractDir
+  const targetRoot = app.getAppPath()
+  const sourceFiles = collectFiles(sourceRoot)
+  let hadLockedFiles = false
+
+  sendToRenderer('update:status', { status: 'installing', message: 'Dang cai dat ban cap nhat...' })
+  for (const sourceFile of sourceFiles) {
+    const relativePath = relative(sourceRoot, sourceFile)
+    const targetFile = join(targetRoot, relativePath)
+    mkdirSync(dirname(targetFile), { recursive: true })
+    try {
+      copyFileSync(sourceFile, targetFile)
+    } catch {
+      hadLockedFiles = true
+    }
+  }
+
+  const packageJsonPath = join(sourceRoot, 'package.json')
+  const newVersion = existsSync(packageJsonPath)
+    ? JSON.parse(readFileSync(packageJsonPath, 'utf-8')).version || 'unknown'
+    : 'unknown'
+
+  if (hadLockedFiles) {
+    createLockedFileUpdater(tempDir, sourceRoot, targetRoot)
+  } else {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
+
+  setTimeout(() => {
+    sendToRenderer('update:status', { status: 'restarting', message: 'Dang khoi dong lai...' })
+    if (hadLockedFiles) {
+      app.quit()
+    } else {
+      app.relaunch()
+      app.exit(0)
+    }
+  }, 1200)
+
+  return { version: newVersion }
+}
+
 export function registerUpdateHandlers(): void {
   ipcMain.handle('update:check', async () => {
     try {
-      const repoInfo = resolveRepoInfo()
-      if (!repoInfo) {
-        return {
-          success: false,
-          error: 'Chưa cấu hình GitHub repo trong package.json homepage.'
-        }
+      const data = await checkForUpdate()
+      sendToRenderer('update:status', {
+        status: data.hasUpdate ? 'available' : 'idle',
+        message: data.hasUpdate ? `Co ban moi v${data.latestVersion}.` : 'Dang su dung ban moi nhat.',
+        data
+      })
+      if (data.hasUpdate) {
+        sendToRenderer('update:available', data)
       }
-
-      const currentVersion = app.getVersion()
-      const release = await fetchLatestRelease(repoInfo)
-      const latestVersion = release.tag_name.replace(/^v/i, '')
-      const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
-      const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-      const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
-      const selectedAsset = patchZip || fullZip || zipAssets[0] || null
-
-      const data: UpdateCheckResult = {
-        currentVersion,
-        latestVersion,
-        hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
-        releaseNotes: release.body || 'Không có ghi chú.',
-        publishedAt: release.published_at,
-        downloadUrl: selectedAsset?.browser_download_url || null,
-        downloadSize: selectedAsset?.size || 0
-      }
-
       return { success: true, data }
     } catch (error) {
       return {
@@ -283,69 +470,18 @@ export function registerUpdateHandlers(): void {
   ipcMain.handle('update:download', async (_event, downloadUrl: string) => {
     try {
       if (!downloadUrl) {
-        return { success: false, error: 'Thiếu download url.' }
+        return { success: false, error: 'Thieu download url.' }
       }
 
-      const tempDir = join(app.getPath('temp'), `kmaphouse-update-${Date.now()}-${cpus().length}`)
-      const zipPath = join(tempDir, 'update.zip')
-      const extractDir = join(tempDir, 'extracted')
-      mkdirSync(tempDir, { recursive: true })
-      mkdirSync(extractDir, { recursive: true })
-
-      sendToRenderer('update:step', { step: 'downloading', message: 'Đang tải bản cập nhật...' })
-      await downloadFile(downloadUrl, zipPath, (downloaded, total, percent) => {
-        sendToRenderer('update:progress', { downloaded, total, percent })
-      })
-
-      sendToRenderer('update:step', { step: 'extracting', message: 'Đang giải nén...' })
-      const zip = new AdmZip(zipPath)
-      zip.extractAllTo(extractDir, true)
-
-      const sourceRoot = findAppRoot(extractDir) || extractDir
-      const targetRoot = app.getAppPath()
-      const sourceFiles = collectFiles(sourceRoot)
-      let hadLockedFiles = false
-
-      sendToRenderer('update:step', { step: 'installing', message: 'Đang cài đặt bản cập nhật...' })
-      for (const sourceFile of sourceFiles) {
-        const relativePath = relative(sourceRoot, sourceFile)
-        const targetFile = join(targetRoot, relativePath)
-        mkdirSync(dirname(targetFile), { recursive: true })
-        try {
-          copyFileSync(sourceFile, targetFile)
-        } catch {
-          hadLockedFiles = true
-        }
-      }
-
-      const packageJsonPath = join(sourceRoot, 'package.json')
-      const newVersion = existsSync(packageJsonPath)
-        ? JSON.parse(readFileSync(packageJsonPath, 'utf-8')).version || 'unknown'
-        : 'unknown'
-
-      if (hadLockedFiles) {
-        createLockedFileUpdater(tempDir, sourceRoot, targetRoot)
-      } else {
-        rmSync(tempDir, { recursive: true, force: true })
-      }
-
-      setTimeout(() => {
-        sendToRenderer('update:step', { step: 'restarting', message: 'Đang khởi động lại...' })
-        if (hadLockedFiles) {
-          app.quit()
-        } else {
-          app.relaunch()
-          app.exit(0)
-        }
-      }, 1200)
-
-      return {
-        success: true,
-        data: {
-          version: newVersion
-        }
-      }
+      const data = downloadUrl.toLowerCase().endsWith('.exe')
+        ? await installWithSetup(downloadUrl)
+        : await installWithZip(downloadUrl)
+      return { success: true, data }
     } catch (error) {
+      sendToRenderer('update:status', {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Cap nhat that bai.'
+      })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'update_download_failed'
@@ -356,4 +492,10 @@ export function registerUpdateHandlers(): void {
   ipcMain.handle('update:getCurrentVersion', async () => {
     return { success: true, data: app.getVersion() }
   })
+
+  if (app.isPackaged) {
+    setTimeout(() => {
+      void runAutoUpdateCheck()
+    }, 8000)
+  }
 }

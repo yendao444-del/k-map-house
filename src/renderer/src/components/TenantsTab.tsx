@@ -605,9 +605,6 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
       phone: (fd.get('phone') as string).trim(),
       email: (fd.get('email') as string).trim(),
       identity_card: (fd.get('identity_card') as string).trim(),
-      id_card_issued_date: (fd.get('id_card_issued_date') as string).trim(),
-      id_card_issued_place: (fd.get('id_card_issued_place') as string).trim(),
-      address: (fd.get('address') as string).trim(),
       identity_image_url: imageBase64,
       notes: (fd.get('notes') as string).trim(),
       is_active: false
@@ -647,10 +644,7 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
             </div>
           </div>
 
-          <div>
-            <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Địa chỉ thường trú</label>
-            <input name="address" type="text" placeholder="Số nhà, đường, xã, huyện, tỉnh..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
-          </div>
+
 
           <div className="bg-slate-50/50 rounded-xl border border-slate-200 p-4">
             <h4 className="text-[13px] font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -662,16 +656,7 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
             <div className="space-y-3">
               <div>
                 <input name="identity_card" type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-                <div className="grid grid-cols-2 gap-3 mt-3">
-                  <div>
-                    <label className="block text-[12px] font-medium text-slate-600 mb-1">Ngày cấp</label>
-                    <input name="id_card_issued_date" type="date" className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] font-medium text-slate-600 mb-1">Nơi cấp</label>
-                    <input name="id_card_issued_place" type="text" placeholder="Cục CS QLHC..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-                  </div>
-                </div>
+
               </div>
               <div
                 className="w-full flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-lg bg-white hover:bg-slate-50 transition cursor-pointer group relative overflow-hidden h-28"
@@ -784,9 +769,6 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
       phone: (fd.get('phone') as string).trim(),
       email: (fd.get('email') as string).trim(),
       identity_card: (fd.get('identity_card') as string).trim(),
-      id_card_issued_date: (fd.get('id_card_issued_date') as string).trim(),
-      id_card_issued_place: (fd.get('id_card_issued_place') as string).trim(),
-      address: (fd.get('address') as string).trim(),
       identity_image_url: (fd.get('identity_image_url') as string).trim(),
       notes: (fd.get('notes') as string).trim(),
     });
@@ -825,26 +807,14 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
               </div>
             </div>
 
-            <div>
-              <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Địa chỉ thường trú</label>
-              <input name="address" defaultValue={tenant.address} type="text" placeholder="Số nhà, đường, xã, huyện, tỉnh..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
-            </div>
+
 
             <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
               <h4 className="text-[13px] font-bold text-slate-800 mb-3 flex items-center gap-2"><i className="fa-regular fa-id-card text-slate-400"></i> Định danh cá nhân (CCCD/CMND)</h4>
               <div className="space-y-4">
                 <div>
                   <input name="identity_card" defaultValue={tenant.identity_card} type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div>
-                      <label className="block text-[12px] font-medium text-slate-600 mb-1">Ngày cấp</label>
-                      <input name="id_card_issued_date" defaultValue={tenant.id_card_issued_date} type="date" className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-[12px] font-medium text-slate-600 mb-1">Nơi cấp</label>
-                      <input name="id_card_issued_place" defaultValue={tenant.id_card_issued_place} type="text" placeholder="Cục CS QLHC..." className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[12px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-                    </div>
-                  </div>
+
                 </div>
 
                 <div

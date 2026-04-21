@@ -55,6 +55,20 @@ interface UpdateCheckResult {
   publishedAt: string
   downloadUrl: string | null
   downloadSize: number
+  artifactType: 'installer' | 'zip' | 'none'
+  fileName: string | null
+}
+
+interface UpdateStatusEvent {
+  status: 'checking' | 'available' | 'idle' | 'downloading' | 'extracting' | 'installing' | 'restarting' | 'error'
+  message: string
+  data?: UpdateCheckResult
+}
+
+interface UpdateProgressEvent {
+  downloaded: number
+  total: number
+  percent: number
 }
 
 interface UpdateAPI {
@@ -63,6 +77,9 @@ interface UpdateAPI {
     url: string
   ) => Promise<{ success: boolean; data?: { version: string }; error?: string }>
   getCurrentVersion: () => Promise<{ success: boolean; data?: string; error?: string }>
+  onAvailable: (callback: (data: UpdateCheckResult) => void) => () => void
+  onStatus: (callback: (data: UpdateStatusEvent) => void) => () => void
+  onProgress: (callback: (data: UpdateProgressEvent) => void) => () => void
 }
 
 declare global {

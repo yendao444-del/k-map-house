@@ -46,6 +46,11 @@ const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 type AppTab = 'rooms' | 'invoices' | 'assets' | 'contracts' | 'tenants' | 'reports' | 'settings'
 type PendingAssetReceive = { roomId: string; roomName: string }
+type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
+type UpdateBannerInfo = {
+  latestVersion: string
+  downloadUrl: string | null
+}
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
 
@@ -1109,6 +1114,7 @@ const App: React.FC = () => {
   })
 
   const [activeTab, setActiveTab] = useState<AppTab>('rooms')
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
   const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance'>('cashflow')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
@@ -1212,6 +1218,7 @@ const App: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [saveToast, setSaveToast] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [updateBanner, setUpdateBanner] = useState<UpdateBannerInfo | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -1237,6 +1244,17 @@ const App: React.FC = () => {
     return () => {
       mounted = false
     }
+  }, [])
+
+  useEffect(() => {
+    const removeAvailable = window.api.update.onAvailable((data) => {
+      setUpdateBanner({
+        latestVersion: data.latestVersion,
+        downloadUrl: data.downloadUrl
+      })
+    })
+
+    return () => removeAvailable()
   }, [])
 
   const markNotificationReadMutation = useMutation({
@@ -2009,6 +2027,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => {
                   playClick()
+                  setSettingsInitialTab('general')
                   requestActiveTab('settings')
                 }}
                 className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm transition-all ${activeTab === 'settings'
@@ -3447,8 +3466,45 @@ const App: React.FC = () => {
       ) : activeTab === 'tenants' ? (
         <TenantsTab />
       ) : activeTab === 'settings' ? (
-        <SettingsTab currentUser={currentUser} />
+        <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
       ) : null}
+
+      {updateBanner && (
+        <div className="fixed right-5 top-24 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl shadow-slate-900/15">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+              <i className="fa-solid fa-cloud-arrow-down"></i>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-slate-900">
+                Co ban cap nhat v{updateBanner.latestVersion}
+              </div>
+              <div className="mt-1 text-xs leading-5 text-slate-500">
+                Ban co the cai dat ngay hoac de sau, app van hoat dong binh thuong.
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsInitialTab('updates')
+                    requestActiveTab('settings')
+                  }}
+                  className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-dark"
+                >
+                  Cap nhat ngay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpdateBanner(null)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                >
+                  De sau
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedRoom && (
         <InvoiceModal

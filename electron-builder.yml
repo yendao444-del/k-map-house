@@ -57,4 +57,4 @@ appImage:
 npmRebuild: false
 publish:
   provider: generic
-  url: https://github.com/[YOUR_GITHUB_REPO]/releases/latest/download/
+  url: https://github.com/kmaphouse/windows-app/releases/latest/download/

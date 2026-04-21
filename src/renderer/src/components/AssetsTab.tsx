@@ -729,7 +729,7 @@ const RoomAssetPanel: React.FC<{
                     {adjustments.slice(0, 3).map((item) => (
                       <div key={item.id} className="flex items-start justify-between gap-3 text-xs">
                         <div className="min-w-0">
-                          <div className="font-bold text-gray-800">{item.action === 'add' ? 'Thêm' : 'Sửa'} · {item.asset_name} x{item.new_quantity}</div>
+                          <div className="font-bold text-gray-800">{item.action === 'add' ? 'Thêm' : 'Sửa'} · {item.name} x{item.quantity}</div>
                           <div className="truncate text-gray-500">{item.reason}</div>
                         </div>
                         <span className="shrink-0 text-gray-400">{new Date(item.recorded_at).toLocaleDateString('vi-VN')}</span>

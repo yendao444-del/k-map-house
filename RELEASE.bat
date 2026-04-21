@@ -9,20 +9,26 @@ echo.
 
 cd /d "%~dp0"
 
-git remote get-url origin >nul 2>&1
-if errorlevel 1 (
-    echo [X] Chua cau hinh git remote origin.
-    echo     Can them remote truoc khi chay RELEASE.bat
-    pause
-    exit /b 1
-)
+set ENABLE_GITHUB=1
+if /I "%~1"=="--local" set ENABLE_GITHUB=0
+if /I "%~1"=="--github" set ENABLE_GITHUB=1
 
-gh auth status >nul 2>&1
-if errorlevel 1 (
-    echo [X] Chua dang nhap GitHub CLI.
-    echo     Chay: gh auth login
-    pause
-    exit /b 1
+if "!ENABLE_GITHUB!"=="1" (
+    git remote get-url origin >nul 2>&1
+    if errorlevel 1 (
+        echo [X] Chua cau hinh git remote origin.
+        echo     Can them remote truoc khi chay RELEASE.bat
+        pause
+        exit /b 1
+    )
+
+    gh auth status >nul 2>&1
+    if errorlevel 1 (
+        echo [X] Chua dang nhap GitHub CLI.
+        echo     Chay: gh auth login
+        pause
+        exit /b 1
+    )
 )
 
 for /f %%v in ('node scripts\release-version.cjs current') do set CURRENT_VERSION=%%v
@@ -37,6 +43,10 @@ taskkill /F /IM electron.exe >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
 timeout /t 2 /nobreak >nul
 
+echo [1.5/4] Don dist cu...
+call pnpm run clean:dist
+if errorlevel 1 ( echo CLEAN DIST THAT BAI! & pause & exit /b 1 )
+
 echo [2/4] Build NSIS installer...
 call pnpm run build:win
 if errorlevel 1 (
@@ -47,6 +57,18 @@ if errorlevel 1 (
 set INSTALLER=dist\KMapHouse-!NEW_VERSION!-setup.exe
 if not exist "!INSTALLER!" (
     echo [X] Khong tim thay installer sau khi build: !INSTALLER!
+    pause
+    exit /b 1
+)
+set LATEST_YML=dist\latest.yml
+set INSTALLER_BLOCKMAP=dist\KMapHouse-!NEW_VERSION!-setup.exe.blockmap
+if not exist "!LATEST_YML!" (
+    echo [X] Khong tim thay metadata auto-update: !LATEST_YML!
+    pause
+    exit /b 1
+)
+if not exist "!INSTALLER_BLOCKMAP!" (
+    echo [X] Khong tim thay blockmap auto-update: !INSTALLER_BLOCKMAP!
     pause
     exit /b 1
 )
@@ -75,15 +97,20 @@ if not exist "!PORTABLE_ZIP!" (
     exit /b 1
 )
 
-echo [4/5] Git commit + push...
-git add -A
-git commit -m "v!NEW_VERSION! - !NOTES!"
-git push
-if errorlevel 1 ( echo GIT PUSH THAT BAI! & pause & exit /b 1 )
+if "!ENABLE_GITHUB!"=="1" (
+    echo [4/5] Git commit + push...
+    git add -A
+    git commit -m "v!NEW_VERSION! - !NOTES!"
+    git push
+    if errorlevel 1 ( echo GIT PUSH THAT BAI! & pause & exit /b 1 )
 
-echo [5/5] Tao GitHub Release...
-gh release create v!NEW_VERSION! "!INSTALLER!" "!PORTABLE_ZIP!" --title "K-Map House v!NEW_VERSION!" --notes "!NOTES!"
-if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & pause & exit /b 1 )
+    echo [5/5] Tao GitHub Release...
+    gh release create v!NEW_VERSION! "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" --title "K-Map House v!NEW_VERSION!" --notes "!NOTES!"
+    if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & pause & exit /b 1 )
+) else (
+    echo [4/5] Dang o che do local-only: bo qua Git push va GitHub Release.
+    echo     Neu muon upload de production auto-update, chay: RELEASE.bat
+)
 
 echo.
 echo ============================================

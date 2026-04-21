@@ -99,10 +99,7 @@ export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTem
                     <p>Sinh năm: {contract.tenant_dob || '..............................'}</p>
                     <p>
                         CCCD/CMND số: {contract.tenant_id_card || '..............................'}
-                        {' '}Cấp ngày: {contract.tenant_id_card_issued_date ? new Date(contract.tenant_id_card_issued_date).toLocaleDateString('vi-VN') : '..................'}
-                        {' '}Nơi cấp: {contract.tenant_id_card_issued_place || '..............................'}
                     </p>
-                    <p>Thường trú: {contract.tenant_address || '..................................................................................'}</p>
                     <p>Số điện thoại: {contract.tenant_phone || '..............................'}</p>
                 </div>
 
