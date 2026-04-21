@@ -324,15 +324,15 @@ exit
 }
 
 function selectReleaseAsset(release: GithubRelease): ReleaseAsset | null {
-  const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
-  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
   const installerAsset =
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('-setup.exe')) ||
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('.exe')) ||
     null
+  const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
+  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
+  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
 
-  return patchZip || fullZip || zipAssets[0] || installerAsset || null
+  return installerAsset || patchZip || fullZip || zipAssets[0] || null
 }
 
 function isInstallerAsset(asset: ReleaseAsset | null): boolean {

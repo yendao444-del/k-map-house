@@ -52,6 +52,9 @@ type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
 type UpdateBannerInfo = {
   latestVersion: string
   downloadUrl: string | null
+  status?: string
+  message?: string
+  progress?: number
 }
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
@@ -1261,11 +1264,40 @@ const App: React.FC = () => {
     const removeAvailable = window.api.update.onAvailable((data) => {
       setUpdateBanner({
         latestVersion: data.latestVersion,
-        downloadUrl: data.downloadUrl
+        downloadUrl: data.downloadUrl,
+        status: 'available',
+        message: `C\u00f3 b\u1ea3n c\u1eadp nh\u1eadt v${data.latestVersion}. H\u1ec7 th\u1ed1ng \u0111ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt...`,
+        progress: 0
       })
     })
 
-    return () => removeAvailable()
+    const removeStatus = window.api.update.onStatus((event) => {
+      setUpdateBanner((current) => {
+        const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & { currentVersion?: string }
+        const latestVersion = eventData.latestVersion || current?.latestVersion || eventData.currentVersion || ''
+        const downloadUrl = eventData.downloadUrl || current?.downloadUrl || null
+
+        if (!latestVersion) return current
+
+        return {
+          latestVersion,
+          downloadUrl,
+          status: event.status,
+          message: event.message,
+          progress: current?.progress || 0
+        }
+      })
+    })
+
+    const removeProgress = window.api.update.onProgress((event) => {
+      setUpdateBanner((current) => current ? { ...current, progress: event.percent } : current)
+    })
+
+    return () => {
+      removeAvailable()
+      removeStatus()
+      removeProgress()
+    }
   }, [])
 
   const markNotificationReadMutation = useMutation({
@@ -1934,13 +1966,10 @@ const App: React.FC = () => {
         />
       )}
       {/* TOP NAVBAR (Green) */}
-      <header className="relative z-20 shrink-0 overflow-visible bg-primary px-6 py-2.5 text-white shadow-md">
+      <header className="relative z-20 shrink-0 overflow-visible bg-primary px-4 py-2.5 text-white shadow-md">
         <div className="pointer-events-none absolute inset-y-0 right-0 w-96 bg-gradient-to-l from-white/10 to-transparent"></div>
-        <div className="relative flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-3">
-            <button className="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-white/10">
-              <i className="fa-solid fa-chevron-left text-sm"></i>
-            </button>
+        <div className="relative flex items-center gap-3 overflow-x-auto overflow-y-visible scrollbar-hide whitespace-nowrap">
+          <div className="flex shrink-0 items-center gap-3">
             <div className="flex items-center gap-2.5">
               <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/35 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-1.5 shadow-[0_12px_28px_-12px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.9)]">
                 <img src={logoNavbar} alt="K-Map House" className="h-full w-full object-contain drop-shadow-sm" />
@@ -1959,8 +1988,58 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <nav className="flex flex-col gap-2 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="h-8 w-px shrink-0 bg-white/15"></div>
+
+          <nav className="flex min-w-max flex-1 items-center gap-2">
+            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/10 p-1 shadow-inner">
+              {[
+                { id: 'rooms', icon: 'fa-house-chimney-window', label: 'Phòng' },
+                { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'Hóa đơn' },
+                { id: 'contracts', icon: 'fa-file-contract', label: 'Hợp đồng' },
+                { id: 'assets', icon: 'fa-couch', label: 'Tài sản' },
+                { id: 'tenants', icon: 'fa-users', label: 'Khách thuê' }
+              ].map((tab) => {
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      playClick()
+                      requestActiveTab(tab.id as AppTab)
+                    }}
+                    className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition ${isActive
+                      ? 'border border-white/20 bg-white text-primary shadow-sm font-black'
+                      : 'text-white/75 hover:bg-white/10 hover:text-white font-bold'
+                      }`}
+                  >
+                    <i className={`fa-solid ${tab.icon} text-[13px]`}></i>
+                    <span>{tab.label}</span>
+                  </button>
+                )
+              })}
+              <div className="relative shrink-0" ref={reportMenuRef}>
+                <button
+                  ref={reportButtonRef}
+                  type="button"
+                  onClick={() => {
+                    playClick()
+                    setIsReportMenuOpen((prev) => !prev)
+                  }}
+                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition ${activeTab === 'reports'
+                    ? 'border border-white/20 bg-white text-primary shadow-sm font-black'
+                    : 'text-white/75 hover:bg-white/10 hover:text-white font-bold'
+                    }`}
+                >
+                  <i className="fa-solid fa-chart-pie text-[13px]"></i>
+                  <span>Báo cáo</span>
+                  <i
+                    className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`}
+                  ></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="ml-auto flex items-center gap-3">
               <div className="relative" ref={notificationMenuRef}>
                 <button
                   type="button"
@@ -2069,7 +2148,7 @@ const App: React.FC = () => {
                 </button>
 
                 {isAccountMenuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
+                  <div className="fixed right-4 top-[58px] z-[80] w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
                     <div className="mb-2 flex items-center gap-3 px-4 py-4 rounded-[22px] bg-slate-50/80">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 px-2 text-primary font-black text-sm shadow-inner ring-4 ring-white">
                         {accountAvatarLabel}
@@ -2115,78 +2194,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* SUB NAVBAR - Modern pill-based */}
-      <div className="bg-white border-b border-gray-200 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] flex items-center px-4 py-3 gap-4 overflow-x-auto overflow-y-visible scrollbar-hide shrink-0 whitespace-nowrap">
-        {/* Current Property */}
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200/60 bg-white px-3 py-2 shadow-sm min-w-[200px] shrink-0">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg shadow-inner">
-            <i className="fa-solid fa-building"></i>
-          </div>
-          <div className="flex min-w-0 flex-col items-start">
-            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
-              Đang quản lý
-            </span>
-            <span className="max-w-[150px] truncate text-[14px] font-extrabold text-gray-900 mt-0.5">
-              {appSettings.property_name || 'K-Map House'}
-            </span>
-          </div>
-        </div>
-
-        <div className="h-6 w-px bg-gray-200 shrink-0"></div>
-
-        {/* Modules Menu */}
-        <div className="flex items-center gap-1 bg-gray-100/60 p-1 rounded-2xl border border-gray-200/40 shadow-inner">
-          {[
-            { id: 'rooms', icon: 'fa-house-chimney-window', label: 'Phòng' },
-            { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'Hóa đơn' },
-            { id: 'contracts', icon: 'fa-file-contract', label: 'Hợp đồng' },
-            { id: 'assets', icon: 'fa-couch', label: 'Tài sản' },
-            { id: 'tenants', icon: 'fa-users', label: 'Khách thuê' }
-          ].map((tab) => {
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  playClick()
-                  requestActiveTab(tab.id as AppTab)
-                }}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] ${isActive
-                  ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium transition-colors duration-150'
-                  }`}
-              >
-                <i
-                  className={`fa-solid ${tab.icon} text-[14px] ${isActive ? 'text-primary' : 'text-gray-400'} transition-colors`}
-                ></i>
-                <span>{tab.label}</span>
-              </button>
-            )
-          })}
-          <div className="relative shrink-0" ref={reportMenuRef}>
-            <button
-              ref={reportButtonRef}
-              type="button"
-              onClick={() => {
-                playClick()
-                setIsReportMenuOpen((prev) => !prev)
-              }}
-              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] ${activeTab === 'reports'
-                ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium transition-colors duration-150'
-                }`}
-            >
-              <i
-                className={`fa-solid fa-chart-pie text-[14px] ${activeTab === 'reports' ? 'text-primary' : 'text-gray-400'} transition-colors`}
-              ></i>
-              <span>Báo cáo</span>
-              <i
-                className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`}
-              ></i>
-            </button>
-          </div>
-        </div>
-      </div>
       {isReportMenuOpen && (
         <div
           ref={reportDropdownRef}
@@ -3437,38 +3444,42 @@ const App: React.FC = () => {
         ) : null}
       </div>
 
-      {updateBanner && (
+      {updateBanner && updateBanner.status !== 'idle' && (
         <div className="fixed right-5 top-24 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl shadow-slate-900/15">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
-              <i className="fa-solid fa-cloud-arrow-down"></i>
+              <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : 'fa-cloud-arrow-down'}`}></i>
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-black text-slate-900">
-                Co ban cap nhat v{updateBanner.latestVersion}
+                {updateBanner.status === 'error' ? 'C\u1eadp nh\u1eadt t\u1ef1 \u0111\u1ed9ng l\u1ed7i' : updateBanner.status === 'restarting' ? '\u0110ang kh\u1edfi \u0111\u1ed9ng l\u1ea1i' : `\u0110ang t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt v${updateBanner.latestVersion}`}
               </div>
               <div className="mt-1 text-xs leading-5 text-slate-500">
-                Ban co the cai dat ngay hoac de sau, app van hoat dong binh thuong.
+                {updateBanner.message || 'H\u1ec7 th\u1ed1ng s\u1ebd t\u1ef1 t\u1ea3i, c\u00e0i \u0111\u1eb7t v\u00e0 kh\u1edfi \u0111\u1ed9ng l\u1ea1i khi s\u1eb5n s\u00e0ng.'}
               </div>
-              <div className="mt-3 flex gap-2">
+              {typeof updateBanner.progress === 'number' && updateBanner.progress > 0 && updateBanner.status !== 'error' && (
+                <div className="mt-3">
+                  <div className="mb-1 flex justify-between text-[10px] font-bold text-slate-400">
+                    <span>Ti\u1ebfn tr\u00ecnh</span>
+                    <span>{updateBanner.progress}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${updateBanner.progress}%` }}></div>
+                  </div>
+                </div>
+              )}
+              {updateBanner.status === 'error' && (
                 <button
                   type="button"
                   onClick={() => {
                     setSettingsInitialTab('updates')
                     requestActiveTab('settings')
                   }}
-                  className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white transition hover:bg-primary-dark"
+                  className="mt-3 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
                 >
-                  Cap nhat ngay
+                  Xem chi ti\u1ebft
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setUpdateBanner(null)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-                >
-                  De sau
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
