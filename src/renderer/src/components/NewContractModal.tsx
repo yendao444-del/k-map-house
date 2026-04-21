@@ -5,6 +5,7 @@ import {
   getContracts,
   getTenants,
   createTenant,
+  getRoomAssets,
   type Invoice,
   type Room,
   type ServiceZone,
@@ -72,6 +73,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
   const today = new Date().toISOString().split('T')[0]
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
+  const { data: roomAssets = [] } = useQuery({ queryKey: ['roomAssets', room.id], queryFn: () => getRoomAssets(room.id) })
 
   const activeTenantIds = useMemo(
     () => new Set(contracts.filter(contract => contract.status === 'active').map(contract => contract.tenant_id).filter(Boolean)),
@@ -309,7 +311,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
           )}
 
           {/* Asset Warning (Tour Onboarding) */}
-          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5 flex gap-4 shadow-sm items-start">
+          {roomAssets.length === 0 && <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5 flex gap-4 shadow-sm items-start">
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
               <i className="fa-solid fa-couch"></i>
             </div>
@@ -332,7 +334,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                 Thêm tài sản ngay
               </button>
             </div>
-          </div>
+          </div>}
 
           {/* Loại hợp đồng */}
           <div>

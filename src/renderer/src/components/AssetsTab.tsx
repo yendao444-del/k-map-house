@@ -94,6 +94,9 @@ const HANDOVER_ITEMS = [
   { id: '__check_keys', label: 'Đã thu hồi chìa khóa / thẻ / remote', icon: 'fa-key' },
 ];
 
+const getHandoverSnapshotKey = (snap: Pick<AssetSnapshot, 'room_asset_id' | 'note'>) =>
+  snap.note || snap.room_asset_id;
+
 const ConfirmModal: React.FC<{
   message: string;
   onConfirm: () => void;
@@ -195,7 +198,7 @@ const RoomAssetPanel: React.FC<{
   const handoverDone =
     handoverSnaps.length > 0 &&
     HANDOVER_ITEMS.every((item) => {
-      const snap = handoverSnaps.find((s) => s.room_asset_id === item.id);
+      const snap = handoverSnaps.find((s) => getHandoverSnapshotKey(s) === item.id);
       return snap?.condition === 'ok' || (snap?.condition === 'not_done' && (snap.deduction || 0) > 0);
     });
   const assetDeduction = Object.values(outDeductions).reduce((sum, v) => sum + (v || 0), 0);
@@ -286,6 +289,9 @@ const RoomAssetPanel: React.FC<{
       }
       setModal(null);
     },
+    onError: (error) => {
+      alert(error instanceof Error ? error.message : 'Khong luu duoc doi chieu tai san.');
+    },
   });
 
   const openMoveIn = () => {
@@ -328,7 +334,7 @@ const RoomAssetPanel: React.FC<{
     const handover: Record<string, 'ok' | 'not_done'> = {};
     const handoverFees: Record<string, number> = {};
     HANDOVER_ITEMS.forEach((item) => {
-      const existing = handoverSnaps.find((s) => s.room_asset_id === item.id);
+      const existing = handoverSnaps.find((s) => getHandoverSnapshotKey(s) === item.id);
       handover[item.id] = (existing?.condition as 'ok' | 'not_done') || 'ok';
       handoverFees[item.id] = existing?.deduction || 0;
     });
@@ -385,7 +391,13 @@ const RoomAssetPanel: React.FC<{
       }))
     );
 
-  const saveMoveOut = () =>
+  const saveMoveOut = () => {
+    const handoverAssetId = assets[0]?.id;
+    if (!handoverAssetId) {
+      alert('Khong tim thay tai san lam moc de luu ban giao phong.');
+      return;
+    }
+
     saveSnaps.mutate([
       ...assets.map((asset) => ({
         room_asset_id: asset.id,
@@ -395,13 +407,15 @@ const RoomAssetPanel: React.FC<{
         deduction: outDeductions[asset.id] || 0,
       })),
       ...HANDOVER_ITEMS.map((item) => ({
-        room_asset_id: item.id,
+        room_asset_id: handoverAssetId,
         room_id: room.id,
         type: 'handover' as const,
         condition: handoverConditions[item.id] || 'ok',
         deduction: handoverConditions[item.id] === 'not_done' ? handoverDeductions[item.id] || 0 : 0,
+        note: item.id,
       })),
     ]);
+  };
 
   if (isLoading) return <div className="flex-1 p-8 text-center text-sm text-gray-400">Đang tải...</div>;
 
@@ -591,10 +605,10 @@ const RoomAssetPanel: React.FC<{
           <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
               <h3 className="font-bold text-gray-900">Thêm tài sản</h3>
-              <button onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><i className="fa-solid fa-xmark"></i></button>
+              <button data-tour="add-asset-close" onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><i className="fa-solid fa-xmark"></i></button>
             </div>
             <div className="space-y-4 p-5">
-              <div className="grid grid-cols-4 gap-2">
+              <div data-tour="asset-select-area" className="grid grid-cols-4 gap-2">
                 {assetTemplates.map((name) => {
                   const selected = !!selectedAssets[name];
                   const colorClass = assetColor(name);

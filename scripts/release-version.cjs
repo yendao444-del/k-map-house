@@ -2,6 +2,7 @@ const fs = require('fs')
 const path = require('path')
 
 const packageJsonPath = path.join(process.cwd(), 'package.json')
+const packageLockPath = path.join(process.cwd(), 'package-lock.json')
 const command = process.argv[2]
 
 function readPackageJson() {
@@ -14,6 +15,21 @@ function parseVersion(version) {
     throw new Error(`Invalid semver version: ${version}`)
   }
   return parts
+}
+
+function writePackageVersion(newVersion) {
+  const pkg = readPackageJson()
+  pkg.version = newVersion
+  fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + '\n')
+
+  if (fs.existsSync(packageLockPath)) {
+    const lock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'))
+    lock.version = newVersion
+    if (lock.packages && lock.packages['']) {
+      lock.packages[''].version = newVersion
+    }
+    fs.writeFileSync(packageLockPath, JSON.stringify(lock, null, 2) + '\n')
+  }
 }
 
 try {
@@ -34,8 +50,7 @@ try {
   if (command === 'set') {
     const newVersion = process.argv[3]
     parseVersion(newVersion)
-    pkg.version = newVersion
-    fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + '\n')
+    writePackageVersion(newVersion)
     process.exit(0)
   }
 

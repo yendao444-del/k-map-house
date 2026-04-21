@@ -52,6 +52,9 @@ export const TenantsTab: React.FC = () => {
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) => prev.filter((tenant) => tenant.id !== id));
       queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+    },
+    onError: (err: any) => {
+      alert('Không thể xóa khách thuê: ' + (err?.message || 'Lỗi không xác định.\nKhách này có thể còn hợp đồng hoặc hóa đơn liên kết.'));
     }
   });
 

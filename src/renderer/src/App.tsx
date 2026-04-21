@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import logoNavbar from './assets/logo_navbar.png'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -44,6 +44,8 @@ import { LoginScreen } from './components/LoginScreen'
 import { setupRealtime } from './lib/realtime'
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+  snap.note || snap.room_asset_id
 type AppTab = 'rooms' | 'invoices' | 'assets' | 'contracts' | 'tenants' | 'reports' | 'settings'
 type PendingAssetReceive = { roomId: string; roomName: string }
 type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
@@ -53,6 +55,15 @@ type UpdateBannerInfo = {
 }
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
+
+export const formatRoomName = (raw: string) => {
+  const trimmed = raw.trim()
+  // Strip mọi prefix "phong/phòng" dư thừa (kể cả thiếu dấu)
+  const suffix = trimmed.replace(/^(ph[oò]ng\s+)+/i, '').trim()
+  if (/^\d+$/.test(suffix)) return 'Phòng ' + suffix
+  if (/^\d+$/.test(trimmed)) return 'Phòng ' + trimmed
+  return trimmed
+}
 
 const AddRoomModal = ({
   onClose,
@@ -1101,7 +1112,7 @@ const App: React.FC = () => {
             HANDOVER_IDS.every((id) =>
               handover.some(
                 (snap) =>
-                  snap.room_asset_id === id &&
+                  getHandoverSnapshotKey(snap) === id &&
                   (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
               )
             )
@@ -2045,43 +2056,74 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                  className="flex items-center gap-3 rounded-xl border border-white/15 py-1 pl-2 pr-1 text-left transition hover:border-white/25 hover:bg-white/10"
+                  className={`group relative flex items-center gap-2.5 rounded-2xl p-1 transition-all duration-300 ${isAccountMenuOpen
+                    ? 'bg-white shadow-xl ring-1 ring-black/5 scale-[1.02]'
+                    : 'hover:bg-white/15 active:scale-95'}`}
                 >
-                  <div className="hidden text-right sm:block">
-                    <div className="text-[10px] font-black leading-none uppercase">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-white to-gray-100 p-[1px] shadow-sm transition-transform duration-300 group-hover:rotate-3">
+                    <div className="flex h-full w-full items-center justify-center rounded-[10px] bg-white text-[11px] font-black text-primary">
+                      {currentUser.full_name
+                        .split(' ')
+                        .filter(Boolean)
+                        .slice(0, 2)
+                        .map((part) => part[0]?.toUpperCase())
+                        .join('')}
+                    </div>
+                  </div>
+
+                  <div className="hidden text-left sm:block pr-1">
+                    <div className={`text-[10px] font-black leading-tight uppercase tracking-tight transition-colors ${isAccountMenuOpen ? 'text-slate-900' : 'text-white'}`}>
                       {currentUser.full_name}
                     </div>
-                    <div className="mt-0.5 text-[8px] font-bold uppercase tracking-tighter text-white/60">
+                    <div className={`mt-0.5 text-[8px] font-bold uppercase tracking-widest transition-colors ${isAccountMenuOpen ? 'text-slate-400' : 'text-white/60'}`}>
                       {currentUser.role}
                     </div>
                   </div>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-white text-xs font-black text-primary shadow-sm">
-                    {currentUser.full_name
-                      .split(' ')
-                      .filter(Boolean)
-                      .slice(0, 2)
-                      .map((part) => part[0]?.toUpperCase())
-                      .join('')}
+
+                  <div className={`flex h-5 w-5 items-center justify-center rounded-lg transition-all duration-300 ${isAccountMenuOpen ? 'bg-slate-100 text-slate-400' : 'text-white/30 group-hover:text-white/60'}`}>
+                    <i className={`fa-solid fa-chevron-down text-[9px] transition-transform duration-300 ${isAccountMenuOpen ? 'rotate-180' : ''}`}></i>
                   </div>
-                  <i
-                    className={`fa-solid fa-caret-down text-[10px] text-white/40 transition-transform ${isAccountMenuOpen ? 'rotate-180' : ''}`}
-                  ></i>
                 </button>
 
                 {isAccountMenuOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
-                    <button className="flex w-full items-center gap-3 px-4 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
-                      <i className="fa-solid fa-user-circle w-4 text-center"></i>
-                      <span>Thông tin cá nhân</span>
-                    </button>
-                    <div className="mx-4 my-1 h-px bg-slate-100"></div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-3 px-4 py-2 text-[11px] font-black uppercase text-rose-500 transition hover:bg-rose-50"
-                    >
-                      <i className="fa-solid fa-right-from-bracket w-4 text-center"></i>
-                      <span>Đăng xuất</span>
-                    </button>
+                  <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
+                    <div className="mb-2 flex items-center gap-3 px-4 py-4 rounded-[22px] bg-slate-50/80">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary font-black text-lg shadow-inner ring-4 ring-white">
+                        {currentUser.full_name[0]}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-black text-slate-900">{currentUser.full_name}</div>
+                        <div className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">ID: {currentUser.id?.slice(0, 8) || 'ADMIN'}</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[11px] font-bold text-slate-600 transition-all hover:bg-slate-100 group">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                          <i className="fa-solid fa-id-card text-primary/70"></i>
+                        </div>
+                        <span>Hồ sơ cá nhân</span>
+                      </button>
+
+                      <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[11px] font-bold text-slate-600 transition-all hover:bg-slate-100 group">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
+                          <i className="fa-solid fa-key text-amber-500"></i>
+                        </div>
+                        <span>Đổi mật khẩu</span>
+                      </button>
+
+                      <div className="mx-3 my-2 h-px bg-slate-100/60"></div>
+
+                      <button
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-50 group uppercase tracking-widest"
+                      >
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-rose-50 group-hover:bg-rose-500 group-hover:text-white transition-all">
+                          <i className="fa-solid fa-power-off"></i>
+                        </div>
+                        <span>Đăng xuất</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2139,9 +2181,9 @@ const App: React.FC = () => {
                   playClick()
                   requestActiveTab(tab.id as AppTab)
                 }}
-                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] transition-all duration-300 ${isActive
+                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] ${isActive
                   ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium transition-colors duration-150'
                   }`}
               >
                 <i
@@ -2159,9 +2201,9 @@ const App: React.FC = () => {
                 playClick()
                 setIsReportMenuOpen((prev) => !prev)
               }}
-              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] transition-all duration-300 ${activeTab === 'reports'
+              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] ${activeTab === 'reports'
                 ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium transition-colors duration-150'
                 }`}
             >
               <i
@@ -2210,6 +2252,7 @@ const App: React.FC = () => {
       )}
 
       {/* MAIN SCROLLABLE CONTENT */}
+      <div key={activeTab} className="flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]">
       {activeTab === 'rooms' ? (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {dueRoomsCount > 0 && (
@@ -2606,8 +2649,8 @@ const App: React.FC = () => {
                                   }}
                                   className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
                                 >
-                                  <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền hóa
-                                  đơn
+                                  <i className="fa-solid fa-money-bill-wave w-4"></i>{' '}
+                                  {unpaidFirstMonthForCurrentTenant ? 'Thu tiền hóa đơn' : 'Lập hóa đơn đầu tiên'}
                                 </button>
                                 <button
                                   onClick={(e) => {
@@ -3219,7 +3262,7 @@ const App: React.FC = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    openInvoiceFlow(room)
+                                    setSelectedRoom(room)
                                   }}
                                   className="bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
                                 >
@@ -3422,6 +3465,7 @@ const App: React.FC = () => {
       ) : activeTab === 'settings' ? (
         <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
       ) : null}
+      </div>
 
       {updateBanner && (
         <div className="fixed right-5 top-24 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl shadow-slate-900/15">

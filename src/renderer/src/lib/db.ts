@@ -35,7 +35,10 @@ export interface AppSettings { bank_id?: string; account_no?: string; account_na
 const formatRoomName = (name: string) => {
   const cleanedName = name.trim().replace(/\s+/g, ' ')
   if (!cleanedName) return ''
-  return /^phong\s+/i.test(cleanedName) ? cleanedName : `Phong ${cleanedName}`
+  const suffix = cleanedName.replace(/^(ph[oò]ng\s+)+/i, '').trim()
+  if (/^\d+$/.test(suffix)) return 'Phòng ' + suffix
+  if (/^\d+$/.test(cleanedName)) return 'Phòng ' + cleanedName
+  return cleanedName
 }
 
 const createEntityId = (prefix: string): string =>
@@ -131,6 +134,10 @@ export const updateTenant = async (id: string, updates: Partial<Tenant>): Promis
 }
 
 export const deleteTenant = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('move_in_receipts').delete().eq('tenant_id', id))
+  await safeQuery(() => supabase.from('asset_snapshots').delete().eq('tenant_id', id))
+  await safeQuery(() => supabase.from('invoices').delete().eq('tenant_id', id))
+  await safeQuery(() => supabase.from('contracts').delete().eq('tenant_id', id))
   await safeQuery(() => supabase.from('tenants').delete().eq('id', id))
 }
 
@@ -295,6 +302,14 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
       .update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null } as any)
       .eq('id', contract.room_id)
   }
+  if (contract?.room_id && contract?.tenant_id) {
+    await supabase
+      .from('invoices')
+      .update({ payment_status: 'cancelled', note: '[Hủy theo hợp đồng]' } as any)
+      .eq('room_id', contract.room_id)
+      .eq('tenant_id', contract.tenant_id)
+      .in('payment_status', ['unpaid'])
+  }
   await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Cancel contract]' }).eq('id', contract.id))
 }
 
@@ -382,7 +397,8 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
     throw new Error('First-month invoice must match move-in month/year')
   }
 
-  const newInvoice = { ...invoiceData, id: createEntityId('inv'), created_at: new Date().toISOString() }
+  const { allow_duplicate: _dup, ...invoiceInsertData } = invoiceData as any
+  const newInvoice = { ...invoiceInsertData, id: createEntityId('inv'), created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('invoices').insert(newInvoice).select().single())
   const inv = result as any as Invoice
   if (invoiceData.room_id && !invoiceData.is_settlement) { await supabase.from('rooms').update({ electric_old: inv.electric_new, electric_new: inv.electric_new, water_old: inv.water_new, water_new: inv.water_new } as any).eq('id', invoiceData.room_id) }
@@ -465,8 +481,27 @@ export const getAssetSnapshots = async (roomId: string, type?: string): Promise<
 }
 
 export const createAssetSnapshots = async (data: Partial<AssetSnapshot>[]): Promise<AssetSnapshot[]> => {
-  const snaps = data.map(s => ({ ...s, id: createEntityId('snap'), recorded_at: new Date().toISOString() }))
-  const result = await safeQuery(() => supabase.from('asset_snapshots').insert(snaps).select()); return result as any as AssetSnapshot[]
+  if (data.length === 0) return []
+
+  const replacedGroups = new Set<string>()
+  for (const snap of data) {
+    if (!snap.room_id || !snap.type) continue
+    const key = `${snap.room_id}|${snap.type}`
+    if (replacedGroups.has(key)) continue
+    replacedGroups.add(key)
+    await safeQuery(() =>
+      supabase
+        .from('asset_snapshots')
+        .delete()
+        .eq('room_id', snap.room_id as string)
+        .eq('type', snap.type as string)
+    )
+  }
+
+  const recordedAt = new Date().toISOString()
+  const snaps = data.map(s => ({ ...s, id: createEntityId('snap'), recorded_at: recordedAt }))
+  const result = await safeQuery(() => supabase.from('asset_snapshots').insert(snaps).select())
+  return result as any as AssetSnapshot[]
 }
 
 export const createAssetSnapshot = async (data: Partial<AssetSnapshot>): Promise<AssetSnapshot> => {

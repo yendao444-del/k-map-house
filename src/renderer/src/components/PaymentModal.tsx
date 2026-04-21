@@ -14,6 +14,8 @@ const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys'];
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+  snap.note || snap.room_asset_id;
 
 function getInvoiceLabel(invoice: db.Invoice): string {
   if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
@@ -70,7 +72,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     HANDOVER_IDS.every((id) =>
       handoverSnaps.some(
         (snap) =>
-          snap.room_asset_id === id &&
+          getHandoverSnapshotKey(snap) === id &&
           (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
       )
     );

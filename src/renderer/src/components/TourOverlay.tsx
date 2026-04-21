@@ -17,23 +17,18 @@ export const TourOverlay = () => {
         const selector =
           type === 'create_tenant'
             ? '[data-tour="add-tenant-btn"]'
-            : type === 'create_tenant_step2'
-              ? '[data-tour="tenant-submit-btn"]'
-              : type === 'add_asset'
-                ? '[data-tour="add-asset-btn"]'
-                : type === 'add_asset_step2'
-                  ? '[data-tour="save-asset-btn"]'
-                  : type === 'move_in_asset'
-                    ? '[data-tour="move-in-btn"]'
-                    : type === 'move_out_asset'
-                      ? '[data-tour="move-out-btn"]'
-                      : ''
+            : type === 'add_asset'
+              ? '[data-tour="add-asset-btn"]'
+              : type === 'move_in_asset'
+                ? '[data-tour="move-in-btn"]'
+                : type === 'move_out_asset'
+                  ? '[data-tour="move-out-btn"]'
+                  : ''
 
         if (!selector) return
 
         const target = document.querySelector(selector) as HTMLElement | null
         if (!target) {
-          // Chỉ retry nếu đang tìm bước 2 (vì modal cần thời gian mở)
           if (retries < 15 && type.includes('step2')) {
             setTimeout(() => checkAndSet(retries + 1), 200)
           }
@@ -45,16 +40,12 @@ export const TourOverlay = () => {
           target,
           text:
             type === 'create_tenant'
-              ? 'Bước 1/2: Bấm vào đây để mở Form tạo hồ sơ khách'
-              : type === 'create_tenant_step2'
-                ? 'Bước 2/2: Điền thông tin khách thuê và bấm Lưu lại'
-                : type === 'add_asset'
-                  ? 'Bước 1/2: Bấm vào đây để thêm tài sản mới vào kho'
-                  : type === 'add_asset_step2'
-                    ? 'Bước 2/2: Nhập tên tài sản và Lưu'
-                    : type === 'move_in_asset'
-                      ? 'Bấm vào đây để kiểm tra lại tài sản sẵn có và chốt nhận phòng'
-                      : 'Bấm vào đây để mở Đối chiếu trả phòng cho phòng này',
+              ? 'Bấm vào đây để thêm hồ sơ khách thuê'
+              : type === 'add_asset'
+                ? 'Bấm vào đây để thêm tài sản cho phòng'
+                : type === 'move_in_asset'
+                  ? 'Bấm vào đây để kiểm tra lại tài sản sẵn có và chốt nhận phòng'
+                  : 'Bấm vào đây để mở Đối chiếu trả phòng cho phòng này',
         })
       }
 
@@ -75,13 +66,10 @@ export const TourOverlay = () => {
   if (!tourData) return null
 
   const rect = tourData.target.getBoundingClientRect()
-
   const isNearRightMargin = window.innerWidth - rect.right < 150
-
   const popoverStyle: React.CSSProperties = isNearRightMargin
     ? { right: 0 }
     : { left: '50%', transform: 'translateX(-50%)' }
-
   const arrowStyle: React.CSSProperties = isNearRightMargin
     ? { right: (rect.width + 12) / 2 - 6 }
     : { left: '50%', transform: 'translateX(-50%)' }
@@ -89,7 +77,6 @@ export const TourOverlay = () => {
   return (
     <div className="fixed inset-0 z-[9999] pointer-events-none">
       <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-[2px] animate-[fadeIn_0.2s]" />
-
       <button
         type="button"
         className="absolute rounded-xl border-2 border-orange-500 bg-transparent shadow-[0_0_0_9999px_rgba(17,24,39,0.7),0_0_24px_rgba(249,115,22,0.75)] animate-pulse pointer-events-auto cursor-pointer"
@@ -101,14 +88,7 @@ export const TourOverlay = () => {
         }}
         onClick={() => {
           tourData.target.click()
-          const currentType = tourData.type;
           setTourData(null)
-
-          if (currentType === 'create_tenant') {
-            window.dispatchEvent(new CustomEvent('start-tour', { detail: 'create_tenant_step2' }))
-          } else if (currentType === 'add_asset') {
-            window.dispatchEvent(new CustomEvent('start-tour', { detail: 'add_asset_step2' }))
-          }
         }}
         aria-label={tourData.text}
       >
@@ -116,10 +96,7 @@ export const TourOverlay = () => {
           className="absolute top-full mt-3 w-max max-w-[280px] rounded-xl border-2 border-orange-400 bg-white px-4 py-3 text-left text-[13px] font-bold leading-snug text-gray-800 shadow-2xl"
           style={popoverStyle}
         >
-          <span
-            className="absolute -top-2 h-3 w-3 rotate-45 border-l-2 border-t-2 border-orange-400 bg-white"
-            style={arrowStyle}
-          />
+          <span className="absolute -top-2 h-3 w-3 rotate-45 border-l-2 border-t-2 border-orange-400 bg-white" style={arrowStyle} />
           <span className="relative z-10 flex items-start gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-100">
               <i className="fa-solid fa-hand-pointer text-xs text-orange-500"></i>

@@ -18,6 +18,9 @@ interface Props {
 }
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+  snap.note || snap.room_asset_id
 
 
 const BILLING_REASON_LABEL: Record<string, string> = {
@@ -138,9 +141,8 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   )
   const hasMoveOutDone = moveOutSnaps.length > 0
   // Bàn giao được đưa về tab Tài sản — kiểm tra handoverSnaps
-  const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
   const hasHandoverDone = handoverSnaps.length > 0 && HANDOVER_IDS.every(id => {
-    const s = handoverSnaps.find(x => x.room_asset_id === id)
+    const s = handoverSnaps.find(x => getHandoverSnapshotKey(x) === id)
     return s?.condition === 'ok' || (s?.condition === 'not_done' && (s.deduction || 0) > 0)
   })
 
@@ -433,10 +435,11 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                   <div className="space-y-1.5 mt-3 pt-3 border-t border-teal-200">
                     <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-1">Chi phí bàn giao:</p>
                     {handoverSnaps.filter(s => s.deduction > 0).map(s => {
-                      const item = HANDOVER_IDS.includes(s.room_asset_id)
-                        ? s.room_asset_id === '__check_cleared'
+                      const handoverKey = getHandoverSnapshotKey(s)
+                      const item = HANDOVER_IDS.includes(handoverKey)
+                        ? handoverKey === '__check_cleared'
                           ? 'Dọn đồ cá nhân'
-                          : s.room_asset_id === '__check_cleaned'
+                          : handoverKey === '__check_cleaned'
                             ? 'Vệ sinh phòng'
                             : 'Chìa khóa / thẻ / remote'
                         : 'Bàn giao phòng'
