@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react'
-import logoNavbar from './assets/logo_navbar.png'
+import {
+  Home,
+  FileText,
+  Users,
+  Settings as SettingsIcon,
+  Bell,
+  ChevronDown,
+  Box,
+  ClipboardList,
+  BarChart3
+} from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getRooms,
@@ -1765,6 +1775,14 @@ const App: React.FC = () => {
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase())
       .join('')
+  const sapoGreen = '#00ffcc'
+  const headerNavItems = [
+    { id: 'rooms' as const, icon: Home, label: 'Phòng' },
+    { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' },
+    { id: 'contracts' as const, icon: ClipboardList, label: 'Hợp đồng' },
+    { id: 'assets' as const, icon: Box, label: 'Tài sản' },
+    { id: 'tenants' as const, icon: Users, label: 'Khách thuê' }
+  ]
 
   return (
     <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
@@ -1984,101 +2002,82 @@ const App: React.FC = () => {
           isDeleting={deleteMutation.isPending}
         />
       )}
-      {/* TOP NAVBAR (Green) */}
-      <header className="relative z-20 shrink-0 overflow-visible bg-primary px-4 py-2.5 text-white shadow-md">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-96 bg-gradient-to-l from-white/10 to-transparent"></div>
-        <div className="relative flex items-center gap-3 overflow-x-auto overflow-y-visible scrollbar-hide whitespace-nowrap">
-          <div className="flex shrink-0 items-center gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/35 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-1.5 shadow-[0_12px_28px_-12px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <img src={logoNavbar} alt="DBY HOME" className="h-full w-full object-contain drop-shadow-sm" />
-                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-amber-300 to-yellow-500 shadow-sm">
-                  <i className="fa-solid fa-crown text-[7px] text-white"></i>
-                </span>
+      {/* Header Menu */}
+      <header className="relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 font-sans text-white shadow-md">
+        <div className="flex min-w-0 items-center space-x-4">
+          <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-white shadow-sm transition-transform group-hover:scale-105">
+              <div className="flex h-5 w-5 items-center justify-center rounded-sm bg-[#002b36] text-[10px] font-bold text-white">
+                DB
               </div>
-              <div>
-                <div className="text-base font-extrabold leading-none tracking-tight">
-                  DBY HOME
-                </div>
-                <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.2em] text-white/60">
-                  Hệ thống quản trị
-                </div>
-              </div>
+            </div>
+            <div className="flex flex-col leading-none">
+              <span className="text-sm font-bold tracking-tight" style={{ color: sapoGreen }}>
+                DBY HOME
+              </span>
+              <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
+                Hệ thống quản trị
+              </span>
             </div>
           </div>
 
-          <div className="h-8 w-px shrink-0 bg-white/15"></div>
-
-          <nav className="flex min-w-max flex-1 items-center gap-2">
-            <div className="flex items-center gap-1 rounded-2xl border border-white/10 bg-white/10 p-1 shadow-inner">
-              {[
-                { id: 'rooms', icon: 'fa-house-chimney-window', label: 'Phòng' },
-                { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'Hóa đơn' },
-                { id: 'contracts', icon: 'fa-file-contract', label: 'Hợp đồng' },
-                { id: 'assets', icon: 'fa-couch', label: 'Tài sản' },
-                { id: 'tenants', icon: 'fa-users', label: 'Khách thuê' }
-              ].map((tab) => {
-                const isActive = activeTab === tab.id
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      playClick()
-                      requestActiveTab(tab.id as AppTab)
-                    }}
-                    className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition ${isActive
-                      ? 'border border-white/20 bg-white text-primary shadow-sm font-black'
-                      : 'text-white/75 hover:bg-white/10 hover:text-white font-bold'
-                      }`}
-                  >
-                    <i className={`fa-solid ${tab.icon} text-[13px]`}></i>
-                    <span>{tab.label}</span>
-                  </button>
-                )
-              })}
-              <div className="relative shrink-0" ref={reportMenuRef}>
+          <nav className="ml-4 flex h-14 min-w-0 overflow-x-auto scrollbar-hide">
+            {headerNavItems.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
                 <button
-                  ref={reportButtonRef}
+                  key={item.id}
                   type="button"
                   onClick={() => {
                     playClick()
-                    setIsReportMenuOpen((prev) => !prev)
+                    requestActiveTab(item.id)
                   }}
-                  className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-[12px] transition ${activeTab === 'reports'
-                    ? 'border border-white/20 bg-white text-primary shadow-sm font-black'
-                    : 'text-white/75 hover:bg-white/10 hover:text-white font-bold'
+                  className={`flex shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${isActive
+                    ? 'bg-white/10 text-white'
+                    : 'border-transparent text-white hover:bg-white/5'
                     }`}
+                  style={{ borderBottomColor: isActive ? sapoGreen : 'transparent' }}
                 >
-                  <i className="fa-solid fa-chart-pie text-[13px]"></i>
-                  <span>Báo cáo</span>
-                  <i
-                    className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`}
-                  ></i>
+                  <Icon size={18} className="text-white" />
+                  <span className="text-white">{item.label}</span>
                 </button>
-              </div>
+              )
+            })}
+            <div className="relative shrink-0" ref={reportMenuRef}>
+              <button
+                ref={reportButtonRef}
+                type="button"
+                onClick={() => {
+                  playClick()
+                  setIsReportMenuOpen((prev) => !prev)
+                }}
+                className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${activeTab === 'reports'
+                  ? 'bg-white/10 text-white'
+                  : 'border-transparent text-white hover:bg-white/5'
+                  }`}
+                style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
+              >
+                <BarChart3 size={18} className="text-white" />
+                <span className="text-white">Báo cáo</span>
+                <ChevronDown size={14} className={`ml-1 text-white opacity-50 transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
             </div>
+          </nav>
+        </div>
 
-            <div className="ml-auto flex items-center gap-3">
-              <div className="relative" ref={notificationMenuRef}>
+        <div className="flex shrink-0 items-center space-x-4">
+          <div className="relative" ref={notificationMenuRef}>
                 <button
                   type="button"
                   onClick={() => setIsNotificationOpen((prev) => !prev)}
-                  className={`relative flex h-10 w-10 items-center justify-center rounded-xl text-sm text-white transition-all ${notificationItems.length > 0
-                    ? 'border border-white/15 bg-gradient-to-b from-white/18 to-white/10 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.45)] hover:from-white/24 hover:to-white/14 hover:shadow-[0_12px_24px_-14px_rgba(0,0,0,0.5)]'
-                    : 'border border-white/10 bg-white/10 hover:border-white/20 hover:bg-white/20'
-                    } ${isNotificationOpen ? 'border-white/25 bg-white/20' : ''}`}
+                  className="relative flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
                   title="Thông báo"
                 >
-                  <i
-                    className={`fa-solid fa-bell transition-transform ${notificationItems.length > 0 ? 'text-[15px]' : 'text-sm'
-                      } ${isNotificationOpen ? 'scale-110' : ''} ${notificationItems.length > 0 && !isNotificationOpen
-                        ? 'notification-bell-ring'
-                        : ''
-                      }`}
-                  ></i>
+                  <Bell size={18} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
                   {notificationItems.length > 0 && (
                     <span
-                      className={`absolute -right-1 -top-1 min-w-[18px] rounded-full border-2 border-primary bg-gradient-to-b from-orange-400 to-orange-500 px-1 text-center text-[10px] font-black leading-[18px] text-white shadow-[0_6px_14px_-8px_rgba(251,146,60,0.9)] ${!isNotificationOpen ? 'notification-badge-pulse' : ''
+                      className={`absolute -right-1 -top-1 min-w-[18px] rounded-full border-2 border-[#002b36] bg-gradient-to-b from-orange-400 to-orange-500 px-1 text-center text-[10px] font-black leading-[18px] text-white shadow-[0_6px_14px_-8px_rgba(251,146,60,0.9)] ${!isNotificationOpen ? 'notification-badge-pulse' : ''
                         }`}
                     >
                       {notificationBadgeLabel}
@@ -2138,32 +2137,28 @@ const App: React.FC = () => {
                 )}
               </div>
 
-              <button
+          <button
                 onClick={() => {
                   playClick()
                   setSettingsInitialTab('general')
                   requestActiveTab('settings')
                 }}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl text-sm transition-all ${activeTab === 'settings'
-                  ? 'bg-white/20 text-white'
-                  : 'text-white hover:bg-white/10'
-                  }`}
+                className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
                 title="Cài đặt hệ thống"
               >
-                <i className="fa-solid fa-gear settings-gear-spin text-sm"></i>
+                <SettingsIcon size={18} />
               </button>
 
-              <div className="mx-1 h-6 w-px bg-white/10"></div>
-
-              <div className="relative" ref={accountMenuRef}>
+          <div className="relative" ref={accountMenuRef}>
                 <button
                   type="button"
                   onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                  className={`relative flex h-[34px] w-[52px] items-center justify-center rounded-full overflow-hidden bg-white px-2 text-[11px] font-black text-primary transition-all duration-200 ${isAccountMenuOpen
-                    ? 'ring-2 ring-white/40 scale-105'
-                    : 'hover:scale-105 active:scale-95'}`}
+                  className="flex items-center space-x-2 rounded-full px-4 py-1.5 shadow-lg transition-all hover:brightness-110 active:scale-95"
+                  style={{ backgroundColor: sapoGreen }}
                 >
-                  {accountAvatarLabel}
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#00151a]">
+                    {accountAvatarLabel}
+                  </span>
                 </button>
 
                 {isAccountMenuOpen && (
@@ -2208,8 +2203,6 @@ const App: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
-          </nav>
         </div>
       </header>
 

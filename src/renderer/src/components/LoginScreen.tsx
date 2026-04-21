@@ -161,7 +161,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 p-6"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#002b36] p-6"
       style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
     >
       <style>{`
