@@ -52,40 +52,54 @@ const assetIcon = (name: string) => {
   if (name.includes('Giường')) return 'fa-bed';
   if (name.includes('Khóa')) return 'fa-lock';
   if (name.includes('TV')) return 'fa-tv';
-  if (name.includes('Điều hòa') || name.includes('Tủ lạnh')) return 'fa-snowflake';
-  if (name.includes('Tủ')) return 'fa-box';
-  if (name.includes('Vòi') || name.includes('sinh')) return 'fa-faucet';
+  if (name.includes('Điều hòa')) return 'fa-wind';
+  if (name.includes('Tủ lạnh')) return 'fa-snowflake';
+  if (name.includes('Tủ')) return 'fa-box-archive';
+  if (name.includes('Vòi')) return 'fa-faucet';
+  if (name.includes('sinh')) return 'fa-toilet';
   if (name.includes('Bàn + Ghế')) return 'fa-chair';
-  if (name.includes('Quạt trần')) return 'fa-fan';
-  if (name.includes('nóng lạnh')) return 'fa-shower';
-  if (name.includes('giặt')) return 'fa-shirt';
-  if (name.includes('điện')) return 'fa-plug';
+  if (name.includes('Quạt')) return 'fa-fan';
+  if (name.includes('nóng lạnh')) return 'fa-temperature-half';
+  if (name.includes('giặt')) return 'fa-soap';
+  if (name.includes('điện')) return 'fa-plug-circle-bolt';
   if (name.includes('gas')) return 'fa-fire-burner';
   return 'fa-cube';
 };
 
 const assetColor = (name: string) => {
   if (name.includes('đèn')) return 'text-yellow-600 bg-yellow-50 hover:bg-yellow-100 hover:border-yellow-200';
-  if (name.includes('Giường') || name.includes('Tủ quần áo') || name.includes('Bàn + Ghế') || name.includes('Tủ giày')) return 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-200';
+  if (name.includes('Giường')) return 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:border-amber-200';
+  if (name.includes('sinh')) return 'text-rose-600 bg-rose-50 hover:bg-rose-100 hover:border-rose-200';
+  if (name.includes('TV')) return 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:border-indigo-200';
+  if (name.includes('Điều hòa')) return 'text-cyan-600 bg-cyan-50 hover:bg-cyan-100 hover:border-cyan-200';
+  if (name.includes('Tủ lạnh')) return 'text-sky-600 bg-sky-50 hover:bg-sky-100 hover:border-sky-200';
+  if (name.includes('Tủ')) return 'text-violet-600 bg-violet-50 hover:bg-violet-100 hover:border-violet-200';
+  if (name.includes('Vòi')) return 'text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200';
+  if (name.includes('nóng lạnh')) return 'text-teal-600 bg-teal-50 hover:bg-teal-100 hover:border-teal-200';
+  if (name.includes('Bàn + Ghế')) return 'text-orange-700 bg-orange-50 hover:bg-orange-100 hover:border-orange-200';
+  if (name.includes('Quạt')) return 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-200';
+  if (name.includes('điện')) return 'text-lime-600 bg-lime-50 hover:bg-lime-100 hover:border-lime-200';
+  if (name.includes('gas')) return 'text-red-600 bg-red-50 hover:bg-red-100 hover:border-red-200';
   if (name.includes('Khóa')) return 'text-slate-600 bg-slate-50 hover:bg-slate-100 hover:border-slate-200';
-  if (name.includes('TV')) return 'text-purple-600 bg-purple-50 hover:bg-purple-100 hover:border-purple-200';
-  if (name.includes('Điều hòa') || name.includes('Tủ lạnh')) return 'text-sky-600 bg-sky-50 hover:bg-sky-100 hover:border-sky-200';
-  if (name.includes('Vòi') || name.includes('sinh') || name.includes('nóng lạnh') || name.includes('giặt')) return 'text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200';
-  if (name.includes('điện') || name.includes('Quạt')) return 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-200';
-  if (name.includes('gas')) return 'text-orange-600 bg-orange-50 hover:bg-orange-100 hover:border-orange-200';
   return 'text-gray-600 bg-gray-50 hover:bg-gray-100 hover:border-gray-200';
 };
 
 const getAssetTheme = (name: string) => {
-  if (name.includes('đèn')) return 'bg-gradient-to-br from-yellow-50 to-yellow-100 text-yellow-500 border-yellow-200';
-  if (name.includes('Giường') || name.includes('Tủ quần áo') || name.includes('Bàn + Ghế') || name.includes('Tủ giày')) return 'bg-gradient-to-br from-amber-50 to-amber-100 text-amber-600 border-amber-200';
-  if (name.includes('TV')) return 'bg-gradient-to-br from-purple-50 to-purple-100 text-purple-600 border-purple-200';
-  if (name.includes('Điều hòa') || name.includes('Tủ lạnh')) return 'bg-gradient-to-br from-sky-50 to-sky-100 text-sky-500 border-sky-200';
-  if (name.includes('Vòi') || name.includes('sinh') || name.includes('nóng lạnh') || name.includes('giặt')) return 'bg-gradient-to-br from-blue-50 to-blue-100 text-blue-500 border-blue-200';
-  if (name.includes('điện') || name.includes('Quạt')) return 'bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-600 border-emerald-200';
-  if (name.includes('gas')) return 'bg-gradient-to-br from-orange-50 to-orange-100 text-orange-500 border-orange-200';
-  if (name.includes('Khóa')) return 'bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 border-slate-200';
-  return 'bg-gradient-to-br from-gray-50 to-gray-100 text-gray-500 border-gray-200';
+  if (name.includes('đèn')) return 'bg-gradient-to-br from-yellow-100 to-amber-200 text-amber-600 border-yellow-200';
+  if (name.includes('Giường')) return 'bg-gradient-to-br from-amber-100 to-orange-200 text-orange-700 border-amber-200';
+  if (name.includes('sinh')) return 'bg-gradient-to-br from-rose-100 to-rose-200 text-rose-600 border-rose-200';
+  if (name.includes('TV')) return 'bg-gradient-to-br from-indigo-100 to-purple-200 text-indigo-600 border-indigo-200';
+  if (name.includes('Điều hòa')) return 'bg-gradient-to-br from-cyan-100 to-cyan-200 text-cyan-600 border-cyan-200';
+  if (name.includes('Tủ lạnh')) return 'bg-gradient-to-br from-sky-100 to-sky-200 text-sky-600 border-sky-200';
+  if (name.includes('Tủ')) return 'bg-gradient-to-br from-violet-100 to-violet-200 text-violet-600 border-violet-200';
+  if (name.includes('Vòi')) return 'bg-gradient-to-br from-blue-100 to-blue-200 text-blue-600 border-blue-200';
+  if (name.includes('nóng lạnh')) return 'bg-gradient-to-br from-teal-100 to-emerald-200 text-teal-600 border-teal-200';
+  if (name.includes('Bàn + Ghế')) return 'bg-gradient-to-br from-orange-100 to-orange-200 text-orange-700 border-orange-200';
+  if (name.includes('Quạt')) return 'bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-600 border-emerald-200';
+  if (name.includes('điện')) return 'bg-gradient-to-br from-lime-100 to-lime-200 text-lime-700 border-lime-200';
+  if (name.includes('gas')) return 'bg-gradient-to-br from-red-100 to-red-200 text-red-600 border-red-200';
+  if (name.includes('Khóa')) return 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 border-slate-200';
+  return 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600 border-gray-200';
 };
 
 const HANDOVER_ITEMS = [
@@ -542,9 +556,7 @@ const RoomAssetPanel: React.FC<{
                   <div className="flex items-center gap-3.5 mb-3 flex-1 relative z-10 w-full pr-14">
                     <div className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 border border-opacity-60 shadow-sm backdrop-blur-sm ${(snapOut && snapOut.deduction > 0) ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-orange-100/40 text-orange-500'
                       : bad ? 'bg-red-50 border-red-100 text-red-500'
-                        : snapOut ? 'bg-gradient-to-br from-indigo-50 to-blue-50 border-indigo-100/40 text-indigo-500'
-                          : snapIn ? 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-100/50 text-blue-500 shadow-inner'
-                            : getAssetTheme(asset.name)
+                        : getAssetTheme(asset.name)
                       }`}>
                       <i className={`fa-solid ${assetIcon(asset.name)} text-lg drop-shadow-sm`}></i>
                     </div>

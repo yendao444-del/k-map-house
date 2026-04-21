@@ -45,6 +45,10 @@ interface AuthAPI {
   ) => Promise<{ ok: boolean; user?: AppUser; error?: string }>
   logout: () => Promise<{ ok: boolean }>
   session: () => Promise<AuthSession | null>
+  updateUser: (
+    userId: string,
+    updates: { full_name?: string; avatar_url?: string }
+  ) => Promise<{ ok: boolean; user?: AppUser; error?: string }>
 }
 
 interface UpdateCheckResult {
@@ -113,4 +117,4 @@ declare global {
   }
 }
 
-export {}
+export { }

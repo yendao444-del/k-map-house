@@ -25,7 +25,12 @@ const api = {
     ): Promise<{ ok: boolean; user?: unknown; error?: string }> =>
       ipcRenderer.invoke('auth:login', username, password),
     logout: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('auth:logout'),
-    session: (): Promise<unknown> => ipcRenderer.invoke('auth:session')
+    session: (): Promise<unknown> => ipcRenderer.invoke('auth:session'),
+    updateUser: (
+      userId: string,
+      updates: { full_name?: string; avatar_url?: string }
+    ): Promise<{ ok: boolean; user?: unknown; error?: string }> =>
+      ipcRenderer.invoke('auth:updateUser', userId, updates)
   },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),

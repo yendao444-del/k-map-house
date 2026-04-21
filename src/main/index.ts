@@ -253,6 +253,23 @@ function setupAuthHandlers(): void {
   })
 
   ipcMain.handle('auth:session', () => currentSession)
+
+  ipcMain.handle('auth:updateUser', async (_event, userId: string, updates: { full_name?: string; avatar_url?: string }) => {
+    try {
+      const db = ensureBaseStructure(readDBFile())
+      const user = (db.users || []).find((u) => u.id === userId)
+      if (!user) {
+        return { ok: false, error: 'Không tìm thấy tài khoản.' }
+      }
+      if (updates.full_name !== undefined) user.full_name = updates.full_name
+      if (updates.avatar_url !== undefined) (user as any).avatar_url = updates.avatar_url
+      writeDBFile(db)
+      const { password_hash: _ph, ...safeUser } = user as any
+      return { ok: true, user: safeUser }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Cập nhật thất bại.' }
+    }
+  })
 }
 
 function createWindow(): void {

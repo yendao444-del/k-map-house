@@ -51,7 +51,10 @@ import { CancelContractModal } from './components/CancelContractModal'
 import { ChangeRoomModal } from './components/ChangeRoomModal'
 import { TourOverlay } from './components/TourOverlay'
 import { LoginScreen } from './components/LoginScreen'
+import { ProfileModal } from './components/ProfileModal'
 import { setupRealtime } from './lib/realtime'
+import logoNavbar from './assets/logo_navbar.png'
+const isDev = import.meta.env.DEV
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
@@ -1198,6 +1201,7 @@ const App: React.FC = () => {
   const [changeTargetRoom, setChangeTargetRoom] = useState<Room | null>(null)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
   const [reportMenuPosition, setReportMenuPosition] = useState({ top: 0, left: 0 })
   const notificationMenuRef = React.useRef<HTMLDivElement | null>(null)
@@ -1298,7 +1302,7 @@ const App: React.FC = () => {
       setUpdateBanner((current) => current ? { ...current, progress: event.percent } : current)
     })
 
-    const autoInstallTimer = window.setTimeout(() => {
+    const autoInstallTimer = isDev ? null : window.setTimeout(() => {
       setUpdateBanner({
         status: 'checking',
         message: 'Đang kiểm tra bản cập nhật...',
@@ -1322,7 +1326,7 @@ const App: React.FC = () => {
     }, 2500)
 
     return () => {
-      window.clearTimeout(autoInstallTimer)
+      if (autoInstallTimer !== null) window.clearTimeout(autoInstallTimer)
       removeAvailable()
       removeStatus()
       removeProgress()
@@ -1766,15 +1770,7 @@ const App: React.FC = () => {
     return <LoginScreen onLogin={setCurrentUser} />
   }
 
-  const accountDisplayName = currentUser.role === 'admin' ? 'Admin' : currentUser.full_name
-  const accountAvatarLabel = currentUser.role === 'admin'
-    ? 'Admin'
-    : accountDisplayName
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('')
+  const accountDisplayName = currentUser.full_name || (currentUser.role === 'admin' ? 'Admin' : currentUser.username)
   const sapoGreen = '#00ffcc'
   const headerNavItems = [
     { id: 'rooms' as const, icon: Home, label: 'Phòng' },
@@ -2006,17 +2002,15 @@ const App: React.FC = () => {
       <header className="relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 font-sans text-white shadow-md">
         <div className="flex min-w-0 items-center space-x-4">
           <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-white shadow-sm transition-transform group-hover:scale-105">
-              <div className="flex h-5 w-5 items-center justify-center rounded-sm bg-[#002b36] text-[10px] font-bold text-white">
-                DB
-              </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
+              <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
             </div>
             <div className="flex flex-col leading-none">
-              <span className="text-sm font-bold tracking-tight" style={{ color: sapoGreen }}>
+              <span className="text-sm font-bold tracking-tight text-white">
                 DBY HOME
               </span>
               <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
-                Hệ thống quản trị
+                Quản lý phòng trọ
               </span>
             </div>
           </div>
@@ -2068,143 +2062,180 @@ const App: React.FC = () => {
 
         <div className="flex shrink-0 items-center space-x-4">
           <div className="relative" ref={notificationMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsNotificationOpen((prev) => !prev)}
-                  className="relative flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
-                  title="Thông báo"
+            <button
+              type="button"
+              onClick={() => setIsNotificationOpen((prev) => !prev)}
+              className="relative flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
+              title="Thông báo"
+            >
+              <Bell size={18} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
+              {notificationItems.length > 0 && (
+                <span
+                  className={`absolute -right-1 -top-1 min-w-[18px] rounded-full border-2 border-[#002b36] bg-gradient-to-b from-orange-400 to-orange-500 px-1 text-center text-[10px] font-black leading-[18px] text-white shadow-[0_6px_14px_-8px_rgba(251,146,60,0.9)] ${!isNotificationOpen ? 'notification-badge-pulse' : ''
+                    }`}
                 >
-                  <Bell size={18} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
-                  {notificationItems.length > 0 && (
-                    <span
-                      className={`absolute -right-1 -top-1 min-w-[18px] rounded-full border-2 border-[#002b36] bg-gradient-to-b from-orange-400 to-orange-500 px-1 text-center text-[10px] font-black leading-[18px] text-white shadow-[0_6px_14px_-8px_rgba(251,146,60,0.9)] ${!isNotificationOpen ? 'notification-badge-pulse' : ''
-                        }`}
-                    >
-                      {notificationBadgeLabel}
-                    </span>
-                  )}
-                </button>
+                  {notificationBadgeLabel}
+                </span>
+              )}
+            </button>
 
-                {isNotificationOpen && (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
-                    <div className="flex items-center justify-between px-4 pb-2 pt-1">
-                      <div>
-                        <div className="text-xs font-black uppercase tracking-wide text-slate-800">
-                          Thông báo
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          {notificationItems.length > 0
-                            ? `Có ${notificationItems.length} mục cần xử lý`
-                            : 'Hiện không có thông báo mới'}
-                        </div>
-                      </div>
+            {isNotificationOpen && (
+              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
+                <div className="flex items-center justify-between px-4 pb-2 pt-1">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wide text-slate-800">
+                      Thông báo
                     </div>
+                    <div className="text-[11px] text-slate-500">
+                      {notificationItems.length > 0
+                        ? `Có ${notificationItems.length} mục cần xử lý`
+                        : 'Hiện không có thông báo mới'}
+                    </div>
+                  </div>
+                </div>
 
-                    {notificationItems.length > 0 ? (
-                      <div className="max-h-80 overflow-y-auto px-2">
-                        {notificationItems.map((item) => (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleNotificationAction(item.id, item.onClick)}
-                            className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
-                          >
-                            <div
-                              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 ${item.iconClass}`}
-                            >
-                              <i className={`fa-solid ${item.icon} text-sm`}></i>
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-[12px] font-bold text-slate-800">
-                                {item.title}
-                              </div>
-                              <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                                {item.description}
-                              </div>
-                              <div className="mt-2 text-[11px] font-bold text-primary">
-                                {item.actionLabel}
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="px-4 py-6 text-center text-[12px] text-slate-500">
-                        Mọi thứ đang ổn. Chưa có việc nào cần xử lý ngay.
-                      </div>
-                    )}
+                {notificationItems.length > 0 ? (
+                  <div className="max-h-80 overflow-y-auto px-2">
+                    {notificationItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleNotificationAction(item.id, item.onClick)}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                      >
+                        <div
+                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 ${item.iconClass}`}
+                        >
+                          <i className={`fa-solid ${item.icon} text-sm`}></i>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[12px] font-bold text-slate-800">
+                            {item.title}
+                          </div>
+                          <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                            {item.description}
+                          </div>
+                          <div className="mt-2 text-[11px] font-bold text-primary">
+                            {item.actionLabel}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-4 py-6 text-center text-[12px] text-slate-500">
+                    Mọi thứ đang ổn. Chưa có việc nào cần xử lý ngay.
                   </div>
                 )}
               </div>
+            )}
+          </div>
 
           <button
-                onClick={() => {
-                  playClick()
-                  setSettingsInitialTab('general')
-                  requestActiveTab('settings')
-                }}
-                className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
-                title="Cài đặt hệ thống"
-              >
-                <SettingsIcon size={18} />
-              </button>
+            onClick={() => {
+              playClick()
+              setSettingsInitialTab('general')
+              requestActiveTab('settings')
+            }}
+            className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
+            title="Cài đặt hệ thống"
+          >
+            <SettingsIcon size={18} />
+          </button>
 
           <div className="relative" ref={accountMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                  className="flex items-center space-x-2 rounded-full px-4 py-1.5 shadow-lg transition-all hover:brightness-110 active:scale-95"
-                  style={{ backgroundColor: sapoGreen }}
-                >
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#00151a]">
-                    {accountAvatarLabel}
-                  </span>
-                </button>
+            <button
+              type="button"
+              onClick={() => setIsAccountMenuOpen((prev) => !prev)}
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-all hover:scale-105 active:scale-95 border-2 border-white/20 overflow-hidden bg-white/10 backdrop-blur-sm"
+              title={accountDisplayName}
+            >
+              <img
+                src={currentUser.avatar_url || (currentUser.role === 'admin'
+                  ? "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0"
+                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
+                }
+                alt="Avatar"
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent"></div>
+            </button>
 
-                {isAccountMenuOpen && (
-                  <div className="fixed right-4 top-[58px] z-[80] w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
-                    <div className="mb-2 flex items-center gap-3 px-4 py-4 rounded-[22px] bg-slate-50/80">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 px-2 text-primary font-black text-sm shadow-inner ring-4 ring-white">
-                        {accountAvatarLabel}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-slate-900">{accountDisplayName}</div>
-                        <div className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">ID: {currentUser.id?.slice(0, 8) || 'ADMIN'}</div>
-                      </div>
+            {isAccountMenuOpen && (
+              <div
+                className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
+                style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
+              >
+                {/* User Info Card */}
+                <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
+                  {/* Decorative backgrounds */}
+                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"></div>
+                  <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
+
+                  <div className="relative mb-4">
+                    <div className="h-20 w-20 rounded-[24px] bg-white p-1 shadow-2xl ring-4 ring-white/10 transition-transform hover:scale-105">
+                      <img
+                        src={currentUser.avatar_url || (currentUser.role === 'admin'
+                          ? "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0"
+                          : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
+                        }
+                        className="h-full w-full rounded-[20px] object-cover"
+                        alt="Avatar Large"
+                      />
                     </div>
-
-                    <div className="space-y-1">
-                      <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[11px] font-bold text-slate-600 transition-all hover:bg-slate-100 group">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                          <i className="fa-solid fa-id-card text-primary/70"></i>
-                        </div>
-                        <span>Hồ sơ cá nhân</span>
-                      </button>
-
-                      <button className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[11px] font-bold text-slate-600 transition-all hover:bg-slate-100 group">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-slate-100 group-hover:scale-110 transition-transform">
-                          <i className="fa-solid fa-key text-amber-500"></i>
-                        </div>
-                        <span>Đổi mật khẩu</span>
-                      </button>
-
-                      <div className="mx-3 my-2 h-px bg-slate-100/60"></div>
-
-                      <button
-                        onClick={handleLogout}
-                        className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-50 group uppercase tracking-widest"
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-white shadow-sm border border-rose-50 group-hover:bg-rose-500 group-hover:text-white transition-all">
-                          <i className="fa-solid fa-power-off"></i>
-                        </div>
-                        <span>Đăng xuất</span>
-                      </button>
-                    </div>
+                    <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-800 bg-emerald-400 shadow-lg">
+                      <div className="h-2 w-2 rounded-full bg-white animate-pulse"></div>
+                    </span>
                   </div>
-                )}
+
+                  <div className="relative z-10">
+                    <div className="text-lg font-black text-white tracking-tight">{accountDisplayName}</div>
+                    <div className="inline-flex mt-1 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 border border-white/5">
+                      <i className="fa-solid fa-shield-halved"></i>
+                      Quyền: {currentUser.role?.toUpperCase()}
+                    </div>
+                    <div className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest opacity-60">ID: {currentUser.id?.slice(0, 8) || 'ADMIN_DB'}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <button
+                    className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-emerald-50 group border border-transparent hover:border-emerald-100"
+                    onClick={() => { setIsAccountMenuOpen(false); setIsProfileOpen(true) }}
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
+                      <i className="fa-solid fa-id-card text-emerald-500"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600">Hồ sơ</span>
+                  </button>
+                  <button className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-amber-50 group border border-transparent hover:border-amber-100">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
+                      <i className="fa-solid fa-key text-amber-500"></i>
+                    </div>
+                    <span className="text-[10px] font-bold text-slate-600">Bảo mật</span>
+                  </button>
+                </div>
+
+                <button
+                  onClick={handleLogout}
+                  className="flex w-full items-center justify-center gap-3 rounded-[20px] bg-rose-50 px-3 py-4 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-100 group border border-rose-100/50 uppercase tracking-widest"
+                >
+                  <i className="fa-solid fa-power-off text-base group-hover:rotate-180 transition-transform duration-500"></i>
+                  <span>Đăng xuất hệ thống</span>
+                </button>
               </div>
+            )}
+          </div>
         </div>
-      </header>
+      </header >
+
+      {isProfileOpen && currentUser && (
+        <ProfileModal
+          currentUser={currentUser}
+          onClose={() => setIsProfileOpen(false)}
+          onUpdate={(updated) => setCurrentUser(updated)}
+        />
+      )}
 
       {isReportMenuOpen && (
         <div
@@ -3456,219 +3487,243 @@ const App: React.FC = () => {
         ) : null}
       </div>
 
-      {updateBanner && updateBanner.status !== 'idle' && (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/85 p-6 text-white backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-slate-900 shadow-2xl">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}></i>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="text-base font-black text-slate-900">
-                  {updateBanner.status === 'error'
-                    ? 'Cập nhật tự động lỗi'
-                    : updateBanner.status === 'checking'
-                      ? 'Đang kiểm tra cập nhật'
-                      : updateBanner.status === 'restarting'
-                        ? 'Đang khởi động lại'
-                        : 'Đang tự động cập nhật' + (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
+      {
+        updateBanner && updateBanner.status !== 'idle' && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/85 p-6 text-white backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-slate-900 shadow-2xl">
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}></i>
                 </div>
-                <div className="mt-2 text-sm leading-6 text-slate-600">
-                  {updateBanner.message || 'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
-                </div>
-                {updateBanner.status !== 'error' && (
-                  <div className="mt-5">
-                    <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                      <span>Tiến trình</span>
-                      <span>{updateBanner.progress || 0}%</span>
-                    </div>
-                    <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: String(updateBanner.progress || 0) + '%' }}></div>
-                    </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-base font-black text-slate-900">
+                    {updateBanner.status === 'error'
+                      ? 'Cập nhật tự động lỗi'
+                      : updateBanner.status === 'checking'
+                        ? 'Đang kiểm tra cập nhật'
+                        : updateBanner.status === 'restarting'
+                          ? 'Đang khởi động lại'
+                          : 'Đang tự động cập nhật' + (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
                   </div>
-                )}
-                {updateBanner.status === 'error' && (
-                  <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
-                    Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử lại.
-                  </p>
-                )}
+                  <div className="mt-2 text-sm leading-6 text-slate-600">
+                    {updateBanner.message || 'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
+                  </div>
+                  {updateBanner.status !== 'error' && (
+                    <div className="mt-5">
+                      <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <span>Tiến trình</span>
+                        <span>{updateBanner.progress || 0}%</span>
+                      </div>
+                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: String(updateBanner.progress || 0) + '%' }}></div>
+                      </div>
+                    </div>
+                  )}
+                  {updateBanner.status === 'error' && (
+                    <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
+                      Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử lại.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {selectedRoom && (
-        <InvoiceModal
-          room={selectedRoom}
-          tenant={null} // Sau này fetch tenant
-          onClose={() => setSelectedRoom(null)}
-        />
-      )}
-      {serviceZoneRoom && (
-        <RoomServiceZonePickerModal
-          room={serviceZoneRoom}
-          invoiceBlocked={(serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone'}
-          onAssigned={(updatedRoom) => {
-            // Sau khi setup zone xong → tự mở InvoiceModal
-            if ((serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone') {
-              setSelectedRoom(updatedRoom)
+      {
+        selectedRoom && (
+          <InvoiceModal
+            room={selectedRoom}
+            tenant={null} // Sau này fetch tenant
+            onClose={() => setSelectedRoom(null)}
+          />
+        )
+      }
+      {
+        serviceZoneRoom && (
+          <RoomServiceZonePickerModal
+            room={serviceZoneRoom}
+            invoiceBlocked={(serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone'}
+            onAssigned={(updatedRoom) => {
+              // Sau khi setup zone xong → tự mở InvoiceModal
+              if ((serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone') {
+                setSelectedRoom(updatedRoom)
+              }
+            }}
+            onClose={() => setServiceZoneRoom(null)}
+          />
+        )
+      }
+      {
+        detailRoom && (
+          <RoomDetailsModal
+            room={detailRoom}
+            zone={serviceZones.find((z) => z.id === detailRoom.service_zone_id) || null}
+            zones={serviceZones}
+            initialTab={detailRoomInitialTab}
+            onClose={() => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+            }}
+            onOpenInvoice={(r) => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+              openInvoiceFlow(r)
+            }}
+            onOpenFirstInvoice={(r) => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+              openInvoiceFlow(r)
+            }}
+          />
+        )
+      }
+      {
+        newContractRoom && (
+          <NewContractModal
+            room={newContractRoom}
+            zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
+            onClose={() => {
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+            }}
+            lastInvoice={
+              invoices
+                .filter((i) => i.room_id === newContractRoom.id)
+                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
             }
-          }}
-          onClose={() => setServiceZoneRoom(null)}
-        />
-      )}
-      {detailRoom && (
-        <RoomDetailsModal
-          room={detailRoom}
-          zone={serviceZones.find((z) => z.id === detailRoom.service_zone_id) || null}
-          zones={serviceZones}
-          initialTab={detailRoomInitialTab}
-          onClose={() => {
-            setDetailRoom(null)
-            setDetailRoomInitialTab('info')
-          }}
-          onOpenInvoice={(r) => {
-            setDetailRoom(null)
-            setDetailRoomInitialTab('info')
-            openInvoiceFlow(r)
-          }}
-          onOpenFirstInvoice={(r) => {
-            setDetailRoom(null)
-            setDetailRoomInitialTab('info')
-            openInvoiceFlow(r)
-          }}
-        />
-      )}
-      {newContractRoom && (
-        <NewContractModal
-          room={newContractRoom}
-          zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
-          onClose={() => {
-            setNewContractRoom(null)
-            setNewContractSeed(null)
-          }}
-          lastInvoice={
-            invoices
-              .filter((i) => i.room_id === newContractRoom.id)
-              .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
-          }
-          initialTenantId={newContractSeed?.tenantId}
-          initialMoveInDate={newContractSeed?.moveInDate}
-          onNavigateToTenants={() => {
-            setNewContractRoom(null)
-            setNewContractSeed(null)
-            setActiveTab('tenants')
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('start-tour', { detail: 'create_tenant' }))
-            }, 300)
-          }}
-          onNavigateToAssets={() => {
-            const targetRoom = newContractRoom
-            setNewContractRoom(null)
-            setNewContractSeed(null)
-            setAssetModuleInitialRoomId(targetRoom.id)
-            setAssetModuleGuideMode('move_in')
-            setActiveTab('assets')
-          }}
-        />
-      )}
-      {migrationContractRoom && (
-        <NewContractModal
-          room={migrationContractRoom}
-          zone={serviceZones.find((z) => z.id === migrationContractRoom.service_zone_id)}
-          onClose={() => setMigrationContractRoom(null)}
-          lastInvoice={
-            invoices
-              .filter((i) => i.room_id === migrationContractRoom.id)
-              .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
-          }
-          initialIsMigration={true}
-        />
-      )}
-      {endNoticeRoom && (
-        <EndContractNoticeModal room={endNoticeRoom} onClose={() => setEndNoticeRoom(null)} />
-      )}
-      {terminateRoom && (
-        <TerminateContractModal
-          room={terminateRoom}
-          onClose={() => setTerminateRoom(null)}
-          onNavigateToAssets={(room) => {
-            setTerminateRoom(null)
-            setAssetModuleInitialRoomId(room.id)
-            setAssetModuleGuideMode('move_out')
-            requestActiveTab('assets')
-          }}
-        />
-      )}
-      {cancelContractRoom && (
-        <CancelContractModal
-          room={cancelContractRoom}
-          onClose={() => setCancelContractRoom(null)}
-        />
-      )}
-      {Object.keys(pendingRoomUpdates).length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-[#e7f1f7] border-t border-blue-100 py-3 px-6 flex items-center justify-center gap-6 z-50 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] animate-[slideUp_0.2s_ease-out]">
-          <div className="text-[15px] font-bold text-gray-800 flex items-center">
-            {saveError ? (
-              <span className="text-red-600">{saveError}</span>
-            ) : (
-              <>
-                Bạn có
-                <span className="bg-emerald-600 text-white w-7 h-7 mx-2 rounded-full inline-flex items-center justify-center text-sm shadow-sm">
-                  {Object.keys(pendingRoomUpdates).length}
-                </span>
-                mục thay đổi bạn có muốn lưu ?
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setPendingRoomUpdates({})}
-              disabled={isSaving}
-              className="bg-[#da3b46] hover:bg-[#c82f39] disabled:opacity-50 text-white px-4 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm"
-            >
-              <i className="fa-solid fa-xmark text-lg leading-none"></i> Xóa tất cả thay đổi
-            </button>
-            <button
-              onClick={handleSaveAll}
-              disabled={isSaving}
-              className="bg-[#5cba47] hover:bg-[#4ba837] disabled:opacity-70 text-white px-5 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm min-w-[130px] justify-center"
-            >
-              {isSaving ? (
-                <>
-                  <i className="fa-solid fa-spinner animate-spin text-lg leading-none"></i> Đang
-                  lưu...
-                </>
+            initialTenantId={newContractSeed?.tenantId}
+            initialMoveInDate={newContractSeed?.moveInDate}
+            onNavigateToTenants={() => {
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+              setActiveTab('tenants')
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('start-tour', { detail: 'create_tenant' }))
+              }, 300)
+            }}
+            onNavigateToAssets={() => {
+              const targetRoom = newContractRoom
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+              setAssetModuleInitialRoomId(targetRoom.id)
+              setAssetModuleGuideMode('move_in')
+              setActiveTab('assets')
+            }}
+          />
+        )
+      }
+      {
+        migrationContractRoom && (
+          <NewContractModal
+            room={migrationContractRoom}
+            zone={serviceZones.find((z) => z.id === migrationContractRoom.service_zone_id)}
+            onClose={() => setMigrationContractRoom(null)}
+            lastInvoice={
+              invoices
+                .filter((i) => i.room_id === migrationContractRoom.id)
+                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
+            }
+            initialIsMigration={true}
+          />
+        )
+      }
+      {
+        endNoticeRoom && (
+          <EndContractNoticeModal room={endNoticeRoom} onClose={() => setEndNoticeRoom(null)} />
+        )
+      }
+      {
+        terminateRoom && (
+          <TerminateContractModal
+            room={terminateRoom}
+            onClose={() => setTerminateRoom(null)}
+            onNavigateToAssets={(room) => {
+              setTerminateRoom(null)
+              setAssetModuleInitialRoomId(room.id)
+              setAssetModuleGuideMode('move_out')
+              requestActiveTab('assets')
+            }}
+          />
+        )
+      }
+      {
+        cancelContractRoom && (
+          <CancelContractModal
+            room={cancelContractRoom}
+            onClose={() => setCancelContractRoom(null)}
+          />
+        )
+      }
+      {
+        Object.keys(pendingRoomUpdates).length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-[#e7f1f7] border-t border-blue-100 py-3 px-6 flex items-center justify-center gap-6 z-50 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] animate-[slideUp_0.2s_ease-out]">
+            <div className="text-[15px] font-bold text-gray-800 flex items-center">
+              {saveError ? (
+                <span className="text-red-600">{saveError}</span>
               ) : (
                 <>
-                  <i className="fa-regular fa-floppy-disk text-lg leading-none"></i> Lưu thay đổi
+                  Bạn có
+                  <span className="bg-emerald-600 text-white w-7 h-7 mx-2 rounded-full inline-flex items-center justify-center text-sm shadow-sm">
+                    {Object.keys(pendingRoomUpdates).length}
+                  </span>
+                  mục thay đổi bạn có muốn lưu ?
                 </>
               )}
-            </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPendingRoomUpdates({})}
+                disabled={isSaving}
+                className="bg-[#da3b46] hover:bg-[#c82f39] disabled:opacity-50 text-white px-4 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm"
+              >
+                <i className="fa-solid fa-xmark text-lg leading-none"></i> Xóa tất cả thay đổi
+              </button>
+              <button
+                onClick={handleSaveAll}
+                disabled={isSaving}
+                className="bg-[#5cba47] hover:bg-[#4ba837] disabled:opacity-70 text-white px-5 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm min-w-[130px] justify-center"
+              >
+                {isSaving ? (
+                  <>
+                    <i className="fa-solid fa-spinner animate-spin text-lg leading-none"></i> Đang
+                    lưu...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-regular fa-floppy-disk text-lg leading-none"></i> Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Toast thành công */}
-      {saveToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl animate-[fadeIn_0.2s_ease-out] min-w-[280px]">
-          <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-            <i className="fa-solid fa-check text-white text-sm"></i>
+      {
+        saveToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl animate-[fadeIn_0.2s_ease-out] min-w-[280px]">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+              <i className="fa-solid fa-check text-white text-sm"></i>
+            </div>
+            <div>
+              <div className="font-bold text-sm">Đã lưu thành công!</div>
+              <div className="text-gray-400 text-xs">Toàn bộ thay đổi đã được cập nhật.</div>
+            </div>
           </div>
-          <div>
-            <div className="font-bold text-sm">Đã lưu thành công!</div>
-            <div className="text-gray-400 text-xs">Toàn bộ thay đổi đã được cập nhật.</div>
-          </div>
-        </div>
-      )}
+        )
+      }
 
-      {changeTargetRoom && (
-        <ChangeRoomModal room={changeTargetRoom} onClose={() => setChangeTargetRoom(null)} />
-      )}
+      {
+        changeTargetRoom && (
+          <ChangeRoomModal room={changeTargetRoom} onClose={() => setChangeTargetRoom(null)} />
+        )
+      }
 
       <TourOverlay />
-    </div>
+    </div >
   )
 }
 

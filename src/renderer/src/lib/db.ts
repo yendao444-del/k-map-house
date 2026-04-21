@@ -9,7 +9,7 @@ export type PaymentMethod = 'cash' | 'transfer'
 export type UserRole = 'admin' | 'user'
 export type UserStatus = 'active' | 'inactive'
 
-export interface AppUser { id: string; username: string; full_name: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
+export interface AppUser { id: string; username: string; full_name: string; avatar_url?: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
 export interface InvoicePaymentRecord { id: string; amount: number; payment_method?: PaymentMethod; payment_date: string; note?: string; created_at: string; }
 export interface ServiceZone { id: string; name: string; electric_price: number; water_price: number; internet_price: number; cleaning_price: number; created_at: string; }
 export interface Room { id: string; name: string; floor: number; base_rent: number; status: RoomStatus; created_at: string; service_zone_id?: string; area?: number; max_occupants?: number; default_deposit?: number; invoice_day?: number; billing_cycle?: string; notes?: string; move_in_date?: string; contract_expiration?: string; tenant_name?: string; tenant_phone?: string; tenant_email?: string; tenant_id_card?: string; electric_old?: number; electric_new?: number; water_old?: number; water_new?: number; old_debt?: number; max_vehicles?: number; has_move_in_receipt?: boolean; expected_end_date?: string; electric_price?: number; water_price?: number; wifi_price?: number; garbage_price?: number; }
