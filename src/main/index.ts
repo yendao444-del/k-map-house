@@ -1,0 +1,257 @@
+import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
+import { join } from 'path'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'fs'
+import bcrypt from 'bcryptjs'
+import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import icon from '../../resources/icon.png?asset'
+import { registerUpdateHandlers } from './update-handlers'
+
+type UserRole = 'admin' | 'user'
+type UserStatus = 'active' | 'inactive'
+
+interface AppUser {
+  id: string
+  username: string
+  full_name: string
+  password_hash: string
+  role: UserRole
+  status: UserStatus
+  last_login_at?: string
+  created_at: string
+}
+
+interface DBState {
+  users?: AppUser[]
+  [key: string]: unknown
+}
+
+interface SessionUser {
+  id: string
+  username: string
+  role: UserRole
+}
+
+interface ZaloSendPayload {
+  phone: string
+  html: string
+  fileName: string
+  message?: string
+}
+
+let currentSession: SessionUser | null = null
+
+function getDBPath(): string {
+  return join(app.getPath('userData'), 'phongtro_db.json')
+}
+
+function getLegacyDBPath(): string {
+  return join(app.getPath('appData'), 'app', 'phongtro_db.json')
+}
+
+function ensureDBLocation(): void {
+  const currentPath = getDBPath()
+  const legacyPath = getLegacyDBPath()
+
+  if (existsSync(currentPath) || !existsSync(legacyPath)) return
+
+  mkdirSync(app.getPath('userData'), { recursive: true })
+  copyFileSync(legacyPath, currentPath)
+}
+
+function readDBFile(): DBState | null {
+  ensureDBLocation()
+  const dbPath = getDBPath()
+  if (!existsSync(dbPath)) return null
+
+  try {
+    return JSON.parse(readFileSync(dbPath, 'utf-8')) as DBState
+  } catch {
+    return null
+  }
+}
+
+function writeDBFile(data: DBState): void {
+  mkdirSync(app.getPath('userData'), { recursive: true })
+  writeFileSync(getDBPath(), JSON.stringify(data, null, 2), 'utf-8')
+}
+
+function ensureBaseStructure(db: DBState | null): DBState {
+  const nextDb = db || {}
+  if (!Array.isArray(nextDb.users)) nextDb.users = []
+  return nextDb
+}
+
+function setupDBHandlers(): void {
+  ipcMain.handle('db:read', () => readDBFile())
+  ipcMain.handle('db:write', (_event, data: DBState) => {
+    writeDBFile(data)
+    return true
+  })
+  ipcMain.handle('db:getPath', () => getDBPath())
+}
+
+function normalizeVietnamPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.startsWith('84')) return digits
+  if (digits.startsWith('0')) return `84${digits.slice(1)}`
+  return digits
+}
+
+function setupZaloHandlers(): void {
+  ipcMain.handle('zalo:send', async (_event, payload: ZaloSendPayload) => {
+    try {
+      const normalizedPhone = normalizeVietnamPhone(payload.phone)
+      if (!normalizedPhone) {
+        return { ok: false, error: 'missing_phone' }
+      }
+
+      const tempDir = join(app.getPath('temp'), 'phongtro-zalo')
+      mkdirSync(tempDir, { recursive: true })
+
+      const safeFileName = payload.fileName.replace(/[^\w.-]+/g, '_')
+      const baseName = safeFileName.endsWith('.png') ? safeFileName.slice(0, -4) : safeFileName
+      const imagePath = join(tempDir, `${baseName}.png`)
+      const htmlPath = join(tempDir, `${baseName}.html`)
+
+      const captureWindow = new BrowserWindow({
+        width: 820,
+        height: 1180,
+        show: false,
+        frame: false,
+        webPreferences: {
+          sandbox: false
+        }
+      })
+
+      writeFileSync(htmlPath, payload.html, 'utf-8')
+      try {
+        await captureWindow.loadFile(htmlPath)
+        await new Promise((resolve) => setTimeout(resolve, 350))
+        const image = await captureWindow.webContents.capturePage()
+        writeFileSync(imagePath, image.toPNG())
+        clipboard.writeImage(nativeImage.createFromPath(imagePath))
+      } finally {
+        captureWindow.destroy()
+      }
+
+      if (payload.message) {
+        clipboard.writeText(payload.message)
+      }
+
+      await shell.openExternal(`https://zalo.me/${normalizedPhone}`)
+      return { ok: true, imagePath, phone: normalizedPhone }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'zalo_send_failed'
+      return { ok: false, error: message }
+    }
+  })
+}
+
+function setupAuthHandlers(): void {
+  ipcMain.handle('auth:ensureAdmin', async () => {
+    const db = ensureBaseStructure(readDBFile())
+    const hasAdmin = (db.users || []).some((user) => user.role === 'admin' && user.status === 'active')
+    if (!hasAdmin) {
+      const hash = await bcrypt.hash('admin123', 10)
+      db.users?.push({
+        id: `user-${Date.now()}`,
+        username: 'admin',
+        full_name: 'Quản trị viên',
+        password_hash: hash,
+        role: 'admin',
+        status: 'active',
+        created_at: new Date().toISOString()
+      })
+      writeDBFile(db)
+    }
+  })
+
+  ipcMain.handle('auth:login', async (_event, username: string, password: string) => {
+    const db = ensureBaseStructure(readDBFile())
+    const normalizedUsername = username.trim().toLowerCase()
+    const user = (db.users || []).find(
+      (entry) => entry.username.trim().toLowerCase() === normalizedUsername && entry.status === 'active'
+    )
+
+    if (!user) {
+      return { ok: false, error: 'Tài khoản không tồn tại hoặc đã bị vô hiệu hóa.' }
+    }
+
+    const isValid = await bcrypt.compare(password, user.password_hash)
+    if (!isValid) {
+      return { ok: false, error: 'Mật khẩu không đúng.' }
+    }
+
+    user.last_login_at = new Date().toISOString()
+    writeDBFile(db)
+    currentSession = { id: user.id, username: user.username, role: user.role }
+    const { password_hash: _passwordHash, ...safeUser } = user
+    return { ok: true, user: safeUser }
+  })
+
+  ipcMain.handle('auth:logout', () => {
+    currentSession = null
+    return { ok: true }
+  })
+
+  ipcMain.handle('auth:session', () => currentSession)
+}
+
+function createWindow(): void {
+  const mainWindow = new BrowserWindow({
+    width: 1400,
+    height: 900,
+    show: false,
+    autoHideMenuBar: true,
+    title: 'K-Map House',
+    icon,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false
+    }
+  })
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.maximize()
+    mainWindow.show()
+  })
+
+  mainWindow.webContents.setWindowOpenHandler((details) => {
+    shell.openExternal(details.url)
+    return { action: 'deny' }
+  })
+
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  }
+}
+
+app.whenReady().then(() => {
+  app.setName('K-Map House')
+  electronApp.setAppUserModelId('com.kmaphouse.app')
+  ensureDBLocation()
+
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  ipcMain.on('ping', () => console.log('pong'))
+
+  setupAuthHandlers()
+  setupDBHandlers()
+  setupZaloHandlers()
+  registerUpdateHandlers()
+  createWindow()
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit()
+  }
+})

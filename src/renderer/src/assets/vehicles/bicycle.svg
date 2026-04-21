@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <!-- Rear wheel -->
+  <circle cx="55" cy="85" r="28" fill="none" stroke="#4E342E" stroke-width="5"/>
+  <circle cx="55" cy="85" r="10" fill="#5D4037"/>
+  <circle cx="55" cy="85" r="4" fill="#A1887F"/>
+  <!-- Spoke details -->
+  <line x1="55" y1="57" x2="55" y2="113" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="27" y1="85" x2="83" y2="85" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="35" y1="65" x2="75" y2="105" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="75" y1="65" x2="35" y2="105" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <!-- Front wheel -->
+  <circle cx="148" cy="85" r="28" fill="none" stroke="#4E342E" stroke-width="5"/>
+  <circle cx="148" cy="85" r="10" fill="#5D4037"/>
+  <circle cx="148" cy="85" r="4" fill="#A1887F"/>
+  <line x1="148" y1="57" x2="148" y2="113" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="120" y1="85" x2="176" y2="85" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="128" y1="65" x2="168" y2="105" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <line x1="168" y1="65" x2="128" y2="105" stroke="#6D4C41" stroke-width="1.5" opacity="0.6"/>
+  <!-- Frame - diamond shape -->
+  <line x1="55" y1="85" x2="100" y2="55" stroke="#E65100" stroke-width="5" stroke-linecap="round"/>
+  <line x1="100" y1="55" x2="148" y2="85" stroke="#E65100" stroke-width="5" stroke-linecap="round"/>
+  <line x1="100" y1="55" x2="100" y2="85" stroke="#E65100" stroke-width="4" stroke-linecap="round"/>
+  <line x1="55" y1="85" x2="100" y2="85" stroke="#E65100" stroke-width="4" stroke-linecap="round"/>
+  <line x1="100" y1="85" x2="148" y2="85" stroke="#BF360C" stroke-width="4" stroke-linecap="round"/>
+  <!-- Seat post -->
+  <line x1="100" y1="55" x2="95" y2="42" stroke="#5D4037" stroke-width="4" stroke-linecap="round"/>
+  <!-- Saddle -->
+  <ellipse cx="93" cy="41" rx="12" ry="4" fill="#37474F"/>
+  <!-- Handlebar stem -->
+  <line x1="148" y1="85" x2="143" y2="52" stroke="#795548" stroke-width="4" stroke-linecap="round"/>
+  <!-- Handlebar -->
+  <line x1="136" y1="50" x2="150" y2="50" stroke="#37474F" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="136" cy="50" r="3" fill="#212121"/>
+  <circle cx="150" cy="50" r="3" fill="#212121"/>
+  <!-- Pedal -->
+  <circle cx="100" cy="85" r="6" fill="#424242" stroke="#616161" stroke-width="1.5"/>
+  <line x1="94" y1="85" x2="106" y2="85" stroke="#757575" stroke-width="3" stroke-linecap="round"/>
+</svg>
