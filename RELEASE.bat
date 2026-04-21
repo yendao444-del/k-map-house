@@ -39,7 +39,11 @@ timeout /t 2 /nobreak >nul
 
 echo [2/4] Build NSIS installer...
 call pnpm run build:win
-if errorlevel 1 ( echo BUILD THAT BAI! & pause & exit /b 1 )
+if errorlevel 1 (
+    echo [!] build:win that bai. Thu fallback package-only tu out da co...
+    call npx electron-builder --win
+    if errorlevel 1 ( echo BUILD THAT BAI! & pause & exit /b 1 )
+)
 set INSTALLER=dist\KMapHouse-!NEW_VERSION!-setup.exe
 if not exist "!INSTALLER!" (
     echo [X] Khong tim thay installer sau khi build: !INSTALLER!
@@ -47,14 +51,38 @@ if not exist "!INSTALLER!" (
     exit /b 1
 )
 
-echo [3/4] Git commit + push...
+echo [3/5] Apply runtime workaround for Electron...
+set RUNTIME_SRC=node_modules\electron\dist
+set RUNTIME_DST=dist\win-unpacked
+if not exist "!RUNTIME_DST!" (
+    echo [X] Khong tim thay thu muc !RUNTIME_DST!
+    pause
+    exit /b 1
+)
+for %%F in (electron.exe resources.pak v8_context_snapshot.bin libGLESv2.dll d3dcompiler_47.dll chrome_200_percent.pak vk_swiftshader.dll version) do (
+    if exist "!RUNTIME_SRC!\%%F" copy /Y "!RUNTIME_SRC!\%%F" "!RUNTIME_DST!\%%F" >nul
+)
+(
+    echo @echo off
+    echo cd /d "%%~dp0"
+    echo start "" "electron.exe" ".\resources\app"
+) > "!RUNTIME_DST!\RUN-KMAPHOUSE.bat"
+set PORTABLE_ZIP=dist\KMapHouse-!NEW_VERSION!-portable-win-unpacked.zip
+powershell -NoProfile -Command "if (Test-Path '!PORTABLE_ZIP!') { Remove-Item '!PORTABLE_ZIP!' -Force }; Compress-Archive -Path 'dist\\win-unpacked\\*' -DestinationPath '!PORTABLE_ZIP!' -Force"
+if not exist "!PORTABLE_ZIP!" (
+    echo [X] Khong tao duoc portable zip: !PORTABLE_ZIP!
+    pause
+    exit /b 1
+)
+
+echo [4/5] Git commit + push...
 git add -A
 git commit -m "v!NEW_VERSION! - !NOTES!"
 git push
 if errorlevel 1 ( echo GIT PUSH THAT BAI! & pause & exit /b 1 )
 
-echo [4/4] Tao GitHub Release...
-gh release create v!NEW_VERSION! "!INSTALLER!" --title "K-Map House v!NEW_VERSION!" --notes "!NOTES!"
+echo [5/5] Tao GitHub Release...
+gh release create v!NEW_VERSION! "!INSTALLER!" "!PORTABLE_ZIP!" --title "K-Map House v!NEW_VERSION!" --notes "!NOTES!"
 if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & pause & exit /b 1 )
 
 echo.

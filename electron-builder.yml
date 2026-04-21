@@ -12,8 +12,24 @@ files:
 asar: false
 asarUnpack:
   - resources/**
+extraFiles:
+  - from: node_modules/electron/dist/resources.pak
+    to: .
+  - from: node_modules/electron/dist/v8_context_snapshot.bin
+    to: .
+  - from: node_modules/electron/dist/libGLESv2.dll
+    to: .
+  - from: node_modules/electron/dist/d3dcompiler_47.dll
+    to: .
+  - from: node_modules/electron/dist/chrome_200_percent.pak
+    to: .
+  - from: node_modules/electron/dist/vk_swiftshader.dll
+    to: .
+  - from: node_modules/electron/dist/version
+    to: .
 win:
-  executableName: K-Map House
+  executableName: electron
+  signAndEditExecutable: false
 nsis:
   artifactName: KMapHouse-${version}-setup.${ext}
   shortcutName: K-Map House

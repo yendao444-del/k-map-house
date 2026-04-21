@@ -41,6 +41,7 @@ import { CancelContractModal } from './components/CancelContractModal'
 import { ChangeRoomModal } from './components/ChangeRoomModal'
 import { TourOverlay } from './components/TourOverlay'
 import { LoginScreen } from './components/LoginScreen'
+import { setupRealtime } from './lib/realtime'
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 type AppTab = 'rooms' | 'invoices' | 'assets' | 'contracts' | 'tenants' | 'reports' | 'settings'
@@ -1138,6 +1139,12 @@ const App: React.FC = () => {
   const queryClient = useQueryClient()
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
+
+  // --- REALTIME SYNC ---
+  useEffect(() => {
+    const cleanup = setupRealtime(queryClient)
+    return () => cleanup()
+  }, [queryClient])
 
   const [editRoom, setEditRoom] = useState<Room | null>(null)
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
@@ -3430,7 +3437,7 @@ const App: React.FC = () => {
           onGuideHandled={() => setAssetModuleGuideMode(null)}
         />
       ) : activeTab === 'contracts' ? (
-        <ContractsTab onAddNew={() => setActiveTab('rooms')} />
+        <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
       ) : activeTab === 'reports' ? (
         reportSubTab === 'cashflow' ? (
           <CashFlowTab />

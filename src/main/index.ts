@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
 import { join } from 'path'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
 import bcrypt from 'bcryptjs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -39,6 +39,48 @@ interface ZaloSendPayload {
 }
 
 let currentSession: SessionUser | null = null
+
+function writeCrashLog(scope: string, error: unknown): void {
+  try {
+    const logDir = join(app.getPath('temp'), 'k-map-house-logs')
+    mkdirSync(logDir, { recursive: true })
+    const message =
+      error instanceof Error ? `${error.message}\n${error.stack || ''}` : JSON.stringify(error)
+    appendFileSync(join(logDir, 'main-crash.log'), `[${new Date().toISOString()}] ${scope}\n${message}\n\n`, 'utf-8')
+  } catch {
+    // ignore logging failures
+  }
+}
+
+function writeDebugLog(scope: string, details?: unknown): void {
+  try {
+    const logDir = join(app.getPath('temp'), 'k-map-house-logs')
+    mkdirSync(logDir, { recursive: true })
+    const message =
+      typeof details === 'string'
+        ? details
+        : details instanceof Error
+          ? `${details.message}\n${details.stack || ''}`
+          : details === undefined
+            ? ''
+            : JSON.stringify(details, null, 2)
+    appendFileSync(
+      join(logDir, 'main-debug.log'),
+      `[${new Date().toISOString()}] ${scope}${message ? `\n${message}` : ''}\n\n`,
+      'utf-8'
+    )
+  } catch {
+    // ignore logging failures
+  }
+}
+
+process.on('uncaughtException', (error) => {
+  writeCrashLog('uncaughtException', error)
+})
+
+process.on('unhandledRejection', (error) => {
+  writeCrashLog('unhandledRejection', error)
+})
 
 function getDBPath(): string {
   return join(app.getPath('userData'), 'phongtro_db.json')
@@ -198,22 +240,48 @@ function setupAuthHandlers(): void {
 }
 
 function createWindow(): void {
+  const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     show: false,
     autoHideMenuBar: true,
     title: 'K-Map House',
-    icon,
+    icon: useSafeWindow ? undefined : icon,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
       sandbox: false
     }
   })
 
   mainWindow.on('ready-to-show', () => {
+    writeDebugLog('window:ready-to-show')
     mainWindow.maximize()
     mainWindow.show()
+  })
+
+  mainWindow.on('closed', () => {
+    writeDebugLog('window:closed')
+  })
+
+  mainWindow.webContents.on('did-start-loading', () => {
+    writeDebugLog('webContents:did-start-loading')
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    writeDebugLog('webContents:did-finish-load', mainWindow.webContents.getURL())
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    writeDebugLog('webContents:did-fail-load', { errorCode, errorDescription, validatedURL })
+  })
+
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    writeDebugLog('webContents:render-process-gone', details)
+  })
+
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    writeDebugLog('webContents:preload-error', { preloadPath, error: error.message, stack: error.stack })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -221,7 +289,9 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (useSafeWindow) {
+    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>K-Map House Safe Window</h1></body></html>')
+  } else if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -231,6 +301,7 @@ function createWindow(): void {
 app.whenReady().then(() => {
   app.setName('K-Map House')
   electronApp.setAppUserModelId('com.kmaphouse.app')
+  writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()
 
   app.on('browser-window-created', (_, window) => {
@@ -248,6 +319,10 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('child-process-gone', (_event, details) => {
+  writeDebugLog('app:child-process-gone', details)
 })
 
 app.on('window-all-closed', () => {

@@ -56,8 +56,8 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
               key={item.id}
               onClick={() => setActiveTab(item.id)}
               className={`flex min-w-fit items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2.5 text-left text-sm font-medium transition md:w-full ${activeTab === item.id
-                  ? 'border border-gray-100 bg-white text-primary shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
-                  : 'text-gray-600 hover:bg-gray-100'
+                ? 'border border-gray-100 bg-white text-primary shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
+                : 'text-gray-600 hover:bg-gray-100'
                 }`}
             >
               <i className={`fa-solid ${item.icon} w-4 text-center`}></i>
@@ -477,8 +477,8 @@ const UsersSettings = (): React.JSX.Element => {
                         })
                       }
                       className={`rounded-full px-3 py-1 text-xs font-bold ${user.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-gray-100 text-gray-600'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-gray-100 text-gray-600'
                         }`}
                     >
                       {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}

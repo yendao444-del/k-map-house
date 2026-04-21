@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getAssetSnapshots, recordInvoicePayment, type Invoice, type Room } from '../lib/db';
+import * as db from '../lib/db';
 import { playPayment } from '../lib/sound';
 
 interface PaymentModalProps {
-  invoice: Invoice;
-  room: Room | undefined;
+  invoice: db.Invoice;
+  room: db.Room | undefined;
   onClose: () => void;
 }
 
@@ -15,7 +15,7 @@ const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys'];
 
-function getInvoiceLabel(invoice: Invoice): string {
+function getInvoiceLabel(invoice: db.Invoice): string {
   if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
   return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
 }
@@ -25,17 +25,17 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const remaining = invoice.total_amount - invoice.paid_amount;
   const { data: moveInSnaps = [], isLoading: isMoveInLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'move_in'],
-    queryFn: () => room ? getAssetSnapshots(room.id, 'move_in') : Promise.resolve([]),
+    queryFn: () => room ? db.getAssetSnapshots(room.id, 'move_in') : Promise.resolve([]),
     enabled: !!room?.id,
   });
   const { data: moveOutSnaps = [], isLoading: isMoveOutLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'move_out'],
-    queryFn: () => room ? getAssetSnapshots(room.id, 'move_out') : Promise.resolve([]),
+    queryFn: () => room ? db.getAssetSnapshots(room.id, 'move_out') : Promise.resolve([]),
     enabled: !!room?.id,
   });
   const { data: handoverSnaps = [], isLoading: isHandoverLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'handover'],
-    queryFn: () => room ? getAssetSnapshots(room.id, 'handover') : Promise.resolve([]),
+    queryFn: () => room ? db.getAssetSnapshots(room.id, 'handover') : Promise.resolve([]),
     enabled: !!room?.id,
   });
 
@@ -48,7 +48,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
 
   const mutation = useMutation({
     mutationFn: async () =>
-      recordInvoicePayment(invoice.id, {
+      db.recordInvoicePayment(invoice.id, {
         amount,
         payment_method: paymentMethod,
         payment_date: new Date().toISOString().split('T')[0],
