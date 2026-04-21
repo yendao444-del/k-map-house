@@ -1,6 +1,6 @@
 {
   "name": "k-map-house",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Phan mem quan ly phong tro K-Map House",
   "main": "./out/main/index.js",
   "author": "K-Map House",
