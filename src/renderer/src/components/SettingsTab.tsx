@@ -577,10 +577,10 @@ export const UpdateSettings = (): React.JSX.Element => {
         <div className="max-w-3xl rounded-[28px] border border-emerald-100 bg-[linear-gradient(135deg,#f0fdf4_0%,#ffffff_55%,#eff6ff_100%)] p-6 shadow-[0_24px_60px_-30px_rgba(21,128,61,0.35)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-600">
+              <div className="text-sm font-semibold text-emerald-600">
                 Bản phát hành GitHub
               </div>
-              <div className="mt-2 text-2xl font-black text-slate-900">
+              <div className="mt-2 text-2xl font-bold text-slate-900">
                 Kiểm tra phiên bản mới
               </div>
             </div>
@@ -766,13 +766,13 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
     <div className="flex h-full flex-col bg-slate-50/30 text-slate-700">
       {/* Breadcrumb Header */}
       <header className="bg-white h-14 border-b border-slate-100 px-6 md:px-12 flex items-center justify-between sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
           <span>Hệ thống</span>
           <i className="fa-solid fa-chevron-right text-[8px]"></i>
           <span className="text-slate-900">Cập nhật phiên bản</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+          <span className="text-xs text-slate-400 font-medium">
             Lần kiểm tra cuối: Hôm nay, {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
@@ -793,12 +793,12 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
               <div className="flex-1 text-center md:text-left w-full">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                    <h2 className="text-2xl font-bold text-slate-900">
                       {status === 'available' ? `Phát hiện phiên bản mới (v${updateInfo?.latestVersion})` : 'Hệ thống đã được cập nhật'}
                     </h2>
                     <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Phiên bản hiện tại:</span>
-                      <span className="font-mono font-black text-xs text-primary bg-emerald-50 px-2 py-0.5 rounded-md">
+                      <span className="text-xs font-medium text-slate-500">Phiên bản hiện tại:</span>
+                      <span className="font-mono font-semibold text-xs text-primary bg-emerald-50 px-2 py-0.5 rounded-md">
                         v{updateInfo?.currentVersion || (window as any).electronAPI?.appVersion || '...'}
                       </span>
                     </div>
@@ -808,7 +808,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                     <button
                       onClick={checkForUpdate}
                       disabled={busy}
-                      className="flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-primary border border-emerald-100 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-sm hover:shadow-md"
+                      className="flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-primary border border-emerald-100 px-5 py-3 rounded-2xl font-bold text-xs transition-all shadow-sm hover:shadow-md"
                     >
                       <i className={`fa-solid fa-rotate-right ${status === 'checking' ? 'animate-spin' : ''}`}></i>
                       {status === 'checking' ? "Đang kiểm tra..." : "Kiểm tra cập nhật"}
@@ -821,13 +821,13 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <i className="fa-solid fa-cloud-arrow-down text-emerald-500"></i>
-                        <span className="text-sm font-black text-slate-700">Sẵn sàng tải về ({updateInfo?.downloadSize ? (updateInfo.downloadSize / 1024 / 1024).toFixed(2) + ' MB' : '... MB'})</span>
+                        <span className="text-sm font-bold text-slate-700">Sẵn sàng tải về ({updateInfo?.downloadSize ? (updateInfo.downloadSize / 1024 / 1024).toFixed(2) + ' MB' : '... MB'})</span>
                       </div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mất khoảng 1-2 phút để hoàn tất quá trình này.</p>
+                      <p className="text-xs font-medium text-slate-400">Mất khoảng 1-2 phút để hoàn tất quá trình này.</p>
                     </div>
                     <button
                       onClick={applyUpdate}
-                      className="bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-[20px] font-black text-xs uppercase tracking-widest flex items-center gap-2.5 shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      className="bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-[20px] font-bold text-xs flex items-center gap-2.5 shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     >
                       <i className="fa-solid fa-bolt-lightning"></i> Cập nhật ngay
                     </button>
@@ -838,12 +838,12 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                   <div className="mt-8 space-y-4 animate-in fade-in">
                     <div className="flex justify-between items-end">
                       <div className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">{message}</span>
-                        <div className="text-sm font-black text-slate-800">
+                        <span className="text-xs font-semibold text-primary">{message}</span>
+                        <div className="text-sm font-bold text-slate-800">
                           {status === 'downloading' ? 'Đang tải gói cập nhật...' : 'Đang xử lý...'}
                         </div>
                       </div>
-                      <span className="text-xl font-black text-primary">{progress}%</span>
+                      <span className="text-xl font-bold text-primary">{progress}%</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                       <div
@@ -862,7 +862,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
             {/* Changelog Card */}
             <div className="lg:col-span-2 bg-white rounded-[24px] border border-slate-200 shadow-sm flex flex-col transition-all hover:shadow-md">
               <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-                <h3 className="font-black text-slate-900 flex items-center gap-2.5 uppercase tracking-tight">
+                <h3 className="font-bold text-slate-900 flex items-center gap-2.5">
                   <i className="fa-solid fa-wand-magic-sparkles text-emerald-500/70"></i> Có gì mới trong bản v{updateInfo?.latestVersion || '...'}?
                 </h3>
               </div>
@@ -879,22 +879,22 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 ) : (
                   <div className="space-y-6">
                     <div className="flex gap-4 group">
-                      <span className="shrink-0 mt-1 h-6 w-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-[10px] font-black">MỚI</span>
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-[10px] font-bold">MỚI</span>
                       <div className="space-y-1">
-                        <p className="font-black text-slate-800 text-sm tracking-tight">Tối ưu hiệu năng ứng dụng</p>
+                        <p className="font-bold text-slate-800 text-sm">Tối ưu hiệu năng ứng dụng</p>
                         <p className="text-slate-400 text-xs font-medium">Giảm 20% dung lượng bộ nhớ khi xử lý hóa đơn quy mô lớn.</p>
                       </div>
                     </div>
                     <div className="flex gap-4 group">
-                      <span className="shrink-0 mt-1 h-6 w-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-[10px] font-black">SỬA</span>
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-[10px] font-bold">SỬA</span>
                       <div className="space-y-1">
-                        <p className="font-black text-slate-800 text-sm tracking-tight">Cải thiện độ ổn định</p>
+                        <p className="font-bold text-slate-800 text-sm">Cải thiện độ ổn định</p>
                         <p className="text-slate-400 text-xs font-medium">Khắc phục một số lỗi nhỏ trong quá trình in hợp đồng.</p>
                       </div>
                     </div>
                   </div>
                 )}
-                <button className="text-primary text-[10px] font-black uppercase tracking-widest hover:opacity-70 flex items-center gap-1.5 mt-8 transition-opacity">
+                <button className="text-primary text-xs font-semibold hover:opacity-70 flex items-center gap-1.5 mt-8 transition-opacity">
                   Xem chi tiết ghi chú phát hành <i className="fa-solid fa-external-link text-[8px]"></i>
                 </button>
               </div>
@@ -904,14 +904,14 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
             <div className="space-y-8">
               {/* Settings Card */}
               <div className="bg-white rounded-[24px] border border-slate-200 p-6 shadow-sm transition-all hover:shadow-md">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Cấu hình cập nhật</h4>
+                <h4 className="text-sm font-bold text-slate-700 mb-6">Cấu hình cập nhật</h4>
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-700 tracking-tight">Kênh cập nhật</span>
-                    <span className="text-[10px] font-black px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">{updateArtifactLabel(updateInfo?.artifactType)}</span>
+                    <span className="text-xs font-semibold text-slate-700">Kênh cập nhật</span>
+                    <span className="text-[10px] font-semibold px-2 py-1 bg-slate-100 text-slate-600 rounded-md">{updateArtifactLabel(updateInfo?.artifactType)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-700 tracking-tight">Tự động kiểm tra</span>
+                    <span className="text-xs font-semibold text-slate-700">Tự động kiểm tra</span>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" defaultChecked className="sr-only peer" />
                       <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
@@ -925,13 +925,13 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 group-hover:rotate-12 transition-all duration-700">
                   <i className="fa-solid fa-shield-halved text-[120px]"></i>
                 </div>
-                <h4 className="font-black text-sm mb-3 flex items-center gap-2 tracking-tight">
+                <h4 className="font-bold text-sm mb-3 flex items-center gap-2">
                   <i className="fa-solid fa-shield-heart"></i> Bảo mật dữ liệu
                 </h4>
                 <p className="text-[11px] text-white/80 font-medium leading-relaxed mb-6">
                   Vui lòng đảm bảo bạn đã lưu trữ dữ liệu quan trọng trước khi nâng cấp hệ thống.
                 </p>
-                <button className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+                <button className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-xl font-bold text-xs transition-all">
                   Sao lưu ngay
                 </button>
               </div>
@@ -941,7 +941,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
           {/* Update History */}
           <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
             <div className="p-6 md:p-8 border-b border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <h3 className="font-black text-slate-900 uppercase tracking-tight">Lịch sử phiên bản</h3>
+              <h3 className="font-bold text-slate-900">Lịch sử phiên bản</h3>
               <div className="relative w-full sm:w-64">
                 <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                 <input
@@ -955,10 +955,10 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50">
-                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Phiên bản</th>
-                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ngày phát hành</th>
-                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Trạng thái</th>
-                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Thao tác</th>
+                    <th className="px-8 py-4 text-xs font-semibold text-slate-500">Phiên bản</th>
+                    <th className="px-8 py-4 text-xs font-semibold text-slate-500">Ngày phát hành</th>
+                    <th className="px-8 py-4 text-xs font-semibold text-slate-500">Trạng thái</th>
+                    <th className="px-8 py-4 text-xs font-semibold text-slate-500 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -972,27 +972,27 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                     history.map((rel: any, i) => (
                       <tr key={rel.tag_name} className="hover:bg-slate-50/80 transition-colors group">
                         <td className="px-8 py-5">
-                          <span className="font-mono font-black text-sm text-slate-800">{rel.tag_name}</span>
-                          {i === 0 && <span className="ml-3 text-[9px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md uppercase tracking-widest">Nền tảng</span>}
+                          <span className="font-mono font-semibold text-sm text-slate-800">{rel.tag_name}</span>
+                          {i === 0 && <span className="ml-3 text-[9px] font-semibold px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md">Nền tảng</span>}
                         </td>
                         <td className="px-8 py-5 text-xs text-slate-500 font-bold flex items-center gap-2">
                           <i className="fa-regular fa-calendar text-[10px]"></i>
                           {new Date(rel.published_at).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </td>
                         <td className="px-8 py-5">
-                          <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest ${i === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                          <span className={`text-[9px] px-2.5 py-1 rounded-full font-semibold ${i === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                             {i === 0 ? 'Ổn định' : 'Lưu trữ'}
                           </span>
                         </td>
                         <td className="px-8 py-5 text-right">
-                          <button className="text-primary text-[10px] font-black uppercase tracking-widest hover:underline opacity-0 group-hover:opacity-100 transition-opacity">Chi tiết</button>
+                          <button className="text-primary text-xs font-semibold hover:underline opacity-0 group-hover:opacity-100 transition-opacity">Chi tiết</button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td colSpan={4} className="py-20 text-center">
-                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Không tìm thấy dữ liệu</p>
+                        <p className="text-xs font-semibold text-slate-300">Không tìm thấy dữ liệu</p>
                       </td>
                     </tr>
                   )}
