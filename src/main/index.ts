@@ -263,6 +263,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'DBY HOME',
+    backgroundColor: '#002b36',
     icon: useSafeWindow ? undefined : icon,
     webPreferences: {
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
