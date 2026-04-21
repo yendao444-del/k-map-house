@@ -633,7 +633,7 @@ const RoomAssetPanel: React.FC<{
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
               <button onClick={() => setModal(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
-              <button onClick={() => addMut.mutate()} disabled={Object.keys(selectedAssets).length === 0 || addMut.isPending} className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">
+              <button onClick={() => addMut.mutate()} data-tour="save-asset-btn" disabled={Object.keys(selectedAssets).length === 0 || addMut.isPending} className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">
                 Lưu tài sản
               </button>
             </div>

@@ -127,11 +127,14 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
   const [quickTenant, setQuickTenant] = useState({ full_name: '', phone: '', identity_card: '' })
   const [electricTouched, setElectricTouched] = useState(false)
   const [waterTouched, setWaterTouched] = useState(false)
+  const [allowReadingEdit, setAllowReadingEdit] = useState(false)
+  const [readingEditReason, setReadingEditReason] = useState('')
 
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const readingsReady =
-    electricTouched && waterTouched && form.electric_init !== '' && form.water_init !== ''
+  const readingsReady = hasPreviousRoomHistory || (form.electric_init !== '' && form.water_init !== '')
+  const isMissingElectricReading = form.electric_init === ''
+  const isMissingWaterReading = form.water_init === ''
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -149,7 +152,12 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
         electric_init: Number(form.electric_init),
         water_init: Number(form.water_init),
         status: 'active',
-        notes: form.notes.trim() || undefined,
+        notes: [
+          form.notes.trim(),
+          hasPreviousRoomHistory && allowReadingEdit && readingEditReason.trim()
+            ? `Lý do sửa chỉ số đầu kỳ: ${readingEditReason.trim()}`
+            : ''
+        ].filter(Boolean).join('\n') || undefined,
         is_migration: isMigration || undefined,
         migration_debt: isMigration && form.migration_debt > 0 ? form.migration_debt : undefined,
       }),
@@ -217,7 +225,13 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
       return
     }
     if (!readingsReady) {
-      setSubmitError('Vui lòng xác nhận số điện và số nước đầu kỳ trước khi lập hợp đồng.')
+      setElectricTouched(true)
+      setWaterTouched(true)
+      setSubmitError('Phòng chưa có lịch sử số điện/nước. Vui lòng nhập số điện và số nước ban đầu.')
+      return
+    }
+    if (hasPreviousRoomHistory && allowReadingEdit && !readingEditReason.trim()) {
+      setSubmitError('Vui lòng nhập lý do sửa chỉ số điện/nước.')
       return
     }
     mutation.mutate()
@@ -470,18 +484,65 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               </div>
             </div>
 
+            <div className={`mx-4 mt-3 rounded-xl border px-4 py-3 text-[11px] font-bold border-amber-200 bg-amber-50/50 text-amber-900`}>
+              {hasPreviousRoomHistory ? (
+                <>
+                  <i className="fa-solid fa-circle-info mr-2 text-amber-600"></i>
+                  Phòng đã có lịch sử. Số điện/nước được lấy từ lần chốt trước và được khóa mặc định.
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-triangle-exclamation mr-2 text-amber-500"></i>
+                  Phòng mới chưa có lịch sử. Bắt buộc nhập số điện và số nước ban đầu.
+                </>
+              )}
+            </div>
+
+            {hasPreviousRoomHistory && (
+              <div className="mx-4 mt-2">
+                {!allowReadingEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setAllowReadingEdit(true)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-bold text-gray-700 transition hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <i className="fa-solid fa-pen text-gray-400"></i>
+                    Sửa chỉ số
+                  </button>
+                ) : (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 shadow-inner">
+                    <div className="mb-2 text-[11px] font-bold text-amber-900">
+                      Chỉ sửa nếu chỉ số chốt trước sai hoặc có phát sinh đặc biệt.
+                    </div>
+                    <input
+                      value={readingEditReason}
+                      onChange={e => setReadingEditReason(e.target.value)}
+                      placeholder="Lý do sửa chỉ số..."
+                      className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-medium text-gray-800 outline-none focus:border-amber-400 shadow-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="px-4 py-3 grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
-                  <i className="fa-solid fa-bolt text-yellow-500 mr-1"></i> Số điện
+                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
+                  <i className="fa-solid fa-bolt text-amber-500 mr-1.5"></i> Số điện
                 </label>
-                <input type="number" value={form.electric_init} onChange={e => { set('electric_init', e.target.value === '' ? '' : Number(e.target.value)); setElectricTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+                <input type="number" required readOnly={hasPreviousRoomHistory && !allowReadingEdit} value={form.electric_init} onChange={e => { if (hasPreviousRoomHistory && !allowReadingEdit) return; set('electric_init', e.target.value === '' ? '' : Number(e.target.value)); setElectricTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasPreviousRoomHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : electricTouched && isMissingElectricReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
+                {electricTouched && isMissingElectricReading && (
+                  <div className="mt-1.5 text-[10px] font-black text-red-600 uppercase tracking-tight">Bắt buộc nhập số điện.</div>
+                )}
               </div>
               <div>
-                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
-                  <i className="fa-solid fa-droplet text-blue-500 mr-1"></i> Số nước
+                <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
+                  <i className="fa-solid fa-droplet text-blue-500 mr-1.5"></i> Số nước
                 </label>
-                <input type="number" value={form.water_init} onChange={e => { set('water_init', e.target.value === '' ? '' : Number(e.target.value)); setWaterTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+                <input type="number" required readOnly={hasPreviousRoomHistory && !allowReadingEdit} value={form.water_init} onChange={e => { if (hasPreviousRoomHistory && !allowReadingEdit) return; set('water_init', e.target.value === '' ? '' : Number(e.target.value)); setWaterTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasPreviousRoomHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : waterTouched && isMissingWaterReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
+                {waterTouched && isMissingWaterReading && (
+                  <div className="mt-1.5 text-[10px] font-black text-red-600 uppercase tracking-tight">Bắt buộc nhập số nước.</div>
+                )}
               </div>
 
               {isMigration && (
@@ -521,7 +582,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
           <button
             type="submit"
             onClick={handleSubmit}
-            disabled={mutation.isPending || !selectedTenantId || !readingsReady}
+            disabled={mutation.isPending || !selectedTenantId}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow-sm shadow-green-100 transition disabled:opacity-60 disabled:hover:bg-green-600 flex items-center justify-center gap-2"
           >
             {mutation.isPending ? (

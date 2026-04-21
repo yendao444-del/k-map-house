@@ -90,6 +90,11 @@ interface UpdateAPI {
   download: (
     url: string
   ) => Promise<{ success: boolean; data?: { version: string }; error?: string }>
+  installLatest: () => Promise<{
+    success: boolean
+    data?: { version: string; latestVersion: string }
+    error?: string
+  }>
   getCurrentVersion: () => Promise<{ success: boolean; data?: string; error?: string }>
   onAvailable: (callback: (data: UpdateCheckResult) => void) => () => void
   onStatus: (callback: (data: UpdateStatusEvent) => void) => () => void

@@ -702,7 +702,7 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
         )}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
           <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-          <button type="submit" disabled={isPending} className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
+          <button type="submit" data-tour="tenant-submit-btn" disabled={isPending} className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
             {isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Tạo khách hàng
           </button>
         </div>

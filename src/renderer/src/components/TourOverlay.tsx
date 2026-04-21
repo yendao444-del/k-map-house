@@ -33,8 +33,9 @@ export const TourOverlay = () => {
 
         const target = document.querySelector(selector) as HTMLElement | null
         if (!target) {
-          if (retries < 10) {
-            setTimeout(() => checkAndSet(retries + 1), 100)
+          // Chỉ retry nếu đang tìm bước 2 (vì modal cần thời gian mở)
+          if (retries < 15 && type.includes('step2')) {
+            setTimeout(() => checkAndSet(retries + 1), 200)
           }
           return
         }

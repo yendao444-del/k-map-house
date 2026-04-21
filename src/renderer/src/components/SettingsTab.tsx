@@ -551,18 +551,19 @@ export const UpdateSettings = (): React.JSX.Element => {
   }
 
   const applyUpdate = async () => {
-    if (!updateInfo?.downloadUrl) {
+    if (false) {
       setMessage('Release chưa có file zip để cập nhật.')
       return
     }
     setStatus('downloading')
     setMessage('Đang tải và áp dụng bản cập nhật...')
-    const result = await window.api.update.download(updateInfo.downloadUrl)
+    const result = await window.api.update.installLatest()
     if (!result.success) {
       setMessage(result.error || 'Cập nhật thất bại.')
       setStatus('ready')
       return
     }
+    if (!updateInfo) return
     setMessage(`Đã áp dụng bản v${result.data?.version || updateInfo.latestVersion}. App sẽ tự khởi động lại.`)
   }
 
@@ -726,26 +727,27 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   }
 
   const applyUpdate = async () => {
-    if (!updateInfo?.downloadUrl) {
+    if (false) {
       setMessage('Bản phát hành không có tệp cập nhật phù hợp.')
       return
     }
 
     setStatus('downloading')
     setMessage(
-      updateInfo.artifactType === 'installer'
+      updateInfo?.artifactType === 'installer'
         ? 'Đang tải bộ cài đặt cập nhật...'
         : 'Đang tải và chuẩn bị áp dụng bản cập nhật...'
     )
     setProgress(0)
-    const result = await window.api.update.download(updateInfo.downloadUrl)
+    const result = await window.api.update.installLatest()
     if (!result.success) {
       setMessage(result.error || 'Cập nhật thất bại.')
       setStatus('available')
       return
     }
+    if (!updateInfo) return
     setMessage(
-      updateInfo.artifactType === 'installer'
+      updateInfo?.artifactType === 'installer'
         ? 'Bộ cài đã được mở. Ứng dụng sẽ thoát để hoàn tất cài đặt.'
         : `Đã chuẩn bị bản v${result.data?.version || updateInfo.latestVersion}. Ứng dụng sẽ khởi động lại.`
     )
@@ -891,9 +893,11 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
 
                       <div className="flex items-center gap-3">
                         <a
-                          href={rel.html_url}
-                          target="_blank"
-                          rel="noreferrer"
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            if (idx === 0) void applyUpdate()
+                          }}
                           className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-50"
                         >
                           Chi tiết <i className="fa-solid fa-chevron-right text-[8px]"></i>

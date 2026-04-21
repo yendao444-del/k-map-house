@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import AdmZip from 'adm-zip'
+import { spawn } from 'child_process'
 import {
   copyFileSync,
   createWriteStream,
@@ -51,6 +52,7 @@ interface UpdateCheckResult {
 
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
+let updateInProgress = false
 const CACHE_DURATION = 5 * 60 * 1000
 const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
 
@@ -295,54 +297,123 @@ exit
     `Set shell = CreateObject("WScript.Shell")\r\nshell.Run chr(34) & "${batPath}" & chr(34), 0`,
     'utf-8'
   )
-  require('child_process').spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
+  spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
 }
 
-async function checkForUpdate(): Promise<UpdateCheckResult> {
-  const currentVersion = app.getVersion()
-  const latestYml = await fetchLatestYml()
+function createSilentInstallerRunner(tempDir: string, installerPath: string): void {
+  const batPath = join(tempDir, 'install-update.bat')
+  const vbsPath = join(tempDir, 'install-update.vbs')
+  const batContent = `@echo off
+chcp 65001 >nul
+timeout /t 2 /nobreak >nul
+start /wait "" "${installerPath}" /S
+start "" "${process.execPath}"
+timeout /t 3 /nobreak >nul
+rmdir /S /Q "${tempDir}" 2>nul
+exit
+`
 
-  if (latestYml) {
-    return {
-      currentVersion,
-      latestVersion: latestYml.version,
-      hasUpdate: compareVersions(latestYml.version, currentVersion) > 0,
-      releaseNotes: 'Ban cap nhat san sang cai dat.',
-      publishedAt: latestYml.releaseDate,
-      downloadUrl: resolveReleaseAssetUrl(latestYml.path),
-      downloadSize: latestYml.size,
-      artifactType: latestYml.path.toLowerCase().endsWith('.exe') ? 'installer' : 'zip',
-      fileName: latestYml.path
-    }
-  }
+  writeFileSync(batPath, batContent, 'utf-8')
+  writeFileSync(
+    vbsPath,
+    `Set shell = CreateObject("WScript.Shell")\r\nshell.Run chr(34) & "${batPath}" & chr(34), 0`,
+    'utf-8'
+  )
+  spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
+}
 
-  const repoInfo = resolveRepoInfo()
-  if (!repoInfo) {
-    throw new Error('Chua cau hinh GitHub repo trong package.json homepage.')
-  }
-
-  const release = await fetchLatestRelease(repoInfo)
-  const latestVersion = release.tag_name.replace(/^v/i, '')
+function selectReleaseAsset(release: GithubRelease): ReleaseAsset | null {
+  const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
+  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
+  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
   const installerAsset =
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('-setup.exe')) ||
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('.exe')) ||
     null
-  const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
-  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-  const fullZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('KMAPHOUSE'))
-  const selectedAsset = installerAsset || patchZip || fullZip || zipAssets[0] || null
+
+  return patchZip || fullZip || zipAssets[0] || installerAsset || null
+}
+
+function isInstallerAsset(asset: ReleaseAsset | null): boolean {
+  return Boolean(asset?.name.toLowerCase().endsWith('.exe'))
+}
+
+async function checkForUpdate(): Promise<UpdateCheckResult> {
+  const currentVersion = app.getVersion()
+  const repoInfo = resolveRepoInfo()
+  if (repoInfo) {
+    try {
+      const release = await fetchLatestRelease(repoInfo)
+      const latestVersion = release.tag_name.replace(/^v/i, '')
+      const selectedAsset = selectReleaseAsset(release)
+
+      return {
+        currentVersion,
+        latestVersion,
+        hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
+        releaseNotes: release.body || 'Khong co ghi chu.',
+        publishedAt: release.published_at,
+        downloadUrl: selectedAsset?.browser_download_url || null,
+        downloadSize: selectedAsset?.size || 0,
+        artifactType: isInstallerAsset(selectedAsset) ? 'installer' : selectedAsset ? 'zip' : 'none',
+        fileName: selectedAsset?.name || null
+      }
+    } catch {
+      // Fallback to electron-builder latest.yml below.
+    }
+  }
+
+  const latestYml = await fetchLatestYml()
+  if (!latestYml) {
+    throw new Error('Khong the lay thong tin ban cap nhat tu GitHub.')
+  }
 
   return {
     currentVersion,
-    latestVersion,
-    hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
-    releaseNotes: release.body || 'Khong co ghi chu.',
-    publishedAt: release.published_at,
-    downloadUrl: selectedAsset?.browser_download_url || null,
-    downloadSize: selectedAsset?.size || 0,
-    artifactType: installerAsset ? 'installer' : selectedAsset ? 'zip' : 'none',
-    fileName: selectedAsset?.name || null
+    latestVersion: latestYml.version,
+    hasUpdate: compareVersions(latestYml.version, currentVersion) > 0,
+    releaseNotes: 'Ban cap nhat san sang cai dat.',
+    publishedAt: latestYml.releaseDate,
+    downloadUrl: resolveReleaseAssetUrl(latestYml.path),
+    downloadSize: latestYml.size,
+    artifactType: latestYml.path.toLowerCase().endsWith('.exe') ? 'installer' : 'zip',
+    fileName: latestYml.path
   }
+}
+
+async function installUpdate(downloadUrl: string): Promise<{ version: string }> {
+  if (updateInProgress) {
+    throw new Error('Dang co ban cap nhat dang chay.')
+  }
+
+  updateInProgress = true
+  try {
+    return downloadUrl.toLowerCase().endsWith('.exe')
+      ? await installWithSetup(downloadUrl)
+      : await installWithZip(downloadUrl)
+  } finally {
+    updateInProgress = false
+  }
+}
+
+async function installLatestUpdate(): Promise<{ version: string; latestVersion: string }> {
+  const update = await checkForUpdate()
+  if (!update.hasUpdate) {
+    sendToRenderer('update:status', {
+      status: 'idle',
+      message: 'Dang su dung ban moi nhat.',
+      data: update
+    })
+    return { version: update.currentVersion, latestVersion: update.latestVersion }
+  }
+
+  if (!update.downloadUrl) {
+    throw new Error('Ban phat hanh khong co tep cap nhat phu hop.')
+  }
+
+  sendToRenderer('update:available', update)
+  const result = await installUpdate(update.downloadUrl)
+  return { ...result, latestVersion: update.latestVersion }
 }
 
 async function runAutoUpdateCheck(): Promise<void> {
@@ -361,6 +432,14 @@ async function runAutoUpdateCheck(): Promise<void> {
 
     if (data.hasUpdate) {
       sendToRenderer('update:available', data)
+      setTimeout(() => {
+        void installLatestUpdate().catch((error) => {
+          sendToRenderer('update:status', {
+            status: 'error',
+            message: error instanceof Error ? error.message : 'Tu dong cap nhat that bai.'
+          })
+        })
+      }, 1500)
     }
   } catch (error) {
     sendToRenderer('update:status', {
@@ -380,13 +459,10 @@ async function installWithSetup(downloadUrl: string): Promise<{ version: string 
     sendToRenderer('update:progress', { downloaded, total, percent })
   })
 
-  sendToRenderer('update:status', { status: 'installing', message: 'Dang mo bo cai cap nhat...' })
-  const openError = await shell.openPath(installerPath)
-  if (openError) {
-    throw new Error(openError)
-  }
+  sendToRenderer('update:status', { status: 'installing', message: 'Dang cai dat ban cap nhat...' })
+  createSilentInstallerRunner(tempDir, installerPath)
 
-  setTimeout(() => app.quit(), 1000)
+  setTimeout(() => app.quit(), 800)
   return { version: 'installer' }
 }
 
@@ -526,9 +602,7 @@ export function registerUpdateHandlers(): void {
         return { success: false, error: 'Thieu download url.' }
       }
 
-      const data = downloadUrl.toLowerCase().endsWith('.exe')
-        ? await installWithSetup(downloadUrl)
-        : await installWithZip(downloadUrl)
+      const data = await installUpdate(downloadUrl)
       return { success: true, data }
     } catch (error) {
       sendToRenderer('update:status', {
@@ -538,6 +612,22 @@ export function registerUpdateHandlers(): void {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'update_download_failed'
+      }
+    }
+  })
+
+  ipcMain.handle('update:installLatest', async () => {
+    try {
+      const data = await installLatestUpdate()
+      return { success: true, data }
+    } catch (error) {
+      sendToRenderer('update:status', {
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Cap nhat that bai.'
+      })
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'update_install_latest_failed'
       }
     }
   })
