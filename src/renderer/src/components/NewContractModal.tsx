@@ -83,7 +83,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     [activeTenantIds, tenants]
   )
   const hasPreviousRoomHistory = useMemo(
-    () => !!lastInvoice || contracts.some(contract => contract.room_id === room.id && contract.status !== 'active'),
+    () => !!lastInvoice || contracts.some(contract => contract.room_id === room.id),
     [contracts, lastInvoice, room.id]
   )
   const initialElectricReading = lastInvoice?.electric_new ?? room.electric_new ?? room.electric_old ?? 0
@@ -117,8 +117,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     base_rent: room.base_rent,
     deposit_amount: room.default_deposit || room.base_rent,
     invoice_day: room.invoice_day || 5,
-    electric_init: initialElectricReading,
-    water_init: initialWaterReading,
+    electric_init: hasPreviousRoomHistory ? initialElectricReading : '',
+    water_init: hasPreviousRoomHistory ? initialWaterReading : '',
     migration_debt: 0,
     notes: '',
   })
@@ -130,7 +130,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
 
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const readingsReady = hasPreviousRoomHistory || (electricTouched && waterTouched)
+  const readingsReady =
+    electricTouched && waterTouched && form.electric_init !== '' && form.water_init !== ''
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -145,8 +146,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
         deposit_amount: form.deposit_amount,
         billing_cycle: 1,
         invoice_day: form.invoice_day,
-        electric_init: form.electric_init,
-        water_init: form.water_init,
+        electric_init: Number(form.electric_init),
+        water_init: Number(form.water_init),
         status: 'active',
         notes: form.notes.trim() || undefined,
         is_migration: isMigration || undefined,
@@ -205,12 +206,18 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
       electric_init: 125,
       water_init: 15,
     }))
+    setElectricTouched(true)
+    setWaterTouched(true)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedTenantId) {
       setSubmitError('Vui lòng chọn khách thuê.')
+      return
+    }
+    if (!readingsReady) {
+      setSubmitError('Vui lòng xác nhận số điện và số nước đầu kỳ trước khi lập hợp đồng.')
       return
     }
     mutation.mutate()
@@ -468,13 +475,13 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
                   <i className="fa-solid fa-bolt text-yellow-500 mr-1"></i> Số điện
                 </label>
-                <input type="number" value={form.electric_init} onChange={e => { set('electric_init', Number(e.target.value)); setElectricTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+                <input type="number" value={form.electric_init} onChange={e => { set('electric_init', e.target.value === '' ? '' : Number(e.target.value)); setElectricTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
                   <i className="fa-solid fa-droplet text-blue-500 mr-1"></i> Số nước
                 </label>
-                <input type="number" value={form.water_init} onChange={e => { set('water_init', Number(e.target.value)); setWaterTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+                <input type="number" value={form.water_init} onChange={e => { set('water_init', e.target.value === '' ? '' : Number(e.target.value)); setWaterTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
               </div>
 
               {isMigration && (

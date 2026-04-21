@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 type TourData = {
+  type: string
   target: HTMLElement
   text: string
 }
@@ -11,33 +12,52 @@ export const TourOverlay = () => {
   useEffect(() => {
     const startTour = (event: Event) => {
       const type = (event as CustomEvent).detail
-      const selector =
-        type === 'create_tenant'
-          ? '[data-tour="add-tenant-btn"]'
-          : type === 'add_asset'
-            ? '[data-tour="add-asset-btn"]'
-            : type === 'move_in_asset'
-              ? '[data-tour="move-in-btn"]'
-            : type === 'move_out_asset'
-              ? '[data-tour="move-out-btn"]'
-            : ''
 
-      if (!selector) return
-
-      const target = document.querySelector(selector) as HTMLElement | null
-      if (!target) return
-
-      setTourData({
-        target,
-        text:
+      const checkAndSet = (retries = 0) => {
+        const selector =
           type === 'create_tenant'
-            ? 'Bấm vào đây để tạo hồ sơ khách thuê mới'
-            : type === 'add_asset'
-              ? 'Bấm vào đây để khai báo tài sản trước'
-              : type === 'move_in_asset'
-                ? 'Bấm vào đây để kiểm tra lại tài sản sẵn có và chốt nhận phòng'
-              : 'Bấm vào đây để mở Đối chiếu trả phòng cho phòng này',
-      })
+            ? '[data-tour="add-tenant-btn"]'
+            : type === 'create_tenant_step2'
+              ? '[data-tour="tenant-submit-btn"]'
+              : type === 'add_asset'
+                ? '[data-tour="add-asset-btn"]'
+                : type === 'add_asset_step2'
+                  ? '[data-tour="save-asset-btn"]'
+                  : type === 'move_in_asset'
+                    ? '[data-tour="move-in-btn"]'
+                    : type === 'move_out_asset'
+                      ? '[data-tour="move-out-btn"]'
+                      : ''
+
+        if (!selector) return
+
+        const target = document.querySelector(selector) as HTMLElement | null
+        if (!target) {
+          if (retries < 10) {
+            setTimeout(() => checkAndSet(retries + 1), 100)
+          }
+          return
+        }
+
+        setTourData({
+          type,
+          target,
+          text:
+            type === 'create_tenant'
+              ? 'Bước 1/2: Bấm vào đây để mở Form tạo hồ sơ khách'
+              : type === 'create_tenant_step2'
+                ? 'Bước 2/2: Điền thông tin khách thuê và bấm Lưu lại'
+                : type === 'add_asset'
+                  ? 'Bước 1/2: Bấm vào đây để thêm tài sản mới vào kho'
+                  : type === 'add_asset_step2'
+                    ? 'Bước 2/2: Nhập tên tài sản và Lưu'
+                    : type === 'move_in_asset'
+                      ? 'Bấm vào đây để kiểm tra lại tài sản sẵn có và chốt nhận phòng'
+                      : 'Bấm vào đây để mở Đối chiếu trả phòng cho phòng này',
+        })
+      }
+
+      checkAndSet()
     }
 
     const clearTour = () => setTourData(null)
@@ -80,7 +100,14 @@ export const TourOverlay = () => {
         }}
         onClick={() => {
           tourData.target.click()
+          const currentType = tourData.type;
           setTourData(null)
+
+          if (currentType === 'create_tenant') {
+            window.dispatchEvent(new CustomEvent('start-tour', { detail: 'create_tenant_step2' }))
+          } else if (currentType === 'add_asset') {
+            window.dispatchEvent(new CustomEvent('start-tour', { detail: 'add_asset_step2' }))
+          }
         }}
         aria-label={tourData.text}
       >

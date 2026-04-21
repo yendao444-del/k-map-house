@@ -60,4 +60,4 @@ appImage:
 npmRebuild: false
 publish:
   provider: generic
-  url: https://github.com/kmaphouse/windows-app/releases/latest/download/
+  url: https://github.com/yendao444-del/k-map-house/releases/latest/download/

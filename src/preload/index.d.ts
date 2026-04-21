@@ -71,8 +71,22 @@ interface UpdateProgressEvent {
   percent: number
 }
 
+interface UpdateReleaseAsset {
+  name: string
+  size: number
+  browser_download_url: string
+}
+
+interface UpdateReleaseHistoryItem {
+  tag_name: string
+  body?: string
+  published_at: string
+  assets: UpdateReleaseAsset[]
+}
+
 interface UpdateAPI {
   check: () => Promise<{ success: boolean; data?: UpdateCheckResult; error?: string }>
+  getHistory: () => Promise<{ success: boolean; data?: UpdateReleaseHistoryItem[]; error?: string }>
   download: (
     url: string
   ) => Promise<{ success: boolean; data?: { version: string }; error?: string }>
