@@ -25,6 +25,8 @@ import {
   getMoveInReceipts,
   getAssetSnapshots,
   getAppSettings,
+  getCurrentSessionUser,
+  signOutUser,
   updateAppSettings,
   type Room,
   type ServiceZone,
@@ -1250,18 +1252,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
-    window.api.auth
-      .ensureAdmin()
-      .then(async () => {
-        const session = await window.api.auth.session()
+    getCurrentSessionUser()
+      .then((sessionUser) => {
         if (!mounted) return
-        if (session) {
-          const db = (await window.api.db.read()) as { users?: (AppUser & { password_hash?: string })[] } | null
-          const matchedUser = db?.users?.find((user) => user.id === session.id)
-          if (matchedUser) {
-            const { password_hash: _passwordHash, ...safeUser } = matchedUser
-            setCurrentUser(safeUser)
-          }
+        if (sessionUser) {
+          setCurrentUser(sessionUser)
         }
         setAuthReady(true)
       })
@@ -1399,7 +1394,7 @@ const App: React.FC = () => {
   }, [isReportMenuOpen])
 
   const handleLogout = async () => {
-    await window.api.auth.logout()
+    await signOutUser()
     queryClient.clear()
     setCurrentUser(null)
     setIsAccountMenuOpen(false)
@@ -1999,8 +1994,8 @@ const App: React.FC = () => {
         />
       )}
       {/* Header Menu */}
-      <header className="relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 font-sans text-white shadow-md">
-        <div className="flex min-w-0 items-center space-x-4">
+      <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 pr-40 font-sans text-white shadow-md">
+        <div className="app-no-drag flex min-w-0 items-center space-x-4">
           <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
               <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
@@ -2060,7 +2055,7 @@ const App: React.FC = () => {
           </nav>
         </div>
 
-        <div className="flex shrink-0 items-center space-x-4">
+        <div className="app-no-drag flex shrink-0 items-center space-x-4">
           <div className="relative" ref={notificationMenuRef}>
             <button
               type="button"

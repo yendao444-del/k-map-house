@@ -274,6 +274,7 @@ function setupAuthHandlers(): void {
 
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
+  const useCustomTitleBar = !useSafeWindow && process.platform === 'win32'
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -282,6 +283,16 @@ function createWindow(): void {
     title: 'DBY HOME',
     backgroundColor: '#002b36',
     icon: useSafeWindow ? undefined : icon,
+    ...(useCustomTitleBar
+      ? {
+        titleBarStyle: 'hidden' as const,
+        titleBarOverlay: {
+          color: '#002b36',
+          symbolColor: '#ffffff',
+          height: 40
+        }
+      }
+      : {}),
     webPreferences: {
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -290,7 +301,6 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     writeDebugLog('window:ready-to-show')
-    mainWindow.maximize()
     mainWindow.show()
   })
 

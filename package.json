@@ -1,6 +1,6 @@
 {
   "name": "k-map-house",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Phan mem quan ly phong tro DBY HOME",
   "main": "./out/main/index.js",
   "author": "DBY HOME",

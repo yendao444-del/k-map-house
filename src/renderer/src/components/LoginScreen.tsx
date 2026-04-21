@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import logoNavbar from '../assets/logo_navbar.png'
-import type { AppUser } from '../lib/db'
+import { signInUser, type AppUser } from '../lib/db'
 
 const seasonStyles = `
 @keyframes fall {
@@ -124,8 +124,8 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
-  const [username, setUsername] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [version, setVersion] = useState('...')
@@ -147,7 +147,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
     setError('')
 
     try {
-      const result = await window.api.auth.login(username, password)
+      const user = await signInUser(email, password)
       if (!result.ok || !result.user) {
         setError(result.error || 'Đăng nhập thất bại.')
         return
@@ -189,18 +189,15 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
           {/* Logo & Title */}
           <div className="mb-10 text-center">
             <div className="mb-4 flex justify-center">
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/80 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-4 shadow-[0_22px_55px_-24px_rgba(15,23,42,0.5),inset_0_1px_0_rgba(255,255,255,0.95)]">
-                <img src={logoNavbar} alt="DBY HOME" className="h-full w-full object-contain drop-shadow-sm" />
-                <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-500/25">
-                  <i className="fa-solid fa-crown text-[10px] text-white"></i>
-                </span>
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/10 bg-[#002b36] p-4 shadow-[0_22px_55px_-24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.1)] hover:scale-110 hover:shadow-emerald-500/20 active:scale-95 transition-all duration-500 cursor-pointer group/logo">
+                <img src={logoNavbar} alt="DBY HOME" className="h-full w-full object-contain drop-shadow-sm group-hover/logo:rotate-3 transition-transform duration-500" />
               </div>
             </div>
             <h2 className="text-2xl font-extrabold uppercase tracking-tight text-slate-800">
               DBY HOME
             </h2>
             <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-              Property Management System
+              Quản lý phòng trọ
             </p>
           </div>
 

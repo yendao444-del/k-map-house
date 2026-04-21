@@ -9,7 +9,7 @@ export type PaymentMethod = 'cash' | 'transfer'
 export type UserRole = 'admin' | 'user'
 export type UserStatus = 'active' | 'inactive'
 
-export interface AppUser { id: string; username: string; full_name: string; avatar_url?: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
+export interface AppUser { id: string; username: string; email?: string; full_name: string; avatar_url?: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
 export interface InvoicePaymentRecord { id: string; amount: number; payment_method?: PaymentMethod; payment_date: string; note?: string; created_at: string; }
 export interface ServiceZone { id: string; name: string; electric_price: number; water_price: number; internet_price: number; cleaning_price: number; created_at: string; }
 export interface Room { id: string; name: string; floor: number; base_rent: number; status: RoomStatus; created_at: string; service_zone_id?: string; area?: number; max_occupants?: number; default_deposit?: number; invoice_day?: number; billing_cycle?: string; notes?: string; move_in_date?: string; contract_expiration?: string; tenant_name?: string; tenant_phone?: string; tenant_email?: string; tenant_id_card?: string; electric_old?: number; electric_new?: number; water_old?: number; water_new?: number; old_debt?: number; max_vehicles?: number; has_move_in_receipt?: boolean; expected_end_date?: string; electric_price?: number; water_price?: number; wifi_price?: number; garbage_price?: number; }
@@ -43,6 +43,59 @@ const formatRoomName = (name: string) => {
 
 const createEntityId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+const resolveUserRole = (role: unknown): UserRole => (role === 'admin' ? 'admin' : 'user')
+
+const resolveUserStatus = (status: unknown): UserStatus =>
+  status === 'inactive' ? 'inactive' : 'active'
+
+const buildAppUser = (
+  row: Record<string, unknown> | null | undefined,
+  authUser?: {
+    id: string
+    email?: string | null
+    created_at?: string
+    last_sign_in_at?: string | null
+    user_metadata?: Record<string, unknown>
+  } | null
+): AppUser => {
+  const email =
+    (typeof row?.email === 'string' && row.email.trim()) ||
+    (typeof authUser?.email === 'string' && authUser.email.trim()) ||
+    undefined
+  const fallbackUsername = email || authUser?.id || String(row?.id || 'user')
+  const username =
+    (typeof row?.username === 'string' && row.username.trim()) ||
+    fallbackUsername
+  const fullName =
+    (typeof row?.full_name === 'string' && row.full_name.trim()) ||
+    (typeof authUser?.user_metadata?.full_name === 'string' && authUser.user_metadata.full_name.trim()) ||
+    email ||
+    username
+  const avatarUrl =
+    (typeof row?.avatar_url === 'string' && row.avatar_url.trim()) ||
+    (typeof authUser?.user_metadata?.avatar_url === 'string' && authUser.user_metadata.avatar_url.trim()) ||
+    undefined
+
+  return {
+    id: String(row?.id || authUser?.id || ''),
+    username,
+    email,
+    full_name: fullName,
+    avatar_url: avatarUrl,
+    password_hash: typeof row?.password_hash === 'string' ? row.password_hash : undefined,
+    role: resolveUserRole(row?.role),
+    status: resolveUserStatus(row?.status),
+    last_login_at:
+      (typeof row?.last_login_at === 'string' && row.last_login_at) ||
+      (typeof authUser?.last_sign_in_at === 'string' && authUser.last_sign_in_at) ||
+      undefined,
+    created_at:
+      (typeof row?.created_at === 'string' && row.created_at) ||
+      (typeof authUser?.created_at === 'string' && authUser.created_at) ||
+      new Date().toISOString()
+  }
+}
 
 const isValidNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
@@ -630,19 +683,21 @@ export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<
 }
 
 export const getUsers = async (): Promise<AppUser[]> => {
-  const data = await safeQuery(() => supabase.from('users').select('*'))
-  return data || []
+  const data = await safeQuery(() =>
+    supabase.from('users').select('*').order('created_at', { ascending: false })
+  )
+  return (data || []).map((row) => buildAppUser(row as Record<string, unknown>))
 }
 
 export const createUser = async (data: Partial<AppUser>): Promise<AppUser> => {
   const newUser = { ...data, id: createEntityId('user'), status: 'active', created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('users').insert(newUser).select().single())
-  return result as any as AppUser
+  return buildAppUser(result as Record<string, unknown>)
 }
 
 export const updateUser = async (id: string, updates: Partial<AppUser>): Promise<AppUser> => {
   const result = await safeQuery(() => supabase.from('users').update(updates).eq('id', id).select().single())
-  return result as any as AppUser
+  return buildAppUser(result as Record<string, unknown>)
 }
 
 export const updateUserRole = async (userId: string, role: UserRole): Promise<AppUser> => { return updateUser(userId, { role }) }
@@ -651,6 +706,53 @@ export const resetUserPassword = async (userId: string, password_hash: string): 
 
 export const deleteUser = async (id: string): Promise<void> => {
   await safeQuery(() => supabase.from('users').delete().eq('id', id))
+}
+
+export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
+  const {
+    data: { user },
+    error
+  } = await supabase.auth.getUser()
+  if (error) throw new Error(error.message)
+  if (!user) return null
+
+  const { data: profile, error: profileError } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) throw new Error(profileError.message)
+
+  const appUser = buildAppUser((profile || { id: user.id }) as Record<string, unknown>, user)
+  if (appUser.status !== 'active') {
+    await supabase.auth.signOut()
+    throw new Error('Tài khoản đã bị vô hiệu hóa.')
+  }
+
+  return appUser
+}
+
+export const signInUser = async (email: string, password: string): Promise<AppUser> => {
+  const normalizedEmail = email.trim()
+  if (!normalizedEmail || !password) {
+    throw new Error('Vui lòng nhập email và mật khẩu.')
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password
+  })
+  if (error) throw new Error(error.message)
+
+  const user = await getCurrentSessionUser()
+  if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi đăng nhập.')
+  return user
+}
+
+export const signOutUser = async (): Promise<void> => {
+  const { error } = await supabase.auth.signOut()
+  if (error) throw new Error(error.message)
 }
 
 // =========================================================

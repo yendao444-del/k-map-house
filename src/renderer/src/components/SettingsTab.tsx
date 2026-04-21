@@ -1,6 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
+  ArrowUpDown,
+  CheckCircle2,
+  Filter,
+  Key,
+  Lock,
+  MoreVertical,
+  Plus,
+  RefreshCcw,
+  Search,
+  ShieldCheck,
+  UserPlus,
+  XCircle
+} from 'lucide-react'
+import {
   createServiceZone,
   createUser,
   deleteServiceZone,
@@ -70,7 +84,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
       <div className="relative flex-1 overflow-y-auto bg-white">
         {activeTab === 'general' && <GeneralSettings />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
-        {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettings />}
+        {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel />}
         {activeTab === 'updates' && <ProductionUpdateSettings />}
       </div>
     </div>
@@ -516,6 +530,514 @@ const UsersSettings = (): React.JSX.Element => {
       </div>
     </div>
   )
+}
+
+void UsersSettings
+
+const UsersSettingsPanel = (): React.JSX.Element => {
+  const queryClient = useQueryClient()
+  const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: getUsers })
+  const [form, setForm] = useState({
+    username: '',
+    full_name: '',
+    password: '',
+    role: 'user' as UserRole
+  })
+  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({})
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [sortBy, setSortBy] = useState<'name' | 'username' | 'role'>('name')
+
+  const createMutation = useMutation({
+    mutationFn: createUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setForm({ username: '', full_name: '', password: '', role: 'user' })
+      setShowAddForm(false)
+    }
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: 'active' | 'inactive' }) =>
+      updateUserStatus(userId, status),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+  })
+
+  const roleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: UserRole }) => updateUserRole(userId, role),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
+  })
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
+      resetUserPassword(userId, password),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setResetPasswords((prev) => ({ ...prev, [variables.userId]: '' }))
+    }
+  })
+
+  const filteredUsers = useMemo(() => {
+    const keyword = searchTerm.trim().toLowerCase()
+    const nextUsers = users.filter((user) => {
+      if (statusFilter !== 'all' && user.status !== statusFilter) return false
+      if (!keyword) return true
+      return [user.username, user.full_name, accountRoleLabel(user.role)].some((value) =>
+        value.toLowerCase().includes(keyword)
+      )
+    })
+
+    return [...nextUsers].sort((a, b) => {
+      if (sortBy === 'username') return a.username.localeCompare(b.username, 'vi')
+      if (sortBy === 'role') {
+        return accountRoleLabel(a.role).localeCompare(accountRoleLabel(b.role), 'vi')
+      }
+      return a.full_name.localeCompare(b.full_name, 'vi')
+    })
+  }, [searchTerm, sortBy, statusFilter, users])
+
+  const totalUsers = users.length
+  const activeUsers = users.filter((user) => user.status === 'active').length
+  const adminUsers = users.filter((user) => user.role === 'admin').length
+
+  const handleCreateUser = () => {
+    if (!form.username.trim() || !form.full_name.trim() || !form.password.trim()) return
+    createMutation.mutate(form as Partial<AppUser>)
+  }
+
+  return (
+    <div className="app-system-font flex min-h-full flex-col bg-[#f5f7fb]">
+      <div className="border-b border-slate-200 bg-white px-6 py-5 md:px-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-[#00558d]">
+              Quản trị tài khoản
+            </div>
+            <h3 className="mt-2 text-xl font-black text-slate-900">Tài khoản hệ thống</h3>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500">
+              Quản lý người dùng nội bộ, phân quyền truy cập và thao tác bảo mật ngay trong một màn
+              hình.
+            </p>
+          </div>
+          <div className="grid min-w-[280px] grid-cols-3 gap-3">
+            <AccountMetricCard label="Tổng tài khoản" value={String(totalUsers)} tone="slate" />
+            <AccountMetricCard label="Đang hoạt động" value={String(activeUsers)} tone="emerald" />
+            <AccountMetricCard label="Quản trị viên" value={String(adminUsers)} tone="blue" />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 p-6 md:p-8">
+        <div className="mx-auto max-w-[1440px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.25)]">
+          <div className="border-b border-slate-100 bg-white px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Tìm theo tên, username hoặc vai trò..."
+                    className="h-10 w-[320px] rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                  />
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                  <Filter size={14} />
+                  <select
+                    value={statusFilter}
+                    onChange={(event) =>
+                      setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')
+                    }
+                    className="bg-transparent pr-2 outline-none"
+                  >
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="active">Đang hoạt động</option>
+                    <option value="inactive">Đã vô hiệu hóa</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() =>
+                    setSortBy((current) =>
+                      current === 'name' ? 'username' : current === 'username' ? 'role' : 'name'
+                    )
+                  }
+                  className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                >
+                  <ArrowUpDown size={14} />
+                  {sortBy === 'name'
+                    ? 'Sắp xếp: Họ tên'
+                    : sortBy === 'username'
+                      ? 'Sắp xếp: Username'
+                      : 'Sắp xếp: Vai trò'}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-primary"
+                  title="Làm mới danh sách"
+                >
+                  <RefreshCcw size={16} />
+                </button>
+                <button
+                  onClick={() => setShowAddForm((current) => !current)}
+                  className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white transition ${
+                    showAddForm ? 'bg-rose-500 hover:bg-rose-600' : 'bg-[#00558d] hover:bg-[#004470]'
+                  }`}
+                >
+                  {showAddForm ? <XCircle size={16} /> : <Plus size={16} />}
+                  {showAddForm ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {showAddForm && (
+            <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] px-6 py-6">
+              <div className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-bold text-[#00558d]">
+                      <UserPlus size={16} />
+                      Tạo tài khoản mới
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Khởi tạo tài khoản nội bộ với quyền truy cập phù hợp. Có thể đổi vai trò hoặc
+                      vô hiệu hóa sau khi tạo.
+                    </p>
+                  </div>
+                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+                    Nội bộ
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-5 md:grid-cols-2">
+                  <Field
+                    label="Username"
+                    value={form.username}
+                    onChange={(value) => setForm((prev) => ({ ...prev, username: value }))}
+                    placeholder="admin_system"
+                  />
+                  <Field
+                    label="Họ và tên"
+                    value={form.full_name}
+                    onChange={(value) => setForm((prev) => ({ ...prev, full_name: value }))}
+                    placeholder="Nguyễn Văn Admin"
+                  />
+                  <Field
+                    label="Mật khẩu khởi tạo"
+                    value={form.password}
+                    onChange={(value) => setForm((prev) => ({ ...prev, password: value }))}
+                    type="password"
+                    placeholder="Nhập mật khẩu"
+                  />
+                  <div>
+                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Vai trò
+                    </label>
+                    <select
+                      value={form.role}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
+                      }
+                      className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                    >
+                      <option value="user">Người dùng</option>
+                      <option value="admin">Quản trị viên</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <Lock size={15} className="text-slate-400" />
+                    Mật khẩu có thể được đổi lại ở từng dòng tài khoản.
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowAddForm(false)}
+                      className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      onClick={handleCreateUser}
+                      disabled={
+                        createMutation.isPending ||
+                        !form.username.trim() ||
+                        !form.full_name.trim() ||
+                        !form.password.trim()
+                      }
+                      className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {createMutation.isPending ? 'Đang tạo...' : 'Lưu thông tin'}
+                    </button>
+                  </div>
+                </div>
+
+                {createMutation.error && (
+                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {createMutation.error instanceof Error
+                      ? createMutation.error.message
+                      : 'Không thể tạo tài khoản.'}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] border-collapse text-left">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  <th className="px-6 py-4">Tài khoản</th>
+                  <th className="px-6 py-4">Vai trò</th>
+                  <th className="px-6 py-4">Trạng thái</th>
+                  <th className="px-6 py-4">Hoạt động</th>
+                  <th className="px-6 py-4">Bảo mật</th>
+                  <th className="px-6 py-4 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {isLoading && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
+                      Đang tải danh sách tài khoản...
+                    </td>
+                  </tr>
+                )}
+                {!isLoading && filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-14 text-center">
+                      <div className="mx-auto max-w-md">
+                        <div className="text-base font-bold text-slate-700">
+                          Không có tài khoản phù hợp
+                        </div>
+                        <div className="mt-2 text-sm text-slate-500">
+                          Hãy đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái để xem thêm dữ liệu.
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                {filteredUsers.map((user) => {
+                  const resetValue = resetPasswords[user.id] || ''
+                  const isResetting =
+                    resetPasswordMutation.isPending &&
+                    resetPasswordMutation.variables?.userId === user.id
+                  const isUpdatingStatus =
+                    statusMutation.isPending && statusMutation.variables?.userId === user.id
+                  const isUpdatingRole =
+                    roleMutation.isPending && roleMutation.variables?.userId === user.id
+
+                  return (
+                    <tr key={user.id} className="group bg-white transition hover:bg-slate-50/80">
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-700">
+                            {accountUserInitials(user)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-black text-[#00558d]">
+                              @{user.username}
+                            </div>
+                            <div className="mt-1 truncate text-sm text-slate-600">
+                              {user.full_name}
+                            </div>
+                            <div className="mt-1 text-xs text-slate-400">
+                              Tạo lúc {accountFormatDateTime(user.created_at)}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
+                              user.role === 'admin'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
+                          >
+                            <ShieldCheck size={14} />
+                            {accountRoleLabel(user.role)}
+                          </span>
+                          <select
+                            value={user.role}
+                            onChange={(event) =>
+                              roleMutation.mutate({
+                                userId: user.id,
+                                role: event.target.value as UserRole
+                              })
+                            }
+                            disabled={isUpdatingRole}
+                            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
+                          >
+                            <option value="user">Người dùng</option>
+                            <option value="admin">Quản trị viên</option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                            user.status === 'active'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          <CheckCircle2 size={14} />
+                          {user.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="text-sm font-medium text-slate-700">
+                          {user.last_login_at
+                            ? accountFormatDateTime(user.last_login_at)
+                            : 'Chưa đăng nhập'}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-400">
+                          {user.status === 'active'
+                            ? 'Sẵn sàng sử dụng'
+                            : 'Đã tạm khóa truy cập'}
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-2">
+                          <div className="relative w-full max-w-[220px]">
+                            <Lock
+                              size={15}
+                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                            />
+                            <input
+                              type="password"
+                              value={resetValue}
+                              onChange={(event) =>
+                                setResetPasswords((prev) => ({
+                                  ...prev,
+                                  [user.id]: event.target.value
+                                }))
+                              }
+                              placeholder="Mật khẩu mới"
+                              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                            />
+                          </div>
+                          <button
+                            onClick={() =>
+                              resetPasswordMutation.mutate({
+                                userId: user.id,
+                                password: resetValue
+                              })
+                            }
+                            disabled={!resetValue.trim() || isResetting}
+                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Key size={14} />
+                            {isResetting ? 'Đang reset' : 'Reset'}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                userId: user.id,
+                                status: user.status === 'active' ? 'inactive' : 'active'
+                              })
+                            }
+                            disabled={isUpdatingStatus}
+                            className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                              user.status === 'active'
+                                ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                            } disabled:cursor-not-allowed disabled:opacity-60`}
+                          >
+                            {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                          </button>
+                          <button
+                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                            title="Tùy chọn tài khoản"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4 text-sm text-slate-500">
+            <span>
+              Hiển thị {filteredUsers.length} / {totalUsers} tài khoản
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                Active: {activeUsers}
+              </span>
+              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                Admin: {adminUsers}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const AccountMetricCard = ({
+  label,
+  value,
+  tone
+}: {
+  label: string
+  value: string
+  tone: 'slate' | 'emerald' | 'blue'
+}): React.JSX.Element => {
+  const toneClass =
+    tone === 'emerald'
+      ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+      : tone === 'blue'
+        ? 'border-blue-100 bg-blue-50 text-blue-700'
+        : 'border-slate-200 bg-slate-50 text-slate-700'
+
+  return (
+    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
+      <div className="mt-2 text-2xl font-black">{value}</div>
+    </div>
+  )
+}
+
+function accountRoleLabel(role: UserRole): string {
+  return role === 'admin' ? 'Quản trị viên' : 'Người dùng'
+}
+
+function accountUserInitials(user: AppUser): string {
+  const source = user.full_name.trim() || user.username.trim()
+  const parts = source.split(/\s+/).filter(Boolean)
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[parts.length - 1][0] || ''}`.toUpperCase()
+}
+
+function accountFormatDateTime(value?: string): string {
+  if (!value) return 'Chưa cập nhật'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa cập nhật'
+  return date.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 export const UpdateSettings = (): React.JSX.Element => {

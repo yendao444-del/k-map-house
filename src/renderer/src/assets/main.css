@@ -27,6 +27,23 @@ body {
   height: 100vh;
 }
 
+.app-titlebar-drag {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+.app-system-font,
+.app-system-font input,
+.app-system-font select,
+.app-system-font button,
+.app-system-font textarea {
+  font-family: var(--font-base);
+}
+
 /* ===== GLOBAL SCROLLBAR (Apple / Enterprise UI Style) ===== */
 ::-webkit-scrollbar {
   width: 7px;
