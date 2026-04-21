@@ -552,7 +552,7 @@ export const UpdateSettings = (): React.JSX.Element => {
 
   const applyUpdate = async () => {
     if (false) {
-      setMessage('Release chưa có file zip để cập nhật.')
+      setMessage('Bản phát hành chưa có tệp cập nhật phù hợp.')
       return
     }
     setStatus('downloading')
@@ -564,21 +564,21 @@ export const UpdateSettings = (): React.JSX.Element => {
       return
     }
     if (!updateInfo) return
-    setMessage(`Đã áp dụng bản v${result.data?.version || updateInfo.latestVersion}. App sẽ tự khởi động lại.`)
+    setMessage(`Đã áp dụng bản v${result.data?.version || updateInfo.latestVersion}. Ứng dụng sẽ tự khởi động lại.`)
   }
 
   return (
     <div className="flex min-h-full flex-col">
       <div className="border-b border-gray-100 p-6 md:p-8">
         <h3 className="text-lg font-bold text-gray-800">Cập nhật phần mềm</h3>
-        <p className="mt-1 text-sm text-gray-500">Kiểm tra release mới trên GitHub và cập nhật không cần cài lại.</p>
+        <p className="mt-1 text-sm text-gray-500">Kiểm tra bản phát hành mới trên GitHub và cập nhật không cần cài lại.</p>
       </div>
       <div className="flex-1 p-6 md:p-8">
         <div className="max-w-3xl rounded-[28px] border border-emerald-100 bg-[linear-gradient(135deg,#f0fdf4_0%,#ffffff_55%,#eff6ff_100%)] p-6 shadow-[0_24px_60px_-30px_rgba(21,128,61,0.35)]">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-emerald-600">
-                GitHub Releases
+                Bản phát hành GitHub
               </div>
               <div className="mt-2 text-2xl font-black text-slate-900">
                 Kiểm tra phiên bản mới
@@ -598,7 +598,7 @@ export const UpdateSettings = (): React.JSX.Element => {
               <InfoTile label="Phiên bản hiện tại" value={`v${updateInfo.currentVersion}`} />
               <InfoTile label="Bản mới nhất" value={`v${updateInfo.latestVersion}`} />
               <InfoTile
-                label="Dung lượng zip"
+                label="Dung lượng tệp"
                 value={
                   updateInfo.downloadSize > 0
                     ? `${(updateInfo.downloadSize / 1024 / 1024).toFixed(2)} MB`
@@ -647,6 +647,13 @@ type ProductionUpdateInfo = {
   fileName: string | null
 }
 
+const updateArtifactLabel = (artifactType?: ProductionUpdateInfo['artifactType']): string => {
+  if (artifactType === 'installer') return 'Bộ cài đặt'
+  if (artifactType === 'zip') return 'Gói cập nhật'
+  if (artifactType === 'none') return 'Không có tệp'
+  return 'Mặc định'
+}
+
 type UpdateRuntimeStatus =
   | 'idle'
   | 'checking'
@@ -677,7 +684,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   useEffect(() => {
     fetchHistory()
 
-    // Get current version immediately
+    // Lấy phiên bản hiện tại ngay khi mở màn hình.
     window.api.update.getCurrentVersion().then((res: any) => {
       if (res.success) {
         setUpdateInfo(prev => prev ? { ...prev, currentVersion: res.data } : { currentVersion: res.data } as any)
@@ -872,14 +879,14 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 ) : (
                   <div className="space-y-6">
                     <div className="flex gap-4 group">
-                      <span className="shrink-0 mt-1 h-6 w-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-[10px] font-black">NEW</span>
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-[10px] font-black">MỚI</span>
                       <div className="space-y-1">
                         <p className="font-black text-slate-800 text-sm tracking-tight">Tối ưu hiệu năng ứng dụng</p>
                         <p className="text-slate-400 text-xs font-medium">Giảm 20% dung lượng bộ nhớ khi xử lý hóa đơn quy mô lớn.</p>
                       </div>
                     </div>
                     <div className="flex gap-4 group">
-                      <span className="shrink-0 mt-1 h-6 w-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-[10px] font-black">FIX</span>
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-[10px] font-black">SỬA</span>
                       <div className="space-y-1">
                         <p className="font-black text-slate-800 text-sm tracking-tight">Cải thiện độ ổn định</p>
                         <p className="text-slate-400 text-xs font-medium">Khắc phục một số lỗi nhỏ trong quá trình in hợp đồng.</p>
@@ -888,7 +895,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                   </div>
                 )}
                 <button className="text-primary text-[10px] font-black uppercase tracking-widest hover:opacity-70 flex items-center gap-1.5 mt-8 transition-opacity">
-                  Xem chi tiết release notes <i className="fa-solid fa-external-link text-[8px]"></i>
+                  Xem chi tiết ghi chú phát hành <i className="fa-solid fa-external-link text-[8px]"></i>
                 </button>
               </div>
             </div>
@@ -901,7 +908,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 <div className="space-y-5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-700 tracking-tight">Kênh cập nhật</span>
-                    <span className="text-[10px] font-black px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">{updateInfo?.artifactType || 'Standard'}</span>
+                    <span className="text-[10px] font-black px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">{updateArtifactLabel(updateInfo?.artifactType)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-700 tracking-tight">Tự động kiểm tra</span>
@@ -939,7 +946,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
                 <input
                   type="text"
-                  placeholder="Tìm kiếm version..."
+                  placeholder="Tìm kiếm phiên bản..."
                   className="w-full pl-10 pr-4 py-2.5 border border-slate-100 bg-slate-50 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-primary/30 transition-all"
                 />
               </div>

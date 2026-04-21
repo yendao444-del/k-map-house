@@ -1699,19 +1699,21 @@ const App: React.FC = () => {
     notificationCountRef.current = notificationItems.length
   }, [notificationItems.length])
 
-  if (!authReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-sm font-semibold">
-          Đang khởi tạo hệ thống...
-        </div>
-      </div>
-    )
-  }
+  if (!authReady) return null
 
   if (!currentUser) {
     return <LoginScreen onLogin={setCurrentUser} />
   }
+
+  const accountDisplayName = currentUser.role === 'admin' ? 'Admin' : currentUser.full_name
+  const accountAvatarLabel = currentUser.role === 'admin'
+    ? 'Admin'
+    : accountDisplayName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('')
 
   return (
     <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
@@ -1940,8 +1942,11 @@ const App: React.FC = () => {
               <i className="fa-solid fa-chevron-left text-sm"></i>
             </button>
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm">
-                <img src={logoNavbar} alt="K-Map House" className="h-5 w-5 object-contain" />
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/35 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-1.5 shadow-[0_12px_28px_-12px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <img src={logoNavbar} alt="K-Map House" className="h-full w-full object-contain drop-shadow-sm" />
+                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-white bg-gradient-to-br from-amber-300 to-yellow-500 shadow-sm">
+                  <i className="fa-solid fa-crown text-[7px] text-white"></i>
+                </span>
               </div>
               <div>
                 <div className="text-base font-extrabold leading-none tracking-tight">
@@ -2056,30 +2061,21 @@ const App: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                  className={`group relative flex items-center justify-center rounded-full p-0.5 transition-all duration-300 ${isAccountMenuOpen
-                    ? 'bg-white shadow-xl ring-2 ring-white/20 scale-[1.05]'
-                    : 'hover:bg-white/20 active:scale-95'}`}
+                  className={`relative flex h-[34px] w-[52px] items-center justify-center rounded-full overflow-hidden bg-white px-2 text-[11px] font-black text-primary transition-all duration-200 ${isAccountMenuOpen
+                    ? 'ring-2 ring-white/40 scale-105'
+                    : 'hover:scale-105 active:scale-95'}`}
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-white to-gray-100 p-[1px] shadow-sm transition-all duration-300 group-hover:rotate-6">
-                    <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-[11px] font-black text-primary">
-                      {currentUser.full_name
-                        .split(' ')
-                        .filter(Boolean)
-                        .slice(0, 2)
-                        .map((part) => part[0]?.toUpperCase())
-                        .join('')}
-                    </div>
-                  </div>
+                  {accountAvatarLabel}
                 </button>
 
                 {isAccountMenuOpen && (
                   <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-64 origin-top-right rounded-[28px] border border-white bg-white/95 p-2 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200">
                     <div className="mb-2 flex items-center gap-3 px-4 py-4 rounded-[22px] bg-slate-50/80">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary font-black text-lg shadow-inner ring-4 ring-white">
-                        {currentUser.full_name[0]}
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 px-2 text-primary font-black text-sm shadow-inner ring-4 ring-white">
+                        {accountAvatarLabel}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-slate-900">{currentUser.full_name}</div>
+                        <div className="truncate text-sm font-black text-slate-900">{accountDisplayName}</div>
                         <div className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-400">ID: {currentUser.id?.slice(0, 8) || 'ADMIN'}</div>
                       </div>
                     </div>
@@ -2121,32 +2117,19 @@ const App: React.FC = () => {
 
       {/* SUB NAVBAR - Modern pill-based */}
       <div className="bg-white border-b border-gray-200 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] flex items-center px-4 py-3 gap-4 overflow-x-auto overflow-y-visible scrollbar-hide shrink-0 whitespace-nowrap">
-        {/* Navbar Brand / Selector */}
-        <div className="relative flex items-center group shrink-0">
-          <button className="flex items-center gap-3 px-3 py-2 rounded-xl border border-gray-200/60 bg-white hover:bg-gray-50 hover:border-primary/30 transition-all duration-300 shadow-sm min-w-[200px]">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg shadow-inner">
-                <i className="fa-solid fa-building"></i>
-              </div>
-              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold ring-2 ring-white">
-                2
-              </div>
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
-                Đang quản lý
-              </span>
-              <span className="text-[14px] font-extrabold text-gray-900 mt-0.5">
-                K-Map House
-              </span>
-            </div>
-            <div className="ml-auto w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
-              <i className="fa-solid fa-chevron-down text-[10px]"></i>
-            </div>
-          </button>
-          <button className="absolute -right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-primary text-white rounded-lg flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-110 hover:bg-primary-dark transition-all z-10 border-2 border-white">
-            <i className="fa-solid fa-plus text-[12px]"></i>
-          </button>
+        {/* Current Property */}
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200/60 bg-white px-3 py-2 shadow-sm min-w-[200px] shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg shadow-inner">
+            <i className="fa-solid fa-building"></i>
+          </div>
+          <div className="flex min-w-0 flex-col items-start">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
+              Đang quản lý
+            </span>
+            <span className="max-w-[150px] truncate text-[14px] font-extrabold text-gray-900 mt-0.5">
+              {appSettings.property_name || 'K-Map House'}
+            </span>
+          </div>
         </div>
 
         <div className="h-6 w-px bg-gray-200 shrink-0"></div>

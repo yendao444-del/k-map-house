@@ -192,18 +192,34 @@ function setupZaloHandlers(): void {
 function setupAuthHandlers(): void {
   ipcMain.handle('auth:ensureAdmin', async () => {
     const db = ensureBaseStructure(readDBFile())
+    let changed = false
+    for (const user of db.users || []) {
+      if (
+        user.role === 'admin' &&
+        user.username.trim().toLowerCase() === 'admin' &&
+        user.full_name.trim().toLowerCase() !== 'admin'
+      ) {
+        user.full_name = 'Admin'
+        changed = true
+      }
+    }
+
     const hasAdmin = (db.users || []).some((user) => user.role === 'admin' && user.status === 'active')
     if (!hasAdmin) {
       const hash = await bcrypt.hash('admin123', 10)
       db.users?.push({
         id: `user-${Date.now()}`,
         username: 'admin',
-        full_name: 'Quản trị viên',
+        full_name: 'Admin',
         password_hash: hash,
         role: 'admin',
         status: 'active',
         created_at: new Date().toISOString()
       })
+      changed = true
+    }
+
+    if (changed) {
       writeDBFile(db)
     }
   })

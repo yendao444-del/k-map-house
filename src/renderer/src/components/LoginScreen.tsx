@@ -189,8 +189,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
           {/* Logo & Title */}
           <div className="mb-10 text-center">
             <div className="mb-4 flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
-                <img src={logoNavbar} alt="K-Map" className="h-full w-full object-contain" />
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/80 bg-gradient-to-br from-white via-emerald-50 to-amber-50 p-4 shadow-[0_22px_55px_-24px_rgba(15,23,42,0.5),inset_0_1px_0_rgba(255,255,255,0.95)]">
+                <img src={logoNavbar} alt="K-Map" className="h-full w-full object-contain drop-shadow-sm" />
+                <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-amber-300 to-yellow-500 shadow-lg shadow-amber-500/25">
+                  <i className="fa-solid fa-crown text-[10px] text-white"></i>
+                </span>
               </div>
             </div>
             <h2 className="text-2xl font-extrabold uppercase tracking-tight text-slate-800">

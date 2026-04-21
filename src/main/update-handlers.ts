@@ -142,7 +142,7 @@ function fetchLatestRelease(repoInfo: { owner: string; repo: string }): Promise<
         })
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            reject(new Error(`GitHub API error: ${res.statusCode}`))
+            reject(new Error(`Lỗi GitHub API: ${res.statusCode}`))
             return
           }
 
@@ -152,16 +152,16 @@ function fetchLatestRelease(repoInfo: { owner: string; repo: string }): Promise<
             releaseCacheTime = Date.now()
             resolve(parsed)
           } catch {
-            reject(new Error('Invalid release payload'))
+            reject(new Error('Dữ liệu bản phát hành không hợp lệ.'))
           }
         })
       }
     )
 
-    req.on('error', (error) => reject(new Error(`Network error: ${error.message}`)))
+    req.on('error', (error) => reject(new Error(`Lỗi mạng: ${error.message}`)))
     req.setTimeout(15000, () => {
       req.destroy()
-      reject(new Error('Request timeout'))
+      reject(new Error('Yêu cầu quá thời gian chờ.'))
     })
     req.end()
   })
@@ -185,7 +185,7 @@ function downloadFile(
       }
 
       if (response.statusCode !== 200) {
-        reject(new Error(`Download failed: HTTP ${response.statusCode}`))
+        reject(new Error(`Tải xuống thất bại: HTTP ${response.statusCode}`))
         return
       }
 
@@ -220,10 +220,10 @@ function downloadFile(
       })
     })
 
-    request.on('error', (error) => reject(new Error(`Download error: ${error.message}`)))
+    request.on('error', (error) => reject(new Error(`Lỗi tải xuống: ${error.message}`)))
     request.setTimeout(30000, () => {
       request.destroy()
-      reject(new Error('Download timeout'))
+      reject(new Error('Tải xuống quá thời gian chờ.'))
     })
   })
 }
@@ -352,7 +352,7 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
         currentVersion,
         latestVersion,
         hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
-        releaseNotes: release.body || 'Khong co ghi chu.',
+        releaseNotes: release.body || 'Không có ghi chú.',
         publishedAt: release.published_at,
         downloadUrl: selectedAsset?.browser_download_url || null,
         downloadSize: selectedAsset?.size || 0,
@@ -366,14 +366,14 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
 
   const latestYml = await fetchLatestYml()
   if (!latestYml) {
-    throw new Error('Khong the lay thong tin ban cap nhat tu GitHub.')
+    throw new Error('Không thể lấy thông tin bản cập nhật từ GitHub.')
   }
 
   return {
     currentVersion,
     latestVersion: latestYml.version,
     hasUpdate: compareVersions(latestYml.version, currentVersion) > 0,
-    releaseNotes: 'Ban cap nhat san sang cai dat.',
+    releaseNotes: 'Bản cập nhật đã sẵn sàng cài đặt.',
     publishedAt: latestYml.releaseDate,
     downloadUrl: resolveReleaseAssetUrl(latestYml.path),
     downloadSize: latestYml.size,
@@ -384,7 +384,7 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
 
 async function installUpdate(downloadUrl: string): Promise<{ version: string }> {
   if (updateInProgress) {
-    throw new Error('Dang co ban cap nhat dang chay.')
+    throw new Error('Đang có bản cập nhật chạy.')
   }
 
   updateInProgress = true
@@ -402,14 +402,14 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
   if (!update.hasUpdate) {
     sendToRenderer('update:status', {
       status: 'idle',
-      message: 'Dang su dung ban moi nhat.',
+      message: 'Đang sử dụng bản mới nhất.',
       data: update
     })
     return { version: update.currentVersion, latestVersion: update.latestVersion }
   }
 
   if (!update.downloadUrl) {
-    throw new Error('Ban phat hanh khong co tep cap nhat phu hop.')
+    throw new Error('Bản phát hành không có tệp cập nhật phù hợp.')
   }
 
   sendToRenderer('update:available', update)
@@ -423,7 +423,7 @@ function forceInstallUpdate(update: UpdateCheckResult): void {
   if (!update.downloadUrl) {
     sendToRenderer('update:status', {
       status: 'error',
-      message: 'Ban phat hanh khong co tep cap nhat phu hop.',
+      message: 'Bản phát hành không có tệp cập nhật phù hợp.',
       data: update
     })
     return
@@ -432,7 +432,7 @@ function forceInstallUpdate(update: UpdateCheckResult): void {
   forcedInstallQueued = true
   sendToRenderer('update:status', {
     status: 'available',
-    message: `Co ban moi v${update.latestVersion}. Dang tu dong cap nhat...`,
+    message: `Có bản mới v${update.latestVersion}. Đang tự động cập nhật...`,
     data: update
   })
 
@@ -441,7 +441,7 @@ function forceInstallUpdate(update: UpdateCheckResult): void {
       .catch((error) => {
         sendToRenderer('update:status', {
           status: 'error',
-          message: error instanceof Error ? error.message : 'Tu dong cap nhat that bai.',
+          message: error instanceof Error ? error.message : 'Tự động cập nhật thất bại.',
           data: update
         })
       })
@@ -454,14 +454,14 @@ function forceInstallUpdate(update: UpdateCheckResult): void {
 async function runAutoUpdateCheck(): Promise<void> {
   sendToRenderer('update:status', {
     status: 'checking',
-    message: 'Dang tu dong kiem tra ban cap nhat...'
+    message: 'Đang tự động kiểm tra bản cập nhật...'
   })
 
   try {
     const data = await checkForUpdate()
     sendToRenderer('update:status', {
       status: data.hasUpdate ? 'available' : 'idle',
-      message: data.hasUpdate ? `Co ban moi v${data.latestVersion}.` : 'Dang su dung ban moi nhat.',
+      message: data.hasUpdate ? `Có bản mới v${data.latestVersion}.` : 'Đang sử dụng bản mới nhất.',
       data
     })
 
@@ -472,7 +472,7 @@ async function runAutoUpdateCheck(): Promise<void> {
   } catch (error) {
     sendToRenderer('update:status', {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Khong the kiem tra cap nhat.'
+      message: error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.'
     })
   }
 }
@@ -482,12 +482,12 @@ async function installWithSetup(downloadUrl: string): Promise<{ version: string 
   const installerPath = join(tempDir, downloadUrl.split('/').pop() || 'KMapHouse-update-setup.exe')
   mkdirSync(tempDir, { recursive: true })
 
-  sendToRenderer('update:status', { status: 'downloading', message: 'Dang tai bo cai cap nhat...' })
+  sendToRenderer('update:status', { status: 'downloading', message: 'Đang tải bộ cài cập nhật...' })
   await downloadFile(downloadUrl, installerPath, (downloaded, total, percent) => {
     sendToRenderer('update:progress', { downloaded, total, percent })
   })
 
-  sendToRenderer('update:status', { status: 'installing', message: 'Dang cai dat ban cap nhat...' })
+  sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
   createSilentInstallerRunner(tempDir, installerPath)
 
   setTimeout(() => app.quit(), 800)
@@ -501,12 +501,12 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
   mkdirSync(tempDir, { recursive: true })
   mkdirSync(extractDir, { recursive: true })
 
-  sendToRenderer('update:status', { status: 'downloading', message: 'Dang tai ban cap nhat...' })
+  sendToRenderer('update:status', { status: 'downloading', message: 'Đang tải bản cập nhật...' })
   await downloadFile(downloadUrl, zipPath, (downloaded, total, percent) => {
     sendToRenderer('update:progress', { downloaded, total, percent })
   })
 
-  sendToRenderer('update:status', { status: 'extracting', message: 'Dang giai nen...' })
+  sendToRenderer('update:status', { status: 'extracting', message: 'Đang giải nén...' })
   new AdmZip(zipPath).extractAllTo(extractDir, true)
 
   const sourceRoot = findAppRoot(extractDir) || extractDir
@@ -514,7 +514,7 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
   const sourceFiles = collectFiles(sourceRoot)
   let hadLockedFiles = false
 
-  sendToRenderer('update:status', { status: 'installing', message: 'Dang cai dat ban cap nhat...' })
+  sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
   for (const sourceFile of sourceFiles) {
     const relativePath = relative(sourceRoot, sourceFile)
     const targetFile = join(targetRoot, relativePath)
@@ -528,8 +528,8 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
 
   const packageJsonPath = join(sourceRoot, 'package.json')
   const newVersion = existsSync(packageJsonPath)
-    ? JSON.parse(readFileSync(packageJsonPath, 'utf-8')).version || 'unknown'
-    : 'unknown'
+    ? JSON.parse(readFileSync(packageJsonPath, 'utf-8')).version || 'không rõ'
+    : 'không rõ'
 
   if (hadLockedFiles) {
     createLockedFileUpdater(tempDir, sourceRoot, targetRoot)
@@ -538,7 +538,7 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
   }
 
   setTimeout(() => {
-    sendToRenderer('update:status', { status: 'restarting', message: 'Dang khoi dong lai...' })
+    sendToRenderer('update:status', { status: 'restarting', message: 'Đang khởi động lại...' })
     if (hadLockedFiles) {
       app.quit()
     } else {
@@ -569,7 +569,7 @@ function fetchReleases(repoInfo: { owner: string; repo: string }): Promise<Githu
         })
         res.on('end', () => {
           if (res.statusCode !== 200) {
-            reject(new Error(`GitHub API error: ${res.statusCode}`))
+            reject(new Error(`Lỗi GitHub API: ${res.statusCode}`))
             return
           }
 
@@ -577,16 +577,16 @@ function fetchReleases(repoInfo: { owner: string; repo: string }): Promise<Githu
             const parsed = JSON.parse(raw) as GithubRelease[]
             resolve(parsed)
           } catch {
-            reject(new Error('Invalid releases payload'))
+            reject(new Error('Dữ liệu danh sách phát hành không hợp lệ.'))
           }
         })
       }
     )
 
-    req.on('error', (error) => reject(new Error(`Network error: ${error.message}`)))
+    req.on('error', (error) => reject(new Error(`Lỗi mạng: ${error.message}`)))
     req.setTimeout(15000, () => {
       req.destroy()
-      reject(new Error('Request timeout'))
+      reject(new Error('Yêu cầu quá thời gian chờ.'))
     })
     req.end()
   })
@@ -596,11 +596,11 @@ export function registerUpdateHandlers(): void {
   ipcMain.handle('update:getHistory', async () => {
     try {
       const repoInfo = resolveRepoInfo()
-      if (!repoInfo) throw new Error('Repo not configured')
+      if (!repoInfo) throw new Error('Chưa cấu hình kho phát hành.')
       const releases = await fetchReleases(repoInfo)
       return { success: true, data: releases }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'failed' }
+      return { success: false, error: error instanceof Error ? error.message : 'Thao tác thất bại.' }
     }
   })
 
@@ -609,7 +609,7 @@ export function registerUpdateHandlers(): void {
       const data = await checkForUpdate()
       sendToRenderer('update:status', {
         status: data.hasUpdate ? 'available' : 'idle',
-        message: data.hasUpdate ? `Co ban moi v${data.latestVersion}.` : 'Dang su dung ban moi nhat.',
+        message: data.hasUpdate ? `Có bản mới v${data.latestVersion}.` : 'Đang sử dụng bản mới nhất.',
         data
       })
       if (data.hasUpdate) {
@@ -620,7 +620,7 @@ export function registerUpdateHandlers(): void {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'update_check_failed'
+        error: error instanceof Error ? error.message : 'Kiểm tra cập nhật thất bại.'
       }
     }
   })
@@ -628,7 +628,7 @@ export function registerUpdateHandlers(): void {
   ipcMain.handle('update:download', async (_event, downloadUrl: string) => {
     try {
       if (!downloadUrl) {
-        return { success: false, error: 'Thieu download url.' }
+        return { success: false, error: 'Thiếu đường dẫn tải cập nhật.' }
       }
 
       const data = await installUpdate(downloadUrl)
@@ -636,11 +636,11 @@ export function registerUpdateHandlers(): void {
     } catch (error) {
       sendToRenderer('update:status', {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Cap nhat that bai.'
+        message: error instanceof Error ? error.message : 'Cập nhật thất bại.'
       })
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'update_download_failed'
+        error: error instanceof Error ? error.message : 'Tải cập nhật thất bại.'
       }
     }
   })
@@ -652,11 +652,11 @@ export function registerUpdateHandlers(): void {
     } catch (error) {
       sendToRenderer('update:status', {
         status: 'error',
-        message: error instanceof Error ? error.message : 'Cap nhat that bai.'
+        message: error instanceof Error ? error.message : 'Cập nhật thất bại.'
       })
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'update_install_latest_failed'
+        error: error instanceof Error ? error.message : 'Cài đặt bản cập nhật mới nhất thất bại.'
       }
     }
   })
