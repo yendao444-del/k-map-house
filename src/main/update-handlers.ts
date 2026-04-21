@@ -52,7 +52,7 @@ interface UpdateCheckResult {
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
 const CACHE_DURATION = 5 * 60 * 1000
-const GENERIC_RELEASE_BASE_URL = 'https://github.com/kmaphouse/windows-app/releases/latest/download/'
+const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
 
 function readPackageJson(): { homepage?: string; version?: string } {
   try {
@@ -446,7 +446,60 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
   return { version: newVersion }
 }
 
+function fetchReleases(repoInfo: { owner: string; repo: string }): Promise<GithubRelease[]> {
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      {
+        hostname: 'api.github.com',
+        path: `/repos/${repoInfo.owner}/${repoInfo.repo}/releases?per_page=10`,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'K-Map-House-Desktop',
+          Accept: 'application/vnd.github.v3+json'
+        }
+      },
+      (res) => {
+        let raw = ''
+        res.on('data', (chunk) => {
+          raw += chunk
+        })
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`GitHub API error: ${res.statusCode}`))
+            return
+          }
+
+          try {
+            const parsed = JSON.parse(raw) as GithubRelease[]
+            resolve(parsed)
+          } catch {
+            reject(new Error('Invalid releases payload'))
+          }
+        })
+      }
+    )
+
+    req.on('error', (error) => reject(new Error(`Network error: ${error.message}`)))
+    req.setTimeout(15000, () => {
+      req.destroy()
+      reject(new Error('Request timeout'))
+    })
+    req.end()
+  })
+}
+
 export function registerUpdateHandlers(): void {
+  ipcMain.handle('update:getHistory', async () => {
+    try {
+      const repoInfo = resolveRepoInfo()
+      if (!repoInfo) throw new Error('Repo not configured')
+      const releases = await fetchReleases(repoInfo)
+      return { success: true, data: releases }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'failed' }
+    }
+  })
+
   ipcMain.handle('update:check', async () => {
     try {
       const data = await checkForUpdate()

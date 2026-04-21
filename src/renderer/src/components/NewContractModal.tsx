@@ -1,11 +1,10 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createContract,
   getContracts,
-  getAssetSnapshots,
   getTenants,
-  getRoomAssets,
+  createTenant,
   type Invoice,
   type Room,
   type ServiceZone,
@@ -68,21 +67,11 @@ function CurrencyInput({
   )
 }
 
-export default function NewContractModal({ room, zone, onClose, lastInvoice, initialTenantId, initialMoveInDate, initialIsMigration, onNavigateToTenants, onNavigateToAssets }: Props) {
+export default function NewContractModal({ room, onClose, lastInvoice, initialTenantId, initialMoveInDate, initialIsMigration, onNavigateToTenants, onNavigateToAssets }: Props) {
   const queryClient = useQueryClient()
   const today = new Date().toISOString().split('T')[0]
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
-  const { data: roomAssets = [], isLoading: assetsLoading } = useQuery({
-    queryKey: ['room_assets', room.id],
-    queryFn: () => getRoomAssets(room.id),
-  })
-  const { data: moveInSnapshots = [], isLoading: moveInLoading } = useQuery({
-    queryKey: ['asset_snapshots', room.id, 'move_in'],
-    queryFn: () => getAssetSnapshots(room.id, 'move_in'),
-  })
-  const hasNoAssets = !assetsLoading && roomAssets.length === 0
-  const needsMoveIn = !assetsLoading && !moveInLoading && roomAssets.length > 0 && moveInSnapshots.length === 0
 
   const activeTenantIds = useMemo(
     () => new Set(contracts.filter(contract => contract.status === 'active').map(contract => contract.tenant_id).filter(Boolean)),
@@ -103,38 +92,21 @@ export default function NewContractModal({ room, zone, onClose, lastInvoice, ini
   const [selectedTenantId, setSelectedTenantId] = useState(initialTenantId || '')
   const [tenantQuery, setTenantQuery] = useState('')
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false)
+
   const selectedTenant = useMemo(
     () => availableTenants.find(tenant => tenant.id === selectedTenantId) || null,
     [availableTenants, selectedTenantId]
   )
-  const recentTenants = useMemo(
-    () =>
-      [...availableTenants]
-        .sort(
-          (a, b) =>
-            new Date(b.updated_at || b.created_at).getTime() -
-            new Date(a.updated_at || a.created_at).getTime()
-        )
-        .slice(0, 5),
-    [availableTenants]
-  )
+
   const tenantSuggestions = useMemo(() => {
     const q = tenantQuery.trim().toLowerCase()
-    if (!q) return recentTenants
-
     return availableTenants
       .filter(tenant =>
         tenant.full_name.toLowerCase().includes(q) ||
-        (tenant.phone || '').toLowerCase().includes(q) ||
-        (tenant.identity_card || '').toLowerCase().includes(q)
+        (tenant.phone || '').toLowerCase().includes(q)
       )
-      .sort(
-        (a, b) =>
-          new Date(b.updated_at || b.created_at).getTime() -
-          new Date(a.updated_at || a.created_at).getTime()
-      )
-      .slice(0, 20)
-  }, [availableTenants, recentTenants, tenantQuery])
+      .slice(0, 10)
+  }, [availableTenants, tenantQuery])
 
   const [isMigration, setIsMigration] = useState(initialIsMigration ?? false)
 
@@ -150,17 +122,11 @@ export default function NewContractModal({ room, zone, onClose, lastInvoice, ini
     migration_debt: 0,
     notes: '',
   })
+
+  const [isQuickAdding, setIsQuickAdding] = useState(false)
+  const [quickTenant, setQuickTenant] = useState({ full_name: '', phone: '', identity_card: '' })
   const [electricTouched, setElectricTouched] = useState(false)
   const [waterTouched, setWaterTouched] = useState(false)
-
-  useEffect(() => {
-    if (!hasPreviousRoomHistory) return
-    setForm(prev => ({
-      ...prev,
-      electric_init: electricTouched ? prev.electric_init : initialElectricReading,
-      water_init: waterTouched ? prev.water_init : initialWaterReading,
-    }))
-  }, [electricTouched, hasPreviousRoomHistory, initialElectricReading, initialWaterReading, waterTouched])
 
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -208,26 +174,25 @@ export default function NewContractModal({ room, zone, onClose, lastInvoice, ini
   const set = (field: keyof typeof form, value: string | number) =>
     setForm(prev => ({ ...prev, [field]: value }))
 
-  const inputCls =
-    'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition'
-
   const selectTenant = (tenant: Tenant | null) => {
     setSelectedTenantId(tenant?.id || '')
     setTenantQuery(tenant ? `${tenant.full_name}${tenant.phone ? ` - ${tenant.phone}` : ''}` : '')
     setTenantMenuOpen(false)
-    if (hasNoAssets) {
-      setSubmitError('Phòng này chưa thiết lập tài sản. Hãy khai báo tài sản trước khi lập hợp đồng.')
-      return
-    }
-    if (needsMoveIn) {
-      setSubmitError('Phòng này đã có tài sản nhưng chưa chốt nhận phòng. Hãy sang tab Tài sản để kiểm tra và chốt nhận trước khi lập hợp đồng.')
-      return
-    }
-    if (!readingsReady) {
-      setSubmitError('Phải nhập và xác nhận chỉ số điện, nước trước khi lập hợp đồng.')
-      return
-    }
-    setSubmitError('')
+  }
+
+  const quickAddMutation = useMutation({
+    mutationFn: (tenantData: Partial<Tenant>) => createTenant(tenantData),
+    onSuccess: (newTenant) => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      selectTenant(newTenant)
+      setIsQuickAdding(false)
+      setQuickTenant({ full_name: '', phone: '', identity_card: '' })
+    },
+  })
+
+  const confirmQuickAdd = () => {
+    if (!quickTenant.full_name) return
+    quickAddMutation.mutate(quickTenant)
   }
 
   const pickDemoTenant = () => {
@@ -239,469 +204,327 @@ export default function NewContractModal({ room, zone, onClose, lastInvoice, ini
       occupant_count: 2,
       electric_init: 125,
       water_init: 15,
-      notes: 'Dữ liệu demo điền tự động để test luồng',
     }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedTenantId) {
-      setSubmitError('Phải chọn khách thuê từ mục Khách thuê trước khi lập hợp đồng.')
+      setSubmitError('Vui lòng chọn khách thuê.')
       return
     }
-    if (needsMoveIn) {
-      setSubmitError('Phòng này đã có tài sản nhưng chưa chốt nhận phòng. Hãy sang tab Tài sản để kiểm tra và chốt nhận trước khi lập hợp đồng.')
-      return
-    }
-    setSubmitError('')
     mutation.mutate()
   }
 
-  useEffect(() => {
-    if (selectedTenant) {
-      setTenantQuery(
-        `${selectedTenant.full_name}${selectedTenant.phone ? ` - ${selectedTenant.phone}` : ''}`
-      )
-    }
-  }, [selectedTenant])
-
   if (submitted) {
     return (
-      <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
-          <div className="p-8 text-center">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center text-white text-4xl mx-auto mb-4 shadow-lg shadow-emerald-200">
-              <i className="fa-solid fa-circle-check"></i>
-            </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-1">Lập hợp đồng thành công!</h3>
-            <p className="text-sm text-gray-500 mb-1">
-              <span className="font-semibold text-gray-700">{selectedTenant?.full_name}</span> đã nhận
-            </p>
-            <p className="text-lg font-bold text-primary mb-4">{room.name}</p>
-            <div className="bg-gray-50 rounded-xl p-4 text-left text-sm space-y-2 mb-6 border border-gray-100">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Ngày vào ở</span>
-                <span className="font-medium">{new Date(form.move_in_date).toLocaleDateString('vi-VN')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Tiền cọc</span>
-                <span className="font-semibold text-orange-600">{formatVND(form.deposit_amount)} đ</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Giá thuê</span>
-                <span className="font-semibold text-emerald-600">{formatVND(form.base_rent)} đ/tháng</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Lập HĐ hàng tháng</span>
-                <span className="font-semibold">Ngày {form.invoice_day}</span>
-              </div>
-            </div>
-            <button onClick={onClose} className="w-full py-3 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold rounded-xl shadow-md shadow-emerald-200 hover:from-emerald-600 hover:to-green-600 transition">
-              Xong
-            </button>
+      <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]">
+        <div className="bg-white rounded-2xl w-full max-w-[400px] overflow-hidden flex flex-col shadow-2xl border border-gray-200 p-8 text-center animate-[fadeIn_0.15s_ease-out]">
+          <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-white text-2xl mx-auto mb-4 shadow-sm shadow-green-200">
+            <i className="fa-solid fa-check"></i>
           </div>
+          <h3 className="text-[17px] font-bold text-gray-900 leading-tight">Khởi tạo thành công!</h3>
+          <p className="text-xs text-gray-500 mt-2">Hợp đồng cho <span className="font-semibold text-gray-700">{room.name}</span> đã hoàn tất.</p>
+          <button onClick={onClose} className="w-full mt-6 py-2.5 bg-green-600 text-white font-bold rounded-xl shadow-sm shadow-green-100 hover:bg-green-700 transition-colors">Đóng</button>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-        <div className="bg-gradient-to-r from-primary to-emerald-500 px-6 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-              <i className="fa-solid fa-file-signature text-white text-lg"></i>
-            </div>
-            <div>
-              <h2 className="text-white font-bold text-lg leading-tight">Hợp đồng mới</h2>
-              <p className="text-green-100 text-xs">{room.name} · {zone?.name || 'Chưa có vùng'}</p>
-            </div>
+    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-start pt-6 p-4 z-[90]" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bg-white rounded-2xl w-full max-w-[500px] max-h-[92vh] overflow-hidden flex flex-col shadow-2xl border border-gray-200 animate-[fadeIn_0.15s_ease-out]">
+
+        {/* ── HEADER ────────────────────────────── */}
+        <div className="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3 shrink-0">
+          <div className="w-9 h-9 rounded-full bg-green-500 flex items-center justify-center text-white shadow-sm shadow-green-200 shrink-0">
+            <i className="fa-solid fa-file-contract text-base"></i>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={pickDemoTenant}
-              disabled={availableTenants.length === 0}
-              title="Điền dữ liệu mẫu"
-              className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-semibold transition flex items-center gap-1.5 border border-white/20 disabled:opacity-50"
-            >
-              <i className="fa-solid fa-wand-magic-sparkles"></i>
-              <span className="hidden sm:inline">Demo dữ liệu</span>
-            </button>
-            <button onClick={onClose} className="text-white/70 hover:text-white hover:bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center transition">
-              <i className="fa-solid fa-xmark text-lg"></i>
-            </button>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-gray-900 text-[15px] leading-tight truncate">
+              Lập hợp đồng cho &ldquo;{room.name}&rdquo;
+            </h2>
+            <p className="text-[11px] text-gray-500 mt-0.5 truncate">
+              {(room as any).zone?.name || 'Khu vực chưa xác định'}
+            </p>
           </div>
+          <button type="button" onClick={pickDemoTenant} className="px-2.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-colors shrink-0">
+            <i className="fa-solid fa-magic-wand-sparkles"></i>
+            DEMO
+          </button>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition shrink-0">
+            <i className="fa-solid fa-xmark"></i>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-4 py-3.5 space-y-4 bg-gray-50/30">
 
-          {/* Cảnh báo chưa có khách thuê */}
-          {tenants.length === 0 && (
-            <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-4 py-4 flex gap-4 overflow-hidden relative shadow-sm">
-              <div className="relative shrink-0 flex h-10 w-10">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-40 animate-ping"></span>
-                <span className="relative inline-flex rounded-full h-10 w-10 items-center justify-center bg-orange-100 text-orange-500 text-xl border border-orange-200">
-                  <i className="fa-solid fa-user-slash"></i>
-                </span>
+          {/* Alerts */}
+          {availableTenants.length === 0 && (
+            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3.5 flex gap-4 shadow-sm items-start">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                <i className="fa-solid fa-user-xmark"></i>
               </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-orange-800">Chưa có khách thuê nào trong hệ thống</p>
-                <p className="text-xs text-orange-700 mt-1 leading-relaxed mb-3">
-                  Hệ thống yêu cầu phải tạo hồ sơ khách thuê trước khi lập hợp đồng.
-                  Hãy bấm nút bên dưới, chúng tôi sẽ hướng dẫn bạn cách tạo hồ sơ khách thuê mới nhanh chóng.
-                </p>
-                {onNavigateToTenants ? (
-                  <button
-                    type="button"
-                    onClick={onNavigateToTenants}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 text-white font-bold py-2 px-4 rounded-lg shadow-md shadow-orange-500/40 transition-all border border-orange-400 relative overflow-hidden group"
-                  >
-                    <span className="absolute inset-0 w-full h-full -ml-[100%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></span>
-                    <i className="fa-solid fa-location-arrow animate-bounce"></i>
-                    Thiết lập ngay
-                  </button>
-                ) : (
-                  <p className="text-xs text-orange-800 font-semibold">Vui lòng đóng form và sang tab Khách thuê để tạo hồ sơ.</p>
-                )}
+              <div className="space-y-2 flex-1 min-w-0">
+                <div>
+                  <p className="text-red-900 font-bold text-[13px] leading-tight">Tất cả khách thuê đều đang có hợp đồng</p>
+                  <p className="text-red-700 text-[11px] leading-relaxed mt-1">
+                    Bạn cần tạo hồ sơ khách thuê ở màn hình Danh sách Khách thuê trước khi tạo hợp đồng.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onNavigateToTenants?.();
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white text-[10px] font-black rounded-lg inline-flex items-center gap-2 shadow-sm uppercase tracking-wider transition-transform active:scale-95"
+                >
+                  <i className="fa-solid fa-user-plus"></i>
+                  Đến menu Khách thuê
+                </button>
               </div>
             </div>
           )}
 
-          {/* Cảnh báo tất cả khách đã có hợp đồng active */}
-          {tenants.length > 0 && availableTenants.length === 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
-              <i className="fa-solid fa-circle-info text-amber-500 text-lg mt-0.5 shrink-0"></i>
+          {/* Asset Warning (Tour Onboarding) */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3.5 flex gap-4 shadow-sm items-start">
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+              <i className="fa-solid fa-couch"></i>
+            </div>
+            <div className="space-y-2 flex-1 min-w-0">
               <div>
-                <p className="text-sm font-bold text-amber-800">Tất cả khách thuê đều đang có hợp đồng</p>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  Danh sách chỉ hiện khách chưa có hợp đồng active. Nếu muốn thêm khách mới, vào tab{' '}
-                  <strong>Khách thuê</strong> để tạo hồ sơ trước.
+                <p className="text-amber-900 font-bold text-[13px] leading-tight">Phòng chưa có danh sách tài sản</p>
+                <p className="text-amber-700 text-[11px] leading-relaxed mt-1">
+                  Tài sản là thông tin quan trọng để đối chiếu bàn giao. Hãy dành ít phút để thiết lập.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onNavigateToAssets?.();
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-orange-400 to-amber-500 text-white text-[10px] font-black rounded-lg inline-flex items-center gap-2 shadow-sm uppercase tracking-wider transition-transform active:scale-95"
+              >
+                <i className="fa-solid fa-wand-magic-sparkles"></i>
+                Thêm tài sản ngay
+              </button>
             </div>
-          )}
-
-          {/* Cảnh báo chưa setup tài sản */}
-          {hasNoAssets && (
-            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-4 flex gap-4 overflow-hidden relative shadow-sm">
-              <div className="relative shrink-0 flex h-10 w-10">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-40 animate-ping"></span>
-                <span className="relative inline-flex rounded-full h-10 w-10 items-center justify-center bg-amber-100 text-amber-500 text-xl border border-amber-200">
-                  <i className="fa-solid fa-triangle-exclamation"></i>
-                </span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-amber-800">Phòng chưa có danh sách tài sản</p>
-                <p className="text-xs text-amber-700 mt-1 leading-relaxed mb-3">
-                  Tài sản là thông tin quan trọng để đối chiếu khi khách trả phòng.
-                  Bấm nút dưới đây để được hướng dẫn thêm tài sản cho phòng này.
-                </p>
-                {onNavigateToAssets ? (
-                  <button
-                    type="button"
-                    onClick={onNavigateToAssets}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-white font-bold py-2 px-4 rounded-lg shadow-md shadow-amber-500/40 transition-all border border-amber-400 relative overflow-hidden group"
-                  >
-                    <span className="absolute inset-0 w-full h-full -ml-[100%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></span>
-                    <i className="fa-solid fa-couch animate-bounce"></i>
-                    Thêm tài sản ngay
-                  </button>
-                ) : (
-                  <p className="text-xs text-amber-800 font-semibold">Vui lòng vào tab Tài sản để thêm tài sản trước.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {needsMoveIn && (
-            <div className="rounded-xl border-2 border-blue-300 bg-blue-50 px-4 py-4 flex gap-4 overflow-hidden relative shadow-sm">
-              <div className="relative shrink-0 flex h-10 w-10">
-                <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-40 animate-ping"></span>
-                <span className="relative inline-flex rounded-full h-10 w-10 items-center justify-center bg-blue-100 text-blue-500 text-xl border border-blue-200">
-                  <i className="fa-solid fa-clipboard-check"></i>
-                </span>
-              </div>
-              <div className="flex-1">
-                <p className="text-sm font-bold text-blue-800">Phòng đã có tài sản nhưng chưa chốt nhận phòng</p>
-                <p className="text-xs text-blue-700 mt-1 leading-relaxed mb-3">
-                  Bạn đã khai báo tài sản cho phòng này rồi. Bước tiếp theo là kiểm tra lại danh sách và bấm <strong>Chốt nhận phòng</strong> để làm mốc đối chiếu cho chu kỳ thuê mới.
-                </p>
-                {onNavigateToAssets ? (
-                  <button
-                    type="button"
-                    onClick={onNavigateToAssets}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500 to-sky-500 hover:from-blue-600 hover:to-sky-600 text-white font-bold py-2 px-4 rounded-lg shadow-md shadow-blue-500/40 transition-all border border-blue-400 relative overflow-hidden group"
-                  >
-                    <span className="absolute inset-0 w-full h-full -ml-[100%] bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]"></span>
-                    <i className="fa-solid fa-arrow-right-to-bracket animate-bounce"></i>
-                    Chốt nhận phòng
-                  </button>
-                ) : (
-                  <p className="text-xs text-blue-800 font-semibold">Vui lòng vào tab Tài sản để chốt nhận phòng trước.</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {!hasNoAssets && !needsMoveIn && !readingsReady && (
-            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex gap-3">
-              <i className="fa-solid fa-bolt text-blue-500 text-lg mt-0.5 shrink-0"></i>
-              <div>
-                <p className="text-sm font-bold text-blue-800">Cần nhập chỉ số điện / nước ban đầu</p>
-                <p className="text-xs text-blue-700 mt-0.5">
-                  Trước khi lập hợp đồng, bạn phải nhập và xác nhận cả 2 chỉ số này để làm mốc tính hóa đơn.
-                </p>
-              </div>
-            </div>
-          )}
-
-                    {/* Dropdown chọn loại hợp đồng */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Phân loại hợp đồng</label>
-            <select
-              value={isMigration ? 'migration' : 'new'}
-              onChange={e => setIsMigration(e.target.value === 'migration')}
-              className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white font-semibold text-slate-700 shadow-sm"
-            >
-              <option value="new">Hợp đồng mới (Dành cho khách mới chuyển đến)</option>
-              <option value="migration">Khách đang thuê (Chỉ cập nhật dữ liệu vào máy)</option>
-            </select>
-            {isMigration ? (
-              <p className="mt-3 text-[12px] text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2.5 rounded-lg flex items-start gap-2">
-                <i className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0 text-amber-500"></i>
-                <span>Phần mềm <strong>sẽ KHÔNG tạo phiếu thu tháng đầu và tiền cọc</strong> (do khách đã ở và đóng tiền từ trước). Hóa đơn kế tiếp sẽ sinh bình thường.</span>
-              </p>
-            ) : (
-              <p className="mt-3 text-[12px] text-slate-500 flex items-start gap-1.5 px-1">
-                <i className="fa-solid fa-circle-info mt-0.5 shrink-0 text-slate-400"></i>
-                Phần mềm sẽ tự động sinh phiếu <strong>thu tiền cọc</strong> và <strong>hóa đơn tháng đầu tiên</strong>.
-              </p>
-            )}
           </div>
 
+          {/* Loại hợp đồng */}
           <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">A</span>
-              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Gán khách thuê</span>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+              Phân loại chuyển cọc <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={isMigration ? 'migration' : 'new'}
+                onChange={e => setIsMigration(e.target.value === 'migration')}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 bg-white outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 appearance-none transition cursor-pointer"
+              >
+                <option value="new">Hợp đồng mới (Khách mới đến)</option>
+                <option value="migration">Hợp đồng cũ (Di cư dữ liệu từ app cũ / số dư nợ cũ)</option>
+              </select>
+              <i className="fa-solid fa-chevron-down absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Khách thuê <span className="text-red-500">*</span></label>
+          </div>
+
+          {/* ── SECTION: KHÁCH THUÊ ── */}
+          <div className="border border-blue-100 rounded-xl overflow-hidden shadow-sm bg-white">
+            <div className="bg-blue-50 px-4 py-2.5 flex items-center gap-2.5 border-b border-blue-100/50">
+              <div className="w-7 h-7 rounded-lg bg-white border border-blue-200 flex items-center justify-center text-blue-500 shrink-0">
+                <i className="fa-solid fa-user-check text-[11px]"></i>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-gray-800 text-sm">Đại diện thuê phòng</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">Gán khách thuê vào phòng này</div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Khách thuê <span className="text-red-400">*</span></label>
                 <div className="relative">
                   <input
                     value={tenantQuery}
-                    onChange={e => {
-                      setTenantQuery(e.target.value)
-                      setTenantMenuOpen(true)
-                      if (selectedTenantId) setSelectedTenantId('')
-                    }}
+                    onChange={e => { setTenantQuery(e.target.value); setTenantMenuOpen(true); if (selectedTenantId) setSelectedTenantId('') }}
                     onFocus={() => setTenantMenuOpen(true)}
-                    placeholder="Tìm theo tên, số điện thoại hoặc CCCD"
-                    className={inputCls + ' bg-white font-medium pr-10'}
+                    placeholder="Tìm theo tên, SĐT, CCCD..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200 transition pr-8"
                   />
-                  <i className="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                  <i className="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs text-gray-300"></i>
                   {tenantMenuOpen && (
-                    <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-2xl">
-                      {tenantSuggestions.length > 0 ? (
-                        tenantSuggestions.map(tenant => (
-                          <button
-                            key={tenant.id}
-                            type="button"
-                            onClick={() => selectTenant(tenant)}
-                            className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50"
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-bold text-slate-800">{tenant.full_name}</div>
-                              <div className="mt-0.5 text-[11px] text-slate-500">
-                                {tenant.phone || 'Chưa có SĐT'}{tenant.identity_card ? ` · ${tenant.identity_card}` : ''}
-                              </div>
-                            </div>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${tenant.left_at ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                              {tenant.left_at ? 'Đã rời đi' : 'Gần đây'}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-4 text-center text-xs text-slate-400">Không tìm thấy khách thuê phù hợp</div>
-                      )}
+                    <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl shadow-gray-200/50 py-1">
+                      {tenantSuggestions.map(t => (
+                        <button key={t.id} type="button" onClick={() => selectTenant(t)} className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex flex-col items-start gap-0.5">
+                          <span className="font-bold text-gray-700 text-sm">{t.full_name}</span>
+                          <span className="text-[11px] text-gray-400">{t.phone || 'Không có SĐT'}</span>
+                        </button>
+                      ))}
+                      <div className="px-2 pt-1 pb-1">
+                        <button type="button" onClick={() => setIsQuickAdding(true)} className="w-full py-1.5 text-center text-blue-600 border border-dashed border-blue-200 hover:bg-blue-50 rounded text-[11px] font-bold transition-colors">
+                          + Thêm nhanh khách hàng
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
-                <div className="mt-1 text-[11px] text-gray-500">
-                  Mặc định chỉ gợi ý 5 khách gần nhất. Có thể tìm theo <span className="font-semibold">tên</span>, <span className="font-semibold">số điện thoại</span> hoặc <span className="font-semibold">CCCD</span>.
+              </div>
+
+              {isQuickAdding && (
+                <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex flex-col gap-2 animate-[fadeIn_0.2s]">
+                  <input autoFocus placeholder="Họ và tên..." value={quickTenant.full_name} onChange={e => setQuickTenant(p => ({ ...p, full_name: e.target.value }))} className="w-full border border-blue-200 rounded-md px-2.5 py-1.5 text-xs outline-none focus:border-blue-400 shadow-sm" />
+                  <div className="flex gap-2">
+                    <input placeholder="SĐT..." value={quickTenant.phone} onChange={e => setQuickTenant(p => ({ ...p, phone: e.target.value }))} className="flex-1 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs outline-none focus:border-blue-400 shadow-sm" />
+                    <button type="button" onClick={confirmQuickAdd} className="bg-blue-600 text-white px-4 rounded-md text-[11px] font-bold shadow-sm hover:bg-blue-700 transition">Lưu</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Số điện thoại</label>
+                  <input disabled value={selectedTenant?.phone || ''} placeholder="Tự động" className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-500 cursor-not-allowed outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">CMND / CCCD</label>
+                  <input disabled value={selectedTenant?.identity_card || ''} placeholder="Tự động" className="w-full border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-500 cursor-not-allowed outline-none" />
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Số điện thoại</label>
-                <input value={selectedTenant?.phone || ''} readOnly placeholder="Tự động lấy từ hồ sơ khách thuê" className={inputCls + ' bg-gray-50 text-gray-600'} />
+            </div>
+          </div>
+
+          {/* ── SECTION: CẤU HÌNH BIỂU PHÍ ── */}
+          <div className="border border-green-100 rounded-xl overflow-hidden shadow-sm bg-white">
+            <div className="bg-green-50 px-4 py-2.5 flex items-center gap-2.5 border-b border-green-100/50">
+              <div className="w-7 h-7 rounded-lg bg-white border border-green-200 flex items-center justify-center text-green-500 shrink-0">
+                <i className="fa-solid fa-coins text-[11px]"></i>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">CMND / CCCD</label>
-                <input value={selectedTenant?.identity_card || ''} readOnly placeholder="Tự động lấy từ hồ sơ khách thuê" className={inputCls + ' bg-gray-50 text-gray-600'} />
+                <div className="font-bold text-gray-800 text-sm">Cấu hình biểu phí</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">Xác định tiền phòng, tiền cọc</div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Ngày sinh</label>
-                <input type="date" value={form.tenant_dob} onChange={e => set('tenant_dob', e.target.value)} className={inputCls} />
+            </div>
+
+            <div className="px-4 py-3 grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Giá thuê phòng / tháng <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <CurrencyInput value={form.base_rent} onChange={v => set('base_rent', v)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-900 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">VNĐ</span>
+                </div>
               </div>
+
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Số người ở</label>
-                <select value={form.occupant_count} onChange={e => set('occupant_count', Number(e.target.value))} className={inputCls + ' bg-white'}>
-                  {[1, 2, 3, 4, 5, 6].map(n => (
-                    <option key={n} value={n}>{n} người</option>
-                  ))}
-                </select>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Tiền đặt cọc</label>
+                <div className="relative">
+                  <CurrencyInput value={form.deposit_amount} onChange={v => set('deposit_amount', v)} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-orange-600 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Chốt hóa đơn vào</label>
+                <div className="relative">
+                  <select value={form.invoice_day} onChange={e => set('invoice_day', Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white outline-none focus:border-green-400 transition cursor-pointer appearance-none">
+                    {[...Array(28)].map((_, i) => <option key={i + 1} value={i + 1}>Ngày {i + 1} hàng tháng</option>)}
+                  </select>
+                  <i className="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none"></i>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Ngày dọn vào</label>
+                <input type="date" value={form.move_in_date} onChange={e => set('move_in_date', e.target.value)} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 outline-none focus:border-green-400 transition" />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Số lượng người ở</label>
+                <div className="relative">
+                  <select value={form.occupant_count} onChange={e => set('occupant_count', Number(e.target.value))} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-white outline-none focus:border-green-400 transition cursor-pointer appearance-none">
+                    {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} người</option>)}
+                  </select>
+                  <i className="fa-solid fa-chevron-down absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] pointer-events-none"></i>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-gray-100"></div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-bold flex items-center justify-center">B</span>
-              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Ngày vào ở</span>
-            </div>
-            <div className="max-w-[200px]">
-              <input type="date" value={form.move_in_date} onChange={e => set('move_in_date', e.target.value)} className={inputCls} />
-            </div>
-          </div>
-
-          <div className="border-t border-gray-100"></div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-xs font-bold flex items-center justify-center">C</span>
-              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Giá trị hợp đồng</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Giá thuê (đ/tháng)</label>
-                <CurrencyInput value={form.base_rent} onChange={v => set('base_rent', v)} className={inputCls + ' font-semibold tabular-nums'} />
+          {/* ── SECTION: CHỈ SỐ GHI NHẬN ── */}
+          <div className="border border-orange-100 rounded-xl overflow-hidden shadow-sm bg-white">
+            <div className="bg-orange-50 px-4 py-2.5 flex items-center gap-2.5 border-b border-orange-100/50">
+              <div className="w-7 h-7 rounded-lg bg-white border border-orange-200 flex items-center justify-center text-orange-500 shrink-0">
+                <i className="fa-solid fa-tachometer-alt text-[11px]"></i>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Tiền cọc (đ)</label>
-                <CurrencyInput value={form.deposit_amount} onChange={v => set('deposit_amount', v)} className={inputCls + ' font-semibold tabular-nums'} />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Ngày lập hóa đơn hàng tháng</label>
-                <input type="number" min={1} max={28} value={form.invoice_day} onChange={e => set('invoice_day', Number(e.target.value))} className={inputCls + ' font-semibold'} />
+                <div className="font-bold text-gray-800 text-sm">Chỉ số đầu kỳ</div>
+                <div className="text-[11px] text-gray-500 mt-0.5">Điện và nước ban đầu</div>
               </div>
             </div>
-          </div>
 
-          <div className="border-t border-gray-100"></div>
+            <div className="px-4 py-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
+                  <i className="fa-solid fa-bolt text-yellow-500 mr-1"></i> Số điện
+                </label>
+                <input type="number" value={form.electric_init} onChange={e => { set('electric_init', Number(e.target.value)); setElectricTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">
+                  <i className="fa-solid fa-droplet text-blue-500 mr-1"></i> Số nước
+                </label>
+                <input type="number" value={form.water_init} onChange={e => { set('water_init', Number(e.target.value)); setWaterTouched(true) }} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:border-orange-400 focus:ring-1 transition tabular-nums" />
+              </div>
 
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs font-bold flex items-center justify-center">D</span>
-              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                {isMigration ? 'Chỉ số điện nước hiện tại' : 'Chỉ số đầu kỳ'}
-              </span>
-              {hasPreviousRoomHistory && (
-                <span className="ml-auto flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                  <i className="fa-solid fa-circle-check text-[10px]"></i>
-                  {lastInvoice
-                    ? `Tự động lấy từ HĐ tháng ${lastInvoice.month}/${lastInvoice.year}`
-                    : 'Tự động lấy từ chỉ số phòng hiện tại'}
-                </span>
+              {isMigration && (
+                <div className="col-span-2 pt-1">
+                  <label className="block text-[11px] font-bold text-red-500 mb-1.5">
+                    Nợ cũ / Nợ di trú (Nếu có)
+                  </label>
+                  <CurrencyInput value={form.migration_debt} onChange={v => set('migration_debt', v)} className="w-full border border-red-200 bg-red-50 rounded-lg px-3 py-2 text-sm font-bold text-red-600 outline-none focus:border-red-400 transition tabular-nums" />
+                </div>
               )}
             </div>
-            {hasPreviousRoomHistory ? (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Điện ban đầu (kWh)</label>
-                  <div className="relative">
-                    <input
-                      type="number" min={0} value={form.electric_init}
-                      onChange={e => { set('electric_init', Number(e.target.value)); setElectricTouched(true) }}
-                      className={inputCls + ` tabular-nums pr-8 focus:border-emerald-400 ${electricTouched || hasPreviousRoomHistory ? 'bg-emerald-50/60 border-emerald-200' : 'bg-amber-50/70 border-amber-300'}`}
-                    />
-                    <i className="fa-solid fa-bolt absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-400 text-xs pointer-events-none"></i>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Nước ban đầu (m³)</label>
-                  <div className="relative">
-                    <input
-                      type="number" min={0} value={form.water_init}
-                      onChange={e => { set('water_init', Number(e.target.value)); setWaterTouched(true) }}
-                      className={inputCls + ` tabular-nums pr-8 focus:border-emerald-400 ${waterTouched || hasPreviousRoomHistory ? 'bg-emerald-50/60 border-emerald-200' : 'bg-amber-50/70 border-amber-300'}`}
-                    />
-                    <i className="fa-solid fa-droplet absolute right-2.5 top-1/2 -translate-y-1/2 text-blue-400 text-xs pointer-events-none"></i>
-                  </div>
-                </div>
-                <p className="col-span-2 text-[11px] text-gray-400">
-                  Đã điền tự động từ chỉ số cuối kỳ trước. Có thể chỉnh lại nếu cần.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Điện ban đầu (kWh)</label>
-                  <input type="number" min={0} value={form.electric_init} onChange={e => { set('electric_init', Number(e.target.value)); setElectricTouched(true) }} className={inputCls + ` tabular-nums ${electricTouched ? 'border-emerald-300 bg-emerald-50/50' : 'border-amber-300 bg-amber-50/50'}`} placeholder="VD: 125" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Nước ban đầu (m³)</label>
-                  <input type="number" min={0} value={form.water_init} onChange={e => { set('water_init', Number(e.target.value)); setWaterTouched(true) }} className={inputCls + ` tabular-nums ${waterTouched ? 'border-emerald-300 bg-emerald-50/50' : 'border-amber-300 bg-amber-50/50'}`} placeholder="VD: 15" />
-                </div>
-              </div>
-            )}
           </div>
 
-          {isMigration && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-6 h-6 rounded-full bg-red-100 text-red-500 text-xs font-bold flex items-center justify-center">E</span>
-                <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Nợ tồn đọng</span>
-                <span className="text-xs text-gray-400">(tùy chọn)</span>
-              </div>
-              <CurrencyInput
-                value={form.migration_debt}
-                onChange={v => set('migration_debt', v)}
-                className={inputCls + ' tabular-nums'}
-              />
-              <p className="mt-1 text-[11px] text-gray-400">
-                Nếu khách đang nợ tiền từ trước khi dùng phần mềm, nhập số tiền vào đây — hệ thống sẽ tạo 1 phiếu thu nợ riêng.
-              </p>
-            </div>
-          )}
-
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Ghi chú (tùy chọn)</label>
-            <textarea
-              value={form.notes}
-              onChange={e => set('notes', e.target.value)}
-              rows={2}
-              placeholder="VD: Phòng có thêm 1 xe máy..."
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-gray-300 focus:border-gray-300 outline-none transition resize-none"
-            />
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Ghi chú riêng</label>
+            <textarea value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Điều khoản đặc biệt hoặc thỏa thuận ngoài..." className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 min-h-[70px] resize-none" />
           </div>
 
           {submitError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-              <i className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0"></i>
-              <span>{submitError}</span>
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700 text-center">
+              <i className="fa-solid fa-circle-exclamation mr-1.5"></i>{submitError}
             </div>
           )}
 
-          <div className="sticky bottom-0 -mx-6 px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0 bg-gray-50/95 backdrop-blur-sm">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition">
-              Hủy bỏ
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending || availableTenants.length === 0 || !selectedTenantId || hasNoAssets || !readingsReady}
-              className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-primary to-emerald-500 hover:from-primary-dark hover:to-emerald-600 shadow-md shadow-primary/20 transition disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {mutation.isPending ? (
-                <><i className="fa-solid fa-spinner animate-spin"></i> Đang lưu...</>
-              ) : (
-                <><i className="fa-solid fa-file-signature"></i> Lập hợp đồng</>
-              )}
-            </button>
-          </div>
         </form>
+
+        {/* ── FOOTER ────────────────────────────── */}
+        <div className="px-4 py-3 bg-white border-t border-gray-100 flex gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={mutation.isPending}
+            className="px-5 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={mutation.isPending || !selectedTenantId || !readingsReady}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow-sm shadow-green-100 transition disabled:opacity-60 disabled:hover:bg-green-600 flex items-center justify-center gap-2"
+          >
+            {mutation.isPending ? (
+              <><i className="fa-solid fa-spinner animate-spin"></i> Đang xử lý...</>
+            ) : (
+              <><i className="fa-solid fa-check"></i> Xác nhận Hợp đồng</>
+            )}
+          </button>
+        </div>
+
       </div>
     </div>
   )

@@ -29,6 +29,7 @@ const api = {
   },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
+    getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),
     download: (url: string): Promise<unknown> => ipcRenderer.invoke('update:download', url),
     getCurrentVersion: (): Promise<unknown> => ipcRenderer.invoke('update:getCurrentVersion'),
     onAvailable: (callback: (data: unknown) => void): (() => void) => {

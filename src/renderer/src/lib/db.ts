@@ -249,12 +249,30 @@ export const updateContract = async (id: string, updates: Partial<Contract>): Pr
 }
 
 export const cancelContract = async (id: string, notes?: string): Promise<void> => {
-  const { data: contract, error: contractError } = await supabase
+  const { data: contractById, error: contractByIdError } = await supabase
     .from('contracts')
     .select('id,room_id,tenant_id')
     .eq('id', id)
-    .single()
-  if (contractError) throw new Error(contractError.message)
+    .maybeSingle()
+  if (contractByIdError) throw new Error(contractByIdError.message)
+
+  let contract = contractById
+  if (!contract) {
+    const { data: contractByRoom, error: contractByRoomError } = await supabase
+      .from('contracts')
+      .select('id,room_id,tenant_id')
+      .eq('room_id', id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (contractByRoomError) throw new Error(contractByRoomError.message)
+    contract = contractByRoom
+  }
+
+  if (!contract) {
+    throw new Error('Không tìm thấy hợp đồng đang hiệu lực để hủy.')
+  }
 
   if (contract?.room_id && contract?.tenant_id) {
     const paidInvoices = await safeQuery(() =>
@@ -277,17 +295,19 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
       .update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null } as any)
       .eq('id', contract.room_id)
   }
-  await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Cancel contract]' }).eq('id', id))
+  await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Cancel contract]' }).eq('id', contract.id))
 }
 
 export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
+  if (!data.contract_id) throw new Error('Khong tim thay hop dong dang hieu luc de tat toan.')
   await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
   await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
   if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
 }
 
 export const changeRoom = async (data: { old_room_id: string; new_room_id: string; change_date: string; final_electric: number; final_water: number; new_base_rent: number; new_deposit: number; new_electric_init: number; new_water_init: number; }): Promise<void> => {
-  const { data: oldContract } = await supabase.from('contracts').select('*').eq('room_id', data.old_room_id).eq('status', 'active').single()
+  const { data: oldContract, error: oldContractError } = await supabase.from('contracts').select('*').eq('room_id', data.old_room_id).eq('status', 'active').order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (oldContractError) throw new Error(oldContractError.message)
   if (!oldContract) throw new Error('Không tìm thấy hợp đồng cũ')
   await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.old_room_id)
   await supabase.from('contracts').update({ status: 'terminated', end_date: data.change_date, end_note: `Chuyển sang phòng ${data.new_room_id}`, final_electric: data.final_electric, final_water: data.final_water }).eq('id', oldContract.id)
@@ -380,7 +400,8 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
 }
 
 export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string }): Promise<Invoice> => {
-  const { data: inv } = await supabase.from('invoices').select('*').eq('id', id).single()
+  const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(error.message)
   if (!inv) throw new Error('Invoice not found')
   const newPaidAmount = (inv.paid_amount || 0) + data.amount
   const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }

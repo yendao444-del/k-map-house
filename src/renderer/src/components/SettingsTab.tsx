@@ -658,23 +658,43 @@ type UpdateRuntimeStatus =
 
 const ProductionUpdateSettings = (): React.JSX.Element => {
   const [status, setStatus] = useState<UpdateRuntimeStatus>('idle')
-  const [message, setMessage] = useState('App se tu kiem tra cap nhat khi mo phan mem.')
+  const [message, setMessage] = useState('Hệ thống sẽ tự động kiểm tra bản cập nhật khi khởi động.')
   const [updateInfo, setUpdateInfo] = useState<ProductionUpdateInfo | null>(null)
+  const [history, setHistory] = useState<any[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
   const [progress, setProgress] = useState(0)
 
+  const fetchHistory = async () => {
+    setLoadingHistory(true)
+    const result = await (window.api as any).update.getHistory()
+    if (result.success) {
+      setHistory(result.data)
+    }
+    setLoadingHistory(false)
+  }
+
   useEffect(() => {
-    const removeStatus = window.api.update.onStatus((event) => {
+    fetchHistory()
+
+    // Get current version immediately
+    window.api.update.getCurrentVersion().then((res: any) => {
+      if (res.success) {
+        setUpdateInfo(prev => prev ? { ...prev, currentVersion: res.data } : { currentVersion: res.data } as any)
+      }
+    })
+
+    const removeStatus = window.api.update.onStatus((event: any) => {
       setStatus(event.status)
       setMessage(event.message)
       if (event.data) setUpdateInfo(event.data)
     })
-    const removeProgress = window.api.update.onProgress((event) => {
+    const removeProgress = window.api.update.onProgress((event: any) => {
       setProgress(event.percent)
     })
-    const removeAvailable = window.api.update.onAvailable((data) => {
+    const removeAvailable = window.api.update.onAvailable((data: any) => {
       setUpdateInfo(data)
       setStatus('available')
-      setMessage(`Co ban moi v${data.latestVersion}.`)
+      setMessage(`Có phiên bản mới v${data.latestVersion}.`)
     })
 
     return () => {
@@ -686,132 +706,221 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
 
   const checkForUpdate = async () => {
     setStatus('checking')
-    setMessage('Dang kiem tra ban cap nhat...')
+    setMessage('Đang kiểm tra bản cập nhật mới...')
     setProgress(0)
     const result = await window.api.update.check()
     if (!result.success || !result.data) {
-      setMessage(result.error || 'Khong the kiem tra cap nhat.')
+      setMessage(result.error || 'Không thể kiểm tra cập nhật.')
       setStatus('error')
       return
     }
 
-    setUpdateInfo(result.data)
+    setUpdateInfo(result.data as ProductionUpdateInfo)
     setMessage(
       result.data.hasUpdate
-        ? `Co ban moi v${result.data.latestVersion}.`
-        : 'Dang su dung ban moi nhat.'
+        ? `Phát hiện phiên bản mới v${result.data.latestVersion}.`
+        : 'Ứng dụng đang ở phiên bản mới nhất.'
     )
     setStatus(result.data.hasUpdate ? 'available' : 'idle')
+    fetchHistory()
   }
 
   const applyUpdate = async () => {
     if (!updateInfo?.downloadUrl) {
-      setMessage('Release chua co file cap nhat phu hop.')
+      setMessage('Bản phát hành không có tệp cập nhật phù hợp.')
       return
     }
 
     setStatus('downloading')
     setMessage(
       updateInfo.artifactType === 'installer'
-        ? 'Dang tai bo cai cap nhat...'
-        : 'Dang tai va ap dung ban cap nhat...'
+        ? 'Đang tải bộ cài đặt cập nhật...'
+        : 'Đang tải và chuẩn bị áp dụng bản cập nhật...'
     )
     setProgress(0)
     const result = await window.api.update.download(updateInfo.downloadUrl)
     if (!result.success) {
-      setMessage(result.error || 'Cap nhat that bai.')
+      setMessage(result.error || 'Cập nhật thất bại.')
       setStatus('available')
       return
     }
     setMessage(
       updateInfo.artifactType === 'installer'
-        ? 'Bo cai da duoc mo. App se thoat de qua trinh cai dat tiep tuc.'
-        : `Da ap dung ban v${result.data?.version || updateInfo.latestVersion}. App se khoi dong lai.`
+        ? 'Bộ cài đã được mở. Ứng dụng sẽ thoát để hoàn tất cài đặt.'
+        : `Đã chuẩn bị bản v${result.data?.version || updateInfo.latestVersion}. Ứng dụng sẽ khởi động lại.`
     )
   }
 
   const busy = ['checking', 'downloading', 'extracting', 'installing', 'restarting'].includes(status)
-  const sizeLabel =
-    updateInfo?.downloadSize && updateInfo.downloadSize > 0
-      ? `${(updateInfo.downloadSize / 1024 / 1024).toFixed(2)} MB`
-      : 'Khong ro'
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="border-b border-gray-100 p-6 md:p-8">
-        <h3 className="text-lg font-bold text-gray-800">Cap nhat phan mem</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          App tu kiem tra GitHub Release khi mo va cai dat bang installer production.
-        </p>
-      </div>
-      <div className="flex-1 p-6 md:p-8">
-        <div className="max-w-3xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-primary">
-                Production updater
+    <div className="flex h-full flex-col bg-slate-50/30">
+      <div className="flex-1 overflow-y-auto p-6 md:p-12">
+        <div className="max-w-4xl mx-auto space-y-12">
+
+          {/* Hero Section: Current Version Focus */}
+          <div className="relative flex flex-col items-center text-center space-y-8 py-4">
+            {/* Main Version Identity */}
+            <div className="relative">
+              <div className={`flex h-24 w-24 items-center justify-center rounded-[32px] bg-white shadow-xl ${status === 'available' ? 'text-amber-500 shadow-amber-200/40 ring-1 ring-amber-100' : 'text-emerald-500 shadow-emerald-200/40 ring-1 ring-emerald-100'
+                }`}>
+                <i className={`fa-solid ${status === 'available' ? 'fa-rocket animate-pulse' : 'fa-circle-check'} text-4xl`}></i>
               </div>
-              <div className="mt-2 text-2xl font-black text-slate-900">
-                K-Map House v{updateInfo?.currentVersion || '...'}
+              {status === 'available' && (
+                <span className="absolute -top-2 -right-2 flex h-6 w-6">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-6 w-6 bg-amber-500 border-2 border-white"></span>
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex flex-col items-center gap-1">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Phiên bản hiện tại</span>
+                <h2 className="text-6xl font-black tracking-tighter text-slate-900 select-all">
+                  v{updateInfo?.currentVersion || (window as any).electronAPI?.appVersion || '...'}
+                </h2>
+              </div>
+
+              <div className="flex items-center justify-center gap-3">
+                <span className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest border ${status === 'available'
+                    ? 'bg-amber-50 text-amber-600 border-amber-200'
+                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                  }`}>
+                  {status === 'available'
+                    ? `Bản cập nhật v${updateInfo?.latestVersion} đã sẵn sàng`
+                    : 'Bạn đang sử dụng bản mới nhất'}
+                </span>
               </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={checkForUpdate}
-                disabled={busy}
-                className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
-              >
-                {status === 'checking' ? 'Dang kiem tra...' : 'Kiem tra ban cap nhat'}
-              </button>
-              {updateInfo?.hasUpdate && (
+
+            {/* Action Bar */}
+            <div className="flex flex-col items-center gap-6 w-full max-w-sm">
+              <div className="flex w-full items-center gap-3">
                 <button
-                  onClick={applyUpdate}
+                  onClick={checkForUpdate}
                   disabled={busy}
-                  className="rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-md shadow-primary/20 transition hover:bg-primary-dark disabled:opacity-60"
+                  className="flex-1 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-xs font-black text-slate-700 transition-all hover:bg-slate-50 hover:shadow-md disabled:opacity-50"
                 >
-                  {status === 'downloading' ? 'Dang tai...' : 'Tai va cai dat'}
+                  <i className={`fa-solid fa-rotate-right ${status === 'checking' ? 'animate-spin' : ''}`}></i>
+                  Kiểm tra lại
                 </button>
+                {updateInfo?.hasUpdate && (
+                  <button
+                    onClick={applyUpdate}
+                    disabled={busy}
+                    className="flex-[1.5] flex items-center justify-center gap-2.5 rounded-2xl bg-slate-900 px-6 py-4 text-xs font-black text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-slate-800 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                  >
+                    <i className="fa-solid fa-bolt-lightning"></i>
+                    Nâng cấp ngay
+                  </button>
+                )}
+              </div>
+
+              {/* Progress Visual */}
+              {progress > 0 && (
+                <div className="w-full space-y-3 px-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Đang tải gói cập nhật</span>
+                    <span className="text-sm font-black text-emerald-600">{progress}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-slate-200/50 overflow-hidden">
+                    <div className="h-full bg-emerald-500 transition-all duration-500 ease-out shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: `${progress}%` }}></div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Secondary Meta Metadata */}
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 pt-4">
+              <div className="flex items-center gap-2.5">
+                <div className="h-2 w-2 rounded-full bg-slate-300"></div>
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kênh: {updateInfo?.artifactType === 'installer' ? 'Installer' : 'Portable'}</span>
+              </div>
+              <div className="flex items-center gap-2.5 text-amber-600/80">
+                <i className="fa-solid fa-circle-info text-[10px]"></i>
+                <span className="text-[11px] font-bold uppercase tracking-wider">{message}</span>
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-200/60" />
+
+          {/* Minimalist History Section */}
+          <div className="space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h4 className="text-sm font-black uppercase tracking-[0.25em] text-slate-400">Lịch sử bản cập nhật</h4>
+                <span className="h-px w-12 bg-slate-200"></span>
+              </div>
+              <button
+                onClick={fetchHistory}
+                className="text-[10px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity"
+              >
+                Làm mới dữ liệu
+              </button>
+            </div>
+
+            <div className="relative space-y-2">
+              {/* Timeline vertical line */}
+              <div className="absolute left-6 top-4 bottom-4 w-px bg-slate-200/60 hidden sm:block"></div>
+
+              {loadingHistory ? (
+                <div className="py-12 flex flex-col items-center">
+                  <i className="fa-solid fa-spinner animate-spin text-slate-300"></i>
+                </div>
+              ) : history.length > 0 ? (
+                history.map((rel: any, idx: number) => (
+                  <div key={rel.tag_name} className="group relative bg-white border border-transparent rounded-2xl p-4 sm:pl-16 transition-all hover:border-slate-200 hover:shadow-sm">
+                    {/* Circle anchor */}
+                    <div className={`absolute left-[21px] top-7 h-2.5 w-2.5 rounded-full border-2 border-white hidden sm:block shadow-sm transition-all group-hover:scale-125 ${idx === 0 ? 'bg-emerald-500 z-10' : 'bg-slate-300'
+                      }`}></div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-lg font-black text-slate-800">{rel.tag_name}</span>
+                          {idx === 0 && (
+                            <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest">Mới nhất</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-400 mt-0.5">
+                          {new Date(rel.published_at).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <a
+                          href={rel.html_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-50"
+                        >
+                          Chi tiết <i className="fa-solid fa-chevron-right text-[8px]"></i>
+                        </a>
+                      </div>
+                    </div>
+
+                    {rel.body && (
+                      <div className="mt-3 text-xs leading-relaxed text-slate-500 max-w-2xl line-clamp-2 transition-all group-hover:line-clamp-none">
+                        {rel.body}
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="py-20 text-center rounded-[32px] bg-slate-100/30 border border-dashed border-slate-200">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Không có dữ liệu lịch sử</p>
+                </div>
               )}
             </div>
           </div>
-
-          <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {message}
-          </div>
-
-          {progress > 0 && (
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-xs font-bold text-slate-500">
-                <span>Tien trinh tai</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-          )}
-
-          {updateInfo && (
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <InfoTile label="Phien ban hien tai" value={`v${updateInfo.currentVersion}`} />
-              <InfoTile label="Ban moi nhat" value={`v${updateInfo.latestVersion}`} />
-              <InfoTile
-                label="Kieu cap nhat"
-                value={updateInfo.artifactType === 'installer' ? 'Installer NSIS' : 'Portable zip'}
-              />
-              <InfoTile label="Dung luong" value={sizeLabel} />
-              <InfoTile label="File" value={updateInfo.fileName || '-'} />
-              <InfoTile
-                label="Ngay phat hanh"
-                value={new Date(updateInfo.publishedAt).toLocaleDateString('vi-VN')}
-              />
-            </div>
-          )}
         </div>
       </div>
     </div>
   )
 }
+
 
 const ZoneRowEditor = ({
   values,
