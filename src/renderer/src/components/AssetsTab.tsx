@@ -921,7 +921,7 @@ export const AssetsTab: React.FC<{
 }> = ({ initialRoomId, onReceivePendingChange, guideMode, guideRoomId, onGuideHandled }) => {
   const { data: rooms = [], isLoading } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: allAssets = [] } = useQuery({ queryKey: ['allRoomAssets'], queryFn: getAllRoomAssets });
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(initialRoomId || null);
   const [subTab, setSubTab] = useState<'assets' | 'vehicles'>('assets');
   const [receivePending, setReceivePending] = useState<PendingReceive | null>(null);
   const [receivePrompt, setReceivePrompt] = useState<PendingReceive | null>(null);
@@ -970,11 +970,12 @@ export const AssetsTab: React.FC<{
   }, [initialRoomId, rooms]);
 
   useEffect(() => {
-    if (!selectedRoomId && rooms.length > 0) {
+    const initialRoomExists = !!initialRoomId && rooms.some((room) => room.id === initialRoomId);
+    if (!selectedRoomId && !initialRoomExists && rooms.length > 0) {
       const first = rooms.find((room) => room.status === 'occupied') || rooms[0];
       setSelectedRoomId(first.id);
     }
-  }, [rooms, selectedRoomId]);
+  }, [initialRoomId, rooms, selectedRoomId]);
 
   const getErrorCount = (roomId: string) =>
     allAssets.filter((asset) => asset.room_id === roomId && (asset.status === 'error' || asset.status === 'repairing')).length;

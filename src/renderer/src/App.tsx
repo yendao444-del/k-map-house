@@ -2092,40 +2092,40 @@ const App: React.FC = () => {
 
       {/* SUB NAVBAR - Modern pill-based */}
       <div className="bg-white border-b border-gray-200 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] flex items-center px-4 py-3 gap-4 overflow-x-auto overflow-y-visible scrollbar-hide shrink-0 whitespace-nowrap">
-        {/* Branch Selector */}
-        <div className="flex items-center relative z-10 pl-1">
-          <button className="relative bg-[#f8fafc] rounded-2xl p-2 pr-10 flex items-center gap-3 min-w-[220px] h-[52px] border border-gray-200/60 hover:border-primary/30 hover:shadow-sm hover:bg-white transition-all group">
-            <div className="relative shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-green-500 flex items-center justify-center text-white shadow-sm shadow-primary/30">
-                <i className="fa-solid fa-building text-xs"></i>
+        {/* Navbar Brand / Selector */}
+        <div className="relative flex items-center group shrink-0">
+          <button className="flex items-center gap-3 px-3 py-2 rounded-xl border border-gray-200/60 bg-white hover:bg-gray-50 hover:border-primary/30 transition-all duration-300 shadow-sm min-w-[200px]">
+            <div className="relative">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center text-lg shadow-inner">
+                <i className="fa-solid fa-building"></i>
               </div>
-              <div className="absolute -top-1.5 -right-1.5 bg-red-500 shadow-sm text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold ring-2 ring-white">
+              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold ring-2 ring-white">
                 2
               </div>
             </div>
-            <div className="flex flex-col items-start truncate">
-              <div className="text-[10px] text-gray-500 font-medium uppercase tracking-wider leading-tight">
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">
                 Đang quản lý
-              </div>
-              <div className="text-[13px] font-bold text-gray-800 truncate mt-0.5">
+              </span>
+              <span className="text-[14px] font-extrabold text-gray-900 mt-0.5">
                 K-Map House
-              </div>
+              </span>
             </div>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
-              <i className="fa-solid fa-arrow-right-arrow-left text-[10px]"></i>
+            <div className="ml-auto w-5 h-5 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-primary transition-colors">
+              <i className="fa-solid fa-chevron-down text-[10px]"></i>
             </div>
           </button>
-          <button className="absolute -right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-green-500 text-white rounded-full flex items-center justify-center shadow-md shadow-green-500/30 hover:scale-110 hover:bg-green-600 transition z-10 border-2 border-white">
-            <i className="fa-solid fa-plus text-xs"></i>
+          <button className="absolute -right-2 top-1/2 -translate-y-1/2 w-7 h-7 bg-primary text-white rounded-lg flex items-center justify-center shadow-lg shadow-primary/30 hover:scale-110 hover:bg-primary-dark transition-all z-10 border-2 border-white">
+            <i className="fa-solid fa-plus text-[12px]"></i>
           </button>
         </div>
 
         <div className="h-6 w-px bg-gray-200 shrink-0"></div>
 
         {/* Modules Menu */}
-        <div className="flex items-center gap-1.5 bg-gray-100/80 p-1.5 rounded-2xl h-[52px] border border-transparent shadow-inner overflow-x-auto overflow-y-visible">
+        <div className="flex items-center gap-1 bg-gray-100/60 p-1 rounded-2xl border border-gray-200/40 shadow-inner">
           {[
-            { id: 'rooms', icon: 'fa-house-chimney-window', label: 'Quản lý phòng' },
+            { id: 'rooms', icon: 'fa-house-chimney-window', label: 'Phòng' },
             { id: 'invoices', icon: 'fa-file-invoice-dollar', label: 'Hóa đơn' },
             { id: 'contracts', icon: 'fa-file-contract', label: 'Hợp đồng' },
             { id: 'assets', icon: 'fa-couch', label: 'Tài sản' },
@@ -2139,13 +2139,13 @@ const App: React.FC = () => {
                   playClick()
                   requestActiveTab(tab.id as AppTab)
                 }}
-                className={`shrink-0 flex items-center gap-2.5 px-3.5 h-full rounded-xl text-sm transition-all duration-200 ${isActive
-                  ? 'bg-white text-primary shadow-[0_2px_8px_rgba(0,0,0,0.06)] font-bold border border-gray-100'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50 font-medium'
+                className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] transition-all duration-300 ${isActive
+                  ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium'
                   }`}
               >
                 <i
-                  className={`fa-solid ${tab.icon} text-[15px] ${isActive ? 'text-primary' : 'text-gray-400'} transition-colors`}
+                  className={`fa-solid ${tab.icon} text-[14px] ${isActive ? 'text-primary' : 'text-gray-400'} transition-colors`}
                 ></i>
                 <span>{tab.label}</span>
               </button>
@@ -2159,17 +2159,17 @@ const App: React.FC = () => {
                 playClick()
                 setIsReportMenuOpen((prev) => !prev)
               }}
-              className={`shrink-0 flex items-center gap-2.5 px-3.5 h-full rounded-xl text-sm transition-all duration-200 ${activeTab === 'reports'
-                ? 'bg-white text-primary shadow-[0_2px_8px_rgba(0,0,0,0.06)] font-bold border border-gray-100'
-                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200/50 font-medium'
+              className={`shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] transition-all duration-300 ${activeTab === 'reports'
+                ? 'bg-white text-primary shadow-sm font-bold border border-gray-200/50'
+                : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 font-medium'
                 }`}
             >
               <i
-                className={`fa-solid fa-chart-pie text-[15px] ${activeTab === 'reports' ? 'text-primary' : 'text-gray-400'} transition-colors`}
+                className={`fa-solid fa-chart-pie text-[14px] ${activeTab === 'reports' ? 'text-primary' : 'text-gray-400'} transition-colors`}
               ></i>
               <span>Báo cáo</span>
               <i
-                className={`fa-solid fa-chevron-down text-[11px] transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`}
+                className={`fa-solid fa-chevron-down text-[9px] transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`}
               ></i>
             </button>
           </div>
@@ -2230,135 +2230,87 @@ const App: React.FC = () => {
           {/* SUMMARY WIDGETS (Removed per user request) */}
 
           {/* MAIN TABLE WHITE BOX */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
             {/* Table Header Area */}
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded bg-green-50 flex items-center justify-center text-primary text-xl">
+            <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
                   <i className="fa-solid fa-house"></i>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-800">Quản lý danh sách phòng</h2>
-                  <p className="text-xs text-gray-500">
-                    Tất cả danh sách phòng trong{' '}
-                    <span className="font-medium text-black">K-Map House</span>
+                  <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
+                  <p className="text-sm text-gray-500">
+                    Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
+                    <span className="font-bold text-primary">K-Map House</span>
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setIsAddRoomOpen(true)}
-                  className="px-4 h-10 rounded bg-red-600 text-white text-sm font-medium hover:bg-red-700 shadow flex items-center gap-2 transition"
+                  className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
                 >
-                  <i className="fa-solid fa-plus"></i> Thêm phòng mới
+                  <i className="fa-solid fa-plus text-xs"></i>
+                  <span>Thêm phòng</span>
                 </button>
-                <button className="px-4 h-10 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 shadow flex items-center gap-2 transition">
-                  <i className="fa-solid fa-file-excel"></i> Xuất excel
+                <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+                  <i className="fa-solid fa-file-excel text-green-600"></i>
+                  <span>Xuất Excel</span>
                 </button>
               </div>
             </div>
 
             {/* Filter Area */}
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex py-3 items-center justify-between">
-              <div className="flex items-center gap-4 text-[13px]">
-                <div className="text-gray-500 relative">
-                  <i className="fa-solid fa-filter text-lg"></i>
-                  <span className="absolute -top-2 -right-2 bg-primary text-white text-[9px] px-[5px] py-[2px] rounded-full border border-white">
-                    {rooms.length}
-                  </span>
+            <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
+                  <i className="fa-solid fa-filter text-xs"></i>
+                  <span className="text-xs font-bold font-heading">{rooms.length}</span>
                 </div>
+
                 <button
                   type="button"
                   onClick={resetRoomFilters}
-                  className={`px-2.5 py-1 rounded-lg border text-[12px] font-semibold transition ${isAllRoomFilter ? 'border-primary bg-primary text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-100'}`}
+                  className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${isAllRoomFilter
+                    ? 'bg-primary text-white shadow-md shadow-primary/20'
+                    : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'}`}
                 >
                   Tất cả
                 </button>
-                <label
-                  className={`flex items-center gap-1.5 cursor-pointer ${filters.occupied ? 'text-primary font-medium' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.occupied}
-                    onChange={() => toggleFilter('occupied')}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span>
-                    Đang ở{' '}
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[11px] ml-1 font-bold ${filters.occupied ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}
-                    >
-                      {counts.occupied}
+
+                {[
+                  { id: 'occupied' as const, label: 'Đang ở', count: counts.occupied, color: 'primary' },
+                  { id: 'vacant' as const, label: 'Đang trống', count: counts.vacant, color: 'gray' },
+                  { id: 'ending' as const, label: 'Sắp trả', count: counts.ending, color: 'red' },
+                  { id: 'expiring' as const, label: 'Hết hạn', count: counts.expiring, color: 'blue' }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => toggleFilter(f.id)}
+                    className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${filters[f.id]
+                      ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
+                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                  >
+                    <div className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}></div>
+                    <span>{f.label}</span>
+                    <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}>
+                      {f.count}
                     </span>
-                  </span>
-                </label>
-                <label
-                  className={`flex items-center gap-1.5 cursor-pointer ${filters.vacant ? 'text-primary font-medium' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.vacant}
-                    onChange={() => toggleFilter('vacant')}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span>
-                    Đang trống{' '}
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[11px] ml-1 font-bold ${filters.vacant ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}
-                    >
-                      {counts.vacant}
-                    </span>
-                  </span>
-                </label>
-                <label
-                  className={`flex items-center gap-1.5 cursor-pointer ${filters.ending ? 'text-primary font-medium' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.ending}
-                    onChange={() => toggleFilter('ending')}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span>
-                    Đang báo kết thúc{' '}
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[11px] ml-1 font-bold ${filters.ending ? 'bg-primary text-white' : 'bg-gray-200 text-gray-600'}`}
-                    >
-                      {counts.ending}
-                    </span>
-                  </span>
-                </label>
-                <label
-                  className={`flex items-center gap-1.5 cursor-pointer ${filters.expiring ? 'text-primary font-medium' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={filters.expiring}
-                    onChange={() => toggleFilter('expiring')}
-                    className="w-4 h-4 rounded border-gray-300"
-                  />
-                  <span>
-                    Sắp hết hạn hợp đồng{' '}
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[11px] ml-1 font-bold ${filters.expiring ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-600'}`}
-                    >
-                      {counts.expiring}
-                    </span>
-                  </span>
-                </label>
+                  </button>
+                ))}
               </div>
 
-              <div className="relative w-[250px]">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
-                  <i className="fa-solid fa-magnifying-glass"></i>
+              <div className="relative w-full max-w-[300px]">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                  <i className="fa-solid fa-magnifying-glass text-xs"></i>
                 </div>
                 <input
                   type="text"
-                  placeholder="Tìm tên phòng..."
+                  placeholder="Tìm kiếm số phòng..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-primary focus:border-primary block xl:pl-10 p-2 shadow-sm"
+                  className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
                 />
               </div>
             </div>
@@ -2366,46 +2318,48 @@ const App: React.FC = () => {
             {/* Table content */}
             <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
               <table className="w-full text-left text-sm whitespace-nowrap">
-                <thead className="text-[12px] text-gray-500 bg-gray-50 uppercase font-semibold">
+                <thead className="text-[11px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
                   <tr>
                     <th
                       rowSpan={2}
-                      className="px-4 py-3 border-r border-gray-200 bg-gray-50 z-20 sticky left-0"
+                      className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
                     >
-                      <i className="fa-solid fa-bars text-gray-400"></i>
+                      <i className="fa-solid fa-bars-staggered"></i>
                     </th>
                     <th
                       rowSpan={2}
-                      className="px-4 py-3 border-r border-gray-200 bg-gray-50 z-20 sticky left-10"
+                      className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
                     >
-                      <i className="fa-solid fa-door-open mr-1 text-primary/70"></i> Tên phòng
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-door-open text-primary/60"></i>
+                        <span>Tên phòng</span>
+                      </div>
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-tag mr-1 text-green-500"></i> Giá thuê
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-tag mr-1.5 text-green-500/70"></i> Giá thuê
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-bolt mr-1 text-yellow-500"></i> Phí dịch vụ
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-bolt mr-1.5 text-yellow-500/70"></i> Phí dịch vụ
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-shield-halved mr-1 text-blue-400"></i> Tiền cọc
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-shield-halved mr-1.5 text-blue-400/70"></i> Tiền cọc
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400"></i> Tiền nợ
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-triangle-exclamation mr-1.5 text-red-400/70"></i> Nợ cũ
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-users mr-1 text-teal-500"></i> Khách thuê
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-users mr-1.5 text-teal-500/70"></i> Khách thuê
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 border-r border-gray-200">
-                      <i className="fa-solid fa-right-to-bracket mr-1 text-orange-400"></i> Ngày vào
-                      ở
+                    <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
+                      <i className="fa-solid fa-calendar-check mr-1.5 text-orange-400/70"></i> Ngày vào
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 text-center border-r border-gray-200">
-                      <i className="fa-solid fa-circle-info mr-1 text-gray-400"></i> Tình trạng
+                    <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                      Tình trạng
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 text-center border-r border-gray-200">
-                      <i className="fa-solid fa-coins mr-1 text-yellow-500"></i> Tài chính
+                    <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                      Tài chính
                     </th>
-                    <th rowSpan={2} className="px-4 py-3 w-10"></th>
+                    <th rowSpan={2} className="px-4 py-4 w-10"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

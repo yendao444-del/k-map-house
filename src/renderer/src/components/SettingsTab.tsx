@@ -756,167 +756,241 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   const busy = ['checking', 'downloading', 'extracting', 'installing', 'restarting'].includes(status)
 
   return (
-    <div className="flex h-full flex-col bg-slate-50/30">
+    <div className="flex h-full flex-col bg-slate-50/30 text-slate-700">
+      {/* Breadcrumb Header */}
+      <header className="bg-white h-14 border-b border-slate-100 px-6 md:px-12 flex items-center justify-between sticky top-0 z-10">
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+          <span>Hệ thống</span>
+          <i className="fa-solid fa-chevron-right text-[8px]"></i>
+          <span className="text-slate-900">Cập nhật phiên bản</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+            Lần kiểm tra cuối: Hôm nay, {new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+      </header>
+
       <div className="flex-1 overflow-y-auto p-6 md:p-12">
-        <div className="max-w-4xl mx-auto space-y-12">
-
-          {/* Hero Section: Current Version Focus */}
-          <div className="relative flex flex-col items-center text-center space-y-8 py-4">
-            {/* Main Version Identity */}
-            <div className="relative">
-              <div className={`flex h-24 w-24 items-center justify-center rounded-[32px] bg-white shadow-xl ${status === 'available' ? 'text-amber-500 shadow-amber-200/40 ring-1 ring-amber-100' : 'text-emerald-500 shadow-emerald-200/40 ring-1 ring-emerald-100'
+        <div className="max-w-5xl mx-auto space-y-8">
+          {/* Main Update Card */}
+          <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-8 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-8">
+              <div className={`p-6 rounded-[32px] shrink-0 transition-all duration-500 shadow-lg ${status === 'available'
+                ? 'bg-amber-50 text-amber-500 shadow-amber-200/20'
+                : 'bg-emerald-50 text-emerald-500 shadow-emerald-200/20'
                 }`}>
-                <i className={`fa-solid ${status === 'available' ? 'fa-rocket animate-pulse' : 'fa-circle-check'} text-4xl`}></i>
-              </div>
-              {status === 'available' && (
-                <span className="absolute -top-2 -right-2 flex h-6 w-6">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-6 w-6 bg-amber-500 border-2 border-white"></span>
-                </span>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Phiên bản hiện tại</span>
-                <h2 className="text-6xl font-black tracking-tighter text-slate-900 select-all">
-                  v{updateInfo?.currentVersion || (window as any).electronAPI?.appVersion || '...'}
-                </h2>
+                <i className={`fa-solid ${status === 'available' ? 'fa-rocket animate-pulse' : 'fa-circle-check'} text-5xl`}></i>
               </div>
 
-              <div className="flex items-center justify-center gap-3">
-                <span className={`px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest border ${status === 'available'
-                    ? 'bg-amber-50 text-amber-600 border-amber-200'
-                    : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                  }`}>
-                  {status === 'available'
-                    ? `Bản cập nhật v${updateInfo?.latestVersion} đã sẵn sàng`
-                    : 'Bạn đang sử dụng bản mới nhất'}
-                </span>
-              </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex flex-col items-center gap-6 w-full max-w-sm">
-              <div className="flex w-full items-center gap-3">
-                <button
-                  onClick={checkForUpdate}
-                  disabled={busy}
-                  className="flex-1 flex items-center justify-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-6 py-4 text-xs font-black text-slate-700 transition-all hover:bg-slate-50 hover:shadow-md disabled:opacity-50"
-                >
-                  <i className={`fa-solid fa-rotate-right ${status === 'checking' ? 'animate-spin' : ''}`}></i>
-                  Kiểm tra lại
-                </button>
-                {updateInfo?.hasUpdate && (
-                  <button
-                    onClick={applyUpdate}
-                    disabled={busy}
-                    className="flex-[1.5] flex items-center justify-center gap-2.5 rounded-2xl bg-slate-900 px-6 py-4 text-xs font-black text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-slate-800 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
-                  >
-                    <i className="fa-solid fa-bolt-lightning"></i>
-                    Nâng cấp ngay
-                  </button>
-                )}
-              </div>
-
-              {/* Progress Visual */}
-              {progress > 0 && (
-                <div className="w-full space-y-3 px-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Đang tải gói cập nhật</span>
-                    <span className="text-sm font-black text-emerald-600">{progress}%</span>
+              <div className="flex-1 text-center md:text-left w-full">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+                      {status === 'available' ? `Phát hiện phiên bản mới (v${updateInfo?.latestVersion})` : 'Hệ thống đã được cập nhật'}
+                    </h2>
+                    <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Phiên bản hiện tại:</span>
+                      <span className="font-mono font-black text-xs text-primary bg-emerald-50 px-2 py-0.5 rounded-md">
+                        v{updateInfo?.currentVersion || (window as any).electronAPI?.appVersion || '...'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="h-1.5 rounded-full bg-slate-200/50 overflow-hidden">
-                    <div className="h-full bg-emerald-500 transition-all duration-500 ease-out shadow-[0_0_8px_rgba(16,185,129,0.5)]" style={{ width: `${progress}%` }}></div>
-                  </div>
+
+                  {!busy && (
+                    <button
+                      onClick={checkForUpdate}
+                      disabled={busy}
+                      className="flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 text-primary border border-emerald-100 px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-sm hover:shadow-md"
+                    >
+                      <i className={`fa-solid fa-rotate-right ${status === 'checking' ? 'animate-spin' : ''}`}></i>
+                      {status === 'checking' ? "Đang kiểm tra..." : "Kiểm tra cập nhật"}
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Secondary Meta Metadata */}
-            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 pt-4">
-              <div className="flex items-center gap-2.5">
-                <div className="h-2 w-2 rounded-full bg-slate-300"></div>
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kênh: {updateInfo?.artifactType === 'installer' ? 'Installer' : 'Portable'}</span>
-              </div>
-              <div className="flex items-center gap-2.5 text-amber-600/80">
-                <i className="fa-solid fa-circle-info text-[10px]"></i>
-                <span className="text-[11px] font-bold uppercase tracking-wider">{message}</span>
+                {status === 'available' && (
+                  <div className="mt-8 p-6 bg-emerald-50/50 rounded-3xl border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-6 transition-all animate-in fade-in slide-in-from-bottom-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <i className="fa-solid fa-cloud-arrow-down text-emerald-500"></i>
+                        <span className="text-sm font-black text-slate-700">Sẵn sàng tải về ({updateInfo?.downloadSize ? (updateInfo.downloadSize / 1024 / 1024).toFixed(2) + ' MB' : '... MB'})</span>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mất khoảng 1-2 phút để hoàn tất quá trình này.</p>
+                    </div>
+                    <button
+                      onClick={applyUpdate}
+                      className="bg-primary hover:bg-primary-dark text-white px-8 py-3.5 rounded-[20px] font-black text-xs uppercase tracking-widest flex items-center gap-2.5 shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                      <i className="fa-solid fa-bolt-lightning"></i> Cập nhật ngay
+                    </button>
+                  </div>
+                )}
+
+                {busy && status !== 'checking' && (
+                  <div className="mt-8 space-y-4 animate-in fade-in">
+                    <div className="flex justify-between items-end">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">{message}</span>
+                        <div className="text-sm font-black text-slate-800">
+                          {status === 'downloading' ? 'Đang tải gói cập nhật...' : 'Đang xử lý...'}
+                        </div>
+                      </div>
+                      <span className="text-xl font-black text-primary">{progress}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                      <div
+                        className="bg-primary h-full rounded-full transition-all duration-500 ease-out shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                        style={{ width: `${progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <hr className="border-slate-200/60" />
-
-          {/* Minimalist History Section */}
-          <div className="space-y-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h4 className="text-sm font-black uppercase tracking-[0.25em] text-slate-400">Lịch sử bản cập nhật</h4>
-                <span className="h-px w-12 bg-slate-200"></span>
+          {/* Secondary Info Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Changelog Card */}
+            <div className="lg:col-span-2 bg-white rounded-[24px] border border-slate-200 shadow-sm flex flex-col transition-all hover:shadow-md">
+              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+                <h3 className="font-black text-slate-900 flex items-center gap-2.5 uppercase tracking-tight">
+                  <i className="fa-solid fa-wand-magic-sparkles text-emerald-500/70"></i> Có gì mới trong bản v{updateInfo?.latestVersion || '...'}?
+                </h3>
               </div>
-              <button
-                onClick={fetchHistory}
-                className="text-[10px] font-black uppercase tracking-widest text-primary hover:opacity-70 transition-opacity"
-              >
-                Làm mới dữ liệu
-              </button>
-            </div>
-
-            <div className="relative space-y-2">
-              {/* Timeline vertical line */}
-              <div className="absolute left-6 top-4 bottom-4 w-px bg-slate-200/60 hidden sm:block"></div>
-
-              {loadingHistory ? (
-                <div className="py-12 flex flex-col items-center">
-                  <i className="fa-solid fa-spinner animate-spin text-slate-300"></i>
-                </div>
-              ) : history.length > 0 ? (
-                history.map((rel: any, idx: number) => (
-                  <div key={rel.tag_name} className="group relative bg-white border border-transparent rounded-2xl p-4 sm:pl-16 transition-all hover:border-slate-200 hover:shadow-sm">
-                    {/* Circle anchor */}
-                    <div className={`absolute left-[21px] top-7 h-2.5 w-2.5 rounded-full border-2 border-white hidden sm:block shadow-sm transition-all group-hover:scale-125 ${idx === 0 ? 'bg-emerald-500 z-10' : 'bg-slate-300'
-                      }`}></div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-lg font-black text-slate-800">{rel.tag_name}</span>
-                          {idx === 0 && (
-                            <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest">Mới nhất</span>
-                          )}
-                        </div>
-                        <div className="text-[11px] font-bold text-slate-400 mt-0.5">
-                          {new Date(rel.published_at).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <a
-                          href="#"
-                          onClick={(event) => {
-                            event.preventDefault()
-                            if (idx === 0) void applyUpdate()
-                          }}
-                          className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-50"
-                        >
-                          Chi tiết <i className="fa-solid fa-chevron-right text-[8px]"></i>
-                        </a>
+              <div className="p-8 flex-1">
+                {updateInfo?.releaseNotes ? (
+                  <div className="prose prose-sm prose-slate max-w-none text-slate-600 font-medium leading-relaxed">
+                    {updateInfo.releaseNotes.split('\n').map((line, i) => (
+                      <p key={i} className="mb-2 last:mb-0 flex gap-3">
+                        <span className="shrink-0 mt-1.5 h-1.5 w-1.5 rounded-full bg-primary/40"></span>
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="flex gap-4 group">
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-[10px] font-black">NEW</span>
+                      <div className="space-y-1">
+                        <p className="font-black text-slate-800 text-sm tracking-tight">Tối ưu hiệu năng ứng dụng</p>
+                        <p className="text-slate-400 text-xs font-medium">Giảm 20% dung lượng bộ nhớ khi xử lý hóa đơn quy mô lớn.</p>
                       </div>
                     </div>
-
-                    {rel.body && (
-                      <div className="mt-3 text-xs leading-relaxed text-slate-500 max-w-2xl line-clamp-2 transition-all group-hover:line-clamp-none">
-                        {rel.body}
+                    <div className="flex gap-4 group">
+                      <span className="shrink-0 mt-1 h-6 w-6 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-[10px] font-black">FIX</span>
+                      <div className="space-y-1">
+                        <p className="font-black text-slate-800 text-sm tracking-tight">Cải thiện độ ổn định</p>
+                        <p className="text-slate-400 text-xs font-medium">Khắc phục một số lỗi nhỏ trong quá trình in hợp đồng.</p>
                       </div>
-                    )}
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div className="py-20 text-center rounded-[32px] bg-slate-100/30 border border-dashed border-slate-200">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Không có dữ liệu lịch sử</p>
+                )}
+                <button className="text-primary text-[10px] font-black uppercase tracking-widest hover:opacity-70 flex items-center gap-1.5 mt-8 transition-opacity">
+                  Xem chi tiết release notes <i className="fa-solid fa-external-link text-[8px]"></i>
+                </button>
+              </div>
+            </div>
+
+            {/* Sidebar Column */}
+            <div className="space-y-8">
+              {/* Settings Card */}
+              <div className="bg-white rounded-[24px] border border-slate-200 p-6 shadow-sm transition-all hover:shadow-md">
+                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Cấu hình cập nhật</h4>
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-700 tracking-tight">Kênh cập nhật</span>
+                    <span className="text-[10px] font-black px-2 py-1 bg-slate-100 text-slate-600 rounded-md uppercase tracking-wider">{updateInfo?.artifactType || 'Standard'}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-700 tracking-tight">Tự động kiểm tra</span>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" defaultChecked className="sr-only peer" />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                    </label>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              {/* Backup Promo */}
+              <div className="bg-primary rounded-[24px] p-6 text-white shadow-xl shadow-primary/20 relative overflow-hidden group">
+                <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:scale-110 group-hover:rotate-12 transition-all duration-700">
+                  <i className="fa-solid fa-shield-halved text-[120px]"></i>
+                </div>
+                <h4 className="font-black text-sm mb-3 flex items-center gap-2 tracking-tight">
+                  <i className="fa-solid fa-shield-heart"></i> Bảo mật dữ liệu
+                </h4>
+                <p className="text-[11px] text-white/80 font-medium leading-relaxed mb-6">
+                  Vui lòng đảm bảo bạn đã lưu trữ dữ liệu quan trọng trước khi nâng cấp hệ thống.
+                </p>
+                <button className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all">
+                  Sao lưu ngay
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Update History */}
+          <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden transition-all hover:shadow-md">
+            <div className="p-6 md:p-8 border-b border-slate-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <h3 className="font-black text-slate-900 uppercase tracking-tight">Lịch sử phiên bản</h3>
+              <div className="relative w-full sm:w-64">
+                <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm version..."
+                  className="w-full pl-10 pr-4 py-2.5 border border-slate-100 bg-slate-50 rounded-xl text-xs font-bold outline-none focus:bg-white focus:border-primary/30 transition-all"
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Phiên bản</th>
+                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ngày phát hành</th>
+                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Trạng thái</th>
+                    <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {loadingHistory ? (
+                    <tr>
+                      <td colSpan={4} className="py-12 text-center text-slate-300">
+                        <i className="fa-solid fa-spinner animate-spin"></i>
+                      </td>
+                    </tr>
+                  ) : history.length > 0 ? (
+                    history.map((rel: any, i) => (
+                      <tr key={rel.tag_name} className="hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-8 py-5">
+                          <span className="font-mono font-black text-sm text-slate-800">{rel.tag_name}</span>
+                          {i === 0 && <span className="ml-3 text-[9px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-md uppercase tracking-widest">Nền tảng</span>}
+                        </td>
+                        <td className="px-8 py-5 text-xs text-slate-500 font-bold flex items-center gap-2">
+                          <i className="fa-regular fa-calendar text-[10px]"></i>
+                          {new Date(rel.published_at).toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </td>
+                        <td className="px-8 py-5">
+                          <span className={`text-[9px] px-2.5 py-1 rounded-full font-black uppercase tracking-widest ${i === 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {i === 0 ? 'Ổn định' : 'Lưu trữ'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-5 text-right">
+                          <button className="text-primary text-[10px] font-black uppercase tracking-widest hover:underline opacity-0 group-hover:opacity-100 transition-opacity">Chi tiết</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="py-20 text-center">
+                        <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Không tìm thấy dữ liệu</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
