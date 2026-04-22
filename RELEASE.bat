@@ -38,22 +38,31 @@ set NOTES=Bug fixes and improvements
 echo Tang version: v!CURRENT_VERSION! ^> v!NEW_VERSION!
 node scripts\release-version.cjs set !NEW_VERSION! >nul
 
-echo [1/4] Tat app neu dang chay...
+echo [1/5] Tat app neu dang chay...
 taskkill /F /IM electron.exe >nul 2>&1
 taskkill /F /IM "DBY HOME.exe" >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
 timeout /t 2 /nobreak >nul
 
-echo [1.5/4] Don dist cu...
+echo [2/5] Don dist cu...
 call pnpm run clean:dist
 if errorlevel 1 ( echo CLEAN DIST THAT BAI! & pause & exit /b 1 )
 
-echo [2/4] Build NSIS installer...
-call pnpm run build:win
+echo [3/5] Build app (TypeScript + electron-vite)...
+call pnpm run build
 if errorlevel 1 (
-    echo [!] build:win that bai. Thu fallback package-only tu out da co...
-    call npx electron-builder --win
-    if errorlevel 1 ( echo BUILD THAT BAI! & pause & exit /b 1 )
+    echo [X] BUILD THAT BAI! Co loi TypeScript hoac electron-vite.
+    echo     Kiem tra log loi o tren, sua code roi chay lai RELEASE.bat.
+    pause
+    exit /b 1
+)
+
+echo [4/5] Package NSIS installer...
+call npx electron-builder --win
+if errorlevel 1 (
+    echo [X] DONG GOI INSTALLER THAT BAI!
+    pause
+    exit /b 1
 )
 set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
 if not exist "!INSTALLER!" (
@@ -74,7 +83,7 @@ if not exist "!INSTALLER_BLOCKMAP!" (
     exit /b 1
 )
 
-echo [3/5] Apply runtime workaround for Electron...
+echo [5/5] Apply runtime workaround for Electron...
 set RUNTIME_SRC=node_modules\electron\dist
 set RUNTIME_DST=dist\win-unpacked
 if not exist "!RUNTIME_DST!" (
@@ -99,17 +108,17 @@ if not exist "!PORTABLE_ZIP!" (
 )
 
 if "!ENABLE_GITHUB!"=="1" (
-    echo [4/5] Git commit + push...
+    echo [5/6] Git commit + push...
     git add -A
     git commit -m "v!NEW_VERSION! - !NOTES!"
     git push
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & pause & exit /b 1 )
 
-    echo [5/5] Tao GitHub Release...
+    echo [6/6] Tao GitHub Release...
     gh release create v!NEW_VERSION! "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" --title "DBY HOME v!NEW_VERSION!" --notes "!NOTES!"
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & pause & exit /b 1 )
 ) else (
-    echo [4/5] Dang o che do local-only: bo qua Git push va GitHub Release.
+    echo [5/5] Dang o che do local-only: bo qua Git push va GitHub Release.
     echo     Neu muon upload de production auto-update, chay: RELEASE.bat
 )
 

@@ -27,7 +27,7 @@ export interface RoomAsset { id: string; room_id: string; name: string; quantity
 export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; name: string; quantity: number; reason: string; recorded_at: string; }
 export interface AssetSnapshot { id: string; room_id: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
 export interface RoomVehicle { id: string; room_id: string; owner_name?: string; license_plate: string; vehicle_type?: string; brand?: string; color?: string; registered_at: string; }
-export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; }
+export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; sepay_api_token?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; }
 
 // =========================================================
 // UTILS
@@ -379,9 +379,99 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
 
 export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
   if (!data.contract_id) throw new Error('Không tìm thấy hợp đồng đang hiệu lực để tất toán.')
+
+  // Fetch room + contract + zone để tính toán tất toán
+  const { data: room } = await supabase.from('rooms').select('*').eq('id', data.room_id).maybeSingle()
+  if (!room) throw new Error('Không tìm thấy phòng.')
+  const { data: contract } = await supabase.from('contracts').select('*').eq('id', data.contract_id).maybeSingle()
+  if (!contract) throw new Error('Không tìm thấy hợp đồng.')
+
+  let zone: ServiceZone | null = null
+  if (room.service_zone_id) {
+    const { data: zoneData } = await supabase.from('service_zones').select('*').eq('id', room.service_zone_id).maybeSingle()
+    zone = zoneData || null
+  }
+
+  // Giá điện/nước tại thời điểm tất toán
+  const electricPrice = (room as any).electric_price || zone?.electric_price || 0
+  const waterPrice = (room as any).water_price || zone?.water_price || 0
+  const depositHeld = contract.deposit_amount || 0
+
+  // Tính điện/nước cuối kỳ
+  const electricOld = (room as Room).electric_new || 0
+  const electricUsage = Math.max(0, data.final_electric - electricOld)
+  const electricCost = electricUsage * electricPrice
+  const waterOld = (room as Room).water_new || 0
+  const waterUsage = Math.max(0, data.final_water - waterOld)
+  const waterCost = waterUsage * waterPrice
+
+  // Tổng nợ gộp
+  let mergedDebtTotal = 0
+  if (data.merge_invoice_ids.length > 0) {
+    const { data: mergedInvoices } = await supabase.from('invoices').select('total_amount,paid_amount').in('id', data.merge_invoice_ids)
+    mergedDebtTotal = (mergedInvoices || []).reduce((sum: number, i: any) => sum + Math.max(0, i.total_amount - i.paid_amount), 0)
+  }
+
+  // netDue < 0 → chủ nhà hoàn tiền; > 0 → khách còn thiếu; = 0 → hòa
+  const totalCharges = electricCost + waterCost + mergedDebtTotal + (data.damage_amount || 0)
+  const depositApplied = Math.min(depositHeld, totalCharges)
+  const netDue = totalCharges - depositHeld
+
+  let paymentStatus: PaymentStatus
+  if (netDue === 0) {
+    paymentStatus = 'paid'
+  } else if (netDue < 0) {
+    paymentStatus = 'unpaid' // chủ nhà cần hoàn tiền
+  } else {
+    paymentStatus = depositApplied > 0 ? 'partial' : 'unpaid'
+  }
+
+  // Cập nhật phòng và hợp đồng
   await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
   await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
   if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
+
+  // Tạo hóa đơn tất toán
+  const endDateObj = new Date(data.end_date)
+  await supabase.from('invoices').insert({
+    id: createEntityId('inv'),
+    room_id: data.room_id,
+    tenant_id: contract.tenant_id || '',
+    billing_reason: 'contract_end',
+    month: endDateObj.getMonth() + 1,
+    year: endDateObj.getFullYear(),
+    invoice_date: data.end_date,
+    billing_period_start: data.end_date,
+    billing_period_end: data.end_date,
+    electric_old: electricOld,
+    electric_new: data.final_electric,
+    electric_usage: electricUsage,
+    electric_cost: electricCost,
+    electric_price_snapshot: electricPrice,
+    water_old: waterOld,
+    water_new: data.final_water,
+    water_usage: waterUsage,
+    water_cost: waterCost,
+    water_price_snapshot: waterPrice,
+    room_cost: 0,
+    wifi_cost: 0,
+    garbage_cost: 0,
+    old_debt: 0,
+    total_amount: netDue,
+    paid_amount: netDue <= 0 ? 0 : depositApplied,
+    payment_status: paymentStatus,
+    payment_method: data.payment_method,
+    is_settlement: true,
+    deposit_applied: depositApplied,
+    deposit_amount: depositHeld > 0 ? -depositHeld : 0,
+    adjustment_amount: (data.damage_amount || 0) > 0 ? (data.damage_amount || 0) : undefined,
+    adjustment_note: (data.damage_amount || 0) > 0 ? (data.damage_note || 'Đền bù thiệt hại tài sản') : undefined,
+    damage_amount: data.damage_amount || 0,
+    damage_note: data.damage_note || undefined,
+    merged_invoice_ids: data.merge_invoice_ids.length > 0 ? data.merge_invoice_ids : undefined,
+    merged_debt_total: mergedDebtTotal > 0 ? mergedDebtTotal : undefined,
+    created_at: new Date().toISOString(),
+  })
 }
 
 export const changeRoom = async (data: { old_room_id: string; new_room_id: string; change_date: string; final_electric: number; final_water: number; new_base_rent: number; new_deposit: number; new_electric_init: number; new_water_init: number; }): Promise<void> => {
@@ -480,7 +570,46 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
 }
 
 export const updateInvoice = async (id: string, updates: Partial<Invoice>): Promise<Invoice> => {
-  const result = await safeQuery(() => supabase.from('invoices').update(updates).eq('id', id).select().single())
+  const { data: current, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!current) throw new Error('Khong tim thay hoa don.')
+
+  const isMoneyFieldUpdated = [
+    'room_cost',
+    'deposit_amount',
+    'wifi_cost',
+    'garbage_cost',
+    'electric_cost',
+    'water_cost',
+    'old_debt',
+    'adjustment_amount',
+    'total_amount'
+  ].some((key) => Object.prototype.hasOwnProperty.call(updates, key))
+
+  if (isMoneyFieldUpdated && Number(current.paid_amount || 0) > 0) {
+    throw new Error('Hoa don da co giao dich thu tien. Khong duoc sua so tien de tranh sai lech doi soat.')
+  }
+
+  const nextTotal = Object.prototype.hasOwnProperty.call(updates, 'total_amount')
+    ? Number((updates as any).total_amount || 0)
+    : Number(current.total_amount || 0)
+
+  const nextPaid = Object.prototype.hasOwnProperty.call(updates, 'paid_amount')
+    ? Number((updates as any).paid_amount || 0)
+    : Number(current.paid_amount || 0)
+
+  const nextStatus: PaymentStatus =
+    nextPaid <= 0 ? 'unpaid' : nextPaid >= nextTotal ? 'paid' : 'partial'
+
+  const result = await safeQuery(() =>
+    supabase
+      .from('invoices')
+      .update({ ...updates, payment_status: nextStatus } as any)
+      .eq('id', id)
+      .select()
+      .single()
+  )
+
   return result as any as Invoice
 }
 

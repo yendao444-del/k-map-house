@@ -31,6 +31,16 @@ interface ZaloAPI {
   send: (payload: ZaloSendPayload) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
 }
 
+interface BankLookupResponse {
+  code: string
+  desc?: string
+  data?: { accountName?: string }
+}
+
+interface BankAPI {
+  lookup: (bin: string, accountNumber: string) => Promise<{ ok: boolean; error?: string; data?: BankLookupResponse }>
+}
+
 interface UpdateCheckResult {
   currentVersion: string
   latestVersion: string
@@ -85,12 +95,23 @@ interface UpdateAPI {
   onProgress: (callback: (data: UpdateProgressEvent) => void) => () => void
 }
 
+interface InvoiceAPI {
+  saveImage: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }>
+}
+
+interface SepayAPI {
+  fetchTransactions: (token: string) => Promise<{ ok: boolean, error?: string, data?: unknown }>
+}
+
 declare global {
   interface Window {
     electron: ElectronAPI
     api: {
       db: DbAPI
       zalo: ZaloAPI
+      bank: BankAPI
+      invoice: InvoiceAPI
+      sepay: SepayAPI
       update: UpdateAPI
     }
   }

@@ -19,8 +19,6 @@ const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
-
 function getInvoiceLabel(invoice: Invoice): string {
   if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc';
   if (invoice.billing_reason === 'deposit_collect') return 'Thu tiền cọc';
@@ -33,6 +31,7 @@ function getInvoiceLabel(invoice: Invoice): string {
 // Chuyển số thành chữ tiếng Việt
 function numberToWords(amount: number): string {
   if (amount === 0) return 'Không đồng';
+  if (amount < 0) return `Hoàn ${numberToWords(Math.abs(amount)).toLowerCase()}`;
   const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
 
   function threeDigits(n: number, isHead: boolean): string {
@@ -244,7 +243,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const depositAmt = invoice.deposit_amount ?? 0;
   const adjustmentAmt = invoice.adjustment_amount ?? 0;
   const remaining = invoice.total_amount - invoice.paid_amount;
-  const wordsText = numberToWords(invoice.total_amount);
+  const wordsText = invoice.total_amount < 0
+    ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
+    : numberToWords(invoice.total_amount);
 
   const dueDate = invoice.due_date
     ? fmtDate(invoice.due_date)
@@ -252,7 +253,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
   // Các dòng hiển thị trên hóa đơn
   const handleSendZalo = async () => {
-    const phone = normalizePhone(displayPhone);
+    const phone = displayPhone.replace(/\D/g, ''); // Fix số zalo (loại bỏ ký tự không phải số)
     const html = buildInvoiceHtml();
 
     if (!html) return;
@@ -261,7 +262,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     if (!phone || phone.length < 9 || phone.length > 11) {
       const msg = !phone
         ? 'Khách thuê chưa có số điện thoại để gửi Zalo.'
-        : `Số điện thoại "${displayPhone}" không hợp lệ (cần 9-10 số, hiện có ${phone.length} số).\nVui lòng cập nhật đúng SĐT trong thông tin khách thuê.`;
+        : `Số điện thoại "${displayPhone}" không hợp lệ (cần 9-11 số, hiện có ${phone.length} số).\nVui lòng cập nhật đúng SĐT trong thông tin khách thuê.`;
       window.alert(msg);
       return;
     }
@@ -269,8 +270,10 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     try {
       setSendingZalo(true);
       const monthLabel = String(invoice.month).padStart(2, '0');
+      // Fix phone number (đưa về chuẩn nếu cần, nhưng user nói web bị lỗi 84 nên truyền thẳng vào Zalo protocol)
+      // Mặc định window.api.zalo.send đang dùng 84, ta có thể đổi lại trong code main.
       const result = await window.api.zalo.send({
-        phone,
+        phone: phone.startsWith('0') ? phone : `0${phone}`, // Đảm bảo số có số 0 ở đầu
         html,
         fileName: `hoa-don-${room?.name || 'phong'}-${monthLabel}-${invoice.year}.png`,
         // Bỏ message để không ghi đè ảnh trên clipboard
@@ -285,6 +288,44 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
       window.alert(`Không thể gửi Zalo.\n${message}`);
     } finally {
       setSendingZalo(false);
+    }
+  };
+
+  const handleSaveImage = async () => {
+    const html = buildInvoiceHtml();
+    if (!html) return;
+
+    try {
+      const monthLabel = String(invoice.month).padStart(2, '0');
+      const fileName = `HOA-DON-${room?.name || 'PHONG'}-T${monthLabel}-${invoice.year}.jpg`;
+
+      const saveImageFn =
+        window.api?.invoice?.saveImage ||
+        ((payload: { html: string; fileName: string }) =>
+          window.electron?.ipcRenderer?.invoke('invoice:saveImage', payload));
+
+      if (!saveImageFn) {
+        throw new Error('Không tìm thấy API lưu ảnh. Vui lòng khởi động lại ứng dụng.');
+      }
+
+      const result = await saveImageFn({ html, fileName });
+
+      if (!result.ok) {
+        throw new Error(result.error || 'Lỗi khi lưu ảnh.');
+      }
+
+      if (!result.canceled) {
+        // Có thể hiện thông báo báo thành công nếu muốn
+        console.log("Đã lưu ảnh thành công:", result.filePath);
+      }
+    } catch (error) {
+      console.error("Lỗi khi lưu ảnh:", error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      if (errMsg.includes("No handler registered for 'invoice:saveImage'")) {
+        window.alert('Ứng dụng đang chạy bản cũ của tiến trình chính. Vui lòng tắt hẳn app và mở lại rồi thử lưu ảnh.');
+        return;
+      }
+      window.alert("Đã xảy ra lỗi khi tạo ảnh hóa đơn: " + errMsg);
     }
   };
 
@@ -423,7 +464,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
           <span className="font-bold text-gray-700 text-sm flex items-center gap-2">
             <i className="fa-solid fa-file-invoice text-green-600"></i>
-            Chi tiết hóa đơn
+            Gửi hóa đơn
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -433,6 +474,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             >
               <i className="fa-solid fa-paper-plane"></i>
               {sendingZalo ? 'Đang gửi...' : 'Gửi Zalo'}
+            </button>
+            <button
+              onClick={handleSaveImage}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition"
+            >
+              <i className="fa-solid fa-image"></i>Lưu ảnh (JPG)
             </button>
             <button
               onClick={handlePrint}
@@ -629,6 +676,50 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Phần mã QR thanh toán (Chỉ hiển thị nếu còn nợ) */}
+            {remaining > 0 && settings.account_no && settings.bank_id && (() => {
+              // Tách lấy số của phòng để mã hiển thị gọn gàng hơn, ví dụ "Phòng 101" -> "101"
+              const roomNumber = room?.name?.match(/\d+/g)?.join('') || room?.name?.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5) || 'XX';
+              // Dùng 4 ký tự đầu của ID hóa đơn làm mã chống trùng lặp, bỏ sạch khoảng trắng
+              const uid = invoice.id.split('-')[0].substring(0, 4).toUpperCase();
+              const transferDes = `P${roomNumber}T${invoice.month}${invoice.year}${uid}`;
+
+              return (
+                <div className="mx-6 mb-6 px-4 py-4 border-2 border-dashed border-green-300 rounded-xl bg-green-50 flex items-center gap-6 justify-center" data-html2canvas-ignore="false">
+                  <div className="bg-white p-2 rounded-lg shadow-sm border border-green-200 shrink-0">
+                    <img
+                      src={`https://qr.sepay.vn/img?bank=${settings.bank_id}&acc=${settings.account_no}&amount=${remaining}&des=${transferDes}`}
+                      alt="VietQR"
+                      className="w-32 h-32 object-contain"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                  <div className="text-sm">
+                    <div className="font-bold text-green-800 text-base mb-1">Quét mã để thanh toán</div>
+                    <div className="text-gray-600 mb-0.5">Ngân hàng: <span className="font-semibold text-gray-800">{settings.bank_id}</span></div>
+                    <div className="text-gray-600 mb-0.5">Số tài khoản: <span className="font-semibold text-gray-800">{settings.account_no}</span></div>
+                    <div className="text-gray-600 mb-0.5">Chủ tài khoản: <span className="font-semibold text-gray-800 uppercase">{settings.account_name || ownerFullName}</span></div>
+                    <div className="text-gray-600 mb-0.5">Số tiền: <span className="font-bold text-red-600">{formatVND(remaining)} VNĐ</span></div>
+                    <div className="text-gray-600 mt-2 bg-white px-2 py-1 rounded inline-block border border-gray-200">
+                      Nội dung: <span className="font-bold text-blue-700">{transferDes}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            {remaining <= 0 && invoice.total_amount > 0 && (
+              <div className="mx-6 mb-6">
+                <div className="flex items-center justify-center py-4 border-2 border-emerald-500 rounded-xl bg-emerald-50 text-emerald-700 text-lg font-black tracking-widest uppercase shadow-sm relative overflow-hidden">
+                  {/* Watermark style text */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+                    <span className="text-5xl transform -rotate-12 whitespace-nowrap">ĐÃ THANH TOÁN</span>
+                  </div>
+                  <i className="fa-solid fa-circle-check mr-2 text-2xl relative z-10"></i>
+                  <span className="relative z-10">ĐÃ THANH TOÁN XONG</span>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
-import { join } from 'path'
+import * as https from 'https'
+import { extname, join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -104,17 +105,19 @@ function setupDBHandlers(): void {
 
 function normalizeVietnamPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
-  if (digits.startsWith('84')) return digits
-  if (digits.startsWith('0')) return `84${digits.slice(1)}`
+  if (digits.startsWith('84')) return `0${digits.slice(2)}`
+  if (!digits.startsWith('0')) return `0${digits}`
   return digits
 }
 
 function setupZaloHandlers(): void {
+  ipcMain.removeHandler('zalo:send')
+
   ipcMain.handle('zalo:send', async (_event, payload: ZaloSendPayload) => {
     try {
       const normalizedPhone = normalizeVietnamPhone(payload.phone)
       if (!normalizedPhone) {
-        return { ok: false, error: 'Thiếu số điện thoại người nhận.' }
+        return { ok: false, error: 'Thieu so dien thoai nguoi nhan.' }
       }
 
       const tempDir = join(app.getPath('temp'), 'phongtro-zalo')
@@ -130,9 +133,7 @@ function setupZaloHandlers(): void {
         height: 1180,
         show: false,
         frame: false,
-        webPreferences: {
-          sandbox: false
-        }
+        webPreferences: { sandbox: false }
       })
 
       const htmlWithTailwind = payload.html.replace(
@@ -142,7 +143,6 @@ function setupZaloHandlers(): void {
       writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
       try {
         await captureWindow.loadFile(htmlPath)
-        // Chờ Tailwind CDN load + render xong
         await new Promise((resolve) => setTimeout(resolve, 1800))
         const image = await captureWindow.webContents.capturePage()
         writeFileSync(imagePath, image.toPNG())
@@ -158,9 +158,163 @@ function setupZaloHandlers(): void {
       await shell.openExternal(`https://zalo.me/${normalizedPhone}`)
       return { ok: true, imagePath, phone: normalizedPhone }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Không thể gửi nội dung qua Zalo.'
+      const message = error instanceof Error ? error.message : 'Khong the gui noi dung qua Zalo.'
       return { ok: false, error: message }
     }
+  })
+}
+
+function setupInvoiceHandlers(): void {
+  ipcMain.removeHandler('invoice:saveImage')
+
+  ipcMain.handle('invoice:saveImage', async (_event, payload: { html: string, fileName: string }) => {
+    try {
+      const { dialog } = require('electron')
+      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
+      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
+
+      if (!rawHtml.trim()) {
+        return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
+      }
+
+      const safeDefaultName =
+        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() || `hoa-don-${Date.now()}.jpg`
+
+      const saveResult = await dialog.showSaveDialog({
+        title: 'Luu anh hoa don',
+        defaultPath: safeDefaultName,
+        filters: [{ name: 'Images', extensions: ['jpg', 'png'] }]
+      })
+
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { ok: true, canceled: true }
+      }
+
+      const tempDir = join(app.getPath('temp'), 'phongtro-invoices')
+      mkdirSync(tempDir, { recursive: true })
+      const htmlPath = join(tempDir, `invoice_temp_${Date.now()}.html`)
+
+      const captureWindow = new BrowserWindow({
+        width: 820,
+        height: 1180,
+        show: false,
+        frame: false,
+        webPreferences: { sandbox: false }
+      })
+
+      const htmlWithTailwind = rawHtml.replace(
+        '</head>',
+        '<script src="https://cdn.tailwindcss.com"></script></head>'
+      )
+      writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
+
+      try {
+        await captureWindow.loadFile(htmlPath)
+        await new Promise((resolve) => setTimeout(resolve, 1500))
+        const image = await captureWindow.webContents.capturePage()
+        const selectedExt = extname(saveResult.filePath).toLowerCase()
+        const targetExt =
+          selectedExt === '.jpg' || selectedExt === '.jpeg' || selectedExt === '.png'
+            ? selectedExt
+            : '.jpg'
+        const targetPath = selectedExt ? saveResult.filePath : `${saveResult.filePath}${targetExt}`
+
+        if (targetExt === '.png') {
+          writeFileSync(targetPath, image.toPNG())
+        } else {
+          writeFileSync(targetPath, image.toJPEG(92))
+        }
+
+        return { ok: true, filePath: targetPath }
+      } finally {
+        captureWindow.destroy()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
+      return { ok: false, error: message }
+    }
+  })
+}
+
+function setupBankLookupHandlers(): void {
+  ipcMain.removeHandler('bank:lookup')
+
+  ipcMain.handle('bank:lookup', (_event, bin: string, accountNumber: string) => {
+    return new Promise((resolve) => {
+      const body = JSON.stringify({ bin, accountNumber })
+      const options = {
+        hostname: 'api.vietqr.io',
+        path: '/v2/lookup',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+          'x-client-id': 'REDACTED_VIETQR_CLIENT_ID',
+          'x-api-key': 'REDACTED_VIETQR_API_KEY'
+        }
+      }
+      const req = https.request(options, (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString()
+        })
+        res.on('end', () => {
+          try {
+            resolve({ ok: true, data: JSON.parse(data) })
+          } catch {
+            resolve({ ok: false, error: 'Phan hoi khong hop le tu ngan hang.' })
+          }
+        })
+      })
+      req.on('error', (err: Error) => {
+        resolve({ ok: false, error: err.message })
+      })
+      req.setTimeout(10000, () => {
+        req.destroy()
+        resolve({ ok: false, error: 'Yeu cau qua thoi gian cho.' })
+      })
+      req.write(body)
+      req.end()
+    })
+  })
+}
+
+function setupSepayHandlers(): void {
+  ipcMain.removeHandler('sepay:fetchTransactions')
+
+  ipcMain.handle('sepay:fetchTransactions', (_event, token: string) => {
+    return new Promise((resolve) => {
+      const options = {
+        hostname: 'my.sepay.vn',
+        path: '/userapi/transactions/list',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+      const req = https.request(options, (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => {
+          data += chunk.toString()
+        })
+        res.on('end', () => {
+          try {
+            resolve({ ok: true, data: JSON.parse(data) })
+          } catch {
+            resolve({ ok: false, error: 'Phản hồi không hợp lệ từ SePay.' })
+          }
+        })
+      })
+      req.on('error', (err: Error) => {
+        resolve({ ok: false, error: err.message })
+      })
+      req.setTimeout(10000, () => {
+        req.destroy()
+        resolve({ ok: false, error: 'Yêu cầu quá thời gian chờ.' })
+      })
+      req.end()
+    })
   })
 }
 
@@ -331,6 +485,9 @@ app.whenReady().then(() => {
 
   setupDBHandlers()
   setupZaloHandlers()
+  setupInvoiceHandlers()
+  setupBankLookupHandlers()
+  setupSepayHandlers()
   registerUpdateHandlers()
   createWindow()
 

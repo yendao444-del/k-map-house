@@ -23,6 +23,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   const [isEditingTenant, setIsEditingTenant] = useState(false);
   const [isPickingZone, setIsPickingZone] = useState(false);
   const [pendingZoneId, setPendingZoneId] = useState(room.service_zone_id || '');
+  const [confirmVacate, setConfirmVacate] = useState(false);
 
   const zoneUpdateMutation = useMutation({
     mutationFn: (zoneId: string) => updateRoom(room.id, { service_zone_id: zoneId }),
@@ -437,16 +438,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
             {room.status === 'occupied' && (
               <button
                 disabled={markLeftMut.isPending || vacateMut.isPending}
-                onClick={() => {
-                  if (window.confirm('Xác nhận khách đã chuyển đi?\n\nThao tác này sẽ đóng hợp đồng và chuyển phòng về trạng thái trống.\n\nLưu ý: Nếu còn hóa đơn chưa tất toán, vui lòng tất toán trước.')) {
-                    if (activeContract?.tenant_id) {
-                      markLeftMut.mutate(activeContract.tenant_id);
-                    } else {
-                      // Không có hợp đồng formal: reset phòng trực tiếp
-                      vacateMut.mutate();
-                    }
-                  }
-                }}
+                onClick={() => setConfirmVacate(true)}
                 className="px-5 py-2.5 rounded-lg text-sm font-medium text-amber-600 bg-amber-50 hover:bg-amber-100 transition mr-auto border border-amber-200 flex items-center gap-2 disabled:opacity-50"
               >
                 {(markLeftMut.isPending || vacateMut.isPending)
@@ -468,6 +460,54 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
           </div>
         </div>
       </div>
+
+      {confirmVacate && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm" onClick={() => setConfirmVacate(false)}>
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
+            <div className="flex flex-col items-center gap-3 px-6 pb-4 pt-6 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100">
+                <i className="fa-solid fa-person-walking-arrow-right text-2xl text-amber-500"></i>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Xác nhận chuyển đi?</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Phòng đang mở sẽ được chuyển về trạng thái <strong>"Đang trống"</strong> và hợp đồng hiện tại sẽ bị đóng.
+                </p>
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-left text-xs font-medium text-amber-700">
+                  <i className="fa-solid fa-circle-exclamation mt-0.5 shrink-0"></i>
+                  <span>Lưu ý: Nếu còn hóa đơn chưa tất toán, vui lòng nhắc khách tất toán trước.</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setConfirmVacate(false)}
+                className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-200"
+              >
+                Hủy
+              </button>
+              <button
+                disabled={markLeftMut.isPending || vacateMut.isPending}
+                onClick={() => {
+                  if (activeContract?.tenant_id) {
+                    markLeftMut.mutate(activeContract.tenant_id);
+                  } else {
+                    vacateMut.mutate();
+                  }
+                  setConfirmVacate(false);
+                }}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 text-sm font-bold text-white transition hover:bg-amber-600 disabled:opacity-60"
+              >
+                {(markLeftMut.isPending || vacateMut.isPending) ? (
+                  <><i className="fa-solid fa-spinner fa-spin"></i> Đang xử lý</>
+                ) : (
+                  <><i className="fa-solid fa-check"></i> Xác nhận</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

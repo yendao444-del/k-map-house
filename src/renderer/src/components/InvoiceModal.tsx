@@ -76,10 +76,13 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const firstMonthInvoice = useMemo(
     () => !!currentTenantId
       ? existingInvoices.find(
-        i => i.is_first_month && i.payment_status !== 'cancelled' && i.tenant_id === currentTenantId
+        i => i.is_first_month &&
+          i.payment_status !== 'cancelled' &&
+          i.tenant_id === currentTenantId &&
+          (!activeContract || i.created_at >= activeContract.created_at)
       ) || null
       : null,
-    [existingInvoices, currentTenantId]
+    [existingInvoices, currentTenantId, activeContract]
   );
 
   const unpaidFirstMonthInvoice = useMemo(
@@ -325,6 +328,11 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       });
     },
     onSuccess: async () => {
+      // Khi lập hóa đơn tháng đầu → cập nhật ngày vào ở chính thức (đã thanh toán = đã chắc chắn)
+      if (billingReason === 'first_month' && invoiceDate) {
+        const { updateRoom } = await import('../lib/db');
+        await updateRoom(room.id, { move_in_date: invoiceDate });
+      }
       // Đánh dấu là đã được xuất hóa đơn
       if (hasTransfer && activeContract) {
         const { updateContract } = await import('../lib/db');

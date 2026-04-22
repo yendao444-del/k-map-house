@@ -4,24 +4,32 @@ import {
     changeRoom,
     getRooms,
     getContracts,
+    getAssetSnapshots,
     type Room,
     type Contract,
 } from '../lib/db'
 
+const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+    snap.note || snap.room_asset_id
+
 interface Props {
     room: Room
     onClose: () => void
+    onNavigateToAssets?: (room: Room) => void
 }
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const parseVND = (str: string) => parseInt(str.replace(/\D/g, ''), 10) || 0
 
-export function ChangeRoomModal({ room, onClose }: Props) {
+export function ChangeRoomModal({ room, onClose, onNavigateToAssets }: Props) {
     const queryClient = useQueryClient()
     const today = new Date().toISOString().split('T')[0]
 
     const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
     const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
+    const { data: moveOutSnaps = [] } = useQuery({ queryKey: ['asset_snapshots', room.id, 'move_out'], queryFn: () => getAssetSnapshots(room.id, 'move_out') })
+    const { data: handoverSnaps = [] } = useQuery({ queryKey: ['asset_snapshots', room.id, 'handover'], queryFn: () => getAssetSnapshots(room.id, 'handover') })
 
     const activeContract: Contract | undefined = useMemo(
         () => contracts.find(c => c.room_id === room.id && c.status === 'active'),
@@ -43,6 +51,29 @@ export function ChangeRoomModal({ room, onClose }: Props) {
     const [newElectricInit, setNewElectricInit] = useState<number>(0)
     const [newWaterInit, setNewWaterInit] = useState<number>(0)
 
+    // Asset check state
+    const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+    const currentMoveOutSnaps = useMemo(
+        () =>
+            contractStartedAt
+                ? moveOutSnaps.filter(s => s.recorded_at >= contractStartedAt)
+                : moveOutSnaps,
+        [moveOutSnaps, contractStartedAt]
+    )
+    const currentHandoverSnaps = useMemo(
+        () =>
+            contractStartedAt
+                ? handoverSnaps.filter(s => s.recorded_at >= contractStartedAt)
+                : handoverSnaps,
+        [handoverSnaps, contractStartedAt]
+    )
+    const hasMoveOutDone = currentMoveOutSnaps.length > 0
+    const hasHandoverDone = currentHandoverSnaps.length > 0 && HANDOVER_IDS.every(id => {
+        const s = currentHandoverSnaps.find(x => getHandoverSnapshotKey(x) === id)
+        return s?.condition === 'ok' || (s?.condition === 'not_done' && (s.deduction || 0) > 0)
+    })
+    const canProceed = hasMoveOutDone && hasHandoverDone
+
     // UI state
     const [confirmStep, setConfirmStep] = useState(false)
 
@@ -62,6 +93,7 @@ export function ChangeRoomModal({ room, onClose }: Props) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['rooms'] })
             queryClient.invalidateQueries({ queryKey: ['contracts'] })
+            queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
             queryClient.invalidateQueries({ queryKey: ['invoices'] })
             onClose()
         },
@@ -129,6 +161,48 @@ export function ChangeRoomModal({ room, onClose }: Props) {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-8 flex-1">
+
+                            {/* ASSET CHECK */}
+                            {!canProceed ? (
+                                <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                            <i className="fa-solid fa-triangle-exclamation text-amber-500 text-lg"></i>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-amber-800 text-sm">
+                                                {!hasMoveOutDone ? 'Chưa đối chiếu tài sản phòng cũ!' : 'Chưa hoàn tất bàn giao phòng!'}
+                                            </p>
+                                            <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                                                {!hasMoveOutDone
+                                                    ? <>Bạn cần sang <strong>tab Tài sản</strong>, chọn phòng <strong>{room.name}</strong>, nhấn <strong>"Đối chiếu trả phòng"</strong> để ghi nhận tình trạng tài sản trước khi chuyển phòng.</>
+                                                    : <>Vui lòng mở lại <strong>"Đối chiếu trả phòng"</strong> trong tab <strong>Tài sản</strong> và xác nhận đủ phần bàn giao phòng.</>
+                                                }
+                                            </p>
+                                            {onNavigateToAssets && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onNavigateToAssets(room)}
+                                                    className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+                                                >
+                                                    <i className="fa-solid fa-couch"></i>
+                                                    Đi tới Tài sản
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
+                                        <i className="fa-solid fa-circle-check text-teal-600"></i>
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-teal-800 text-sm">Đã đối chiếu và bàn giao xong</p>
+                                        <p className="text-teal-600 text-xs">{currentMoveOutSnaps.length} tài sản đã ghi nhận · xác nhận bàn giao phòng cũ</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* OLD ROOM CLOSING */}
                             <div className="bg-orange-50 border border-orange-100 rounded-xl p-5">
@@ -265,8 +339,9 @@ export function ChangeRoomModal({ room, onClose }: Props) {
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                disabled={!newRoomId || isInvalidElec || isInvalidWater}
+                                disabled={!newRoomId || isInvalidElec || isInvalidWater || !canProceed}
                                 className="px-5 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-xl transition disabled:opacity-50"
+                                title={!canProceed ? 'Cần đối chiếu tài sản trước khi chuyển phòng' : undefined}
                             >
                                 Tiếp tục & Kiểm tra lại
                             </button>

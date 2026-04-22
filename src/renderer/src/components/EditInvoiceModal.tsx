@@ -44,6 +44,7 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
   const [adjustment, setAdjustment] = useState(invoice.adjustment_amount || 0);
   const [adjustmentNote, setAdjustmentNote] = useState(invoice.adjustment_note || '');
   const [note, setNote] = useState(invoice.note || '');
+  const canEditAmount = invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0;
 
   const normalizedDeposit = invoice.deposit_amount && invoice.deposit_amount < 0
     ? -Math.abs(depositAmount)
@@ -52,21 +53,27 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
   const total = roomCost + wifiCost + garbageCost + electricCost + waterCost + normalizedDeposit + adjustment;
 
   const mutation = useMutation({
-    mutationFn: () => updateInvoice(invoice.id, {
-      room_cost: roomCost,
-      deposit_amount: normalizedDeposit,
-      wifi_cost: wifiCost,
-      garbage_cost: garbageCost,
-      electric_cost: electricCost,
-      water_cost: waterCost,
-      adjustment_amount: adjustment,
-      adjustment_note: adjustmentNote,
-      note,
-      total_amount: total,
-    }),
+    mutationFn: () => {
+      if (!canEditAmount) throw new Error('Hoa don da co giao dich thu tien. Khong the sua so tien.')
+      return updateInvoice(invoice.id, {
+        room_cost: roomCost,
+        deposit_amount: normalizedDeposit,
+        wifi_cost: wifiCost,
+        garbage_cost: garbageCost,
+        electric_cost: electricCost,
+        water_cost: waterCost,
+        adjustment_amount: adjustment,
+        adjustment_note: adjustmentNote,
+        note,
+        total_amount: total,
+      })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
       onClose();
+    },
+    onError: (err: any) => {
+      window.alert(err?.message || 'Khong the sua hoa don.')
     },
   });
 
@@ -90,6 +97,11 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
 
         {/* Body */}
         <div className="overflow-y-auto px-5 py-4 space-y-3">
+          {!canEditAmount && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Hoa don da co giao dich thu tien, khoa sua so tien de tranh sai lech doi soat.
+            </div>
+          )}
           <MoneyInput label="Tiền phòng" value={roomCost} onChange={setRoomCost} />
           <MoneyInput label="Internet" value={wifiCost} onChange={setWifiCost} />
           <MoneyInput label="Rác / vệ sinh" value={garbageCost} onChange={setGarbageCost} />
@@ -159,10 +171,10 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
           </button>
           <button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !canEditAmount}
             className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-60"
           >
-            {mutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+            {mutation.isPending ? 'Dang luu...' : !canEditAmount ? 'Da khoa sua so tien' : 'Luu thay doi'}
           </button>
         </div>
       </div>

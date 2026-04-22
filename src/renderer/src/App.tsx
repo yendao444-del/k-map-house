@@ -20,7 +20,7 @@ import {
   createServiceZone,
   updateServiceZone,
   deleteServiceZone,
-  getRoomInvoices,
+  getInvoices,
   getActiveContracts,
   getRoomMoveInReceipts,
   getAssetSnapshotsByRoomIds,
@@ -1094,16 +1094,89 @@ const ConfirmDeleteModal = ({
   )
 }
 
+const ConfirmDeleteWithHistoryModal = ({
+  room,
+  onConfirm,
+  onCancel,
+  isDeleting = false
+}: {
+  room: Room
+  onConfirm: () => void
+  onCancel: () => void
+  isDeleting?: boolean
+}) => {
+  return (
+    <div
+      className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header stripe */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-orange-400 to-red-400" />
+
+        <div className="p-6">
+          {/* Icon + Title */}
+          <div className="flex items-start gap-4 mb-5">
+            <div className="shrink-0 w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shadow-sm border border-amber-200">
+              <i className="fa-solid fa-clock-rotate-left" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">Phòng này còn dữ liệu lịch sử</h3>
+              <p className="text-[13px] text-gray-500">
+                Phòng <span className="font-semibold text-gray-700">{room.name}</span> vẫn còn hóa đơn hoặc biên lai đã ghi nhận.
+              </p>
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 flex gap-3">
+            <i className="fa-solid fa-circle-info text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-[12.5px] text-amber-800 leading-relaxed">
+              Dữ liệu lịch sử <span className="font-semibold">(hóa đơn, biên lai)</span> sẽ vẫn được giữ lại trong hệ thống. Chỉ phòng trọ bị xóa khỏi danh sách quản lý.
+            </p>
+          </div>
+
+          {/* Question */}
+          <p className="text-sm font-medium text-gray-700 mb-5 text-center">
+            Bạn có chắc chắn muốn tiếp tục xóa phòng này không?
+          </p>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all active:scale-95"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 shadow-md shadow-orange-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              <i className={isDeleting ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-trash-can"} />
+              {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const App: React.FC = () => {
   const { data: rooms = [], isLoading } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: serviceZones = [] } = useQuery({
     queryKey: ['serviceZones'],
     queryFn: getServiceZones
   })
-  const { data: invoices = [] } = useQuery({ queryKey: ['roomInvoices'], queryFn: getRoomInvoices })
-  const { data: contracts = [] } = useQuery({ queryKey: ['activeContracts'], queryFn: getActiveContracts })
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
+  const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({ queryKey: ['activeContracts'], queryFn: getActiveContracts })
   const { data: moveInReceipts = [] } = useQuery({
-    queryKey: ['roomMoveInReceipts'],
+    queryKey: ['moveInReceipts'],
     queryFn: getRoomMoveInReceipts
   })
   const { data: appSettings = {} } = useQuery({
@@ -1112,10 +1185,29 @@ const App: React.FC = () => {
   })
   const roomIds = useMemo(() => rooms.map((room) => room.id), [rooms])
   const roomIdsKey = useMemo(() => roomIds.slice().sort().join('|'), [roomIds])
+  const activeContractStartedAtByRoomId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const contract of contracts) {
+      if (contract.status !== 'active') continue
+      const current = map.get(contract.room_id)
+      if (!current || new Date(contract.created_at).getTime() > new Date(current).getTime()) {
+        map.set(contract.room_id, contract.created_at || contract.move_in_date)
+      }
+    }
+    return map
+  }, [contracts])
+  const activeContractStartKey = useMemo(
+    () =>
+      Array.from(activeContractStartedAtByRoomId.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([roomId, startedAt]) => `${roomId}:${startedAt}`)
+        .join('|'),
+    [activeContractStartedAtByRoomId]
+  )
   const { data: roomAssetWorkflow = {} } = useQuery<
     Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }>
   >({
-    queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey],
+    queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey, activeContractStartKey],
     enabled: rooms.length > 0,
     queryFn: async () => {
       const snapshots = await getAssetSnapshotsByRoomIds(roomIds, ['move_in', 'move_out', 'handover'])
@@ -1129,6 +1221,14 @@ const App: React.FC = () => {
       for (const snap of snapshots) {
         const roomState = roomWorkflow[snap.room_id]
         if (!roomState) continue
+        const contractStartedAt = activeContractStartedAtByRoomId.get(snap.room_id)
+        if (
+          contractStartedAt &&
+          (snap.type === 'move_out' || snap.type === 'handover') &&
+          snap.recorded_at < contractStartedAt
+        ) {
+          continue
+        }
         if (snap.type === 'move_in') roomState.hasMoveIn = true
         if (snap.type === 'move_out') roomState.hasMoveOut = true
         if (snap.type === 'handover') {
@@ -1504,6 +1604,7 @@ const App: React.FC = () => {
   })
 
   const [roomToDelete, setRoomToDelete] = useState<Room | null>(null)
+  const [roomToDeleteWithHistory, setRoomToDeleteWithHistory] = useState<Room | null>(null)
 
   const openInvoiceFlow = (room: Room) => {
     // Guard 1: phòng phải có vùng dịch vụ hợp lệ trước khi lập hóa đơn
@@ -1527,13 +1628,15 @@ const App: React.FC = () => {
     }
 
     const currentTenantId = activeContract?.tenant_id
+    const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
     const blockingInvoices = (invoicesByRoomId.get(room.id) || [])
       .filter(
         (i) =>
           i.payment_status !== 'cancelled' &&
           i.payment_status !== 'merged' &&
           (i.payment_status === 'unpaid' || i.payment_status === 'partial') &&
-          (!currentTenantId || i.tenant_id === currentTenantId)
+          (!currentTenantId || i.tenant_id === currentTenantId) &&
+          (!contractStartedAt || i.created_at >= contractStartedAt)
       )
       .sort((a, b) => {
         if (!!a.is_first_month !== !!b.is_first_month) return a.is_first_month ? -1 : 1
@@ -2040,6 +2143,18 @@ const App: React.FC = () => {
           isDeleting={deleteMutation.isPending}
         />
       )}
+      {roomToDeleteWithHistory && (
+        <ConfirmDeleteWithHistoryModal
+          room={roomToDeleteWithHistory}
+          onConfirm={() => {
+            deleteMutation.mutate(roomToDeleteWithHistory.id, {
+              onSuccess: () => setRoomToDeleteWithHistory(null)
+            })
+          }}
+          onCancel={() => setRoomToDeleteWithHistory(null)}
+          isDeleting={deleteMutation.isPending}
+        />
+      )}
       {/* Header Menu */}
       <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 pr-40 font-sans text-white shadow-md">
         <div className="app-no-drag flex min-w-0 items-center space-x-4">
@@ -2387,7 +2502,7 @@ const App: React.FC = () => {
                   {[
                     { id: 'occupied' as const, label: 'Đang ở', count: counts.occupied, color: 'primary' },
                     { id: 'vacant' as const, label: 'Đang trống', count: counts.vacant, color: 'gray' },
-                    { id: 'ending' as const, label: 'Sắp trả', count: counts.ending, color: 'red' },
+                    { id: 'ending' as const, label: 'Sắp chuyển', count: counts.ending, color: 'amber' },
                     { id: 'expiring' as const, label: 'Hết hạn', count: counts.expiring, color: 'blue' }
                   ].map((f) => (
                     <button
@@ -2423,48 +2538,48 @@ const App: React.FC = () => {
               {/* Table content */}
               <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
                 <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="text-[11px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
+                  <thead className="text-[10px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
                     <tr>
                       <th
                         rowSpan={2}
-                        className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
+                        className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
                       >
                         <i className="fa-solid fa-bars-staggered"></i>
                       </th>
                       <th
                         rowSpan={2}
-                        className="px-4 py-4 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
+                        className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
                       >
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           <i className="fa-solid fa-door-open text-primary/60"></i>
                           <span>Tên phòng</span>
                         </div>
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-tag mr-1.5 text-green-500/70"></i> Giá thuê
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-tag mr-1 text-green-500/70"></i> Giá thuê
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-bolt mr-1.5 text-yellow-500/70"></i> Phí dịch vụ
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-bolt mr-1 text-yellow-500/70"></i> Phí DV
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-shield-halved mr-1.5 text-blue-400/70"></i> Tiền cọc
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-shield-halved mr-1 text-blue-400/70"></i> Tiền cọc
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-triangle-exclamation mr-1.5 text-red-400/70"></i> Nợ cũ
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400/70"></i> Nợ cũ
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-users mr-1.5 text-teal-500/70"></i> Khách thuê
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-users mr-1 text-teal-500/70"></i> KH thuê
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 border-r border-gray-100">
-                        <i className="fa-solid fa-calendar-check mr-1.5 text-orange-400/70"></i> Ngày vào
+                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                        <i className="fa-solid fa-calendar-check mr-1 text-orange-400/70"></i> Ngày vào
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                      <th rowSpan={2} className="px-3 py-2.5 text-center border-r border-gray-100">
                         Tình trạng
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 text-center border-r border-gray-100">
+                      <th rowSpan={2} className="px-3 py-2.5 text-center border-r border-gray-100">
                         Tài chính
                       </th>
-                      <th rowSpan={2} className="px-4 py-4 w-10"></th>
+                      <th rowSpan={2} className="px-3 py-2.5 w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -2526,18 +2641,18 @@ const App: React.FC = () => {
                               i.payment_status === 'partial' ||
                               i.paid_amount > 0
                           )
-                        const canAbortUnpaidFirstMonthMenu =
-                          !!activeContract && !!unpaidFirstMonthForCurrentTenant
                         const canDeleteRoom =
                           roomInvoices.length === 0 && roomMoveInReceipts.length === 0
+                        // "Đang ở" chỉ khi đã lập hóa đơn đầu tiên
+                        const hasFirstInvoice = checkInvoices.some((i) => i.is_first_month)
 
                         const menuItemClass =
                           'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
                         const roomActionMenu = (
                           <div
-                            className={`absolute right-0 w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 animate-[fadeIn_0.15s_ease-out] ${menuPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+                            className={`absolute right-0 w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 animate-[fadeIn_0.15s_ease-out] ${menuPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
                           >
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2 overflow-hidden">
                               {room.status === 'vacant' ? (
                                 <>
                                   <button
@@ -2587,188 +2702,55 @@ const App: React.FC = () => {
                                     <i className="fa-solid fa-list-check w-4 text-gray-500"></i> Thiết
                                     lập tài sản
                                   </button>
-                                  {canDeleteRoom && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setMenuOpenId(null)
+                                      if (!canDeleteRoom) {
+                                        setRoomToDeleteWithHistory(room)
+                                      } else {
                                         setRoomToDelete(room)
-                                        setMenuOpenId(null)
-                                      }}
-                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium`}
-                                    >
-                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                      phòng
-                                    </button>
-                                  )}
-                                </>
-                              ) : room.status === 'ending' ? (
-                                <>
-                                  {/* === MENU CHO PHÒNG "SẮP KẾT THÚC" === */}
-                                  {endingOutstandingInvoice && (
-                                    <>
-                                      <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
-                                        <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
-                                        <span>
-                                          <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần thu xong
-                                          trước khi xác nhận trả phòng.
-                                        </span>
-                                      </div>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setPaymentInvoice(endingOutstandingInvoice)
-                                          setMenuOpenId(null)
-                                        }}
-                                        className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold col-span-2`}
-                                      >
-                                        <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền
-                                        hóa đơn còn nợ
-                                      </button>
-                                    </>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setDetailRoom(room)
-                                      setMenuOpenId(null)
+                                      }
                                     }}
-                                    className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
+                                    className={`${menuItemClass} ${canDeleteRoom ? 'hover:bg-red-50 text-red-700' : 'hover:bg-orange-50 text-orange-700'} font-medium`}
                                   >
-                                    <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      updateRoom(room.id, {
-                                        status: 'occupied',
-                                        expected_end_date: undefined
-                                      } as any).then(() => {
-                                        playSuccess()
-                                        queryClient.invalidateQueries({ queryKey: ['rooms'] })
-                                      })
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
-                                    Hủy báo kết thúc
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setTerminateRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-door-closed w-4 text-red-400"></i> Xác
-                                    nhận trả phòng
-                                  </button>
-                                  {canCancel && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setCancelContractRoom(room)
-                                        setMenuOpenId(null)
-                                      }}
-                                      className={`${menuItemClass} hover:bg-red-50 text-red-500 font-semibold`}
-                                    >
-                                      <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp
-                                      đồng
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
-                                  >
-                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                    Đóng menu
-                                  </button>
-                                </>
-                              ) : (canCancel || canAbortUnpaidFirstMonthMenu) ? (
-                                <>
-                                  {/* === MENU KHI CHƯA THANH TOÁN HÓA ĐƠN ĐẦU === */}
-                                  <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800">
-                                    <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
-                                    <span>
-                                      <strong>Hóa đơn chưa được thanh toán.</strong> Thu tiền trước,
-                                      sau đó mới có thể thực hiện các thao tác khác. Hoặc hủy hợp đồng
-                                      nếu nhập nhầm.
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openInvoiceFlow(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-money-bill-wave w-4"></i>{' '}
-                                    {unpaidFirstMonthForCurrentTenant ? 'Thu tiền hóa đơn' : 'Lập hóa đơn đầu tiên'}
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setCancelContractRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-500 font-semibold`}
-                                  >
-                                    <i className="fa-solid fa-ban w-4 text-red-400"></i> Hủy hợp đồng
-                                  </button>
-                                  {canDeleteRoom && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setRoomToDelete(room)
-                                        setMenuOpenId(null)
-                                      }}
-                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
-                                    >
-                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                      phòng
-                                    </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center`}
-                                  >
-                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                    Đóng menu
+                                    <i className={`fa-solid fa-trash-can w-4 ${canDeleteRoom ? 'text-red-500' : 'text-orange-500'}`}></i>
+                                    Xóa phòng{!canDeleteRoom && ' ⚠'}
                                   </button>
                                 </>
                               ) : (
                                 <>
-                                  {/* === MENU ĐẦY ĐỦ CHO PHÒNG "ĐANG Ở" === */}
-                                  {/* Hàng 1 */}
+                                  {/* === MENU PHÒNG ĐANG CÓ KHÁCH === */}
+                                  {(unpaidFirstMonthForCurrentTenant || endingOutstandingInvoice) && (
+                                    <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800 min-w-0 overflow-hidden">
+                                      <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
+                                      <span className="min-w-0 break-words">
+                                        {endingOutstandingInvoice
+                                          ? <><strong>Phòng này còn hóa đơn chưa thu.</strong> Cần thu xong trước khi xác nhận trả phòng.</>
+                                          : <><strong>Hóa đơn chưa được thanh toán.</strong> Thu tiền trước, sau đó mới có thể thực hiện các thao tác khác.{canCancel && ' Hoặc hủy hợp đồng nếu nhập nhầm.'}</>
+                                        }
+                                      </span>
+                                    </div>
+                                  )}
+                                  {/* Nhóm 1: Tài chính & Quản lý */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
-                                      openInvoiceFlow(room)
+                                      if (endingOutstandingInvoice) {
+                                        setPaymentInvoice(endingOutstandingInvoice)
+                                      } else {
+                                        openInvoiceFlow(room)
+                                      }
                                       setMenuOpenId(null)
                                     }}
                                     className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
                                   >
-                                    <i className="fa-solid fa-file-invoice-dollar w-4"></i> Lập hóa
-                                    đơn
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      openInvoiceFlow(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-emerald-50 text-emerald-600 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-money-bill-wave w-4"></i> Thu tiền hàng
-                                    tháng
+                                    <i className="fa-solid fa-file-invoice-dollar w-4"></i>
+                                    {endingOutstandingInvoice
+                                      ? ' Thu tiền hóa đơn còn nợ'
+                                      : unpaidFirstMonthForCurrentTenant
+                                        ? ' Thu tiền hóa đơn'
+                                        : ' Lập hóa đơn'}
                                   </button>
                                   <button
                                     onClick={(e) => {
@@ -2780,7 +2762,7 @@ const App: React.FC = () => {
                                   >
                                     <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
                                   </button>
-                                  {/* Hàng 2 */}
+                                  {/* Nhóm 2: Di chuyển & Tài sản */}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -2792,19 +2774,6 @@ const App: React.FC = () => {
                                     <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
                                     Chuyển đổi phòng
                                   </button>
-
-                                  {/* Hàng 3 */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setEndNoticeRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo kết
-                                    thúc hợp đồng phòng
-                                  </button>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -2814,24 +2783,66 @@ const App: React.FC = () => {
                                     }}
                                     className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
                                   >
-                                    <i className="fa-solid fa-table-list w-4 text-gray-500"></i> Thiết
-                                    lập tài sản
+                                    <i className="fa-solid fa-table-list w-4 text-gray-500"></i> Thiết lập tài sản
                                   </button>
-                                  {canDeleteRoom && (
+                                  {/* Nhóm 3: Kết thúc HĐ */}
+                                  {room.status === 'ending' ? (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        setRoomToDelete(room)
+                                        updateRoom(room.id, {
+                                          status: 'occupied',
+                                          expected_end_date: undefined
+                                        } as any).then(() => {
+                                          playSuccess()
+                                          queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                                        })
                                         setMenuOpenId(null)
                                       }}
-                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                      className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
                                     >
-                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa
-                                      phòng
+                                      <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
+                                      Hủy báo trả phòng
+                                    </button>
+                                  ) : (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEndNoticeRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo trả phòng
                                     </button>
                                   )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setTerminateRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
+                                  >
+                                    <i className="fa-solid fa-door-closed w-4 text-red-400"></i> Trả phòng
+                                  </button>
+                                  {/* Nhóm 4: Nguy hiểm */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      if (canCancel) {
+                                        setCancelContractRoom(room)
+                                        setMenuOpenId(null)
+                                      }
+                                    }}
+                                    disabled={!canCancel}
+                                    title={!canCancel ? 'Không thể hủy khi đã có thanh toán. Dùng "Trả phòng" để tất toán.' : undefined}
+                                    className={`${menuItemClass} ${canCancel ? 'hover:bg-red-50 text-red-500' : 'opacity-40 cursor-not-allowed text-red-400'} font-semibold`}
+                                  >
+                                    <i className="fa-solid fa-ban w-4"></i> Hủy hợp đồng
+                                  </button>
                                   {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
-                                  {!activeContract && room.status === 'occupied' && (
+                                  {isActiveContractsFetched && !activeContract && room.status === 'occupied' && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
@@ -2856,6 +2867,18 @@ const App: React.FC = () => {
                                       Đánh dấu đã chuyển đi (không có HĐ)
                                     </button>
                                   )}
+                                  {canDeleteRoom && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setRoomToDelete(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                    >
+                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa phòng
+                                    </button>
+                                  )}
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -2877,10 +2900,10 @@ const App: React.FC = () => {
                             key={room.id}
                             className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
                           >
-                            <td className="px-4 py-3 text-center text-gray-400">
+                            <td className="px-3 py-2 text-center text-gray-400">
                               <i className="fa-solid fa-bars"></i>
                             </td>
-                            <td className="px-4 py-3 font-bold flex items-center gap-2 text-gray-800">
+                            <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
                               <div
                                 className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
                               >
@@ -2888,7 +2911,7 @@ const App: React.FC = () => {
                               </div>
                               <span className="block truncate py-1">{room.name}</span>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
                                 {formatVND(room.base_rent)} đ
                               </div>
@@ -2910,7 +2933,7 @@ const App: React.FC = () => {
                                   )
                                 })()}
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               {(() => {
                                 // Bảng màu cho mỗi vùng
                                 const zoneColors = [
@@ -3042,7 +3065,7 @@ const App: React.FC = () => {
                               })()}
                             </td>
 
-                            <td className="px-4 py-3">
+                            <td className="px-3 py-2">
                               {(() => {
                                 // Chỉ tính tiền cọc khi phòng đang có người ở
                                 if (room.status === 'vacant') {
@@ -3068,7 +3091,8 @@ const App: React.FC = () => {
                                       (i.payment_status === 'paid' ||
                                         i.payment_status === 'partial') &&
                                       (i.deposit_amount || 0) > 0 &&
-                                      i.paid_amount > 0
+                                      i.paid_amount > 0 &&
+                                      (!activeContract || i.created_at >= activeContract.created_at)
                                   )
                                 if (depositCollected) {
                                   return (
@@ -3107,7 +3131,7 @@ const App: React.FC = () => {
                                 )
                               })()}
                             </td>
-                            <td className="px-4 py-3 font-semibold">
+                            <td className="px-3 py-2 font-semibold">
                               {(() => {
                                 // Nợ thuộc về tenant, không thuộc phòng.
                                 // Phòng trống → không hiển thị nợ cũ.
@@ -3133,7 +3157,7 @@ const App: React.FC = () => {
                                 )
                               })()}
                             </td>
-                            <td className="px-4 py-3 text-gray-600">
+                            <td className="px-3 py-2 text-gray-600">
                               <EditableCell
                                 value={room.max_occupants || 2}
                                 type="select"
@@ -3152,14 +3176,16 @@ const App: React.FC = () => {
                                 }
                               />
                             </td>
-                            <td className="px-4 py-3 text-gray-600 text-sm">
+                            <td className="px-3 py-2 text-gray-600 text-sm">
                               {(() => {
                                 if (room.status === 'vacant') {
                                   return <span className="text-gray-400 italic text-xs">Chưa có</span>
                                 }
-                                const moveInDate = activeContract?.move_in_date || room.move_in_date
+                                // Ngày vào ở = lấy từ hợp đồng, chỉ hiện khi đã lập HĐ đầu tiên
+                                const moveInDate = activeContract?.move_in_date ||
+                                  room.move_in_date
 
-                                if (moveInDate) {
+                                if (hasFirstInvoice && moveInDate) {
                                   return (
                                     <span className="font-medium">
                                       {new Date(moveInDate).toLocaleDateString('vi-VN', {
@@ -3170,42 +3196,54 @@ const App: React.FC = () => {
                                     </span>
                                   )
                                 }
-                                return <span className="text-gray-400 italic text-xs">Chưa có</span>
+                                return <span className="text-gray-400 italic text-xs">Chưa bắt đầu</span>
                               })()}
                             </td>
                             <td
-                              className="px-4 py-3 text-center"
+                              className="px-3 py-2 text-center"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div>
                                 <span
                                   title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
-                                  className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-wide ${room.status === 'vacant'
-                                    ? 'bg-orange-500'
-                                    : room.status === 'occupied'
-                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-[0_4px_14px_-8px_rgba(16,185,129,0.75)]'
-                                      : room.status === 'ending'
-                                        ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white shadow-md shadow-orange-300/30'
-                                        : 'bg-yellow-500 text-white'
+                                  className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide ${room.status === 'vacant'
+                                    ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
+                                    : room.status === 'occupied' && hasFirstInvoice
+                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
+                                      : room.status === 'occupied' && !hasFirstInvoice
+                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
+                                        : room.status === 'ending'
+                                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-400/40'
+                                          : 'bg-gradient-to-r from-gray-500 to-slate-600 text-white shadow-sm shadow-slate-400/40'
                                     }`}
                                 >
-                                  {room.status === 'occupied' && (
+                                  {room.status === 'vacant' && (
+                                    <i className="fa-solid fa-door-open text-[9px]"></i>
+                                  )}
+                                  {room.status === 'occupied' && hasFirstInvoice && (
                                     <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-                                      <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping"></span>
-                                      <span className="absolute inline-flex h-2 w-2 rounded-full bg-emerald-300 opacity-80 animate-pulse"></span>
-                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-600 shadow-[0_0_0_2px_rgba(16,185,129,0.18),0_0_10px_rgba(16,185,129,0.65)]"></span>
+                                      <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-60 animate-ping"></span>
+                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white"></span>
                                     </span>
                                   )}
+                                  {room.status === 'occupied' && !hasFirstInvoice && (
+                                    <i className="fa-solid fa-file-signature text-[9px]"></i>
+                                  )}
                                   {room.status === 'ending' && (
-                                    <i className="fa-solid fa-bell text-[9px]"></i>
+                                    <i className="fa-solid fa-right-from-bracket text-[9px]"></i>
+                                  )}
+                                  {room.status === 'maintenance' && (
+                                    <i className="fa-solid fa-screwdriver-wrench text-[9px]"></i>
                                   )}
                                   {room.status === 'vacant'
                                     ? 'Đang trống'
-                                    : room.status === 'occupied'
+                                    : room.status === 'occupied' && hasFirstInvoice
                                       ? 'Đang ở'
-                                      : room.status === 'ending'
-                                        ? 'Sắp chuyển phòng'
-                                        : 'Bảo trì'}
+                                      : room.status === 'occupied' && !hasFirstInvoice
+                                        ? 'Chờ lập HĐ'
+                                        : room.status === 'ending'
+                                          ? 'Sắp chuyển phòng'
+                                          : 'Bảo trì'}
                                 </span>
                                 {room.status === 'ending' &&
                                   room.expected_end_date &&
@@ -3236,6 +3274,7 @@ const App: React.FC = () => {
                               const currentMonth = today.getMonth() + 1
                               const currentYear = today.getFullYear()
                               const hasActiveContract = activeContract
+                              const contractStartedAt = hasActiveContract?.created_at || hasActiveContract?.move_in_date
                               const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
                               const roomMonthInvoices = roomInvoicesAll
                                 .filter(
@@ -3246,7 +3285,8 @@ const App: React.FC = () => {
                                     i.payment_status !== 'merged' &&
                                     !i.is_settlement &&
                                     (!hasActiveContract?.tenant_id ||
-                                      i.tenant_id === hasActiveContract.tenant_id)
+                                      i.tenant_id === hasActiveContract.tenant_id) &&
+                                    (!contractStartedAt || i.created_at >= contractStartedAt)
                                 )
                                 .sort(
                                   (a, b) =>
@@ -3260,7 +3300,8 @@ const App: React.FC = () => {
                                     i.payment_status !== 'cancelled' &&
                                     i.payment_status !== 'merged' &&
                                     (!hasActiveContract?.tenant_id ||
-                                      i.tenant_id === hasActiveContract.tenant_id)
+                                      i.tenant_id === hasActiveContract.tenant_id) &&
+                                    (!contractStartedAt || i.created_at >= contractStartedAt)
                                 )
                                 .sort(
                                   (a, b) =>
@@ -3308,10 +3349,10 @@ const App: React.FC = () => {
                                       e.stopPropagation()
                                       setSelectedRoom(room)
                                     }}
-                                    className="bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                    className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                   >
                                     <i className="fa-solid fa-triangle-exclamation mr-1"></i>
-                                    Cần lập HĐ đầu tiên
+                                    Cần lập HĐ đầu
                                   </button>
                                 </td>
                               )
@@ -3325,7 +3366,7 @@ const App: React.FC = () => {
                                       setAssetModuleGuideMode('move_in')
                                       requestActiveTab('assets')
                                     }}
-                                    className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                   >
                                     <i className="fa-solid fa-clipboard-check mr-1"></i>
                                     Cần nhận phòng
@@ -3362,7 +3403,7 @@ const App: React.FC = () => {
                                         e.stopPropagation()
                                         openInvoiceFlow(room)
                                       }}
-                                      className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
+                                      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                     >
                                       Có thể lập HĐ ngay
                                     </button>
@@ -3386,7 +3427,7 @@ const App: React.FC = () => {
                                           e.stopPropagation()
                                           setPaymentInvoice(roomInvoice)
                                         }}
-                                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                       >
                                         <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
                                         Thu hóa đơn còn nợ
@@ -3403,7 +3444,7 @@ const App: React.FC = () => {
                                           e.stopPropagation()
                                           openInvoiceFlow(room)
                                         }}
-                                        className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                       >
                                         <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
                                         {roomInvoice.payment_status === 'partial'
@@ -3420,7 +3461,7 @@ const App: React.FC = () => {
                                         e.stopPropagation()
                                         setPaymentInvoice(roomInvoice)
                                       }}
-                                      className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 rounded font-bold block w-full transition"
+                                      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                     >
                                       <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
                                       {roomInvoice.payment_status === 'partial'
@@ -3435,9 +3476,10 @@ const App: React.FC = () => {
                               return (
                                 <td className="px-4 py-3 text-center">
                                   {daysUntilNext > 0 ? (
-                                    <span className="bg-green-100 text-green-700 text-[10px] px-2 py-1 rounded border border-green-200 font-bold inline-flex items-center gap-1.5">
+                                    <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
+                                      <i className="fa-solid fa-check-double text-[9px]"></i>
                                       Đã thu
-                                      <span className="bg-green-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                                      <span className="bg-white text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
                                         Còn {daysUntilNext}d
                                       </span>
                                     </span>
@@ -3447,7 +3489,7 @@ const App: React.FC = () => {
                                         e.stopPropagation()
                                         openInvoiceFlow(room)
                                       }}
-                                      className="bg-orange-100 hover:bg-orange-200 text-orange-600 text-[10px] px-2 py-1 rounded border border-orange-200 font-bold block w-full transition"
+                                      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                     >
                                       Có thể lập HĐ mới
                                     </button>
@@ -3742,7 +3784,16 @@ const App: React.FC = () => {
 
       {
         changeTargetRoom && (
-          <ChangeRoomModal room={changeTargetRoom} onClose={() => setChangeTargetRoom(null)} />
+          <ChangeRoomModal
+            room={changeTargetRoom}
+            onClose={() => setChangeTargetRoom(null)}
+            onNavigateToAssets={(room) => {
+              setChangeTargetRoom(null)
+              setAssetModuleInitialRoomId(room.id)
+              setAssetModuleGuideMode('move_out')
+              requestActiveTab('assets')
+            }}
+          />
         )
       }
 
