@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getMoveInReceiptsByTenant, type Tenant, type MoveInReceipt } from '../lib/db';
+import { ConfirmModal } from './ConfirmModal';
 
 export const TenantsTab: React.FC = () => {
   const queryClient = useQueryClient();
@@ -18,6 +19,8 @@ export const TenantsTab: React.FC = () => {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Tenant | null>(null);
+  const [confirmMarkLeft, setConfirmMarkLeft] = useState<Tenant | null>(null);
   const [cccdHover, setCccdHover] = useState<{ id: string, url: string, name: string, top: number, left: number, openUp: boolean } | null>(null);
 
   useEffect(() => {
@@ -432,9 +435,7 @@ export const TenantsTab: React.FC = () => {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (window.confirm('Xóa khách thuê sẽ làm ảnh hưởng tới báo cáo hóa đơn.\n\nBạn có chắc chắn tiếp tục?')) {
-                                  deleteMut.mutate(tenant.id);
-                                }
+                                setConfirmDelete(tenant);
                                 setMenuOpenId(null);
                               }}
                               className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
@@ -492,9 +493,7 @@ export const TenantsTab: React.FC = () => {
             {!hasLeft && (
               <button
                 onClick={() => {
-                  if (window.confirm('Đánh dấu khách đã chuyển đi?\n\nThao tác này sẽ:\n• Đóng hợp đồng đang active\n• Cập nhật phòng về trạng thái trống\n• Ghi nhận ngày rời đi hôm nay\n\nLưu ý: Nếu còn hóa đơn chưa thanh toán, vui lòng tất toán trước.')) {
-                    markLeftMut.mutate(tenant.id);
-                  }
+                  setConfirmMarkLeft(tenant);
                   setMenuOpenId(null);
                 }}
                 className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition flex items-center gap-2"
@@ -514,9 +513,7 @@ export const TenantsTab: React.FC = () => {
             <div className="w-full h-px bg-slate-100 my-1"></div>
             <button
               onClick={() => {
-                if (window.confirm('Xóa khách thuê sẽ làm ảnh hưởng tới báo cáo hóa đơn.\n\nBạn có chắc chắn tiếp tục?')) {
-                  deleteMut.mutate(tenant.id);
-                }
+                setConfirmDelete(tenant);
                 setMenuOpenId(null);
               }}
               className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
@@ -561,6 +558,42 @@ export const TenantsTab: React.FC = () => {
         <TenantDetailModal
           tenant={selectedTenant}
           onClose={() => setSelectedTenant(null)}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmModal
+          title="Xóa khách thuê?"
+          variant="danger"
+          confirmLabel="Xóa khách thuê"
+          isLoading={deleteMut.isPending}
+          message={
+            <div>
+              <p>Khách thuê <strong className="text-slate-700">{confirmDelete.full_name}</strong> sẽ bị xóa vĩnh viễn.</p>
+              <p className="mt-2 text-amber-600 font-medium">⚠ Thao tác này sẽ ảnh hưởng tới báo cáo hóa đơn và không thể hoàn tác.</p>
+            </div>
+          }
+          onConfirm={() => { deleteMut.mutate(confirmDelete.id); setConfirmDelete(null); }}
+          onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+
+      {confirmMarkLeft && (
+        <ConfirmModal
+          title="Đánh dấu đã chuyển đi?"
+          variant="warning"
+          confirmLabel="Xác nhận chuyển đi"
+          isLoading={markLeftMut.isPending}
+          message={
+            <ul className="mt-1 space-y-1">
+              <li>• Đóng hợp đồng đang hiệu lực</li>
+              <li>• Cập nhật phòng về trạng thái trống</li>
+              <li>• Ghi nhận ngày rời đi hôm nay</li>
+              <li className="mt-2 text-amber-600 font-medium">Lưu ý: Vui lòng tất toán hóa đơn trước khi thực hiện.</li>
+            </ul>
+          }
+          onConfirm={() => { markLeftMut.mutate(confirmMarkLeft.id); setConfirmMarkLeft(null); }}
+          onCancel={() => setConfirmMarkLeft(null)}
         />
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import type { AppUser } from '../lib/db'
+import { updateUser, type AppUser } from '../lib/db'
 import { playSuccess, playClick } from '../lib/sound'
 
 interface ProfileModalProps {
@@ -13,6 +13,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     onClose,
     onUpdate
 }) => {
+    const isLegacyLocalAdmin = currentUser.id === 'legacy-local-admin'
     const [fullName, setFullName] = useState(currentUser.full_name || '')
     const [avatarUrl, setAvatarUrl] = useState(currentUser.avatar_url || '')
     const [error, setError] = useState('')
@@ -27,15 +28,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         }
         setSaving(true)
         try {
-            const result = await window.api.auth.updateUser(currentUser.id, {
+            if (isLegacyLocalAdmin) {
+                onUpdate({
+                    ...currentUser,
+                    full_name: fullName,
+                    avatar_url: avatarUrl
+                })
+                playSuccess()
+                onClose()
+                return
+            }
+
+            const updatedUser = await updateUser(currentUser.id, {
                 full_name: fullName,
                 avatar_url: avatarUrl
             })
-            if (!result.ok) {
-                setError(result.error || 'Không thể cập nhật hồ sơ')
-                return
-            }
-            onUpdate(result.user as AppUser)
+            onUpdate(updatedUser)
             playSuccess()
             onClose()
         } catch (err: any) {

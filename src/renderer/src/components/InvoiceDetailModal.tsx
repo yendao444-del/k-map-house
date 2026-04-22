@@ -230,7 +230,6 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   // Dữ liệu
   const displayName = tenantName || room?.tenant_name || 'Khách thuê';
   const displayPhone = tenantPhone || room?.tenant_phone || '';
-  const propertyName = settings.property_name || 'Nhà trọ';
   const propertyAddress = settings.property_address || '';
   const ownerFullName = settings.property_owner_name || 'Đỗ Kim Ngân';
   // Tên viết tay = tên đầu tiên (tên riêng trong tiếng Việt là từ cuối cùng)
@@ -278,7 +277,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
       });
 
       if (!result.ok) {
-        throw new Error(result.error || 'zalo_send_failed');
+        throw new Error(result.error || 'Không thể gửi nội dung qua Zalo.');
       }
     } catch (error) {
       console.error(error);
@@ -314,11 +313,11 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
       label: 'Tiền phòng',
       detail: periodStart && periodEnd ? (
         <>
-          <div className="text-green-600 text-[11px]">
+          <div className="text-green-600 text-[11px] whitespace-nowrap">
             {fmtDate(periodStart)} - {fmtDate(periodEnd)}
-            {prorataDays ? ` (${prorataDays} Ngày)` : ''}
+            {prorataDays ? ` (${prorataDays} ngày)` : ''}
           </div>
-          <div className="text-gray-400 text-[11px]">
+          <div className="text-gray-400 text-[11px] whitespace-nowrap">
             {formatVND(monthlyRent)}đ/1 tháng
           </div>
         </>
@@ -413,11 +412,11 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[150] overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex items-start justify-center"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Toolbar */}
@@ -450,53 +449,50 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Scrollable invoice content */}
-        <div className="overflow-y-auto flex-1 bg-gray-100 p-4">
+        {/* Logo floating — nằm vắt giữa toolbar và header xanh */}
+        <div className="flex justify-center relative z-20 pt-3 -mb-6">
+          <div className="bg-white rounded-2xl px-4 py-2 shadow-lg ring-2 ring-green-100">
+            <img
+              src={logoNgang}
+              alt="DBY"
+              className="h-9 w-auto object-contain"
+            />
+          </div>
+        </div>
+
+        {/* Invoice content */}
+        <div className="bg-gray-100 px-4 pb-4 pt-0">
           <div ref={printRef} className="invoice-wrap bg-white rounded-xl shadow-sm overflow-hidden max-w-[660px] mx-auto">
 
             {/* Header */}
-            <div className="header-bar px-6">
-              <span className="header-wave wave-a"></span>
-              <span className="header-wave wave-b"></span>
-              <span className="header-wave wave-c"></span>
-              <div className="brand-row">
-                <div className="brand-mark">
-                  <img
-                    src={logoNgang}
-                    alt="DBY"
-                    className="max-w-full max-h-full object-contain"
-                  />
-                </div>
-                <div className="brand-copy min-w-0 h-[34px] overflow-hidden">
-                  <div className="brand-title">{propertyName}</div>
-                  <div className="logo-sub">Quản lý <strong>nhà cho thuê</strong></div>
-                  <div className="text-green-100 text-[11px] font-semibold tracking-wide">Quản lý NHÀ CHO THUÊ</div>
-                </div>
-              </div>
+            <div className="relative overflow-hidden rounded-t-xl bg-gradient-to-br from-green-700 via-green-600 to-green-500 px-6 pt-10 pb-0">
+              {/* Nền chấm trang trí */}
+              <div className="absolute inset-0 opacity-10"
+                style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+              />
 
-              {/* Tiêu đề hóa đơn */}
-              <div className="title-section">
-                <h1 className="title-main">HÓA ĐƠN TIỀN THUÊ NHÀ</h1>
-                <p className="title-period">
-                  T.{invoice.month} - {invoice.year}
+              {/* Tiêu đề + tháng */}
+              <div className="relative z-10 flex flex-col items-center gap-1 pb-5">
+                <h1 className="text-[19px] font-black tracking-widest text-white uppercase leading-tight">
+                  Hóa đơn tiền thuê nhà
+                </h1>
+                <p className="text-[12px] font-semibold text-green-100 tracking-wide">
+                  Tháng {String(invoice.month).padStart(2, '0')} / {invoice.year}
                 </p>
               </div>
 
-            </div>
-            <div className="hidden text-center pt-5 pb-2 px-6">
-              <h1 className="text-xl font-black text-green-700 tracking-wide">HÓA ĐƠN TIỀN THUÊ NHÀ</h1>
-              <p className="text-sm font-bold text-gray-500 mt-1">
-                T.{invoice.month} - {invoice.year}
-              </p>
+              {/* Vùng trắng bo góc trên */}
+              <div className="relative z-10 -mx-6 h-4 bg-white rounded-t-2xl shadow-[0_-4px_12px_rgba(0,0,0,0.10)]" />
             </div>
 
             {/* Địa chỉ */}
             {propertyAddress && (
-              <div className="text-center text-xs text-gray-500 pb-3 px-6 flex items-center justify-center gap-1">
+              <div className="text-center text-xs text-gray-500 py-2 px-6 flex items-center justify-center gap-1 border-b border-gray-100">
                 <i className="fa-solid fa-location-dot text-green-500 text-[11px]"></i>
                 <span>{propertyAddress}</span>
               </div>
             )}
+
 
             {/* Thông tin khách */}
             <div className="px-6 pb-4">
@@ -640,3 +636,4 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     </div>
   );
 };
+

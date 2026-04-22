@@ -1,4 +1,4 @@
-import { supabase, safeQuery } from './supabase'
+import { supabase, supabaseAdmin, safeQuery } from './supabase'
 
 // =========================================================
 // TYPES & CONSTANTS
@@ -230,12 +230,23 @@ export const getContracts = async (): Promise<Contract[]> => {
   return data || []
 }
 
+export const getActiveContracts = async (): Promise<Contract[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('*')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
 export const createContract = async (data: Partial<Contract>): Promise<Contract> => {
-  if (!data.room_id) throw new Error('Missing room_id when creating contract')
-  if (!data.move_in_date) throw new Error('Missing move_in_date when creating contract')
+  if (!data.room_id) throw new Error('Thiếu room_id khi tạo hợp đồng.')
+  if (!data.move_in_date) throw new Error('Thiếu ngày vào ở khi tạo hợp đồng.')
 
   const room = await getRoomById(data.room_id)
-  if (!room) throw new Error('Room not found')
+  if (!room) throw new Error('Không tìm thấy phòng.')
   let tenantForContract: Awaited<ReturnType<typeof getTenantById>> = null
 
   const roomActiveContracts = await safeQuery(() =>
@@ -249,7 +260,7 @@ export const createContract = async (data: Partial<Contract>): Promise<Contract>
 
   if (activeRoomContracts.length > 0) {
     if (room.status === 'occupied') {
-      throw new Error('Room already has an active contract')
+      throw new Error('Phòng đã có hợp đồng đang hiệu lực.')
     }
     await safeQuery(() =>
       supabase
@@ -265,7 +276,7 @@ export const createContract = async (data: Partial<Contract>): Promise<Contract>
   if (data.tenant_id) {
     const tenant = await getTenantById(data.tenant_id)
     if (!tenant || !tenant.is_active) {
-      throw new Error('Tenant does not exist or is inactive')
+      throw new Error('Khách thuê không tồn tại hoặc đã ngừng hoạt động.')
     }
     tenantForContract = tenant
 
@@ -279,13 +290,13 @@ export const createContract = async (data: Partial<Contract>): Promise<Contract>
         .limit(1)
     )
     if ((tenantActiveContracts || []).length > 0) {
-      throw new Error('Tenant already has an active contract in another room')
+      throw new Error('Khách thuê đang có hợp đồng hiệu lực ở phòng khác.')
     }
   }
 
   const tenantName = (data.tenant_name || tenantForContract?.full_name || '').trim()
   if (!tenantName) {
-    throw new Error('Missing tenant_name when creating contract')
+    throw new Error('Thiếu tên khách thuê khi tạo hợp đồng.')
   }
 
   const newContract = {
@@ -345,7 +356,7 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
         .limit(1)
     )
     if ((paidInvoices || []).length > 0) {
-      throw new Error('Cannot cancel contract with paid/partial invoices; use terminate flow')
+      throw new Error('Không thể hủy hợp đồng đã có hóa đơn đã thanh toán hoặc thanh toán một phần. Vui lòng dùng chức năng chấm dứt hợp đồng.')
     }
   }
 
@@ -363,11 +374,11 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
       .eq('tenant_id', contract.tenant_id)
       .in('payment_status', ['unpaid'])
   }
-  await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Cancel contract]' }).eq('id', contract.id))
+  await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Hủy hợp đồng]' }).eq('id', contract.id))
 }
 
 export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
-  if (!data.contract_id) throw new Error('Khong tim thay hop dong dang hieu luc de tat toan.')
+  if (!data.contract_id) throw new Error('Không tìm thấy hợp đồng đang hiệu lực để tất toán.')
   await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
   await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
   if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
@@ -392,16 +403,26 @@ export const getInvoices = async (): Promise<Invoice[]> => {
   return data || []
 }
 
+export const getRoomInvoices = async (): Promise<Invoice[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
 export const getInvoicesByRoom = async (roomId: string): Promise<Invoice[]> => {
   const data = await safeQuery(() => supabase.from('invoices').select('*').eq('room_id', roomId).order('created_at', { ascending: false }))
   return data || []
 }
 
 export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invoice> => {
-  if (!invoiceData.room_id) throw new Error('Missing room_id when creating invoice')
-  if (!invoiceData.tenant_id) throw new Error('Missing tenant_id when creating invoice')
+  if (!invoiceData.room_id) throw new Error('Thiếu room_id khi tạo hóa đơn.')
+  if (!invoiceData.tenant_id) throw new Error('Thiếu tenant_id khi tạo hóa đơn.')
   if (!isValidNumber(invoiceData.month) || !isValidNumber(invoiceData.year)) {
-    throw new Error('Missing invoice period (month/year)')
+    throw new Error('Thiếu kỳ hóa đơn (tháng/năm).')
   }
 
   const month = invoiceData.month
@@ -437,17 +458,17 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
   const [dupRes, firstMonthGateRes] = await Promise.all(checks)
   if ((dupRes?.data || []).length > 0) {
     if (invoiceData.is_first_month) {
-      throw new Error('First-month invoice already exists for this tenant in this month')
+      throw new Error('Đã tồn tại hóa đơn tháng đầu cho khách thuê này trong tháng hiện tại.')
     }
-    throw new Error('Duplicate invoice type for this tenant in the same month')
+    throw new Error('Loại hóa đơn này đã tồn tại cho khách thuê trong cùng tháng.')
   }
   if ((firstMonthGateRes?.data || []).length > 0) {
-    throw new Error('Current month already has a first-month invoice; create from next month')
+    throw new Error('Tháng hiện tại đã có hóa đơn tháng đầu; vui lòng tạo từ tháng kế tiếp.')
   }
 
   const period = normalizeDateToMonthYear(invoiceData.billing_period_start || invoiceData.invoice_date)
   if (invoiceData.is_first_month && period && (period.month !== month || period.year !== year)) {
-    throw new Error('First-month invoice must match move-in month/year')
+    throw new Error('Hóa đơn tháng đầu phải trùng tháng/năm vào ở.')
   }
 
   const { allow_duplicate: _dup, ...invoiceInsertData } = invoiceData as any
@@ -471,7 +492,7 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
 export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string }): Promise<Invoice> => {
   const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
   if (error) throw new Error(error.message)
-  if (!inv) throw new Error('Invoice not found')
+  if (!inv) throw new Error('Không tìm thấy hóa đơn.')
   const newPaidAmount = (inv.paid_amount || 0) + data.amount
   const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: newPaidAmount >= inv.total_amount ? 'paid' : 'partial', payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
@@ -529,6 +550,17 @@ export const deleteAssetTemplate = async (id: string): Promise<void> => {
 export const getAssetSnapshots = async (roomId: string, type?: string): Promise<AssetSnapshot[]> => {
   let q = supabase.from('asset_snapshots').select('*').eq('room_id', roomId)
   if (type) q = q.eq('type', type)
+  const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
+  return data || []
+}
+
+export const getAssetSnapshotsByRoomIds = async (
+  roomIds: string[],
+  types?: Array<AssetSnapshot['type']>
+): Promise<AssetSnapshot[]> => {
+  if (roomIds.length === 0) return []
+  let q = supabase.from('asset_snapshots').select('*').in('room_id', roomIds)
+  if (types && types.length > 0) q = q.in('type', types)
   const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
   return data || []
 }
@@ -644,6 +676,16 @@ export const getMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
   return data || []
 }
 
+export const getRoomMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('move_in_receipts')
+      .select('*')
+      .order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
 export const getMoveInReceiptsByTenant = async (tenantId: string): Promise<MoveInReceipt[]> => {
   const data = await safeQuery(() => supabase.from('move_in_receipts').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }))
   return data || []
@@ -683,8 +725,9 @@ export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<
 }
 
 export const getUsers = async (): Promise<AppUser[]> => {
+  const client = supabaseAdmin ?? supabase
   const data = await safeQuery(() =>
-    supabase.from('users').select('*').order('created_at', { ascending: false })
+    client.from('users').select('*').order('created_at', { ascending: false })
   )
   return (data || []).map((row) => buildAppUser(row as Record<string, unknown>))
 }
@@ -692,29 +735,80 @@ export const getUsers = async (): Promise<AppUser[]> => {
 export const createUser = async (data: Partial<AppUser>): Promise<AppUser> => {
   const newUser = { ...data, id: createEntityId('user'), status: 'active', created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('users').insert(newUser).select().single())
-  return buildAppUser(result as Record<string, unknown>)
+  return buildAppUser((result || {}) as Record<string, unknown>)
+}
+
+export const createUserViaAdmin = async (data: {
+  email: string
+  password: string
+  full_name: string
+  username?: string
+  role?: UserRole
+}): Promise<AppUser> => {
+  if (!supabaseAdmin) {
+    throw new Error('Chức năng tạo tài khoản yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
+  }
+  const { data: authData, error } = await supabaseAdmin.auth.admin.createUser({
+    email: data.email.trim(),
+    password: data.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: data.full_name.trim(),
+      username: (data.username || data.email.split('@')[0]).trim()
+    }
+  })
+  if (error) throw new Error(error.message)
+
+  if (data.role === 'admin' && authData.user) {
+    await supabase.from('users').update({ role: 'admin' }).eq('id', authData.user.id)
+  }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', authData.user!.id)
+    .maybeSingle()
+
+  return buildAppUser(
+    (profile || {
+      id: authData.user!.id,
+      email: authData.user!.email,
+      full_name: data.full_name.trim(),
+      username: (data.username || data.email.split('@')[0]).trim(),
+      role: data.role || 'user',
+      status: 'active',
+      created_at: authData.user!.created_at
+    }) as Record<string, unknown>
+  )
 }
 
 export const updateUser = async (id: string, updates: Partial<AppUser>): Promise<AppUser> => {
-  const result = await safeQuery(() => supabase.from('users').update(updates).eq('id', id).select().single())
-  return buildAppUser(result as Record<string, unknown>)
+  const client = supabaseAdmin ?? supabase
+  const result = await safeQuery(() => client.from('users').update(updates).eq('id', id).select().single())
+  return buildAppUser((result || {}) as Record<string, unknown>)
 }
 
 export const updateUserRole = async (userId: string, role: UserRole): Promise<AppUser> => { return updateUser(userId, { role }) }
 export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => { return updateUser(userId, { status }) }
-export const resetUserPassword = async (userId: string, password_hash: string): Promise<AppUser> => { return updateUser(userId, { password_hash }) }
+export const updateUserProfile = async (userId: string, data: { full_name: string }): Promise<AppUser> => { return updateUser(userId, data) }
+export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+  if (!supabaseAdmin) throw new Error('Chức năng đổi mật khẩu yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
+  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })
+  if (error) throw new Error(error.message)
+}
 
 export const deleteUser = async (id: string): Promise<void> => {
-  await safeQuery(() => supabase.from('users').delete().eq('id', id))
+  if (!supabaseAdmin) throw new Error('Chức năng xóa tài khoản yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
+  if (error) throw new Error(error.message)
 }
 
 export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
-  const {
-    data: { user },
-    error
-  } = await supabase.auth.getUser()
-  if (error) throw new Error(error.message)
-  if (!user) return null
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  console.log('[Auth] getSession:', session ? `HAS SESSION (user: ${session.user?.email})` : 'NO SESSION', sessionError || '')
+  if (sessionError) throw new Error(sessionError.message)
+  if (!session?.user) return null
+  const user = session.user
 
   const { data: profile, error: profileError } = await supabase
     .from('users')
@@ -760,6 +854,7 @@ export const signOutUser = async (): Promise<void> => {
 // =========================================================
 export const dbOptions = { readDB: () => ({ users: [], app_settings: {} }), writeDB: () => { } }
 export async function getDB() { return {} }
+
 
 
 

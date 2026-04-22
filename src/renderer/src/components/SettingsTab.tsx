@@ -4,20 +4,19 @@ import {
   ArrowUpDown,
   CheckCircle2,
   Filter,
-  Key,
-  Lock,
   MoreVertical,
   Plus,
   RefreshCcw,
   Search,
   ShieldCheck,
-  UserPlus,
   XCircle
 } from 'lucide-react'
 import {
   createServiceZone,
   createUser,
+  createUserViaAdmin,
   deleteServiceZone,
+  deleteUser,
   getAppSettings,
   getContracts,
   getRooms,
@@ -26,6 +25,7 @@ import {
   resetUserPassword,
   updateAppSettings,
   updateServiceZone,
+  updateUserProfile,
   updateUserRole,
   updateUserStatus,
   type AppSettings,
@@ -145,12 +145,7 @@ const GeneralSettings = (): React.JSX.Element => {
               onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_phone: value }))}
               placeholder="SĐT"
             />
-            <Field
-              label="CCCD Người đại diện"
-              value={settings.property_owner_id_card || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_id_card: value }))}
-              placeholder="Số CCCD"
-            />
+
             <Field
               label="Địa chỉ nhà trọ"
               value={settings.property_address || ''}
@@ -536,25 +531,60 @@ void UsersSettings
 
 const UsersSettingsPanel = (): React.JSX.Element => {
   const queryClient = useQueryClient()
-  const { data: users = [], isLoading } = useQuery({ queryKey: ['users'], queryFn: getUsers })
-  const [form, setForm] = useState({
-    username: '',
-    full_name: '',
-    password: '',
-    role: 'user' as UserRole
+  const { data: users = [], isLoading, error: usersError } = useQuery({
+    queryKey: ['users'],
+    queryFn: getUsers
   })
-  const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({})
   const [showAddForm, setShowAddForm] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [sortBy, setSortBy] = useState<'name' | 'username' | 'role'>('name')
+  const [newUserForm, setNewUserForm] = useState({
+    email: '',
+    password: '',
+    full_name: '',
+    role: 'user' as UserRole
+  })
 
-  const createMutation = useMutation({
-    mutationFn: createUser,
+  const createUserMutation = useMutation({
+    mutationFn: createUserViaAdmin,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      setForm({ username: '', full_name: '', password: '', role: 'user' })
       setShowAddForm(false)
+      setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
+    }
+  })
+
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null)
+  const [editForm, setEditForm] = useState({ full_name: '' })
+  const [passwordUser, setPasswordUser] = useState<AppUser | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { full_name: string } }) =>
+      updateUserProfile(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setEditingUser(null)
+    }
+  })
+
+  const passwordMutation = useMutation({
+    mutationFn: ({ id, password }: { id: string; password: string }) =>
+      resetUserPassword(id, password),
+    onSuccess: () => {
+      setPasswordUser(null)
+      setNewPassword('')
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setDeletingUser(null)
     }
   })
 
@@ -569,21 +599,12 @@ const UsersSettingsPanel = (): React.JSX.Element => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] })
   })
 
-  const resetPasswordMutation = useMutation({
-    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
-      resetUserPassword(userId, password),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      setResetPasswords((prev) => ({ ...prev, [variables.userId]: '' }))
-    }
-  })
-
   const filteredUsers = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase()
     const nextUsers = users.filter((user) => {
       if (statusFilter !== 'all' && user.status !== statusFilter) return false
       if (!keyword) return true
-      return [user.username, user.full_name, accountRoleLabel(user.role)].some((value) =>
+      return [user.username, user.email || '', user.full_name, accountRoleLabel(user.role)].some((value) =>
         value.toLowerCase().includes(keyword)
       )
     })
@@ -601,12 +622,8 @@ const UsersSettingsPanel = (): React.JSX.Element => {
   const activeUsers = users.filter((user) => user.status === 'active').length
   const adminUsers = users.filter((user) => user.role === 'admin').length
 
-  const handleCreateUser = () => {
-    if (!form.username.trim() || !form.full_name.trim() || !form.password.trim()) return
-    createMutation.mutate(form as Partial<AppUser>)
-  }
-
   return (
+    <>
     <div className="app-system-font flex min-h-full flex-col bg-[#f5f7fb]">
       <div className="border-b border-slate-200 bg-white px-6 py-5 md:px-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -695,55 +712,80 @@ const UsersSettingsPanel = (): React.JSX.Element => {
             </div>
           </div>
 
+          {usersError && (
+            <div className="border-b border-rose-100 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+              {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
+            </div>
+          )}
+
           {showAddForm && (
             <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] px-6 py-6">
-              <div className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-bold text-[#00558d]">
-                      <UserPlus size={16} />
-                      Tạo tài khoản mới
-                    </div>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Khởi tạo tài khoản nội bộ với quyền truy cập phù hợp. Có thể đổi vai trò hoặc
-                      vô hiệu hóa sau khi tạo.
-                    </p>
-                  </div>
-                  <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
-                    Nội bộ
-                  </div>
-                </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  createUserMutation.mutate(newUserForm)
+                }}
+                className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <div className="mb-5 text-sm font-bold text-[#00558d]">Tạo tài khoản mới</div>
 
-                <div className="mt-6 grid gap-5 md:grid-cols-2">
-                  <Field
-                    label="Username"
-                    value={form.username}
-                    onChange={(value) => setForm((prev) => ({ ...prev, username: value }))}
-                    placeholder="admin_system"
-                  />
-                  <Field
-                    label="Họ và tên"
-                    value={form.full_name}
-                    onChange={(value) => setForm((prev) => ({ ...prev, full_name: value }))}
-                    placeholder="Nguyễn Văn Admin"
-                  />
-                  <Field
-                    label="Mật khẩu khởi tạo"
-                    value={form.password}
-                    onChange={(value) => setForm((prev) => ({ ...prev, password: value }))}
-                    type="password"
-                    placeholder="Nhập mật khẩu"
-                  />
-                  <div>
-                    <label className="mb-2 block text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Vai trò
+                {createUserMutation.error && (
+                  <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    {createUserMutation.error instanceof Error
+                      ? createUserMutation.error.message
+                      : 'Có lỗi xảy ra khi tạo tài khoản.'}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">
+                      Email <span className="text-rose-500">*</span>
                     </label>
+                    <input
+                      type="email"
+                      required
+                      value={newUserForm.email}
+                      onChange={(e) => setNewUserForm((f) => ({ ...f, email: e.target.value }))}
+                      placeholder="example@email.com"
+                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">
+                      Mật khẩu <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={newUserForm.password}
+                      onChange={(e) => setNewUserForm((f) => ({ ...f, password: e.target.value }))}
+                      placeholder="Tối thiểu 6 ký tự"
+                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">
+                      Họ tên <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newUserForm.full_name}
+                      onChange={(e) => setNewUserForm((f) => ({ ...f, full_name: e.target.value }))}
+                      placeholder="Nguyễn Văn A"
+                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-600">Vai trò</label>
                     <select
-                      value={form.role}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, role: event.target.value as UserRole }))
+                      value={newUserForm.role}
+                      onChange={(e) =>
+                        setNewUserForm((f) => ({ ...f, role: e.target.value as UserRole }))
                       }
-                      className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                     >
                       <option value="user">Người dùng</option>
                       <option value="admin">Quản trị viên</option>
@@ -751,41 +793,27 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                   </div>
                 </div>
 
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <Lock size={15} className="text-slate-400" />
-                    Mật khẩu có thể được đổi lại ở từng dòng tài khoản.
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setShowAddForm(false)}
-                      className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
-                    >
-                      Hủy bỏ
-                    </button>
-                    <button
-                      onClick={handleCreateUser}
-                      disabled={
-                        createMutation.isPending ||
-                        !form.username.trim() ||
-                        !form.full_name.trim() ||
-                        !form.password.trim()
-                      }
-                      className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {createMutation.isPending ? 'Đang tạo...' : 'Lưu thông tin'}
-                    </button>
-                  </div>
+                <div className="mt-6 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddForm(false)
+                      setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
+                      createUserMutation.reset()
+                    }}
+                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createUserMutation.isPending}
+                    className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:opacity-60"
+                  >
+                    {createUserMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
+                  </button>
                 </div>
-
-                {createMutation.error && (
-                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {createMutation.error instanceof Error
-                      ? createMutation.error.message
-                      : 'Không thể tạo tài khoản.'}
-                  </div>
-                )}
-              </div>
+              </form>
             </div>
           )}
 
@@ -797,7 +825,7 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                   <th className="px-6 py-4">Vai trò</th>
                   <th className="px-6 py-4">Trạng thái</th>
                   <th className="px-6 py-4">Hoạt động</th>
-                  <th className="px-6 py-4">Bảo mật</th>
+                  <th className="px-6 py-4">Thông tin</th>
                   <th className="px-6 py-4 text-right">Thao tác</th>
                 </tr>
               </thead>
@@ -824,10 +852,6 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                   </tr>
                 )}
                 {filteredUsers.map((user) => {
-                  const resetValue = resetPasswords[user.id] || ''
-                  const isResetting =
-                    resetPasswordMutation.isPending &&
-                    resetPasswordMutation.variables?.userId === user.id
                   const isUpdatingStatus =
                     statusMutation.isPending && statusMutation.variables?.userId === user.id
                   const isUpdatingRole =
@@ -890,7 +914,7 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                           }`}
                         >
                           <CheckCircle2 size={14} />
-                          {user.status === 'active' ? 'Active' : 'Inactive'}
+                          {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
                         </span>
                       </td>
                       <td className="px-6 py-5">
@@ -906,38 +930,11 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                         </div>
                       </td>
                       <td className="px-6 py-5">
-                        <div className="flex items-center gap-2">
-                          <div className="relative w-full max-w-[220px]">
-                            <Lock
-                              size={15}
-                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                            />
-                            <input
-                              type="password"
-                              value={resetValue}
-                              onChange={(event) =>
-                                setResetPasswords((prev) => ({
-                                  ...prev,
-                                  [user.id]: event.target.value
-                                }))
-                              }
-                              placeholder="Mật khẩu mới"
-                              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-                            />
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium text-slate-700">
+                            {user.email || '@' + user.username}
                           </div>
-                          <button
-                            onClick={() =>
-                              resetPasswordMutation.mutate({
-                                userId: user.id,
-                                password: resetValue
-                              })
-                            }
-                            disabled={!resetValue.trim() || isResetting}
-                            className="inline-flex h-10 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Key size={14} />
-                            {isResetting ? 'Đang reset' : 'Reset'}
-                          </button>
+                          <div className="text-xs text-slate-400">ID: {user.id.slice(0, 8)}</div>
                         </div>
                       </td>
                       <td className="px-6 py-5">
@@ -958,12 +955,48 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                           >
                             {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
                           </button>
-                          <button
-                            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                            title="Tùy chọn tài khoản"
-                          >
-                            <MoreVertical size={16} />
-                          </button>
+                          <div className="relative">
+                            <button
+                              onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
+                            {openMenuId === user.id && (
+                              <div className="absolute right-0 top-11 z-50 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                                <button
+                                  onClick={() => {
+                                    setEditForm({ full_name: user.full_name })
+                                    setEditingUser(user)
+                                    setOpenMenuId(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                >
+                                  Sửa thông tin
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setPasswordUser(user)
+                                    setNewPassword('')
+                                    setOpenMenuId(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                >
+                                  Đổi mật khẩu
+                                </button>
+                                <div className="border-t border-slate-100" />
+                                <button
+                                  onClick={() => {
+                                    setDeletingUser(user)
+                                    setOpenMenuId(null)
+                                  }}
+                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50"
+                                >
+                                  Xóa tài khoản
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -979,7 +1012,7 @@ const UsersSettingsPanel = (): React.JSX.Element => {
             </span>
             <div className="flex items-center gap-2">
               <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                Active: {activeUsers}
+                Đang hoạt động: {activeUsers}
               </span>
               <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
                 Admin: {adminUsers}
@@ -989,6 +1022,110 @@ const UsersSettingsPanel = (): React.JSX.Element => {
         </div>
       </div>
     </div>
+
+    {/* Modal sửa thông tin */}
+    {editingUser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            editMutation.mutate({ id: editingUser.id, data: editForm })
+          }}
+          className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
+        >
+          <div className="mb-5 text-base font-bold text-slate-800">Sửa thông tin tài khoản</div>
+          {editMutation.error && (
+            <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {editMutation.error instanceof Error ? editMutation.error.message : 'Có lỗi xảy ra.'}
+            </div>
+          )}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-600">Họ tên <span className="text-rose-500">*</span></label>
+              <input
+                type="text"
+                required
+                value={editForm.full_name}
+                onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
+                className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <button type="button" onClick={() => setEditingUser(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
+            <button type="submit" disabled={editMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
+              {editMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+
+    {/* Modal đổi mật khẩu */}
+    {passwordUser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            passwordMutation.mutate({ id: passwordUser.id, password: newPassword })
+          }}
+          className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
+        >
+          <div className="mb-1 text-base font-bold text-slate-800">Đổi mật khẩu</div>
+          <div className="mb-5 text-sm text-slate-500">@{passwordUser.username}</div>
+          {passwordMutation.error && (
+            <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {passwordMutation.error instanceof Error ? passwordMutation.error.message : 'Có lỗi xảy ra.'}
+            </div>
+          )}
+          {passwordMutation.isSuccess && (
+            <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Đổi mật khẩu thành công.</div>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-600">Mật khẩu mới <span className="text-rose-500">*</span></label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Tối thiểu 6 ký tự"
+              className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <button type="button" onClick={() => { setPasswordUser(null); setNewPassword(''); passwordMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
+            <button type="submit" disabled={passwordMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
+              {passwordMutation.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+
+    {/* Modal xác nhận xóa */}
+    {deletingUser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+        <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="mb-2 text-base font-bold text-slate-800">Xóa tài khoản?</div>
+          <p className="text-sm text-slate-500">
+            Tài khoản <span className="font-bold text-slate-700">@{deletingUser.username}</span> ({deletingUser.email}) sẽ bị xóa vĩnh viễn và không thể khôi phục.
+          </p>
+          {deleteMutation.error && (
+            <div className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {deleteMutation.error instanceof Error ? deleteMutation.error.message : 'Có lỗi xảy ra.'}
+            </div>
+          )}
+          <div className="mt-6 flex justify-end gap-3">
+            <button onClick={() => { setDeletingUser(null); deleteMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
+            <button onClick={() => deleteMutation.mutate(deletingUser.id)} disabled={deleteMutation.isPending} className="rounded-xl bg-rose-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-600 disabled:opacity-60">
+              {deleteMutation.isPending ? 'Đang xóa...' : 'Xóa tài khoản'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

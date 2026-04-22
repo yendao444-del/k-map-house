@@ -31,26 +31,6 @@ interface ZaloAPI {
   send: (payload: ZaloSendPayload) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
 }
 
-interface AuthSession {
-  id: string
-  username: string
-  role: UserRole
-}
-
-interface AuthAPI {
-  ensureAdmin: () => Promise<void>
-  login: (
-    username: string,
-    password: string
-  ) => Promise<{ ok: boolean; user?: AppUser; error?: string }>
-  logout: () => Promise<{ ok: boolean }>
-  session: () => Promise<AuthSession | null>
-  updateUser: (
-    userId: string,
-    updates: { full_name?: string; avatar_url?: string }
-  ) => Promise<{ ok: boolean; user?: AppUser; error?: string }>
-}
-
 interface UpdateCheckResult {
   currentVersion: string
   latestVersion: string
@@ -111,7 +91,6 @@ declare global {
     api: {
       db: DbAPI
       zalo: ZaloAPI
-      auth: AuthAPI
       update: UpdateAPI
     }
   }

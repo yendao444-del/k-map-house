@@ -32,7 +32,7 @@ export const InvoicesTab: React.FC = () => {
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
 
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
-  const { data: appSettings = {} } = useQuery({ queryKey: ['app_settings'], queryFn: getAppSettings });
+  const { data: appSettings = {} } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
@@ -103,6 +103,12 @@ export const InvoicesTab: React.FC = () => {
     [invoices, selectedMonth, selectedYear]
   );
 
+  const roomNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const room of rooms) map.set(room.id, room.name || '');
+    return map;
+  }, [rooms]);
+
   const statusCounts = useMemo(() => ({
     paid: monthInvoices.filter(i => i.payment_status === 'paid' && !i.is_settlement).length,
     unpaid: monthInvoices.filter(i => i.payment_status === 'unpaid' && !i.is_settlement).length,
@@ -113,6 +119,7 @@ export const InvoicesTab: React.FC = () => {
   }), [monthInvoices]);
 
   const filteredInvoices = useMemo(() => {
+    const normalizedSearch = searchQuery.toLowerCase();
     const result = monthInvoices.filter(inv => {
       // Hóa đơn đã hủy hợp đồng
       if (inv.payment_status === 'cancelled') return filters.cancelled;
@@ -124,21 +131,21 @@ export const InvoicesTab: React.FC = () => {
       if (inv.payment_status === 'paid' && !filters.paid) return false;
       if (inv.payment_status === 'unpaid' && !filters.unpaid) return false;
       if (inv.payment_status === 'partial' && !filters.partial) return false;
-      const room = rooms.find(r => r.id === inv.room_id);
-      return (room?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const roomName = roomNameById.get(inv.room_id) || '';
+      return roomName.toLowerCase().includes(normalizedSearch);
     }).filter(inv => {
-      const room = rooms.find(r => r.id === inv.room_id);
-      return (room?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const roomName = roomNameById.get(inv.room_id) || '';
+      return roomName.toLowerCase().includes(normalizedSearch);
     });
     return result.sort((a, b) => {
-      const roomA = rooms.find(r => r.id === a.room_id)?.name || '';
-      const roomB = rooms.find(r => r.id === b.room_id)?.name || '';
+      const roomA = roomNameById.get(a.room_id) || '';
+      const roomB = roomNameById.get(b.room_id) || '';
       if (sortOrder === 'room_asc') return roomA.localeCompare(roomB);
       if (sortOrder === 'room_desc') return roomB.localeCompare(roomA);
       if (sortOrder === 'amount_desc') return b.total_amount - a.total_amount;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [monthInvoices, filters, rooms, searchQuery, sortOrder]);
+  }, [monthInvoices, filters, roomNameById, searchQuery, sortOrder]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">

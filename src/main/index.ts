@@ -1,34 +1,12 @@
 import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
-import bcrypt from 'bcryptjs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerUpdateHandlers } from './update-handlers'
 
-type UserRole = 'admin' | 'user'
-type UserStatus = 'active' | 'inactive'
-
-interface AppUser {
-  id: string
-  username: string
-  full_name: string
-  password_hash: string
-  role: UserRole
-  status: UserStatus
-  last_login_at?: string
-  created_at: string
-}
-
 interface DBState {
-  users?: AppUser[]
   [key: string]: unknown
-}
-
-interface SessionUser {
-  id: string
-  username: string
-  role: UserRole
 }
 
 interface ZaloSendPayload {
@@ -37,8 +15,6 @@ interface ZaloSendPayload {
   fileName: string
   message?: string
 }
-
-let currentSession: SessionUser | null = null
 
 function writeCrashLog(scope: string, error: unknown): void {
   try {
@@ -117,12 +93,6 @@ function writeDBFile(data: DBState): void {
   writeFileSync(getDBPath(), JSON.stringify(data, null, 2), 'utf-8')
 }
 
-function ensureBaseStructure(db: DBState | null): DBState {
-  const nextDb = db || {}
-  if (!Array.isArray(nextDb.users)) nextDb.users = []
-  return nextDb
-}
-
 function setupDBHandlers(): void {
   ipcMain.handle('db:read', () => readDBFile())
   ipcMain.handle('db:write', (_event, data: DBState) => {
@@ -144,7 +114,7 @@ function setupZaloHandlers(): void {
     try {
       const normalizedPhone = normalizeVietnamPhone(payload.phone)
       if (!normalizedPhone) {
-        return { ok: false, error: 'missing_phone' }
+        return { ok: false, error: 'Thiếu số điện thoại người nhận.' }
       }
 
       const tempDir = join(app.getPath('temp'), 'phongtro-zalo')
@@ -165,10 +135,15 @@ function setupZaloHandlers(): void {
         }
       })
 
-      writeFileSync(htmlPath, payload.html, 'utf-8')
+      const htmlWithTailwind = payload.html.replace(
+        '</head>',
+        '<script src="https://cdn.tailwindcss.com"></script></head>'
+      )
+      writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
       try {
         await captureWindow.loadFile(htmlPath)
-        await new Promise((resolve) => setTimeout(resolve, 350))
+        // Chờ Tailwind CDN load + render xong
+        await new Promise((resolve) => setTimeout(resolve, 1800))
         const image = await captureWindow.webContents.capturePage()
         writeFileSync(imagePath, image.toPNG())
         clipboard.writeImage(nativeImage.createFromPath(imagePath))
@@ -183,13 +158,13 @@ function setupZaloHandlers(): void {
       await shell.openExternal(`https://zalo.me/${normalizedPhone}`)
       return { ok: true, imagePath, phone: normalizedPhone }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'zalo_send_failed'
+      const message = error instanceof Error ? error.message : 'Không thể gửi nội dung qua Zalo.'
       return { ok: false, error: message }
     }
   })
 }
 
-function setupAuthHandlers(): void {
+/* function setupAuthHandlers(): void {
   ipcMain.handle('auth:ensureAdmin', async () => {
     const db = ensureBaseStructure(readDBFile())
     let changed = false
@@ -270,7 +245,7 @@ function setupAuthHandlers(): void {
       return { ok: false, error: error instanceof Error ? error.message : 'Cập nhật thất bại.' }
     }
   })
-}
+} */
 
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
@@ -354,7 +329,6 @@ app.whenReady().then(() => {
 
   ipcMain.on('ping', () => console.log('pong'))
 
-  setupAuthHandlers()
   setupDBHandlers()
   setupZaloHandlers()
   registerUpdateHandlers()

@@ -17,21 +17,6 @@ const api = {
     }): Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }> =>
       ipcRenderer.invoke('zalo:send', payload)
   },
-  auth: {
-    ensureAdmin: (): Promise<void> => ipcRenderer.invoke('auth:ensureAdmin'),
-    login: (
-      username: string,
-      password: string
-    ): Promise<{ ok: boolean; user?: unknown; error?: string }> =>
-      ipcRenderer.invoke('auth:login', username, password),
-    logout: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('auth:logout'),
-    session: (): Promise<unknown> => ipcRenderer.invoke('auth:session'),
-    updateUser: (
-      userId: string,
-      updates: { full_name?: string; avatar_url?: string }
-    ): Promise<{ ok: boolean; user?: unknown; error?: string }> =>
-      ipcRenderer.invoke('auth:updateUser', userId, updates)
-  },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),

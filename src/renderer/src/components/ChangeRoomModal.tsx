@@ -60,7 +60,9 @@ export function ChangeRoomModal({ room, onClose }: Props) {
     const mutation = useMutation({
         mutationFn: changeRoom,
         onSuccess: () => {
-            queryClient.invalidateQueries()
+            queryClient.invalidateQueries({ queryKey: ['rooms'] })
+            queryClient.invalidateQueries({ queryKey: ['contracts'] })
+            queryClient.invalidateQueries({ queryKey: ['invoices'] })
             onClose()
         },
         onError: (err: any) => {

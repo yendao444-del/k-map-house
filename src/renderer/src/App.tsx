@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   Home,
   FileText,
@@ -20,10 +20,10 @@ import {
   createServiceZone,
   updateServiceZone,
   deleteServiceZone,
-  getInvoices,
-  getContracts,
-  getMoveInReceipts,
-  getAssetSnapshots,
+  getRoomInvoices,
+  getActiveContracts,
+  getRoomMoveInReceipts,
+  getAssetSnapshotsByRoomIds,
   getAppSettings,
   getCurrentSessionUser,
   signOutUser,
@@ -1100,45 +1100,57 @@ const App: React.FC = () => {
     queryKey: ['serviceZones'],
     queryFn: getServiceZones
   })
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
-  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
+  const { data: invoices = [] } = useQuery({ queryKey: ['roomInvoices'], queryFn: getRoomInvoices })
+  const { data: contracts = [] } = useQuery({ queryKey: ['activeContracts'], queryFn: getActiveContracts })
   const { data: moveInReceipts = [] } = useQuery({
-    queryKey: ['moveInReceipts'],
-    queryFn: getMoveInReceipts
+    queryKey: ['roomMoveInReceipts'],
+    queryFn: getRoomMoveInReceipts
   })
   const { data: appSettings = {} } = useQuery({
     queryKey: ['appSettings'],
     queryFn: getAppSettings
   })
-  const roomIdsKey = rooms.map((room) => room.id).sort().join('|')
+  const roomIds = useMemo(() => rooms.map((room) => room.id), [rooms])
+  const roomIdsKey = useMemo(() => roomIds.slice().sort().join('|'), [roomIds])
   const { data: roomAssetWorkflow = {} } = useQuery<
     Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }>
   >({
     queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey],
     enabled: rooms.length > 0,
     queryFn: async () => {
-      const entries = await Promise.all(
-        rooms.map(async (room) => {
-          const [moveIn, moveOut, handover] = await Promise.all([
-            getAssetSnapshots(room.id, 'move_in'),
-            getAssetSnapshots(room.id, 'move_out'),
-            getAssetSnapshots(room.id, 'handover')
-          ])
+      const snapshots = await getAssetSnapshotsByRoomIds(roomIds, ['move_in', 'move_out', 'handover'])
+      const roomWorkflow: Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }> = {}
 
-          const hasHandover =
-            handover.length > 0 &&
-            HANDOVER_IDS.every((id) =>
-              handover.some(
-                (snap) =>
-                  getHandoverSnapshotKey(snap) === id &&
-                  (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
-              )
+      for (const roomId of roomIds) {
+        roomWorkflow[roomId] = { hasMoveIn: false, hasMoveOut: false, hasHandover: false }
+      }
+
+      const handoverByRoom = new Map<string, Array<{ room_asset_id: string; note?: string; condition: string; deduction?: number }>>()
+      for (const snap of snapshots) {
+        const roomState = roomWorkflow[snap.room_id]
+        if (!roomState) continue
+        if (snap.type === 'move_in') roomState.hasMoveIn = true
+        if (snap.type === 'move_out') roomState.hasMoveOut = true
+        if (snap.type === 'handover') {
+          const list = handoverByRoom.get(snap.room_id) || []
+          list.push(snap)
+          handoverByRoom.set(snap.room_id, list)
+        }
+      }
+
+      for (const [roomId, handover] of handoverByRoom.entries()) {
+        roomWorkflow[roomId].hasHandover =
+          handover.length > 0 &&
+          HANDOVER_IDS.every((id) =>
+            handover.some(
+              (snap) =>
+                getHandoverSnapshotKey(snap) === id &&
+                (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
             )
+          )
+      }
 
-          return [room.id, { hasMoveIn: moveIn.length > 0, hasMoveOut: moveOut.length > 0, hasHandover }] as const
-        })
-      )
-      return Object.fromEntries(entries)
+      return roomWorkflow
     }
   })
 
@@ -1260,7 +1272,8 @@ const App: React.FC = () => {
         }
         setAuthReady(true)
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[Auth] getCurrentSessionUser failed:', err)
         if (mounted) setAuthReady(true)
       })
 
@@ -1500,7 +1513,7 @@ const App: React.FC = () => {
       return
     }
 
-    const activeContract = contracts.find((c) => c.room_id === room.id && c.status === 'active')
+    const activeContract = activeContractByRoomId.get(room.id)
     const workflow = roomAssetWorkflow[room.id]
 
     if (activeContract && room.status === 'occupied' && !workflow?.hasMoveIn) {
@@ -1514,10 +1527,9 @@ const App: React.FC = () => {
     }
 
     const currentTenantId = activeContract?.tenant_id
-    const blockingInvoices = invoices
+    const blockingInvoices = (invoicesByRoomId.get(room.id) || [])
       .filter(
         (i) =>
-          i.room_id === room.id &&
           i.payment_status !== 'cancelled' &&
           i.payment_status !== 'merged' &&
           (i.payment_status === 'unpaid' || i.payment_status === 'partial') &&
@@ -1546,15 +1558,66 @@ const App: React.FC = () => {
   }
 
   // Đếm số lượng theo trạng thái
-  const counts = {
-    occupied: rooms.filter((r) => r.status === 'occupied').length,
-    vacant: rooms.filter((r) => r.status === 'vacant').length,
-    ending: rooms.filter((r) => r.status === 'ending').length,
-    expiring: 0
-  }
+  const activeContractByRoomId = useMemo(() => {
+    const map = new Map<string, (typeof contracts)[number]>()
+    for (const contract of contracts) {
+      if (contract.status !== 'active') continue
+      const current = map.get(contract.room_id)
+      if (!current || new Date(contract.created_at).getTime() > new Date(current.created_at).getTime()) {
+        map.set(contract.room_id, contract)
+      }
+    }
+    return map
+  }, [contracts])
+
+  const invoicesByRoomId = useMemo(() => {
+    const map = new Map<string, Invoice[]>()
+    for (const invoice of invoices) {
+      const list = map.get(invoice.room_id)
+      if (list) list.push(invoice)
+      else map.set(invoice.room_id, [invoice])
+    }
+    return map
+  }, [invoices])
+
+  const moveInReceiptsByRoomId = useMemo(() => {
+    const map = new Map<string, typeof moveInReceipts>()
+    for (const receipt of moveInReceipts) {
+      const list = map.get(receipt.room_id)
+      if (list) list.push(receipt)
+      else map.set(receipt.room_id, [receipt])
+    }
+    return map
+  }, [moveInReceipts])
+
+  const roomById = useMemo(() => {
+    const map = new Map<string, Room>()
+    for (const room of rooms) {
+      map.set(room.id, room)
+    }
+    return map
+  }, [rooms])
+
+  const serviceZoneById = useMemo(() => {
+    const map = new Map<string, ServiceZone>()
+    for (const zone of serviceZones) {
+      map.set(zone.id, zone)
+    }
+    return map
+  }, [serviceZones])
+
+  const counts = useMemo(
+    () => ({
+      occupied: rooms.filter((r) => r.status === 'occupied').length,
+      vacant: rooms.filter((r) => r.status === 'vacant').length,
+      ending: rooms.filter((r) => r.status === 'ending').length,
+      expiring: 0
+    }),
+    [rooms]
+  )
 
   // Lọc phòng theo checkbox + tìm kiếm
-  const filteredRooms = rooms.filter((room) => {
+  const filteredRooms = useMemo(() => rooms.filter((room) => {
     // Nếu không tick checkbox nào → hiện tất cả
     const anyFilterActive = filters.occupied || filters.vacant || filters.ending || filters.expiring
     if (anyFilterActive) {
@@ -1569,7 +1632,7 @@ const App: React.FC = () => {
       return room.name.toLowerCase().includes(searchQuery.toLowerCase())
     }
     return true
-  })
+  }), [rooms, filters, searchQuery])
 
   const isAllRoomFilter =
     !filters.occupied && !filters.vacant && !filters.ending && !filters.expiring
@@ -1608,33 +1671,17 @@ const App: React.FC = () => {
   const currentDay = new Date().getDate()
   let dueRoomsCount = 0
   const roomWarnings: Record<string, 'due' | 'unpaid' | null> = {}
-  const roomFirstMonthBlockedThisMonth: Record<string, boolean> = {}
 
   rooms.forEach((room) => {
     if (room.status === 'occupied') {
       // Due Date Check: Has the regular billing day passed without an invoice for THIS month?
       const invoiceDay = room.invoice_day || 5
       const isDueDate = currentDay >= invoiceDay
-      const currentInvoice = invoices.find(
-        (i) => i.room_id === room.id && i.month === currentMonth && i.year === currentYear
+      const currentInvoice = (invoicesByRoomId.get(room.id) || []).find(
+        (i) => i.month === currentMonth && i.year === currentYear
       )
 
       // Kiểm tra tháng này đã có phiếu tháng đầu của khách HIỆN TẠI chưa
-      const activeContract = contracts.find((c) => c.room_id === room.id && c.status === 'active')
-      const currentTenantId = activeContract?.tenant_id
-      const hasFirstMonthThisMonth =
-        !!currentTenantId &&
-        invoices.some(
-          (i) =>
-            i.room_id === room.id &&
-            i.tenant_id === currentTenantId &&
-            i.is_first_month &&
-            i.month === currentMonth &&
-            i.year === currentYear &&
-            i.payment_status !== 'cancelled'
-        )
-      roomFirstMonthBlockedThisMonth[room.id] = hasFirstMonthThisMonth
-
       if (!currentInvoice && isDueDate) {
         dueRoomsCount++
         roomWarnings[room.id] = 'due'
@@ -1712,7 +1759,7 @@ const App: React.FC = () => {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5)
     .map((invoice) => {
-      const room = rooms.find((item) => item.id === invoice.room_id)
+      const room = roomById.get(invoice.room_id)
       const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
       return {
         id: `invoice-${invoice.id}`,
@@ -1781,7 +1828,7 @@ const App: React.FC = () => {
         (() => {
           const inv = invoiceGuardNotice.invoice
           const remaining = Math.max(0, inv.total_amount - inv.paid_amount)
-          const room = rooms.find((r) => r.id === inv.room_id)
+          const room = roomById.get(inv.room_id)
           return (
             <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white shadow-2xl">
@@ -1981,7 +2028,7 @@ const App: React.FC = () => {
       {paymentInvoice && (
         <PaymentModal
           invoice={paymentInvoice}
-          room={rooms.find((r) => r.id === paymentInvoice.room_id)}
+          room={roomById.get(paymentInvoice.room_id)}
           onClose={() => setPaymentInvoice(null)}
         />
       )}
@@ -2430,26 +2477,22 @@ const App: React.FC = () => {
                     ) : (
                       filteredRooms.map((origRoom) => {
                         const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
-                        const zone = serviceZones.find((z) => z.id === room.service_zone_id) || {
+                        const zone = serviceZoneById.get(room.service_zone_id || '') || {
                           name: 'Chưa có',
                           electric_price: 0,
                           water_price: 0,
                           internet_price: 0,
                           cleaning_price: 0
                         }
-                        const activeContract = contracts.find(
-                          (c) => c.room_id === room.id && c.status === 'active'
-                        )
-                        const roomInvoices = invoices.filter(
+                        const activeContract = activeContractByRoomId.get(room.id)
+                        const roomInvoices = (invoicesByRoomId.get(room.id) || []).filter(
                           (i) =>
-                            i.room_id === room.id &&
                             i.payment_status !== 'cancelled' &&
                             i.payment_status !== 'merged'
                         )
-                        const roomMoveInReceipts = moveInReceipts.filter((r) => r.room_id === room.id)
-                        const checkInvoices = invoices.filter(
+                        const roomMoveInReceipts = moveInReceiptsByRoomId.get(room.id) || []
+                        const checkInvoices = (invoicesByRoomId.get(room.id) || []).filter(
                           (i) =>
-                            i.room_id === room.id &&
                             (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id) &&
                             new Date(
                               i.created_at || i.invoice_date || activeContract?.created_at || Date.now()
@@ -2793,7 +2836,7 @@ const App: React.FC = () => {
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         setMenuOpenId(null)
-                                        if (window.confirm('Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin tenant và reset phòng về "Đang trống".')) {
+                                        if (window.confirm('Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin khách thuê và đưa phòng về trạng thái "Đang trống".')) {
                                           updateRoom(room.id, {
                                             status: 'vacant',
                                             tenant_name: undefined,
@@ -2851,12 +2894,9 @@ const App: React.FC = () => {
                               </div>
                               {room.status === 'occupied' &&
                                 (() => {
-                                  const contract = contracts.find(
-                                    (c) => c.room_id === room.id && c.status === 'active'
-                                  )
-                                  if (!contract) return null
-                                  const paidRentInvoices = invoices.filter(
-                                    (i) => i.room_id === room.id && i.paid_amount > 0
+                                  if (!activeContract) return null
+                                  const paidRentInvoices = (invoicesByRoomId.get(room.id) || []).filter(
+                                    (i) => i.paid_amount > 0
                                   )
 
                                   return (
@@ -3008,16 +3048,15 @@ const App: React.FC = () => {
                                 if (room.status === 'vacant') {
                                   return <span className="text-gray-300 text-xs">—</span>
                                 }
-                                const receipt = moveInReceipts.find(
+                                const roomReceipts = moveInReceiptsByRoomId.get(room.id) || []
+                                const receipt = roomReceipts.find(
                                   (r) =>
-                                    r.room_id === room.id &&
                                     r.payment_status === 'paid' &&
                                     (!activeContract?.move_in_date ||
                                       r.move_in_date === activeContract.move_in_date)
                                 )
-                                const currentTenantInvoices = invoices.filter(
+                                const currentTenantInvoices = (invoicesByRoomId.get(room.id) || []).filter(
                                   (i) =>
-                                    i.room_id === room.id &&
                                     i.payment_status !== 'cancelled' &&
                                     (!activeContract?.tenant_id ||
                                       i.tenant_id === activeContract.tenant_id)
@@ -3075,13 +3114,9 @@ const App: React.FC = () => {
                                 if (room.status === 'vacant') {
                                   return <span className="text-gray-300 text-xs">—</span>
                                 }
-                                const activeContract = contracts.find(
-                                  (c) => c.room_id === room.id && c.status === 'active'
-                                )
-                                const debt = invoices
+                                const debt = (invoicesByRoomId.get(room.id) || [])
                                   .filter(
                                     (i) =>
-                                      i.room_id === room.id &&
                                       i.payment_status !== 'paid' &&
                                       i.payment_status !== 'cancelled' &&
                                       (!activeContract?.tenant_id ||
@@ -3122,9 +3157,6 @@ const App: React.FC = () => {
                                 if (room.status === 'vacant') {
                                   return <span className="text-gray-400 italic text-xs">Chưa có</span>
                                 }
-                                const activeContract = contracts.find(
-                                  (c) => c.room_id === room.id && c.status === 'active'
-                                )
                                 const moveInDate = activeContract?.move_in_date || room.move_in_date
 
                                 if (moveInDate) {
@@ -3203,13 +3235,11 @@ const App: React.FC = () => {
                               const today = new Date()
                               const currentMonth = today.getMonth() + 1
                               const currentYear = today.getFullYear()
-                              const hasActiveContract = contracts.find(
-                                (c) => c.room_id === room.id && c.status === 'active'
-                              )
-                              const roomMonthInvoices = invoices
+                              const hasActiveContract = activeContract
+                              const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
+                              const roomMonthInvoices = roomInvoicesAll
                                 .filter(
                                   (i) =>
-                                    i.room_id === room.id &&
                                     i.month === currentMonth &&
                                     i.year === currentYear &&
                                     i.payment_status !== 'cancelled' &&
@@ -3224,10 +3254,9 @@ const App: React.FC = () => {
                                     new Date(a.created_at).getTime()
                                 )
 
-                              const currentTenantInvoices = invoices
+                              const currentTenantInvoices = roomInvoicesAll
                                 .filter(
                                   (i) =>
-                                    i.room_id === room.id &&
                                     i.payment_status !== 'cancelled' &&
                                     i.payment_status !== 'merged' &&
                                     (!hasActiveContract?.tenant_id ||
