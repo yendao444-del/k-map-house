@@ -61,6 +61,7 @@ export const InvoicesTab: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
       setDeletingId(null);
       setDeleteError(null);
     },
@@ -329,7 +330,16 @@ export const InvoicesTab: React.FC = () => {
                       <td className="px-3 py-3">
                         <div className="font-bold text-gray-800">{room?.name || 'Phòng đã xóa'}</div>
                         <div className="text-[11px] text-gray-400 mt-0.5">{label}</div>
-                        <div className="text-[10px] text-gray-400">({new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('vi-VN')})</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                          <i className="fa-regular fa-clock text-[9px]"></i>
+                          {new Date(invoice.created_at).toLocaleString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })}
+                        </div>
                       </td>
 
                       {/* Tiền phòng + date range */}
@@ -356,9 +366,14 @@ export const InvoicesTab: React.FC = () => {
                       {/* Thu/trả cọc */}
                       <td className="px-3 py-3 text-right">
                         {depositAmt !== 0 ? (
-                          <span className={`font-semibold tabular-nums ${depositAmt < 0 ? 'text-red-500' : 'text-gray-700'}`}>
-                            {depositAmt < 0 ? '-' : ''}{formatVND(Math.abs(depositAmt))} đ
-                          </span>
+                          <div>
+                            <span className={`font-semibold tabular-nums ${depositAmt < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
+                              {depositAmt < 0 ? '-' : '+'}{formatVND(Math.abs(depositAmt))} đ
+                            </span>
+                            {isSettlement && depositAmt < 0 && (
+                              <div className="text-[10px] text-blue-500 font-medium mt-0.5">Hoàn cọc</div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-400">0 đ</span>
                         )}
@@ -367,9 +382,14 @@ export const InvoicesTab: React.FC = () => {
                       {/* Cộng thêm / Giảm trừ */}
                       <td className="px-3 py-3 text-right">
                         {adjustmentAmt !== 0 ? (
-                          <span className={`font-semibold tabular-nums ${adjustmentAmt < 0 ? 'text-red-500' : 'text-gray-700'}`}>
-                            {adjustmentAmt < 0 ? '-' : ''}{formatVND(Math.abs(adjustmentAmt))} đ
-                          </span>
+                          <div>
+                            <span className={`font-semibold tabular-nums ${adjustmentAmt < 0 ? 'text-red-500' : 'text-orange-600'}`}>
+                              {adjustmentAmt < 0 ? '-' : '+'}{formatVND(Math.abs(adjustmentAmt))} đ
+                            </span>
+                            {isSettlement && adjustmentAmt > 0 && invoice.adjustment_note && (
+                              <div className="text-[10px] text-orange-500 font-medium mt-0.5 max-w-[100px] truncate" title={invoice.adjustment_note}>{invoice.adjustment_note}</div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-gray-400">0 đ</span>
                         )}
@@ -497,6 +517,7 @@ export const InvoicesTab: React.FC = () => {
         const invoice = filteredInvoices.find(i => i.id === openMenuId);
         if (!invoice) return null;
         const isPaidMenu = invoice.payment_status === 'paid';
+        const canEditInvoice = invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0;
         return (
           <div
             ref={menuRef}
@@ -518,10 +539,16 @@ export const InvoicesTab: React.FC = () => {
               </button>
             )}
             <button
-              onClick={() => { setEditingInvoice(invoice); setOpenMenuId(null); }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 font-semibold"
+              onClick={() => {
+                if (!canEditInvoice) return;
+                setEditingInvoice(invoice);
+                setOpenMenuId(null);
+              }}
+              disabled={!canEditInvoice}
+              className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canEditInvoice ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 cursor-not-allowed'}`}
+              title={canEditInvoice ? 'Sua hoa don' : 'Hoa don da thu tien, khong cho sua so tien'}
             >
-              <i className="fa-solid fa-pen-to-square w-4"></i>Sửa hóa đơn
+              <i className="fa-solid fa-pen-to-square w-4"></i>{canEditInvoice ? 'Sua hoa don' : 'Da khoa sua'}
             </button>
             <button
               onClick={() => { setDeletingId(invoice.id); setDeleteError(null); setOpenMenuId(null); }}

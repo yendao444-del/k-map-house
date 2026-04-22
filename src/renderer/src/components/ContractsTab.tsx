@@ -60,6 +60,7 @@ const EditContractModal: React.FC<EditContractModalProps> = ({ contract, onClose
     onSuccess: () => {
       playSuccess()
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       onClose()
     },

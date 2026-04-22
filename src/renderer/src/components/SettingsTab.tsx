@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpDown,
@@ -82,7 +82,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
       </div>
 
       <div className="relative flex-1 overflow-y-auto bg-white">
-        {activeTab === 'general' && <GeneralSettings />}
+        {activeTab === 'general' && <GeneralSettingsSafe />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
         {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel />}
         {activeTab === 'updates' && <ProductionUpdateSettings />}
@@ -91,114 +91,510 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
   )
 }
 
-const GeneralSettings = (): React.JSX.Element => {
+function normalizeAccountHolderName(name: string, enforceUpper = true): string {
+  let str = name || '';
+  str = str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  str = str.replace(/đ/g, 'd').replace(/Đ/g, 'D');
+  str = str.replace(/[^a-zA-Z0-9 ]/g, '');
+  if (enforceUpper) {
+    str = str.toUpperCase();
+  }
+  return str;
+}
+
+function isAsciiUpperName(name: string): boolean {
+  if (!name) return false;
+  return /^[A-Z0-9 ]+$/.test(name);
+}
+
+function buildVietQrPreviewUrl(bankId: string, accountNo: string, accountName: string): string {
+  const url = new URL('https://qr.sepay.vn/img');
+  url.searchParams.append('bank', bankId);
+  url.searchParams.append('acc', accountNo);
+  url.searchParams.append('template', 'compact');
+  url.searchParams.append('amount', '0');
+  url.searchParams.append('des', 'DBY HOME');
+  url.searchParams.append('name', accountName);
+  return url.toString();
+}
+
+const GeneralSettingsSafe = (): React.JSX.Element => {
   const [settings, setSettings] = useState<AppSettings>({})
+  const [initialSettings, setInitialSettings] = useState<AppSettings>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  const [savingInfo, setSavingInfo] = useState(false)
+  const [savingPayment, setSavingPayment] = useState(false)
+  const [savedInfo, setSavedInfo] = useState(false)
+  const [savedPayment, setSavedPayment] = useState(false)
+  const [infoError, setInfoError] = useState('')
+  const [paymentError, setPaymentError] = useState('')
+  const [showBankDropdown, setShowBankDropdown] = useState(false)
+  const [qrPreviewUrl, setQrPreviewUrl] = useState('')
+  const [qrPreviewError, setQrPreviewError] = useState('')
+  const [isLookingUp, setIsLookingUp] = useState(false)
+  const propertyNameInputRef = useRef<HTMLInputElement | null>(null)
+  const bankDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  const bankOptions = [
+    { id: 'VCB', bin: '970436', label: 'Vietcombank' },
+    { id: 'MBBANK', bin: '970422', label: 'MB Bank' },
+    { id: 'TCB', bin: '970407', label: 'Techcombank' },
+    { id: 'ACB', bin: '970416', label: 'ACB' },
+    { id: 'BIDV', bin: '970418', label: 'BIDV' },
+    { id: 'VPB', bin: '970432', label: 'VPBank' },
+    { id: 'TPB', bin: '970423', label: 'TPBank' },
+    { id: 'AGRIBANK', bin: '970405', label: 'Agribank' },
+    { id: 'SHB', bin: '970443', label: 'SHBank' },
+    { id: 'OCB', bin: '970448', label: 'OCB' },
+    { id: 'MSB', bin: '970426', label: 'MSB' },
+    { id: 'VIB', bin: '970441', label: 'VIB' },
+    { id: 'HDB', bin: '970437', label: 'HDBank' },
+    { id: 'SCB', bin: '970429', label: 'SCB' },
+    { id: 'SACOMBANK', bin: '970403', label: 'Sacombank' },
+    { id: 'EXIMBANK', bin: '970431', label: 'Eximbank' },
+  ]
+
+  const infoSettings = useMemo(
+    () => ({
+      property_name: settings.property_name || '',
+      property_owner_name: settings.property_owner_name || '',
+      property_owner_phone: settings.property_owner_phone || '',
+      property_address: settings.property_address || ''
+    }),
+    [settings]
+  )
+
+  const initialInfoSettings = useMemo(
+    () => ({
+      property_name: initialSettings.property_name || '',
+      property_owner_name: initialSettings.property_owner_name || '',
+      property_owner_phone: initialSettings.property_owner_phone || '',
+      property_address: initialSettings.property_address || ''
+    }),
+    [initialSettings]
+  )
+
+  const paymentSettings = useMemo(
+    () => ({
+      bank_id: settings.bank_id || '',
+      account_no: settings.account_no || '',
+      account_name: settings.account_name || '',
+      sepay_api_token: settings.sepay_api_token || ''
+    }),
+    [settings]
+  )
+
+  const initialPaymentSettings = useMemo(
+    () => ({
+      bank_id: initialSettings.bank_id || '',
+      account_no: initialSettings.account_no || '',
+      account_name: initialSettings.account_name || '',
+      sepay_api_token: initialSettings.sepay_api_token || ''
+    }),
+    [initialSettings]
+  )
+
+  const hasInfoChanges = useMemo(
+    () => JSON.stringify(infoSettings) !== JSON.stringify(initialInfoSettings),
+    [infoSettings, initialInfoSettings]
+  )
+
+  const hasPaymentChanges = useMemo(
+    () => JSON.stringify(paymentSettings) !== JSON.stringify(initialPaymentSettings),
+    [paymentSettings, initialPaymentSettings]
+  )
 
   useEffect(() => {
-    getAppSettings().then((value) => {
-      setSettings(value)
-      setLoading(false)
-    })
+    const loadSettings = async () => {
+      try {
+        const value = await getAppSettings()
+        const normalized = { ...(value || {}) }
+        setSettings(normalized)
+        setInitialSettings({ ...normalized })
+        const normalizedName = normalizeAccountHolderName(normalized.account_name || '')
+        const normalizedNo = (normalized.account_no || '').replace(/\s+/g, '')
+        if (normalized.bank_id && normalizedNo && normalizedName && isAsciiUpperName(normalizedName)) {
+          setQrPreviewUrl(buildVietQrPreviewUrl(normalized.bank_id, normalizedNo, normalizedName))
+        }
+      } catch {
+        setSettings({})
+        setInitialSettings({})
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadSettings()
   }, [])
 
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault()
-    setSaving(true)
-    await updateAppSettings(settings)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+  useEffect(() => {
+    if (loading) return
+    const timer = window.setTimeout(() => propertyNameInputRef.current?.focus(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loading])
+
+  const doLookup = async () => {
+    const bankId = settings.bank_id
+    const accountNo = settings.account_no?.replace(/\s+/g, '')
+    if (!bankId || !accountNo || accountNo.length < 5) return
+
+    const bin = bankOptions.find(b => b.id === bankId)?.bin
+    if (!bin) return
+
+    setIsLookingUp(true)
+    try {
+      const res = await window.api.bank.lookup(bin, accountNo)
+      if (res.ok && res.data && (res.data as any).data && typeof (res.data as any).data.accountName === 'string') {
+        const fetchedName = normalizeAccountHolderName((res.data as any).data.accountName)
+        setSettings(prev => ({ ...prev, account_name: fetchedName }))
+      }
+    } catch (err) {
+      console.error('Auto lookup bank name failed:', err)
+    } finally {
+      setIsLookingUp(false)
+    }
+  }
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      // Auto lookup using the same logic function after 1.5s
+      if (settings.bank_id && settings.account_no && settings.account_no.length >= 5 && !settings.account_name) {
+        doLookup()
+      }
+    }, 1500)
+
+    return () => clearTimeout(timeoutId)
+  }, [settings.bank_id, settings.account_no, settings.account_name])
+
+  const handleSaveInfo = async () => {
+    setInfoError('')
+    setSavingInfo(true)
+    try {
+      await updateAppSettings(infoSettings)
+      setInitialSettings((prev) => ({ ...prev, ...infoSettings }))
+      setSavedInfo(true)
+      setTimeout(() => setSavedInfo(false), 2500)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Không thể lưu thông tin.'
+      console.error('[Settings] handleSaveInfo error:', msg, error)
+      setInfoError(msg)
+    } finally {
+      setSavingInfo(false)
+    }
+  }
+
+  const handleSavePayment = async () => {
+    setPaymentError('')
+    setQrPreviewError('')
+    const bankId = (settings.bank_id || '').trim()
+    const accountNo = (settings.account_no || '').replace(/\s+/g, '')
+    const accountNameRaw = (settings.account_name || '').trim()
+    const accountName = normalizeAccountHolderName(accountNameRaw)
+
+    if (bankId || accountNo || accountName) {
+      if (!bankId) { setPaymentError('Vui lòng chọn ngân hàng'); return }
+      if (!accountNo) { setPaymentError('Vui lòng nhập số tài khoản'); return }
+      if (!accountName) { setPaymentError('Vui lòng nhập tên chủ tài khoản (không dấu)'); return }
+      if (!isAsciiUpperName(accountName)) { setPaymentError('Tên chủ tài khoản không hợp lệ (nhập IN HOA mất dấu)'); return }
+    }
+
+    setSavingPayment(true)
+    try {
+      await updateAppSettings({ ...paymentSettings, account_name: accountName })
+      setInitialSettings((prev) => ({ ...prev, ...paymentSettings, account_name: accountName }))
+      setSettings((prev) => ({ ...prev, account_name: accountName }))
+      setSavedPayment(true)
+      setTimeout(() => setSavedPayment(false), 2500)
+      if (bankId && accountNo && accountName) {
+        setQrPreviewUrl(buildVietQrPreviewUrl(bankId, accountNo, accountName))
+      } else {
+        setQrPreviewUrl('')
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Khong the luu thanh toan'
+      setPaymentError(msg)
+    } finally {
+      setSavingPayment(false)
+    }
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-400">Đang tải cấu hình...</div>
+    return (
+      <div className="flex h-full items-center justify-center">
+        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-gray-300" />
+      </div>
+    )
   }
 
   return (
-    <form onSubmit={handleSave} className="flex min-h-full flex-col">
-      <div className="flex-1 space-y-8 p-6 md:p-8">
-        <section className="space-y-5">
-          <div>
-            <h3 className="border-b border-gray-100 pb-3 text-lg font-bold text-gray-800">
-              Thông tin nhà trọ
-            </h3>
+    <div className="mx-auto max-w-4xl space-y-6 pb-20 p-2 md:p-6">
+
+      {/* 1. Thông tin chung */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
+        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600 shadow-inner">
+              <i className="fa-solid fa-house-chimney" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-gray-800">Thông tin nhà trọ</h2>
+              <p className="mt-0.5 text-[12px] text-gray-500">Cấu hình thông tin in trên hóa đơn, biên nhận.</p>
+            </div>
           </div>
-          <div className="grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
             <Field
               label="Tên nhà trọ"
               value={settings.property_name || ''}
               onChange={(value) => setSettings((prev) => ({ ...prev, property_name: value }))}
-              placeholder="DBY HOME"
+              inputRef={propertyNameInputRef}
             />
             <Field
               label="Người đại diện thu"
               value={settings.property_owner_name || ''}
               onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_name: value }))}
-              placeholder="Họ tên chủ nhà"
             />
             <Field
-              label="SĐT Người đại diện"
+              label="SĐT người đại diện"
               value={settings.property_owner_phone || ''}
               onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_phone: value }))}
-              placeholder="SĐT"
             />
-
-            <Field
-              label="Địa chỉ nhà trọ"
-              value={settings.property_address || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, property_address: value }))}
-              className="md:col-span-2"
-              placeholder="Số nhà, đường, phường xã..."
-            />
+            <div className="md:col-span-2">
+              <Field
+                label="Địa chỉ nhà trọ"
+                value={settings.property_address || ''}
+                onChange={(value) => setSettings((prev) => ({ ...prev, property_address: value }))}
+              />
+            </div>
           </div>
-        </section>
 
-        <section className="space-y-5">
-          <div>
-            <h3 className="border-b border-gray-100 pb-3 text-lg font-bold text-gray-800">
-              Tài khoản nhận tiền
-            </h3>
+          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
+            <div className="h-5">
+              {savedInfo && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
+                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
+                </span>
+              )}
+              {infoError && !savedInfo && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
+                  <i className="fa-solid fa-triangle-exclamation" /> {infoError}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSettings((prev) => ({ ...prev, ...initialInfoSettings }))}
+                disabled={!hasInfoChanges || savingInfo}
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSaveInfo}
+                disabled={!hasInfoChanges || savingInfo}
+                className="flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-orange-500/20 transition hover:bg-orange-700 disabled:opacity-50"
+              >
+                {savingInfo ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
+                Lưu cấu hình
+              </button>
+            </div>
           </div>
-          <div className="grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-3">
-            <Field
-              label="Mã ngân hàng"
-              value={settings.bank_id || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, bank_id: value }))}
-              placeholder="MB, VCB..."
-            />
-            <Field
-              label="Số tài khoản"
-              value={settings.account_no || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, account_no: value }))}
-              placeholder="0123456789"
-            />
-            <Field
-              label="Tên chủ tài khoản"
-              value={settings.account_name || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, account_name: value }))}
-              placeholder="NGUYEN VAN A"
-            />
-          </div>
-        </section>
-      </div>
-
-      <div className="sticky bottom-0 flex items-center justify-between border-t border-gray-100 bg-white px-6 py-4 md:px-8">
-        <div className="text-sm font-medium text-emerald-600">
-          {saved ? 'Đã lưu cài đặt.' : ''}
         </div>
-        <button
-          type="submit"
-          disabled={saving}
-          className="flex items-center gap-2 rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/20 transition hover:bg-primary-dark disabled:opacity-60"
-        >
-          <i className={`fa-solid ${saving ? 'fa-spinner animate-spin' : 'fa-save'}`}></i>
-          {saving ? 'Đang lưu...' : 'Lưu cài đặt'}
-        </button>
       </div>
-    </form>
+
+      {/* 2. Cài đặt thanh toán */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
+        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600 shadow-inner">
+              <i className="fa-solid fa-money-check-dollar" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-gray-800">Tài khoản nhận tiền</h2>
+              <p className="mt-0.5 text-[12px] text-gray-500">Cấu hình VietQR để hiển thị lên hóa đơn gửi khách.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                <i className="fa-solid fa-building-columns text-gray-300" style={{ fontSize: 10 }} />
+                Ngân hàng
+              </label>
+              <div className="relative" ref={bankDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowBankDropdown((v) => !v)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-left transition-all hover:border-violet-300 focus:border-violet-400 focus:outline-none focus:ring-3 focus:ring-violet-100"
+                >
+                  {settings.bank_id ? (() => {
+                    const bank = bankOptions.find((b) => b.id === settings.bank_id)
+                    return (
+                      <>
+                        <span className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-violet-100 text-[10px] font-bold text-violet-700">
+                          {settings.bank_id.slice(0, 3)}
+                        </span>
+                        <span className="flex-1 text-[13px] text-gray-800">{bank?.label ?? settings.bank_id}</span>
+                      </>
+                    )
+                  })() : (
+                    <span className="flex-1 text-[13px] text-gray-400">Chọn ngân hàng...</span>
+                  )}
+                  <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${showBankDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showBankDropdown && (
+                  <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl shadow-gray-200/60">
+                    <div className="max-h-56 overflow-y-auto py-1">
+                      {bankOptions.map((bank) => (
+                        <button
+                          key={bank.id}
+                          type="button"
+                          onClick={() => { setSettings((prev) => ({ ...prev, bank_id: bank.id, account_name: '' })); setShowBankDropdown(false) }}
+                          className={`flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-violet-50 ${settings.bank_id === bank.id ? 'bg-violet-50' : ''}`}
+                        >
+                          <span className={`flex h-6 w-8 shrink-0 items-center justify-center rounded text-[10px] font-bold ${settings.bank_id === bank.id ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                            {bank.id.slice(0, 3)}
+                          </span>
+                          <span className="flex-1 text-[13px] text-gray-700">{bank.label}</span>
+                          {settings.bank_id === bank.id && (
+                            <i className="fa-solid fa-check text-[11px] text-violet-500" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                <i className="fa-solid fa-hashtag text-gray-300" style={{ fontSize: 10 }} />
+                Số tài khoản
+              </label>
+              <input
+                type="text"
+                value={settings.account_no || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, account_no: e.target.value, account_name: '' }))}
+                placeholder="0123456789"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+              <i className="fa-solid fa-id-card text-gray-300" style={{ fontSize: 10 }} />
+              Chủ tài khoản
+              {isLookingUp && (
+                <span className="ml-2 text-violet-500 flex items-center gap-1 animate-pulse">
+                  <i className="fa-solid fa-circle-notch fa-spin"></i> Tra cứu...
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={settings.account_name || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value, false) }))}
+                onBlur={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value) }))}
+                placeholder="Nhập tên hoặc Vui lòng bấm [Lấy tên]..."
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] uppercase text-gray-800 placeholder-gray-300 outline-none transition-all focus:border-violet-400 focus:bg-white focus:ring-3 focus:ring-violet-100"
+              />
+              <button
+                type="button"
+                onClick={doLookup}
+                disabled={isLookingUp || !settings.bank_id || !settings.account_no}
+                className="absolute right-1.5 top-1.5 rounded-lg bg-violet-100 px-3 py-1 text-[11px] font-bold text-violet-600 hover:bg-violet-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Lấy tên chủ tài khoản"
+              >
+                Lấy tên
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">Được tra cứu tự động từ Số tài khoản. Bạn có thể bấm [Lấy tên] nếu không cập nhật.</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5 mt-2">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+              <i className="fa-solid fa-key text-gray-300" style={{ fontSize: 10 }} />
+              SePay API Token (Dùng để đồng bộ hóa đơn tự động)
+            </label>
+            <input
+              type="text"
+              value={settings.sepay_api_token || ''}
+              onChange={(e) => setSettings((prev) => ({ ...prev, sepay_api_token: e.target.value }))}
+              placeholder="VD: 1N2UJKPXD9DAFHHQZHY0H..."
+              className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
+            />
+            <p className="text-[11px] text-gray-400">Khóa API lấy từ trang Quản trị SePay để kết nối phần mềm.</p>
+          </div>
+
+          <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-2.5">
+            <i className="fa-solid fa-qrcode text-sm text-violet-400" />
+            <span className="text-[11px] font-medium text-violet-600">
+              Thông tin tài khoản sẽ hiển thị trên <strong>mã QR thanh toán</strong> của hóa đơn.
+            </span>
+          </div>
+
+          {qrPreviewUrl && (
+            <div className="rounded-2xl border border-violet-100 bg-white p-4">
+              <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-violet-700">
+                <i className="fa-solid fa-qrcode" />
+                Mã QR quét thử
+              </div>
+              <div className="flex flex-col items-center gap-3 md:flex-row md:items-start">
+                <img
+                  src={qrPreviewUrl}
+                  alt="QR thanh toán"
+                  className="h-56 w-56 rounded-xl border border-gray-200 bg-white p-2 md:h-64 md:w-64"
+                  onError={() => setQrPreviewError('Không tạo được QR. Vui lòng kiểm tra lại ngân hàng hoặc số tài khoản.')}
+                />
+                <div className="text-[11px] text-gray-500">
+                  <p>Quét thử bằng app ngân hàng để kiểm tra người nhận trước khi gửi cho khách.</p>
+                  {qrPreviewError && <p className="mt-2 text-rose-500">{qrPreviewError}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
+            <div className="h-5">
+              {savedPayment && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
+                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
+                </span>
+              )}
+              {paymentError && !savedPayment && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
+                  <i className="fa-solid fa-triangle-exclamation" /> {paymentError}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSettings((prev) => ({ ...prev, ...initialPaymentSettings }))}
+                disabled={!hasPaymentChanges || savingPayment}
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSavePayment}
+                disabled={!hasPaymentChanges || savingPayment}
+                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-violet-500/20 transition hover:bg-violet-700 disabled:opacity-50"
+              >
+                {savingPayment ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
+                Lưu cài đặt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -624,507 +1020,503 @@ const UsersSettingsPanel = (): React.JSX.Element => {
 
   return (
     <>
-    <div className="app-system-font flex min-h-full flex-col bg-[#f5f7fb]">
-      <div className="border-b border-slate-200 bg-white px-6 py-5 md:px-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-[#00558d]">
-              Quản trị tài khoản
+      <div className="app-system-font flex min-h-full flex-col bg-[#f5f7fb]">
+        <div className="border-b border-slate-200 bg-white px-6 py-5 md:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-[#00558d]">
+                Quản trị tài khoản
+              </div>
+              <h3 className="mt-2 text-xl font-black text-slate-900">Tài khoản hệ thống</h3>
+              <p className="mt-1 max-w-2xl text-sm text-slate-500">
+                Quản lý người dùng nội bộ, phân quyền truy cập và thao tác bảo mật ngay trong một màn
+                hình.
+              </p>
             </div>
-            <h3 className="mt-2 text-xl font-black text-slate-900">Tài khoản hệ thống</h3>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Quản lý người dùng nội bộ, phân quyền truy cập và thao tác bảo mật ngay trong một màn
-              hình.
-            </p>
-          </div>
-          <div className="grid min-w-[280px] grid-cols-3 gap-3">
-            <AccountMetricCard label="Tổng tài khoản" value={String(totalUsers)} tone="slate" />
-            <AccountMetricCard label="Đang hoạt động" value={String(activeUsers)} tone="emerald" />
-            <AccountMetricCard label="Quản trị viên" value={String(adminUsers)} tone="blue" />
+            <div className="grid min-w-[280px] grid-cols-3 gap-3">
+              <AccountMetricCard label="Tổng tài khoản" value={String(totalUsers)} tone="slate" />
+              <AccountMetricCard label="Đang hoạt động" value={String(activeUsers)} tone="emerald" />
+              <AccountMetricCard label="Quản trị viên" value={String(adminUsers)} tone="blue" />
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 p-6 md:p-8">
-        <div className="mx-auto max-w-[1440px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.25)]">
-          <div className="border-b border-slate-100 bg-white px-6 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Tìm theo tên, username hoặc vai trò..."
-                    className="h-10 w-[320px] rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-                  />
-                </div>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                  <Filter size={14} />
-                  <select
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')
-                    }
-                    className="bg-transparent pr-2 outline-none"
-                  >
-                    <option value="all">Tất cả trạng thái</option>
-                    <option value="active">Đang hoạt động</option>
-                    <option value="inactive">Đã vô hiệu hóa</option>
-                  </select>
-                </div>
-                <button
-                  onClick={() =>
-                    setSortBy((current) =>
-                      current === 'name' ? 'username' : current === 'username' ? 'role' : 'name'
-                    )
-                  }
-                  className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-                >
-                  <ArrowUpDown size={14} />
-                  {sortBy === 'name'
-                    ? 'Sắp xếp: Họ tên'
-                    : sortBy === 'username'
-                      ? 'Sắp xếp: Username'
-                      : 'Sắp xếp: Vai trò'}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-primary"
-                  title="Làm mới danh sách"
-                >
-                  <RefreshCcw size={16} />
-                </button>
-                <button
-                  onClick={() => setShowAddForm((current) => !current)}
-                  className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white transition ${
-                    showAddForm ? 'bg-rose-500 hover:bg-rose-600' : 'bg-[#00558d] hover:bg-[#004470]'
-                  }`}
-                >
-                  {showAddForm ? <XCircle size={16} /> : <Plus size={16} />}
-                  {showAddForm ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {usersError && (
-            <div className="border-b border-rose-100 bg-rose-50 px-6 py-4 text-sm text-rose-700">
-              {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
-            </div>
-          )}
-
-          {showAddForm && (
-            <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] px-6 py-6">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  createUserMutation.mutate(newUserForm)
-                }}
-                className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm"
-              >
-                <div className="mb-5 text-sm font-bold text-[#00558d]">Tạo tài khoản mới</div>
-
-                {createUserMutation.error && (
-                  <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                    {createUserMutation.error instanceof Error
-                      ? createUserMutation.error.message
-                      : 'Có lỗi xảy ra khi tạo tài khoản.'}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600">
-                      Email <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={newUserForm.email}
-                      onChange={(e) => setNewUserForm((f) => ({ ...f, email: e.target.value }))}
-                      placeholder="example@email.com"
-                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600">
-                      Mật khẩu <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      minLength={6}
-                      value={newUserForm.password}
-                      onChange={(e) => setNewUserForm((f) => ({ ...f, password: e.target.value }))}
-                      placeholder="Tối thiểu 6 ký tự"
-                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600">
-                      Họ tên <span className="text-rose-500">*</span>
-                    </label>
+        <div className="flex-1 p-6 md:p-8">
+          <div className="mx-auto max-w-[1440px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.25)]">
+            <div className="border-b border-slate-100 bg-white px-6 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
-                      required
-                      value={newUserForm.full_name}
-                      onChange={(e) => setNewUserForm((f) => ({ ...f, full_name: e.target.value }))}
-                      placeholder="Nguyễn Văn A"
-                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Tìm theo tên, username hoặc vai trò..."
+                      className="h-10 w-[320px] rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-600">Vai trò</label>
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    <Filter size={14} />
                     <select
-                      value={newUserForm.role}
-                      onChange={(e) =>
-                        setNewUserForm((f) => ({ ...f, role: e.target.value as UserRole }))
+                      value={statusFilter}
+                      onChange={(event) =>
+                        setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')
                       }
-                      className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      className="bg-transparent pr-2 outline-none"
                     >
-                      <option value="user">Người dùng</option>
-                      <option value="admin">Quản trị viên</option>
+                      <option value="all">Tất cả trạng thái</option>
+                      <option value="active">Đang hoạt động</option>
+                      <option value="inactive">Đã vô hiệu hóa</option>
                     </select>
                   </div>
+                  <button
+                    onClick={() =>
+                      setSortBy((current) =>
+                        current === 'name' ? 'username' : current === 'username' ? 'role' : 'name'
+                      )
+                    }
+                    className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                  >
+                    <ArrowUpDown size={14} />
+                    {sortBy === 'name'
+                      ? 'Sắp xếp: Họ tên'
+                      : sortBy === 'username'
+                        ? 'Sắp xếp: Username'
+                        : 'Sắp xếp: Vai trò'}
+                  </button>
                 </div>
 
-                <div className="mt-6 flex items-center justify-end gap-3">
+                <div className="flex items-center gap-2">
                   <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
-                      createUserMutation.reset()
-                    }}
-                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
+                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-primary"
+                    title="Làm mới danh sách"
                   >
-                    Hủy
+                    <RefreshCcw size={16} />
                   </button>
                   <button
-                    type="submit"
-                    disabled={createUserMutation.isPending}
-                    className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:opacity-60"
+                    onClick={() => setShowAddForm((current) => !current)}
+                    className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white transition ${showAddForm ? 'bg-rose-500 hover:bg-rose-600' : 'bg-[#00558d] hover:bg-[#004470]'
+                      }`}
                   >
-                    {createUserMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
+                    {showAddForm ? <XCircle size={16} /> : <Plus size={16} />}
+                    {showAddForm ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}
                   </button>
                 </div>
-              </form>
+              </div>
             </div>
-          )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  <th className="px-6 py-4">Tài khoản</th>
-                  <th className="px-6 py-4">Vai trò</th>
-                  <th className="px-6 py-4">Trạng thái</th>
-                  <th className="px-6 py-4">Hoạt động</th>
-                  <th className="px-6 py-4">Thông tin</th>
-                  <th className="px-6 py-4 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {isLoading && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
-                      Đang tải danh sách tài khoản...
-                    </td>
-                  </tr>
-                )}
-                {!isLoading && filteredUsers.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-14 text-center">
-                      <div className="mx-auto max-w-md">
-                        <div className="text-base font-bold text-slate-700">
-                          Không có tài khoản phù hợp
-                        </div>
-                        <div className="mt-2 text-sm text-slate-500">
-                          Hãy đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái để xem thêm dữ liệu.
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-                {filteredUsers.map((user) => {
-                  const isUpdatingStatus =
-                    statusMutation.isPending && statusMutation.variables?.userId === user.id
-                  const isUpdatingRole =
-                    roleMutation.isPending && roleMutation.variables?.userId === user.id
+            {usersError && (
+              <div className="border-b border-rose-100 bg-rose-50 px-6 py-4 text-sm text-rose-700">
+                {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
+              </div>
+            )}
 
-                  return (
-                    <tr key={user.id} className="group bg-white transition hover:bg-slate-50/80">
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-700">
-                            {accountUserInitials(user)}
+            {showAddForm && (
+              <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] px-6 py-6">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    createUserMutation.mutate(newUserForm)
+                  }}
+                  className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="mb-5 text-sm font-bold text-[#00558d]">Tạo tài khoản mới</div>
+
+                  {createUserMutation.error && (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      {createUserMutation.error instanceof Error
+                        ? createUserMutation.error.message
+                        : 'Có lỗi xảy ra khi tạo tài khoản.'}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-600">
+                        Email <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={newUserForm.email}
+                        onChange={(e) => setNewUserForm((f) => ({ ...f, email: e.target.value }))}
+                        placeholder="example@email.com"
+                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-600">
+                        Mật khẩu <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={newUserForm.password}
+                        onChange={(e) => setNewUserForm((f) => ({ ...f, password: e.target.value }))}
+                        placeholder="Tối thiểu 6 ký tự"
+                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-600">
+                        Họ tên <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newUserForm.full_name}
+                        onChange={(e) => setNewUserForm((f) => ({ ...f, full_name: e.target.value }))}
+                        placeholder="Nguyễn Văn A"
+                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-600">Vai trò</label>
+                      <select
+                        value={newUserForm.role}
+                        onChange={(e) =>
+                          setNewUserForm((f) => ({ ...f, role: e.target.value as UserRole }))
+                        }
+                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      >
+                        <option value="user">Người dùng</option>
+                        <option value="admin">Quản trị viên</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddForm(false)
+                        setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
+                        createUserMutation.reset()
+                      }}
+                      className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={createUserMutation.isPending}
+                      className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:opacity-60"
+                    >
+                      {createUserMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1080px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    <th className="px-6 py-4">Tài khoản</th>
+                    <th className="px-6 py-4">Vai trò</th>
+                    <th className="px-6 py-4">Trạng thái</th>
+                    <th className="px-6 py-4">Hoạt động</th>
+                    <th className="px-6 py-4">Thông tin</th>
+                    <th className="px-6 py-4 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoading && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
+                        Đang tải danh sách tài khoản...
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoading && filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-14 text-center">
+                        <div className="mx-auto max-w-md">
+                          <div className="text-base font-bold text-slate-700">
+                            Không có tài khoản phù hợp
                           </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-black text-[#00558d]">
-                              @{user.username}
-                            </div>
-                            <div className="mt-1 truncate text-sm text-slate-600">
-                              {user.full_name}
-                            </div>
-                            <div className="mt-1 text-xs text-slate-400">
-                              Tạo lúc {accountFormatDateTime(user.created_at)}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <span
-                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${
-                              user.role === 'admin'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            <ShieldCheck size={14} />
-                            {accountRoleLabel(user.role)}
-                          </span>
-                          <select
-                            value={user.role}
-                            onChange={(event) =>
-                              roleMutation.mutate({
-                                userId: user.id,
-                                role: event.target.value as UserRole
-                              })
-                            }
-                            disabled={isUpdatingRole}
-                            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
-                          >
-                            <option value="user">Người dùng</option>
-                            <option value="admin">Quản trị viên</option>
-                          </select>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span
-                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase ${
-                            user.status === 'active'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          <CheckCircle2 size={14} />
-                          {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="text-sm font-medium text-slate-700">
-                          {user.last_login_at
-                            ? accountFormatDateTime(user.last_login_at)
-                            : 'Chưa đăng nhập'}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-400">
-                          {user.status === 'active'
-                            ? 'Sẵn sàng sử dụng'
-                            : 'Đã tạm khóa truy cập'}
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-slate-700">
-                            {user.email || '@' + user.username}
-                          </div>
-                          <div className="text-xs text-slate-400">ID: {user.id.slice(0, 8)}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() =>
-                              statusMutation.mutate({
-                                userId: user.id,
-                                status: user.status === 'active' ? 'inactive' : 'active'
-                              })
-                            }
-                            disabled={isUpdatingStatus}
-                            className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
-                              user.status === 'active'
-                                ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                            } disabled:cursor-not-allowed disabled:opacity-60`}
-                          >
-                            {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
-                          </button>
-                          <div className="relative">
-                            <button
-                              onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
-                              className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                            >
-                              <MoreVertical size={16} />
-                            </button>
-                            {openMenuId === user.id && (
-                              <div className="absolute right-0 top-11 z-50 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                                <button
-                                  onClick={() => {
-                                    setEditForm({ full_name: user.full_name })
-                                    setEditingUser(user)
-                                    setOpenMenuId(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
-                                >
-                                  Sửa thông tin
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setPasswordUser(user)
-                                    setNewPassword('')
-                                    setOpenMenuId(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
-                                >
-                                  Đổi mật khẩu
-                                </button>
-                                <div className="border-t border-slate-100" />
-                                <button
-                                  onClick={() => {
-                                    setDeletingUser(user)
-                                    setOpenMenuId(null)
-                                  }}
-                                  className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50"
-                                >
-                                  Xóa tài khoản
-                                </button>
-                              </div>
-                            )}
+                          <div className="mt-2 text-sm text-slate-500">
+                            Hãy đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái để xem thêm dữ liệu.
                           </div>
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  )}
+                  {filteredUsers.map((user) => {
+                    const isUpdatingStatus =
+                      statusMutation.isPending && statusMutation.variables?.userId === user.id
+                    const isUpdatingRole =
+                      roleMutation.isPending && roleMutation.variables?.userId === user.id
 
-          <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4 text-sm text-slate-500">
-            <span>
-              Hiển thị {filteredUsers.length} / {totalUsers} tài khoản
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                Đang hoạt động: {activeUsers}
+                    return (
+                      <tr key={user.id} className="group bg-white transition hover:bg-slate-50/80">
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-700">
+                              {accountUserInitials(user)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-black text-[#00558d]">
+                                @{user.username}
+                              </div>
+                              <div className="mt-1 truncate text-sm text-slate-600">
+                                {user.full_name}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-400">
+                                Tạo lúc {accountFormatDateTime(user.created_at)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${user.role === 'admin'
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'bg-slate-100 text-slate-600'
+                                }`}
+                            >
+                              <ShieldCheck size={14} />
+                              {accountRoleLabel(user.role)}
+                            </span>
+                            <select
+                              value={user.role}
+                              onChange={(event) =>
+                                roleMutation.mutate({
+                                  userId: user.id,
+                                  role: event.target.value as UserRole
+                                })
+                              }
+                              disabled={isUpdatingRole}
+                              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
+                            >
+                              <option value="user">Người dùng</option>
+                              <option value="admin">Quản trị viên</option>
+                            </select>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase ${user.status === 'active'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                              }`}
+                          >
+                            <CheckCircle2 size={14} />
+                            {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="text-sm font-medium text-slate-700">
+                            {user.last_login_at
+                              ? accountFormatDateTime(user.last_login_at)
+                              : 'Chưa đăng nhập'}
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {user.status === 'active'
+                              ? 'Sẵn sàng sử dụng'
+                              : 'Đã tạm khóa truy cập'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-slate-700">
+                              {user.email || '@' + user.username}
+                            </div>
+                            <div className="text-xs text-slate-400">ID: {user.id.slice(0, 8)}</div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() =>
+                                statusMutation.mutate({
+                                  userId: user.id,
+                                  status: user.status === 'active' ? 'inactive' : 'active'
+                                })
+                              }
+                              disabled={isUpdatingStatus}
+                              className={`rounded-xl px-3 py-2 text-xs font-bold transition ${user.status === 'active'
+                                ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                } disabled:cursor-not-allowed disabled:opacity-60`}
+                            >
+                              {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                            </button>
+                            <div className="relative">
+                              <button
+                                onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                              >
+                                <MoreVertical size={16} />
+                              </button>
+                              {openMenuId === user.id && (
+                                <div className="absolute right-0 top-11 z-50 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                                  <button
+                                    onClick={() => {
+                                      setEditForm({ full_name: user.full_name })
+                                      setEditingUser(user)
+                                      setOpenMenuId(null)
+                                    }}
+                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Sửa thông tin
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setPasswordUser(user)
+                                      setNewPassword('')
+                                      setOpenMenuId(null)
+                                    }}
+                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                  >
+                                    Đổi mật khẩu
+                                  </button>
+                                  <div className="border-t border-slate-100" />
+                                  <button
+                                    onClick={() => {
+                                      setDeletingUser(user)
+                                      setOpenMenuId(null)
+                                    }}
+                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50"
+                                  >
+                                    Xóa tài khoản
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4 text-sm text-slate-500">
+              <span>
+                Hiển thị {filteredUsers.length} / {totalUsers} tài khoản
               </span>
-              <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                Admin: {adminUsers}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                  Đang hoạt động: {activeUsers}
+                </span>
+                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
+                  Admin: {adminUsers}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Modal sửa thông tin */}
-    {editingUser && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            editMutation.mutate({ id: editingUser.id, data: editForm })
-          }}
-          className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
-        >
-          <div className="mb-5 text-base font-bold text-slate-800">Sửa thông tin tài khoản</div>
-          {editMutation.error && (
-            <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {editMutation.error instanceof Error ? editMutation.error.message : 'Có lỗi xảy ra.'}
+      {/* Modal sửa thông tin */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              editMutation.mutate({ id: editingUser.id, data: editForm })
+            }}
+            className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-5 text-base font-bold text-slate-800">Sửa thông tin tài khoản</div>
+            {editMutation.error && (
+              <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {editMutation.error instanceof Error ? editMutation.error.message : 'Có lỗi xảy ra.'}
+              </div>
+            )}
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-bold text-slate-600">Họ tên <span className="text-rose-500">*</span></label>
+                <input
+                  type="text"
+                  required
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
+                  className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                />
+              </div>
             </div>
-          )}
-          <div className="flex flex-col gap-4">
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingUser(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
+              <button type="submit" disabled={editMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
+                {editMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal đổi mật khẩu */}
+      {passwordUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              passwordMutation.mutate({ id: passwordUser.id, password: newPassword })
+            }}
+            className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="mb-1 text-base font-bold text-slate-800">Đổi mật khẩu</div>
+            <div className="mb-5 text-sm text-slate-500">@{passwordUser.username}</div>
+            {passwordMutation.error && (
+              <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {passwordMutation.error instanceof Error ? passwordMutation.error.message : 'Có lỗi xảy ra.'}
+              </div>
+            )}
+            {passwordMutation.isSuccess && (
+              <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Đổi mật khẩu thành công.</div>
+            )}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-600">Họ tên <span className="text-rose-500">*</span></label>
+              <label className="text-xs font-bold text-slate-600">Mật khẩu mới <span className="text-rose-500">*</span></label>
               <input
-                type="text"
+                type="password"
                 required
-                value={editForm.full_name}
-                onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
+                minLength={6}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Tối thiểu 6 ký tự"
                 className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               />
             </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button type="button" onClick={() => setEditingUser(null)} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-            <button type="submit" disabled={editMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
-              {editMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
-
-    {/* Modal đổi mật khẩu */}
-    {passwordUser && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            passwordMutation.mutate({ id: passwordUser.id, password: newPassword })
-          }}
-          className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
-        >
-          <div className="mb-1 text-base font-bold text-slate-800">Đổi mật khẩu</div>
-          <div className="mb-5 text-sm text-slate-500">@{passwordUser.username}</div>
-          {passwordMutation.error && (
-            <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {passwordMutation.error instanceof Error ? passwordMutation.error.message : 'Có lỗi xảy ra.'}
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => { setPasswordUser(null); setNewPassword(''); passwordMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
+              <button type="submit" disabled={passwordMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
+                {passwordMutation.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
+              </button>
             </div>
-          )}
-          {passwordMutation.isSuccess && (
-            <div className="mb-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">Đổi mật khẩu thành công.</div>
-          )}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-slate-600">Mật khẩu mới <span className="text-rose-500">*</span></label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Tối thiểu 6 ký tự"
-              className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
-            />
-          </div>
-          <div className="mt-6 flex justify-end gap-3">
-            <button type="button" onClick={() => { setPasswordUser(null); setNewPassword(''); passwordMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
-            <button type="submit" disabled={passwordMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
-              {passwordMutation.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
-            </button>
-          </div>
-        </form>
-      </div>
-    )}
+          </form>
+        </div>
+      )}
 
-    {/* Modal xác nhận xóa */}
-    {deletingUser && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-        <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl">
-          <div className="mb-2 text-base font-bold text-slate-800">Xóa tài khoản?</div>
-          <p className="text-sm text-slate-500">
-            Tài khoản <span className="font-bold text-slate-700">@{deletingUser.username}</span> ({deletingUser.email}) sẽ bị xóa vĩnh viễn và không thể khôi phục.
-          </p>
-          {deleteMutation.error && (
-            <div className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-              {deleteMutation.error instanceof Error ? deleteMutation.error.message : 'Có lỗi xảy ra.'}
+      {/* Modal xác nhận xóa */}
+      {deletingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="mb-2 text-base font-bold text-slate-800">Xóa tài khoản?</div>
+            <p className="text-sm text-slate-500">
+              Tài khoản <span className="font-bold text-slate-700">@{deletingUser.username}</span> ({deletingUser.email}) sẽ bị xóa vĩnh viễn và không thể khôi phục.
+            </p>
+            {deleteMutation.error && (
+              <div className="mt-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {deleteMutation.error instanceof Error ? deleteMutation.error.message : 'Có lỗi xảy ra.'}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => { setDeletingUser(null); deleteMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
+              <button onClick={() => deleteMutation.mutate(deletingUser.id)} disabled={deleteMutation.isPending} className="rounded-xl bg-rose-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-600 disabled:opacity-60">
+                {deleteMutation.isPending ? 'Đang xóa...' : 'Xóa tài khoản'}
+              </button>
             </div>
-          )}
-          <div className="mt-6 flex justify-end gap-3">
-            <button onClick={() => { setDeletingUser(null); deleteMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Hủy</button>
-            <button onClick={() => deleteMutation.mutate(deletingUser.id)} disabled={deleteMutation.isPending} className="rounded-xl bg-rose-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-rose-600 disabled:opacity-60">
-              {deleteMutation.isPending ? 'Đang xóa...' : 'Xóa tài khoản'}
-            </button>
           </div>
         </div>
-      </div>
-    )}
+      )}
     </>
   )
 }
@@ -1724,7 +2116,8 @@ const Field = ({
   onChange,
   placeholder,
   className,
-  type = 'text'
+  type = 'text',
+  inputRef
 }: {
   label: string
   value: string
@@ -1732,6 +2125,7 @@ const Field = ({
   placeholder?: string
   className?: string
   type?: string
+  inputRef?: React.RefObject<HTMLInputElement | null>
 }): React.JSX.Element => (
   <div className={className}>
     <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-gray-500">
@@ -1740,6 +2134,7 @@ const Field = ({
     <input
       type={type}
       value={value}
+      ref={inputRef}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"

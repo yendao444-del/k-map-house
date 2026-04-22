@@ -21,6 +21,7 @@ export function CancelContractModal({ room, onClose }: Props) {
             playDelete()
             queryClient.invalidateQueries({ queryKey: ['rooms'] })
             queryClient.invalidateQueries({ queryKey: ['contracts'] })
+            queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
             queryClient.invalidateQueries({ queryKey: ['invoices'] })
             onClose()
         } catch (err: any) {

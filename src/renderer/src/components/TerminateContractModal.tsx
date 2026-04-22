@@ -131,18 +131,32 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
       .reduce((sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount), 0)
   }, [activeContract?.tenant_id, invoices, selectedMergeIds])
 
+  // Chỉ tính snapshot của hợp đồng hiện tại (loại bỏ snapshot tenant cũ)
+  const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+  const currentMoveOutSnaps = useMemo(
+    () => contractStartedAt
+      ? moveOutSnaps.filter(s => s.recorded_at >= contractStartedAt)
+      : moveOutSnaps,
+    [moveOutSnaps, contractStartedAt]
+  )
+  const currentHandoverSnaps = useMemo(
+    () => contractStartedAt
+      ? handoverSnaps.filter(s => s.recorded_at >= contractStartedAt)
+      : handoverSnaps,
+    [handoverSnaps, contractStartedAt]
+  )
+
   const assetDamageTotal = useMemo(
-    () => moveOutSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
-    [moveOutSnaps]
+    () => currentMoveOutSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
+    [currentMoveOutSnaps]
   )
   const handoverDamageTotal = useMemo(
-    () => handoverSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
-    [handoverSnaps]
+    () => currentHandoverSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
+    [currentHandoverSnaps]
   )
-  const hasMoveOutDone = moveOutSnaps.length > 0
-  // Bàn giao được đưa về tab Tài sản — kiểm tra handoverSnaps
-  const hasHandoverDone = handoverSnaps.length > 0 && HANDOVER_IDS.every(id => {
-    const s = handoverSnaps.find(x => getHandoverSnapshotKey(x) === id)
+  const hasMoveOutDone = currentMoveOutSnaps.length > 0
+  const hasHandoverDone = currentHandoverSnaps.length > 0 && HANDOVER_IDS.every(id => {
+    const s = currentHandoverSnaps.find(x => getHandoverSnapshotKey(x) === id)
     return s?.condition === 'ok' || (s?.condition === 'not_done' && (s.deduction || 0) > 0)
   })
 
@@ -170,7 +184,9 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
       import('../lib/sound').then(({ playSuccess }) => playSuccess());
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['moveInReceipts'] })
       queryClient.invalidateQueries({ queryKey: ['asset_snapshots', room.id, 'move_out'] })
       setDone(true)
     },
@@ -406,14 +422,14 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                   </div>
                   <div>
                     <p className="font-bold text-teal-800 text-sm">Đã đối chiếu và bàn giao xong</p>
-                    <p className="text-teal-600 text-xs">{moveOutSnaps.length} tài sản đã được ghi nhận · đã xác nhận bàn giao phòng</p>
+                    <p className="text-teal-600 text-xs">{currentMoveOutSnaps.length} tài sản đã được ghi nhận · đã xác nhận bàn giao phòng</p>
                   </div>
                 </div>
                 {/* Danh sách các tài sản có khấu trừ */}
-                {moveOutSnaps.filter(s => s.deduction > 0).length > 0 && (
+                {currentMoveOutSnaps.filter(s => s.deduction > 0).length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-1">Các khoản khấu trừ:</p>
-                    {moveOutSnaps.filter(s => s.deduction > 0).map(s => {
+                    {currentMoveOutSnaps.filter(s => s.deduction > 0).map(s => {
                       const asset = roomAssets.find(a => a.id === s.room_asset_id)
                       return (
                         <div key={s.id} className="flex justify-between text-xs bg-white rounded-lg px-3 py-2 border border-teal-100">
@@ -428,13 +444,13 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                     </div>
                   </div>
                 )}
-                {moveOutSnaps.filter(s => s.deduction > 0).length === 0 && (
+                {currentMoveOutSnaps.filter(s => s.deduction > 0).length === 0 && (
                   <p className="text-xs text-teal-600 italic">Không có khấu trừ hỏng hóc.</p>
                 )}
-                {handoverSnaps.filter(s => s.deduction > 0).length > 0 && (
+                {currentHandoverSnaps.filter(s => s.deduction > 0).length > 0 && (
                   <div className="space-y-1.5 mt-3 pt-3 border-t border-teal-200">
                     <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-1">Chi phí bàn giao:</p>
-                    {handoverSnaps.filter(s => s.deduction > 0).map(s => {
+                    {currentHandoverSnaps.filter(s => s.deduction > 0).map(s => {
                       const handoverKey = getHandoverSnapshotKey(s)
                       const item = HANDOVER_IDS.includes(handoverKey)
                         ? handoverKey === '__check_cleared'

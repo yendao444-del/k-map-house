@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as db from '../lib/db';
 import { playPayment } from '../lib/sound';
@@ -40,6 +40,30 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'handover') : Promise.resolve([]),
     enabled: !!room?.id,
   });
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['contracts'],
+    queryFn: db.getContracts,
+  });
+
+  const activeContract = useMemo(
+    () => contracts.find((c) => c.room_id === room?.id && c.status === 'active'),
+    [contracts, room?.id]
+  );
+  const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date;
+  const currentMoveOutSnaps = useMemo(
+    () =>
+      contractStartedAt
+        ? moveOutSnaps.filter((snap) => snap.recorded_at >= contractStartedAt)
+        : moveOutSnaps,
+    [moveOutSnaps, contractStartedAt]
+  );
+  const currentHandoverSnaps = useMemo(
+    () =>
+      contractStartedAt
+        ? handoverSnaps.filter((snap) => snap.recorded_at >= contractStartedAt)
+        : handoverSnaps,
+    [handoverSnaps, contractStartedAt]
+  );
 
   const [amount, setAmount] = useState<number>(remaining);
   const [amountDisplay, setAmountDisplay] = useState<string>(formatVND(remaining));
@@ -59,6 +83,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     onSuccess: () => {
       playPayment();
       queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['roomInvoices'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
       onClose();
     },
@@ -66,11 +91,11 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
 
   const workflowLoading = isMoveInLoading || isMoveOutLoading || isHandoverLoading;
   const hasMoveInDone = moveInSnaps.length > 0;
-  const hasMoveOutDone = moveOutSnaps.length > 0;
+  const hasMoveOutDone = currentMoveOutSnaps.length > 0;
   const hasHandoverDone =
-    handoverSnaps.length > 0 &&
+    currentHandoverSnaps.length > 0 &&
     HANDOVER_IDS.every((id) =>
-      handoverSnaps.some(
+      currentHandoverSnaps.some(
         (snap) =>
           getHandoverSnapshotKey(snap) === id &&
           (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))

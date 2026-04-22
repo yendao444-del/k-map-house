@@ -17,6 +17,18 @@ const api = {
     }): Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }> =>
       ipcRenderer.invoke('zalo:send', payload)
   },
+  bank: {
+    lookup: (bin: string, accountNumber: string): Promise<{ ok: boolean; error?: string; data?: unknown }> =>
+      ipcRenderer.invoke('bank:lookup', bin, accountNumber)
+  },
+  invoice: {
+    saveImage: (payload: { html: string, fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
+      ipcRenderer.invoke('invoice:saveImage', payload)
+  },
+  sepay: {
+    fetchTransactions: (token: string): Promise<{ ok: boolean, error?: string, data?: unknown }> =>
+      ipcRenderer.invoke('sepay:fetchTransactions', token)
+  },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),

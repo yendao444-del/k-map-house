@@ -26,6 +26,7 @@ export const RoomVehiclePanel: React.FC<{ room: Room }> = ({ room }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
+    const [deleteConfirmVehicle, setDeleteConfirmVehicle] = useState<RoomVehicle | null>(null);
 
     const deleteMut = useMutation({
         mutationFn: (id: string) => deleteRoomVehicle(id),
@@ -140,11 +141,7 @@ export const RoomVehiclePanel: React.FC<{ room: Room }> = ({ room }) => {
                                                     <i className="fa-solid fa-pen text-[11px]"></i>
                                                 </button>
                                                 <button
-                                                    onClick={() => {
-                                                        if (window.confirm(`Bạn có chắc muốn xóa xe biển số ${vehicle.license_plate}?`)) {
-                                                            deleteMut.mutate(vehicle.id);
-                                                        }
-                                                    }}
+                                                    onClick={() => setDeleteConfirmVehicle(vehicle)}
                                                     className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition flex items-center justify-center shadow-sm"
                                                     title="Xóa"
                                                 >
@@ -177,10 +174,59 @@ export const RoomVehiclePanel: React.FC<{ room: Room }> = ({ room }) => {
                     <VehicleFormModal
                         vehicle={vehicle}
                         onClose={() => setEditVehicleId(null)}
-                        rooms={[room]} // Chỉ sửa trong phòng hiện tại
+                        rooms={[room]}
                     />
                 );
             })()}
+
+            {/* Custom Confirm Delete Modal */}
+            {deleteConfirmVehicle && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+                    onClick={() => setDeleteConfirmVehicle(null)}
+                >
+                    <div
+                        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.15s_ease-out]"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="px-6 pt-6 pb-4 flex flex-col items-center text-center gap-3">
+                            <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
+                                <i className="fa-solid fa-trash-can text-red-500 text-2xl"></i>
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-gray-900 text-base">Xóa phương tiện</h3>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Bạn có chắc muốn xóa xe biển số{' '}
+                                    <span className="font-bold text-gray-800 font-mono">{deleteConfirmVehicle.license_plate}</span>?
+                                </p>
+                                <p className="text-xs text-red-500 mt-2">Hành động này không thể hoàn tác.</p>
+                            </div>
+                        </div>
+                        {/* Actions */}
+                        <div className="px-6 pb-6 flex gap-3">
+                            <button
+                                onClick={() => setDeleteConfirmVehicle(null)}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={() => {
+                                    deleteMut.mutate(deleteConfirmVehicle.id);
+                                    setDeleteConfirmVehicle(null);
+                                }}
+                                disabled={deleteMut.isPending}
+                                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 transition flex items-center justify-center gap-2"
+                            >
+                                {deleteMut.isPending
+                                    ? <><i className="fa-solid fa-spinner fa-spin"></i> Đang xóa...</>
+                                    : <><i className="fa-solid fa-trash-can"></i> Xóa xe</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

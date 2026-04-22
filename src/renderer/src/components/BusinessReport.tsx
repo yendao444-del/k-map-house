@@ -99,15 +99,20 @@ const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
     case 'transferService':
       return (invoice.new_room_service_cost || 0) + (invoice.transfer_service_cost || 0)
     case 'adjustment':
-      return invoice.adjustment_amount || 0
+      // Hóa đơn tất toán: adjustment_amount = tiền đền bù, đã được phản ánh trong damage_amount
+      // Nếu cả 2 cùng tồn tại, chỉ tính 1 lần qua damage
+      return invoice.is_settlement ? 0 : (invoice.adjustment_amount || 0)
     case 'damage':
       return invoice.damage_amount || 0
     case 'oldDebt':
       return (invoice.old_debt || 0) + (invoice.merged_debt_total || 0)
     case 'deposit':
+      // Chỉ tính khi thu cọc (deposit_amount > 0)
       return Math.max(0, invoice.deposit_amount || 0)
     case 'refund':
-      return Math.abs(Math.min(0, invoice.deposit_amount || 0)) + Math.abs(Math.min(0, invoice.total_amount || 0))
+      // Hoàn tiền: dùng total_amount âm (= khách được hoàn) hoặc deposit hoàn đá thanh toán (paid_amount > 0 khi total < 0)
+      // Không cộng deposit_amount âm vì nó đã được tính vào total_amount (netDue)
+      return Math.abs(Math.min(0, invoice.total_amount || 0))
     case 'cash':
       return invoice.paid_amount || 0
     case 'receivable':
