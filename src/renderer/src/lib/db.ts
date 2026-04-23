@@ -924,6 +924,11 @@ export const resetUserPassword = async (userId: string, newPassword: string): Pr
   if (!supabaseAdmin) throw new Error('Chức năng đổi mật khẩu yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })
   if (error) throw new Error(error.message)
+}
+
+export const changeOwnPassword = async (newPassword: string): Promise<void> => {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw new Error(error.message)
 }
 
 export const deleteUser = async (id: string): Promise<void> => {

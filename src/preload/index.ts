@@ -25,6 +25,10 @@ const api = {
     saveImage: (payload: { html: string, fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
       ipcRenderer.invoke('invoice:saveImage', payload)
   },
+  contract: {
+    savePDF: (payload: { html: string; fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
+      ipcRenderer.invoke('contract:savePDF', payload)
+  },
   sepay: {
     fetchTransactions: (token: string): Promise<{ ok: boolean, error?: string, data?: unknown }> =>
       ipcRenderer.invoke('sepay:fetchTransactions', token)
