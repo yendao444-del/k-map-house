@@ -8,7 +8,6 @@ import {
   Plus,
   RefreshCcw,
   Search,
-  ShieldCheck,
   XCircle
 } from 'lucide-react'
 import {
@@ -23,6 +22,7 @@ import {
   getServiceZones,
   getUsers,
   resetUserPassword,
+  changeOwnPassword,
   updateAppSettings,
   updateServiceZone,
   updateUserProfile,
@@ -36,7 +36,7 @@ import {
   type UserRole
 } from '../lib/db'
 
-type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
+type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
 
 export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: AppUser }> = ({
   currentUser,
@@ -53,6 +53,9 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
     { id: 'zones', icon: 'fa-tags', label: 'Vùng giá dịch vụ' },
     ...(currentUser.role === 'admin'
       ? [{ id: 'users' as const, icon: 'fa-users-gear', label: 'Tài khoản' }]
+      : []),
+    ...(currentUser.role !== 'admin'
+      ? [{ id: 'account' as const, icon: 'fa-user-lock', label: 'Tài khoản' }]
       : []),
     { id: 'updates', icon: 'fa-cloud-arrow-down', label: 'Cập nhật' }
   ]
@@ -84,7 +87,8 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
       <div className="relative flex-1 overflow-y-auto bg-white">
         {activeTab === 'general' && <GeneralSettingsSafe />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
-        {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel />}
+        {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel currentUser={currentUser} />}
+        {activeTab === 'account' && <MyAccountPanel currentUser={currentUser} />}
         {activeTab === 'updates' && <ProductionUpdateSettings />}
       </div>
     </div>
@@ -925,7 +929,7 @@ const UsersSettings = (): React.JSX.Element => {
 
 void UsersSettings
 
-const UsersSettingsPanel = (): React.JSX.Element => {
+const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.Element => {
   const queryClient = useQueryClient()
   const { data: users = [], isLoading, error: usersError } = useQuery({
     queryKey: ['users'],
@@ -957,6 +961,7 @@ const UsersSettingsPanel = (): React.JSX.Element => {
   const [newPassword, setNewPassword] = useState('')
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
 
   const editMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { full_name: string } }) =>
@@ -1213,28 +1218,27 @@ const UsersSettingsPanel = (): React.JSX.Element => {
             )}
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] border-collapse text-left">
+              <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    <th className="px-6 py-4">Tài khoản</th>
-                    <th className="px-6 py-4">Vai trò</th>
-                    <th className="px-6 py-4">Trạng thái</th>
-                    <th className="px-6 py-4">Hoạt động</th>
-                    <th className="px-6 py-4">Thông tin</th>
-                    <th className="px-6 py-4 text-right">Thao tác</th>
+                    <th className="px-4 py-3">Tài khoản</th>
+                    <th className="px-4 py-3">Vai trò</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3">Đăng nhập</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {isLoading && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
+                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-400">
                         Đang tải danh sách tài khoản...
                       </td>
                     </tr>
                   )}
                   {!isLoading && filteredUsers.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-6 py-14 text-center">
+                      <td colSpan={5} className="px-6 py-14 text-center">
                         <div className="mx-auto max-w-md">
                           <div className="text-base font-bold text-slate-700">
                             Không có tài khoản phù hợp
@@ -1254,83 +1258,58 @@ const UsersSettingsPanel = (): React.JSX.Element => {
 
                     return (
                       <tr key={user.id} className="group bg-white transition hover:bg-slate-50/80">
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-700">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-700">
                               {accountUserInitials(user)}
                             </div>
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-black text-[#00558d]">
-                                @{user.username}
+                              <div className="flex items-center gap-2">
+                                <span className="truncate text-sm font-black text-[#00558d]">@{user.username}</span>
+                                {user.id === currentUser.id && (
+                                  <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-600">Tôi</span>
+                                )}
                               </div>
-                              <div className="mt-1 truncate text-sm text-slate-600">
-                                {user.full_name}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-400">
-                                Tạo lúc {accountFormatDateTime(user.created_at)}
-                              </div>
+                              <div className="truncate text-sm text-slate-600">{user.full_name}</div>
+                              <div className="text-xs text-slate-400">{user.email || ''}</div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
-                            <span
-                              className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${user.role === 'admin'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-slate-100 text-slate-600'
-                                }`}
-                            >
-                              <ShieldCheck size={14} />
-                              {accountRoleLabel(user.role)}
-                            </span>
-                            <select
-                              value={user.role}
-                              onChange={(event) =>
-                                roleMutation.mutate({
-                                  userId: user.id,
-                                  role: event.target.value as UserRole
-                                })
-                              }
-                              disabled={isUpdatingRole}
-                              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
-                            >
-                              <option value="user">Người dùng</option>
-                              <option value="admin">Quản trị viên</option>
-                            </select>
-                          </div>
+                        <td className="px-4 py-4">
+                          <select
+                            value={user.role}
+                            onChange={(event) =>
+                              roleMutation.mutate({
+                                userId: user.id,
+                                role: event.target.value as UserRole
+                              })
+                            }
+                            disabled={isUpdatingRole}
+                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
+                          >
+                            <option value="user">Người dùng</option>
+                            <option value="admin">Quản trị viên</option>
+                          </select>
                         </td>
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-4">
                           <span
-                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold uppercase ${user.status === 'active'
+                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${user.status === 'active'
                               ? 'bg-emerald-50 text-emerald-700'
                               : 'bg-slate-100 text-slate-500'
                               }`}
                           >
                             <CheckCircle2 size={14} />
-                            {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                            {user.status === 'active' ? 'Hoạt động' : 'Vô hiệu hóa'}
                           </span>
                         </td>
-                        <td className="px-6 py-5">
-                          <div className="text-sm font-medium text-slate-700">
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-slate-700">
                             {user.last_login_at
                               ? accountFormatDateTime(user.last_login_at)
-                              : 'Chưa đăng nhập'}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-400">
-                            {user.status === 'active'
-                              ? 'Sẵn sàng sử dụng'
-                              : 'Đã tạm khóa truy cập'}
+                              : <span className="text-slate-400">Chưa đăng nhập</span>}
                           </div>
                         </td>
-                        <td className="px-6 py-5">
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium text-slate-700">
-                              {user.email || '@' + user.username}
-                            </div>
-                            <div className="text-xs text-slate-400">ID: {user.id.slice(0, 8)}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5">
+                        <td className="px-4 py-4">
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() =>
@@ -1345,17 +1324,31 @@ const UsersSettingsPanel = (): React.JSX.Element => {
                                 : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                                 } disabled:cursor-not-allowed disabled:opacity-60`}
                             >
-                              {user.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt'}
+                              {user.status === 'active' ? 'Vô hiệu' : 'Kích hoạt'}
                             </button>
                             <div className="relative">
                               <button
-                                onClick={() => setOpenMenuId(openMenuId === user.id ? null : user.id)}
+                                onClick={(e) => {
+                                  if (openMenuId === user.id) {
+                                    setOpenMenuId(null)
+                                    setMenuAnchor(null)
+                                  } else {
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                                    setMenuAnchor({ top: rect.bottom, bottom: window.innerHeight - rect.top, right: window.innerWidth - rect.right })
+                                    setOpenMenuId(user.id)
+                                  }
+                                }}
                                 className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                               >
                                 <MoreVertical size={16} />
                               </button>
-                              {openMenuId === user.id && (
-                                <div className="absolute right-0 top-11 z-50 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                              {openMenuId === user.id && menuAnchor && (
+                                <div
+                                  className="fixed z-[9999] w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+                                  style={menuAnchor.top + 176 < window.innerHeight
+                                    ? { top: menuAnchor.top + 4, right: menuAnchor.right }
+                                    : { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }}
+                                >
                                   <button
                                     onClick={() => {
                                       setEditForm({ full_name: user.full_name })
@@ -2230,3 +2223,141 @@ export const ContractsSection = (): React.JSX.Element => {
     </div>
   )
 }
+
+// ─── My Account Panel ────────────────────────────────────────────────────────
+const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.Element => {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const changePwMutation = useMutation({
+    mutationFn: () => changeOwnPassword(newPassword),
+    onSuccess: () => {
+      setNewPassword('')
+      setConfirmPassword('')
+    }
+  })
+
+  const roleLabel: Record<string, string> = { admin: 'Quản trị viên', user: 'Nhân viên' }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newPassword.length < 6) return
+    if (newPassword !== confirmPassword) return
+    changePwMutation.mutate()
+  }
+
+  return (
+    <div className="mx-auto max-w-lg space-y-6 p-6">
+      {/* Profile card */}
+      <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+        <h3 className="mb-4 text-sm font-bold uppercase tracking-wide text-gray-500">Thông tin tài khoản</h3>
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-white">
+            {(currentUser.full_name || currentUser.username || '?')[0].toUpperCase()}
+          </div>
+          <div>
+            <div className="text-base font-bold text-gray-800">{currentUser.full_name || '—'}</div>
+            <div className="text-sm text-gray-500">@{currentUser.username}</div>
+            <span className="mt-1 inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+              {roleLabel[currentUser.role] ?? currentUser.role}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Change password */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+        <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-500">Đổi mật khẩu</h3>
+        <p className="mb-5 text-xs text-gray-400">Mật khẩu mới phải có ít nhất 6 ký tự.</p>
+
+        {changePwMutation.isSuccess && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            <i className="fa-solid fa-circle-check"></i>
+            Đổi mật khẩu thành công.
+          </div>
+        )}
+        {changePwMutation.error && (
+          <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            <i className="fa-solid fa-circle-exclamation"></i>
+            {changePwMutation.error instanceof Error ? changePwMutation.error.message : 'Có lỗi xảy ra.'}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-gray-600">
+              Mật khẩu mới <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); changePwMutation.reset() }}
+                placeholder="Tối thiểu 6 ký tự"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <i className={showNew ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'}></i>
+              </button>
+            </div>
+            {newPassword.length > 0 && newPassword.length < 6 && (
+              <p className="mt-1 text-xs text-rose-500">Mật khẩu phải có ít nhất 6 ký tự.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-gray-600">
+              Xác nhận mật khẩu mới <span className="text-rose-500">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirm ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); changePwMutation.reset() }}
+                placeholder="Nhập lại mật khẩu mới"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <i className={showConfirm ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'}></i>
+              </button>
+            </div>
+            {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+              <p className="mt-1 text-xs text-rose-500">Mật khẩu xác nhận không khớp.</p>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={
+                changePwMutation.isPending ||
+                newPassword.length < 6 ||
+                newPassword !== confirmPassword
+              }
+              className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary/90 disabled:opacity-50"
+            >
+              {changePwMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <i className="fa-solid fa-spinner fa-spin"></i> Đang lưu...
+                </span>
+              ) : (
+                'Lưu mật khẩu'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+

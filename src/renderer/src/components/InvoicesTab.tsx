@@ -4,6 +4,7 @@ import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, type 
 import { PaymentModal } from './PaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
+import { SePaySyncModal } from './SePaySyncModal';
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 
@@ -42,6 +43,7 @@ export const InvoicesTab: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [showSePaySync, setShowSePaySync] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const deleteMutation = useMutation({
@@ -164,6 +166,12 @@ export const InvoicesTab: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => setShowSePaySync(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium text-sm transition"
+            >
+              <i className="fa-solid fa-rotate"></i><span>Đồng bộ SePay</span>
+            </button>
             <button className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition">
               <i className="fa-solid fa-print"></i><span>In h.đơn</span>
             </button>
@@ -615,6 +623,15 @@ export const InvoicesTab: React.FC = () => {
           invoice={payingInvoice}
           room={rooms.find(r => r.id === payingInvoice.room_id)}
           onClose={() => setPayingInvoice(null)}
+        />
+      )}
+
+      {showSePaySync && (
+        <SePaySyncModal
+          apiToken={appSettings?.sepay_api_token ?? ''}
+          invoices={invoices}
+          rooms={rooms}
+          onClose={() => setShowSePaySync(false)}
         />
       )}
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { type Invoice, type Room, type AppSettings } from '../lib/db';
+import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
 import logoNgang from '../assets/logo_navbar.png';
 
 interface InvoiceDetailModalProps {
@@ -196,32 +197,31 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         <title>Hóa đơn - ${room?.name || ''}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #222; }
-          .invoice-wrap { max-width: 700px; margin: 0 auto; padding: 24px; }
-          .header-bar { position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #fcfffc 100%); border-radius: 12px 12px 0 0; padding: 34px 24px 18px; text-align: center; }
-          .header-wave { position: absolute; top: -22px; height: 40px; border-radius: 999px; }
-          .header-wave.wave-a { left: -6%; width: 44%; background: #16a34a; transform: rotate(-5deg); }
-          .header-wave.wave-b { left: 24%; width: 56%; background: #84cc16; top: -18px; }
-          .header-wave.wave-c { right: -8%; width: 40%; background: #22c55e; transform: rotate(4deg); }
-          .brand-row { display: inline-flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; position: relative; z-index: 1; }
-          .brand-mark { width: 76px; height: 46px; display: flex; align-items: center; justify-content: center; padding: 2px 0; flex: 0 0 auto; }
-          .brand-mark img { max-width: 100%; max-height: 100%; object-fit: contain; }
-          .brand-copy { display: flex; flex-direction: column; align-items: center; gap: 4px; max-height: 34px; overflow: hidden; }
-          .brand-title { font-size: 16px; font-weight: 900; letter-spacing: 0.4px; color: #1f2937; }
-          .logo-sub { font-size: 11px; color: #4b5563; font-weight: 700; letter-spacing: 0.4px; }
-          .logo-sub strong { color: #16a34a; }
-          .title-section { text-align: center; padding: 4px 0 2px; position: relative; z-index: 1; }
-          .title-main { font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: 0.6px; }
-          .title-period { font-size: 15px; font-weight: 800; color: #111827; margin-top: 4px; }
-          table { width: 100%; border-collapse: collapse; font-size: 13px; }
-          th { background: #f0fdf4; color: #166534; font-weight: 700; padding: 9px 12px; text-align: left; border: 1px solid #d1fae5; }
-          th:last-child { text-align: right; }
-          td { padding: 9px 12px; border: 1px solid #e5e7eb; vertical-align: top; }
-          td:last-child { text-align: right; font-weight: 600; }
+          ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+          body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(180deg, #eef2f7 0%, #e5ebf3 100%);
+            color: #222;
+            padding: 24px;
+          }
+          .capture-page { max-width: 760px; margin: 0 auto; padding-bottom: 32px; }
+          .invoice-export-frame {
+            background: #fff;
+            border: 1px solid #d1d5db;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+          }
           .hidden { display: none !important; }
         </style>
       </head>
-      <body>${printHtml}</body>
+      <body>
+        <div class="capture-page">
+          <div class="invoice-export-frame">
+            ${printHtml}
+          </div>
+        </div>
+      </body>
       </html>
     `;
   };
@@ -230,6 +230,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const displayName = tenantName || room?.tenant_name || 'Khách thuê';
   const displayPhone = tenantPhone || room?.tenant_phone || '';
   const propertyAddress = settings.property_address || '';
+  const ownerPhone = settings.property_owner_phone || '';
   const ownerFullName = settings.property_owner_name || 'Đỗ Kim Ngân';
   // Tên viết tay = tên đầu tiên (tên riêng trong tiếng Việt là từ cuối cùng)
   const ownerShortName = ownerFullName.trim().split(/\s+/).pop() || ownerFullName;
@@ -453,21 +454,24 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[150] overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex items-start justify-center"
-      onClick={onClose}
+      className="app-no-drag fixed inset-0 z-[320] overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex items-start justify-center"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto"
+        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[calc(100vh-2rem)] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Toolbar */}
-        <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+        <div className="relative z-30 shrink-0 flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
           <span className="font-bold text-gray-700 text-sm flex items-center gap-2">
             <i className="fa-solid fa-file-invoice text-green-600"></i>
             Gửi hóa đơn
           </span>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={handleSendZalo}
               disabled={sendingZalo}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white text-xs font-semibold rounded-lg transition"
@@ -476,20 +480,24 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
               {sendingZalo ? 'Đang gửi...' : 'Gửi Zalo'}
             </button>
             <button
+              type="button"
               onClick={handleSaveImage}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition"
             >
               <i className="fa-solid fa-image"></i>Lưu ảnh (JPG)
             </button>
             <button
+              type="button"
               onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition"
             >
               <i className="fa-solid fa-print"></i>In phiếu
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"
+              className="relative z-40 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"
+              aria-label="Đóng"
             >
               <i className="fa-solid fa-xmark"></i>
             </button>
@@ -497,7 +505,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         </div>
 
         {/* Logo floating — nằm vắt giữa toolbar và header xanh */}
-        <div className="flex justify-center relative z-20 pt-3 -mb-6">
+        <div className="pointer-events-none shrink-0 flex justify-center relative z-20 pt-3 -mb-6">
           <div className="bg-white rounded-2xl px-4 py-2 shadow-lg ring-2 ring-green-100">
             <img
               src={logoNgang}
@@ -508,60 +516,37 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         </div>
 
         {/* Invoice content */}
-        <div className="bg-gray-100 px-4 pb-4 pt-0">
-          <div ref={printRef} className="invoice-wrap bg-white rounded-xl shadow-sm overflow-hidden max-w-[660px] mx-auto">
+        <div className="bg-gray-100 px-4 pb-4 pt-0 overflow-y-auto min-h-0">
+          <div ref={printRef} className="invoice-wrap bg-white border-2 border-slate-700 shadow-sm overflow-hidden max-w-[700px] mx-auto">
 
-            {/* Header */}
-            <div className="relative overflow-hidden rounded-t-xl bg-gradient-to-br from-green-700 via-green-600 to-green-500 px-6 pt-10 pb-0">
-              {/* Nền chấm trang trí */}
-              <div className="absolute inset-0 opacity-10"
-                style={{ backgroundImage: 'radial-gradient(circle at 20% 50%, #fff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #fff 1px, transparent 1px)', backgroundSize: '30px 30px' }}
-              />
-
-              {/* Tiêu đề + tháng */}
-              <div className="relative z-10 flex flex-col items-center gap-1 pb-5">
-                <h1 className="text-[19px] font-black tracking-widest text-white uppercase leading-tight">
-                  Hóa đơn tiền thuê nhà
-                </h1>
-                <p className="text-[12px] font-semibold text-green-100 tracking-wide">
-                  Tháng {String(invoice.month).padStart(2, '0')} / {invoice.year}
-                </p>
+            {/* Header kiểu hành chính */}
+            <div className="px-6 pt-5 pb-4 border-b-2 border-slate-700 bg-white">
+              <div className="grid grid-cols-2 gap-4 text-[12px] text-slate-700">
+                <div className="space-y-0.5">
+                  <div className="font-black uppercase tracking-wide text-slate-900">{settings.property_name || 'PHIẾU THU TIỀN NHÀ'}</div>
+                  <div>Địa chỉ: <span className="font-semibold">{propertyAddress || '—'}</span></div>
+                  <div>Điện thoại: <span className="font-semibold">{ownerPhone || '—'}</span></div>
+                </div>
+                <div className="space-y-0.5 text-right">
+                  <div>Mẫu số: <span className="font-bold">HDTN</span></div>
+                  <div>Số: <span className="font-bold">{invoice.id.split('-')[0].toUpperCase()}</span></div>
+                  <div>Ngày lập: <span className="font-bold">{fmtDate(invoice.invoice_date || invoice.created_at)}</span></div>
+                  {dueDate && <div>Hạn thanh toán: <span className="font-bold">{dueDate}</span></div>}
+                </div>
               </div>
-
-              {/* Vùng trắng bo góc trên */}
-              <div className="relative z-10 -mx-6 h-4 bg-white rounded-t-2xl shadow-[0_-4px_12px_rgba(0,0,0,0.10)]" />
+              <div className="mt-4 text-center">
+                <h1 className="text-[30px] font-black tracking-[0.08em] uppercase text-slate-900">Hóa đơn tiền thuê nhà</h1>
+                <p className="text-[13px] font-semibold tracking-wide text-slate-700 mt-1">Tháng {String(invoice.month).padStart(2, '0')} / {invoice.year}</p>
+              </div>
             </div>
 
-            {/* Địa chỉ */}
-            {propertyAddress && (
-              <div className="text-center text-xs text-gray-500 py-2 px-6 flex items-center justify-center gap-1 border-b border-gray-100">
-                <i className="fa-solid fa-location-dot text-green-500 text-[11px]"></i>
-                <span>{propertyAddress}</span>
-              </div>
-            )}
-
-
-            {/* Thông tin khách */}
-            <div className="px-6 pb-4">
-              <div className="bg-gray-50 rounded-xl p-3 grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm border border-gray-100">
-                <div>
-                  <span className="text-gray-500 text-[11px] font-semibold">Kính gửi: </span>
-                  <span className="font-bold text-gray-800">{displayName}</span>
-                </div>
-                {displayPhone && (
-                  <div>
-                    <span className="text-gray-500 text-[11px] font-semibold">Số điện thoại: </span>
-                    <span className="font-semibold text-gray-700">{displayPhone}</span>
-                  </div>
-                )}
-                <div>
-                  <span className="text-gray-500 text-[11px] font-semibold">Phòng: </span>
-                  <span className="font-bold text-gray-800">{room?.name || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 text-[11px] font-semibold">Lý do thu: </span>
-                  <span className="font-semibold text-gray-700">{label}</span>
-                </div>
+            {/* Nội dung chứng từ */}
+            <div className="px-6 py-3 border-b border-slate-300 text-[13px] text-slate-700 bg-slate-50/40">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                <div>Khách hàng: <span className="font-semibold text-slate-900">{displayName}</span></div>
+                <div>Số điện thoại: <span className="font-semibold text-slate-900">{displayPhone || '—'}</span></div>
+                <div>Phòng: <span className="font-semibold text-slate-900">{room?.name || '—'}</span></div>
+                <div>Nội dung thu: <span className="font-semibold text-slate-900">{label}</span></div>
               </div>
             </div>
 
@@ -569,22 +554,26 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             <div className="px-6 pb-4">
               <table className="w-full text-sm border-collapse">
                 <thead>
-                  <tr className="bg-green-50 text-green-800">
-                    <th className="text-left font-bold px-3 py-2.5 border border-green-200 w-[38%]">Khoản thu</th>
-                    <th className="text-left font-bold px-3 py-2.5 border border-green-200">Chi tiết</th>
-                    <th className="text-right font-bold px-3 py-2.5 border border-green-200 w-[28%]">Thành tiền</th>
+                  <tr className="bg-emerald-700 text-white">
+                    <th className="text-center font-bold px-2 py-2 border border-emerald-900 w-[7%]">STT</th>
+                    <th className="text-left font-bold px-3 py-2 border border-emerald-900 w-[33%]">Nội dung</th>
+                    <th className="text-left font-bold px-3 py-2 border border-emerald-900">Chi tiết</th>
+                    <th className="text-right font-bold px-3 py-2 border border-emerald-900 w-[25%]">Thành tiền</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lines.map((line, idx) => (
                     <tr key={idx} className="border-b border-gray-100">
-                      <td className="px-3 py-2.5 border border-gray-200 font-medium text-gray-700">
+                      <td className="px-2 py-2 border border-gray-300 text-center font-semibold text-gray-700">
+                        {idx + 1}
+                      </td>
+                      <td className="px-3 py-2 border border-gray-300 font-medium text-gray-700">
                         {line.label}
                       </td>
-                      <td className="px-3 py-2.5 border border-gray-200">
+                      <td className="px-3 py-2 border border-gray-300">
                         {line.detail || null}
                       </td>
-                      <td className={`px-3 py-2.5 border border-gray-200 text-right font-semibold tabular-nums ${line.highlight === 'red' ? 'text-red-500' : 'text-gray-800'}`}>
+                      <td className={`px-3 py-2 border border-gray-300 text-right font-semibold tabular-nums ${line.highlight === 'red' ? 'text-red-500' : 'text-gray-800'}`}>
                         {formatVND(line.amount)}đ
                       </td>
                     </tr>
@@ -592,40 +581,40 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
                   {/* Tổng tiền */}
                   <tr className="bg-gray-50">
-                    <td colSpan={2} className="px-3 py-2.5 border border-gray-200 font-bold text-gray-800">
+                    <td colSpan={3} className="px-3 py-2.5 border border-gray-300 font-bold text-gray-800">
                       Tổng tiền
                     </td>
-                    <td className="px-3 py-2.5 border border-gray-200 text-right font-black text-green-700 text-base tabular-nums">
+                    <td className="px-3 py-2.5 border border-gray-300 text-right font-black text-green-700 text-base tabular-nums">
                       {formatVND(invoice.total_amount)}đ
                     </td>
                   </tr>
 
                   {/* Bằng chữ */}
                   <tr className="bg-green-50">
-                    <td className="px-3 py-2 border border-gray-200 font-semibold text-gray-700 text-xs">
+                    <td className="px-3 py-2 border border-gray-300 font-semibold text-gray-700 text-xs">
                       Tổng tiền ghi bằng chữ
                     </td>
-                    <td colSpan={2} className="px-3 py-2 border border-gray-200 text-green-700 font-semibold italic text-xs text-right">
+                    <td colSpan={3} className="px-3 py-2 border border-gray-300 text-green-700 font-semibold italic text-xs text-right">
                       {wordsText}
                     </td>
                   </tr>
 
                   {/* Đã thu */}
                   <tr>
-                    <td colSpan={2} className="px-3 py-2.5 border border-gray-200 font-medium text-gray-700">
+                    <td colSpan={3} className="px-3 py-2.5 border border-gray-300 font-medium text-gray-700">
                       Đã thu
                     </td>
-                    <td className="px-3 py-2.5 border border-gray-200 text-right font-semibold text-emerald-600 tabular-nums">
+                    <td className="px-3 py-2.5 border border-gray-300 text-right font-semibold text-emerald-600 tabular-nums">
                       {invoice.paid_amount > 0 ? `${formatVND(invoice.paid_amount)}đ` : '0đ'}
                     </td>
                   </tr>
 
                   {/* Còn lại */}
                   <tr className={remaining > 0 ? 'bg-red-50' : 'bg-emerald-50'}>
-                    <td colSpan={2} className="px-3 py-2.5 border border-gray-200 font-bold text-gray-800">
+                    <td colSpan={3} className="px-3 py-2.5 border border-gray-300 font-bold text-gray-800">
                       Còn lại
                     </td>
-                    <td className={`px-3 py-2.5 border border-gray-200 text-right font-black text-base tabular-nums ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    <td className={`px-3 py-2.5 border border-gray-300 text-right font-black text-base tabular-nums ${remaining > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                       {remaining > 0 ? `${formatVND(remaining)}đ` : '0đ'}
                     </td>
                   </tr>
@@ -679,11 +668,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
             {/* Phần mã QR thanh toán (Chỉ hiển thị nếu còn nợ) */}
             {remaining > 0 && settings.account_no && settings.bank_id && (() => {
-              // Tách lấy số của phòng để mã hiển thị gọn gàng hơn, ví dụ "Phòng 101" -> "101"
-              const roomNumber = room?.name?.match(/\d+/g)?.join('') || room?.name?.replace(/[^a-zA-Z0-9]/g, '').substring(0, 5) || 'XX';
-              // Dùng 4 ký tự đầu của ID hóa đơn làm mã chống trùng lặp, bỏ sạch khoảng trắng
-              const uid = invoice.id.split('-')[0].substring(0, 4).toUpperCase();
-              const transferDes = `P${roomNumber}T${invoice.month}${invoice.year}${uid}`;
+              const transferDes = buildInvoiceTransferDescription(invoice, room?.name);
 
               return (
                 <div className="mx-6 mb-6 px-4 py-4 border-2 border-dashed border-green-300 rounded-xl bg-green-50 flex items-center gap-6 justify-center" data-html2canvas-ignore="false">
@@ -727,4 +712,3 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     </div>
   );
 };
-

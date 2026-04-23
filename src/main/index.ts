@@ -210,8 +210,66 @@ function setupInvoiceHandlers(): void {
 
       try {
         await captureWindow.loadFile(htmlPath)
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-        const image = await captureWindow.webContents.capturePage()
+        await new Promise((resolve) => setTimeout(resolve, 1200))
+
+        const contentSize = await captureWindow.webContents.executeJavaScript(`
+          (() => {
+            window.scrollTo(0, 0)
+            const doc = document.documentElement
+            const body = document.body
+            const exportRoot = document.querySelector('.capture-page') || body
+            const rootRect = exportRoot.getBoundingClientRect()
+            const width = Math.max(
+              Math.ceil(rootRect.width + 24),
+              doc?.scrollWidth || 0,
+              doc?.clientWidth || 0,
+              body?.scrollWidth || 0,
+              body?.offsetWidth || 0
+            )
+            const height = Math.max(
+              Math.ceil(rootRect.height + 24),
+              doc?.scrollHeight || 0,
+              doc?.clientHeight || 0,
+              body?.scrollHeight || 0,
+              body?.offsetHeight || 0
+            )
+            return { width, height }
+          })()
+        `) as { width?: number; height?: number }
+
+        const captureWidth = Math.min(2200, Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12))
+        const captureHeight = Math.min(9000, Math.max(1180, Math.ceil(Number(contentSize?.height || 1180)) + 120))
+
+        captureWindow.setContentSize(captureWidth, captureHeight)
+        await new Promise((resolve) => setTimeout(resolve, 220))
+
+        // On some displays, Electron caps hidden-window height to the work area.
+        // If content is taller than the capturable viewport, scale it down to avoid clipping.
+        const actualBounds = captureWindow.getContentBounds()
+        const viewportWidth = Math.max(1, actualBounds.width)
+        const viewportHeight = Math.max(1, actualBounds.height)
+
+        if (viewportHeight < captureHeight - 8) {
+          const scale = Math.max(0.45, Math.min(1, (viewportHeight - 16) / captureHeight))
+          await captureWindow.webContents.executeJavaScript(`
+            (() => {
+              const s = ${scale}
+              document.documentElement.style.overflow = 'hidden'
+              document.body.style.transformOrigin = 'top left'
+              document.body.style.transform = 'scale(' + s + ')'
+              document.body.style.width = (100 / s) + '%'
+              document.body.style.margin = '0'
+            })()
+          `)
+          await new Promise((resolve) => setTimeout(resolve, 180))
+        }
+
+        const image = await captureWindow.webContents.capturePage({
+          x: 0,
+          y: 0,
+          width: viewportWidth,
+          height: viewportHeight
+        })
         const selectedExt = extname(saveResult.filePath).toLowerCase()
         const targetExt =
           selectedExt === '.jpg' || selectedExt === '.jpeg' || selectedExt === '.png'
@@ -235,6 +293,71 @@ function setupInvoiceHandlers(): void {
     }
   })
 }
+
+function setupContractHandlers(): void {
+  ipcMain.removeHandler('contract:savePDF')
+
+  ipcMain.handle('contract:savePDF', async (_event, payload: { html: string; fileName: string }) => {
+    try {
+      const { dialog } = require('electron')
+      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
+      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
+
+      if (!rawHtml.trim()) {
+        return { ok: false, error: 'Nội dung hợp đồng rỗng.' }
+      }
+
+      const safeDefaultName =
+        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() || `hop-dong-${Date.now()}.pdf`
+
+      const saveResult = await dialog.showSaveDialog({
+        title: 'Lưu hợp đồng PDF',
+        defaultPath: safeDefaultName,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      })
+
+      if (saveResult.canceled || !saveResult.filePath) {
+        return { ok: true, canceled: true }
+      }
+
+      const tempDir = join(app.getPath('temp'), 'phongtro-contracts')
+      mkdirSync(tempDir, { recursive: true })
+      const htmlPath = join(tempDir, `contract_temp_${Date.now()}.html`)
+      writeFileSync(htmlPath, rawHtml, 'utf-8')
+
+      const pdfWindow = new BrowserWindow({
+        width: 794,
+        height: 1123,
+        show: false,
+        frame: false,
+        webPreferences: { sandbox: false }
+      })
+
+      try {
+        await pdfWindow.loadFile(htmlPath)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        const pdfBuffer = await pdfWindow.webContents.printToPDF({
+          pageSize: 'A4',
+          printBackground: true,
+          margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+        })
+        const targetPath = saveResult.filePath.endsWith('.pdf')
+          ? saveResult.filePath
+          : `${saveResult.filePath}.pdf`
+        writeFileSync(targetPath, pdfBuffer)
+        return { ok: true, filePath: targetPath }
+      } finally {
+        pdfWindow.destroy()
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể tạo file PDF.'
+      return { ok: false, error: message }
+    }
+  })
+}
+
+
+
 
 function setupBankLookupHandlers(): void {
   ipcMain.removeHandler('bank:lookup')
@@ -486,6 +609,7 @@ app.whenReady().then(() => {
   setupDBHandlers()
   setupZaloHandlers()
   setupInvoiceHandlers()
+  setupContractHandlers()
   setupBankLookupHandlers()
   setupSepayHandlers()
   registerUpdateHandlers()

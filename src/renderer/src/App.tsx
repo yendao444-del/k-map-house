@@ -1412,12 +1412,7 @@ const App: React.FC = () => {
     })
 
     const autoInstallTimer = isDev ? null : window.setTimeout(() => {
-      setUpdateBanner({
-        status: 'checking',
-        message: 'Đang kiểm tra bản cập nhật...',
-        progress: 0
-      })
-
+      // Kiểm tra ngầm — chỉ hiện banner nếu có update thực sự hoặc lỗi
       void window.api.update.installLatest().then((result) => {
         if (!result.success) {
           setUpdateBanner({
@@ -1425,12 +1420,8 @@ const App: React.FC = () => {
             message: result.error || 'Không thể tự động cập nhật.',
             progress: 0
           })
-          return
         }
-
-        if (!result.data?.applied) {
-          setUpdateBanner(null)
-        }
+        // Nếu applied = true, onAvailable/onStatus/onProgress sẽ tự cập nhật banner
       })
     }, 2500)
 
