@@ -1276,6 +1276,7 @@ const App: React.FC = () => {
 
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom'>('bottom')
+  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({
     occupied: false,
@@ -1756,16 +1757,22 @@ const App: React.FC = () => {
   const toggleRoomMenu = (event: React.MouseEvent<HTMLButtonElement>, roomId: string) => {
     if (menuOpenId === roomId) {
       setMenuOpenId(null)
+      setMenuAnchor(null)
       return
     }
 
     const buttonRect = event.currentTarget.getBoundingClientRect()
-    const estimatedMenuHeight = 320
+    const estimatedMenuHeight = 480
     const viewportPadding = 16
     const shouldOpenUp =
       window.innerHeight - buttonRect.bottom < estimatedMenuHeight + viewportPadding
 
     setMenuPlacement(shouldOpenUp ? 'top' : 'bottom')
+    setMenuAnchor({
+      top: buttonRect.bottom,
+      bottom: window.innerHeight - buttonRect.top,
+      right: window.innerWidth - buttonRect.right,
+    })
     setMenuOpenId(roomId)
   }
 
@@ -2650,7 +2657,12 @@ const App: React.FC = () => {
                           'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
                         const roomActionMenu = (
                           <div
-                            className={`absolute right-0 w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-50 animate-[fadeIn_0.15s_ease-out] ${menuPlacement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+                            className="fixed w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-[9999] animate-[fadeIn_0.15s_ease-out]"
+                            style={menuAnchor ? (
+                              menuPlacement === 'top'
+                                ? { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
+                                : { top: menuAnchor.top + 4, right: menuAnchor.right }
+                            ) : {}}
                           >
                             <div className="grid grid-cols-2 gap-2 overflow-hidden">
                               {room.status === 'vacant' ? (
