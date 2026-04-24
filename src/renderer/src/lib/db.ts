@@ -164,6 +164,14 @@ export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Ro
 }
 
 export const deleteRoom = async (id: string): Promise<void> => {
+  // Xóa toàn bộ dữ liệu liên quan trước để tránh FK constraint
+  await supabase.from('invoices').delete().eq('room_id', id)
+  await supabase.from('move_in_receipts').delete().eq('room_id', id)
+  await supabase.from('contracts').delete().eq('room_id', id)
+  await supabase.from('room_assets').delete().eq('room_id', id)
+  await supabase.from('asset_snapshots').delete().eq('room_id', id)
+  await supabase.from('room_vehicles').delete().eq('room_id', id)
+  await supabase.from('room_asset_adjustments').delete().eq('room_id', id)
   await safeQuery(() => supabase.from('rooms').delete().eq('id', id))
 }
 
