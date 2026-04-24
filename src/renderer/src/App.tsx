@@ -2641,8 +2641,9 @@ const App: React.FC = () => {
                           )
                         const canDeleteRoom =
                           roomInvoices.length === 0 && roomMoveInReceipts.length === 0
-                        // "Đang ở" chỉ khi đã lập hóa đơn đầu tiên
+                        // Khach migration khong lap hoa don thang dau, nhung van la khach dang o.
                         const hasFirstInvoice = checkInvoices.some((i) => i.is_first_month)
+                        const hasStartedBilling = hasFirstInvoice || activeContract?.is_migration === true
 
                         const menuItemClass =
                           'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
@@ -2764,6 +2765,17 @@ const App: React.FC = () => {
                                     className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
                                   >
                                     <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setServiceZoneRoom(room)
+                                      setMenuOpenId(null)
+                                    }}
+                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                  >
+                                    <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                    dịch vụ
                                   </button>
                                   {/* Nhóm 2: Di chuyển & Tài sản */}
                                   <button
@@ -3191,7 +3203,7 @@ const App: React.FC = () => {
                                 const moveInDate = activeContract?.move_in_date ||
                                   room.move_in_date
 
-                                if (hasFirstInvoice && moveInDate) {
+                                if (hasStartedBilling && moveInDate) {
                                   return (
                                     <span className="font-medium">
                                       {new Date(moveInDate).toLocaleDateString('vi-VN', {
@@ -3214,9 +3226,9 @@ const App: React.FC = () => {
                                   title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
                                   className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide ${room.status === 'vacant'
                                     ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
-                                    : room.status === 'occupied' && hasFirstInvoice
+                                    : room.status === 'occupied' && hasStartedBilling
                                       ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
-                                      : room.status === 'occupied' && !hasFirstInvoice
+                                      : room.status === 'occupied' && !hasStartedBilling
                                         ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
                                         : room.status === 'ending'
                                           ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-400/40'
@@ -3226,13 +3238,13 @@ const App: React.FC = () => {
                                   {room.status === 'vacant' && (
                                     <i className="fa-solid fa-door-open text-[9px]"></i>
                                   )}
-                                  {room.status === 'occupied' && hasFirstInvoice && (
+                                  {room.status === 'occupied' && hasStartedBilling && (
                                     <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
                                       <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-60 animate-ping"></span>
                                       <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white"></span>
                                     </span>
                                   )}
-                                  {room.status === 'occupied' && !hasFirstInvoice && (
+                                  {room.status === 'occupied' && !hasStartedBilling && (
                                     <i className="fa-solid fa-file-signature text-[9px]"></i>
                                   )}
                                   {room.status === 'ending' && (
@@ -3243,9 +3255,9 @@ const App: React.FC = () => {
                                   )}
                                   {room.status === 'vacant'
                                     ? 'Đang trống'
-                                    : room.status === 'occupied' && hasFirstInvoice
+                                    : room.status === 'occupied' && hasStartedBilling
                                       ? 'Đang ở'
-                                      : room.status === 'occupied' && !hasFirstInvoice
+                                      : room.status === 'occupied' && !hasStartedBilling
                                         ? 'Chờ lập HĐ'
                                         : room.status === 'ending'
                                           ? 'Sắp chuyển phòng'
@@ -3347,7 +3359,7 @@ const App: React.FC = () => {
                               const firstMonthInvoice = currentTenantInvoices.find(
                                 (i) => i.is_first_month
                               )
-                              const isNewContract = !!hasActiveContract && !firstMonthInvoice
+                              const isNewContract = !!hasActiveContract && !hasActiveContract.is_migration && !firstMonthInvoice
                               const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
                               const hasDepositCollected =
                                 hasActiveContract?.deposit_pre_collected === true ||
@@ -3407,7 +3419,7 @@ const App: React.FC = () => {
                                     </td>
                                   )
                                 }
-                                if (isNewContract && !hasReceivedAssets) return btnReceiveRoom
+                                if (hasActiveContract && room.status === 'occupied' && !hasReceivedAssets) return btnReceiveRoom
                                 if (isNewContract) {
                                   if (hasDepositCollected) {
                                     return (

@@ -2079,21 +2079,31 @@ const ZoneRowEditor = ({
 }): React.JSX.Element => (
   <tr className="bg-blue-50/30">
     {(['name', 'electric_price', 'water_price', 'internet_price', 'cleaning_price'] as const).map(
-      (field) => (
-        <td key={field} className="px-5 py-3">
-          <input
-            type={field === 'name' ? 'text' : 'number'}
-            value={values[field] ?? ''}
-            onChange={(event) =>
-              onChange((prev) => ({
-                ...prev,
-                [field]: field === 'name' ? event.target.value : Number(event.target.value)
-              }))
-            }
-            className="w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary"
-          />
-        </td>
-      )
+      (field) => {
+        const isNameField = field === 'name'
+        const fieldValue = values[field]
+        const inputValue = !isNameField && fieldValue === 0 ? '' : fieldValue ?? ''
+
+        return (
+          <td key={field} className="px-5 py-3">
+            <input
+              type={isNameField ? 'text' : 'number'}
+              value={inputValue}
+              onChange={(event) =>
+                onChange((prev) => ({
+                  ...prev,
+                  [field]: isNameField
+                    ? event.target.value
+                    : event.target.value === ''
+                      ? undefined
+                      : Number(event.target.value)
+                }))
+              }
+              className="w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+            />
+          </td>
+        )
+      }
     )}
     <td className="px-5 py-3 text-center text-gray-400">-</td>
     <td className="px-5 py-3 text-right">
