@@ -490,7 +490,11 @@ async function installWithSetup(downloadUrl: string): Promise<{ version: string 
   sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
   createSilentInstallerRunner(tempDir, installerPath)
 
-  setTimeout(() => app.quit(), 800)
+  setTimeout(() => {
+    sendToRenderer('update:status', { status: 'restarting', message: 'Ứng dụng sẽ tự động hoàn tất cài đặt và khởi động lại...' })
+  }, 300)
+  // Phải quit trước khi VBS chạy installer (VBS timeout /t 2 = 2000ms)
+  setTimeout(() => app.quit(), 1400)
   return { version: 'installer' }
 }
 
@@ -539,12 +543,15 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
 
   setTimeout(() => {
     sendToRenderer('update:status', { status: 'restarting', message: 'Đang khởi động lại...' })
-    if (hadLockedFiles) {
-      app.quit()
-    } else {
-      app.relaunch()
-      app.exit(0)
-    }
+    // Delay để renderer kịp hiển thị banner "restarting" trước khi process exit
+    setTimeout(() => {
+      if (hadLockedFiles) {
+        app.quit()
+      } else {
+        app.relaunch()
+        app.exit(0)
+      }
+    }, 2000)
   }, 1200)
 
   return { version: newVersion }

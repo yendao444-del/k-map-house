@@ -1126,7 +1126,7 @@ const ConfirmDeleteWithHistoryModal = ({
             <div>
               <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">Phòng này còn dữ liệu lịch sử</h3>
               <p className="text-[13px] text-gray-500">
-                Phòng <span className="font-semibold text-gray-700">{room.name}</span> vẫn còn hóa đơn hoặc biên lai đã ghi nhận.
+                Phòng <span className="font-semibold text-gray-700">{room.name}</span> còn hóa đơn, hợp đồng hoặc biên lai liên quan.
               </p>
             </div>
           </div>
@@ -1135,7 +1135,7 @@ const ConfirmDeleteWithHistoryModal = ({
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 flex gap-3">
             <i className="fa-solid fa-circle-info text-amber-500 mt-0.5 shrink-0" />
             <p className="text-[12.5px] text-amber-800 leading-relaxed">
-              Dữ liệu lịch sử <span className="font-semibold">(hóa đơn, biên lai)</span> sẽ vẫn được giữ lại trong hệ thống. Chỉ phòng trọ bị xóa khỏi danh sách quản lý.
+              Toàn bộ dữ liệu liên quan <span className="font-semibold">(hóa đơn, hợp đồng, biên lai, tài sản, xe)</span> của phòng này sẽ bị xóa vĩnh viễn và không thể khôi phục.
             </p>
           </div>
 
