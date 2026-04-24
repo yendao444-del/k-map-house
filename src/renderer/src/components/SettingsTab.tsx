@@ -941,6 +941,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   const [sortBy, setSortBy] = useState<'name' | 'username' | 'role'>('name')
   const [newUserForm, setNewUserForm] = useState({
     email: '',
+    username: '',
     password: '',
     full_name: '',
     role: 'user' as UserRole
@@ -951,7 +952,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setShowAddForm(false)
-      setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
+      setNewUserForm({ email: '', username: '', password: '', full_name: '', role: 'user' })
     }
   })
 
@@ -1153,6 +1154,18 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-xs font-bold text-slate-600">
+                        Username <span className="text-slate-400 font-normal">(để đăng nhập)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={newUserForm.username}
+                        onChange={(e) => setNewUserForm((f) => ({ ...f, username: e.target.value.replace(/\s/g, '').toLowerCase() }))}
+                        placeholder="vd: kimngan"
+                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-bold text-slate-600">
                         Mật khẩu <span className="text-rose-500">*</span>
                       </label>
                       <input
@@ -1198,7 +1211,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       type="button"
                       onClick={() => {
                         setShowAddForm(false)
-                        setNewUserForm({ email: '', password: '', full_name: '', role: 'user' })
+                        setNewUserForm({ email: '', username: '', password: '', full_name: '', role: 'user' })
                         createUserMutation.reset()
                       }}
                       className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"

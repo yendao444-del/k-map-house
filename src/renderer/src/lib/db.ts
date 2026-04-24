@@ -12,11 +12,11 @@ export type UserStatus = 'active' | 'inactive'
 export interface AppUser { id: string; username: string; email?: string; full_name: string; avatar_url?: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
 export interface InvoicePaymentRecord { id: string; amount: number; payment_method?: PaymentMethod; payment_date: string; note?: string; created_at: string; }
 export interface ServiceZone { id: string; name: string; electric_price: number; water_price: number; internet_price: number; cleaning_price: number; created_at: string; }
-export interface Room { id: string; name: string; floor: number; base_rent: number; status: RoomStatus; created_at: string; service_zone_id?: string; area?: number; max_occupants?: number; default_deposit?: number; invoice_day?: number; billing_cycle?: string; notes?: string; move_in_date?: string; contract_expiration?: string; tenant_name?: string; tenant_phone?: string; tenant_email?: string; tenant_id_card?: string; electric_old?: number; electric_new?: number; water_old?: number; water_new?: number; old_debt?: number; max_vehicles?: number; has_move_in_receipt?: boolean; expected_end_date?: string; electric_price?: number; water_price?: number; wifi_price?: number; garbage_price?: number; }
+export interface Room { id: string; name: string; floor: number; base_rent: number; status: RoomStatus; created_at: string; service_zone_id?: string; area?: number; max_occupants?: number; default_deposit?: number; invoice_day?: number; billing_cycle?: string; notes?: string; move_in_date?: string; contract_expiration?: string; tenant_name?: string; tenant_phone?: string; tenant_email?: string; tenant_id_card?: string; electric_old?: number; electric_new?: number; water_old?: number; water_new?: number; old_debt?: number; max_vehicles?: number; has_move_in_receipt?: boolean; expected_end_date?: string; electric_price?: number; water_price?: number; wifi_price?: number; garbage_price?: number; image_urls?: string[]; }
 export interface Tenant { id: string; full_name: string; phone?: string; email?: string; identity_card?: string; id_card_issued_date?: string; id_card_issued_place?: string; address?: string; identity_image_url?: string; notes?: string; is_active: boolean; last_room_name?: string; left_at?: string; created_at: string; updated_at: string; }
 export interface Invoice { id: string; room_id: string; tenant_id: string; billing_reason?: string; month: number; year: number; invoice_date?: string; due_date?: string; billing_period_start?: string; billing_period_end?: string; electric_old: number; electric_new: number; electric_usage: number; electric_cost: number; water_old: number; water_new: number; water_usage: number; water_cost: number; room_cost: number; wifi_cost: number; garbage_cost: number; old_debt: number; total_amount: number; adjustment_amount?: number; adjustment_note?: string; note?: string; paid_amount: number; payment_status: PaymentStatus; payment_method?: PaymentMethod; payment_date?: string; payment_records?: InvoicePaymentRecord[]; is_first_month?: boolean; is_settlement?: boolean; deposit_amount?: number; deposit_applied?: number; damage_amount?: number; damage_note?: string; merged_invoice_ids?: string[]; merged_debt_total?: number; electric_price_snapshot?: number; water_price_snapshot?: number; prorata_days?: number; has_transfer?: boolean; transfer_old_room_name?: string; transfer_days?: number; transfer_room_cost?: number; transfer_electric_cost?: number; transfer_water_cost?: number; transfer_service_cost?: number; transfer_electric_usage?: number; transfer_water_usage?: number; new_room_days?: number; new_room_cost?: number; new_room_service_cost?: number; created_at: string; allow_duplicate?: boolean; }
 export type ContractStatus = 'active' | 'expired' | 'terminated' | 'cancelled'
-export interface Contract { id: string; room_id: string; tenant_name: string; tenant_phone?: string; tenant_id_card?: string; tenant_id_card_issued_date?: string; tenant_id_card_issued_place?: string; tenant_address?: string; tenant_dob?: string; occupant_count: number; move_in_date: string; duration_months: number; expiration_date?: string; base_rent: number; deposit_amount: number; billing_cycle: number; invoice_day: number; electric_init: number; water_init: number; status: ContractStatus; notes?: string; created_at: string; end_date?: string; end_note?: string; final_electric?: number; final_water?: number; tenant_id?: string; is_migration?: boolean; migration_debt?: number; transfer_history?: any; }
+export interface Contract { id: string; room_id: string; tenant_name: string; tenant_phone?: string; tenant_id_card?: string; tenant_id_card_issued_date?: string; tenant_id_card_issued_place?: string; tenant_address?: string; tenant_dob?: string; occupant_count: number; move_in_date: string; duration_months: number; expiration_date?: string; base_rent: number; deposit_amount: number; billing_cycle: number; invoice_day: number; electric_init: number; water_init: number; status: ContractStatus; notes?: string; created_at: string; end_date?: string; end_note?: string; final_electric?: number; final_water?: number; tenant_id?: string; is_migration?: boolean; migration_debt?: number; deposit_pre_collected?: boolean; transfer_history?: any; }
 export interface MoveInReceipt { id: string; room_id: string; tenant_id?: string; move_in_date: string; deposit_amount: number; prorata_days: number; prorata_amount: number; next_month_rent: number; electric_init: number; water_init: number; total_amount: number; payment_status: PaymentStatus; payment_method?: PaymentMethod; payment_date?: string; created_at: string; }
 export type CashTransactionType = 'income' | 'expense'
 export type CashTransactionCategory = 'electric' | 'water' | 'internet' | 'cleaning' | 'maintenance' | 'management' | 'software' | 'other_income' | 'other_expense'
@@ -625,6 +625,24 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
   const newPaidAmount = (inv.paid_amount || 0) + data.amount
   const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: newPaidAmount >= inv.total_amount ? 'paid' : 'partial', payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
+
+  // Khi thu tiền cọc bổ sung → cộng vào tổng cọc đang giữ của hợp đồng
+  if (inv.billing_reason === 'deposit_collect' && inv.room_id) {
+    const { data: activeContracts } = await supabase
+      .from('contracts')
+      .select('id, deposit_amount')
+      .eq('room_id', inv.room_id)
+      .eq('status', 'active')
+      .limit(1)
+    if (activeContracts && activeContracts.length > 0) {
+      const contract = activeContracts[0]
+      await supabase
+        .from('contracts')
+        .update({ deposit_amount: (contract.deposit_amount || 0) + data.amount })
+        .eq('id', contract.id)
+    }
+  }
+
   return result as any as Invoice
 }
 
@@ -924,7 +942,7 @@ export const resetUserPassword = async (userId: string, newPassword: string): Pr
   if (!supabaseAdmin) throw new Error('Chức năng đổi mật khẩu yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
   const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })
   if (error) throw new Error(error.message)
-}
+}
 
 export const changeOwnPassword = async (newPassword: string): Promise<void> => {
   const { error } = await supabase.auth.updateUser({ password: newPassword })
@@ -988,6 +1006,40 @@ export const signOutUser = async (): Promise<void> => {
 // =========================================================
 export const dbOptions = { readDB: () => ({ users: [], app_settings: {} }), writeDB: () => { } }
 export async function getDB() { return {} }
+
+// =========================================================
+// ROOM IMAGES
+// =========================================================
+const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Nén ảnh thất bại')), 'image/jpeg', quality)
+    }
+    img.onerror = () => reject(new Error('Không đọc được file ảnh'))
+    img.src = url
+  })
+
+export const uploadRoomImage = async (roomId: string, file: File): Promise<string> => {
+  const compressed = await compressImage(file)
+  const path = `${roomId}/${Date.now()}.jpg`
+  const { error } = await supabase.storage.from('room-images').upload(path, compressed, { contentType: 'image/jpeg' })
+  if (error) throw new Error(error.message)
+  return supabase.storage.from('room-images').getPublicUrl(path).data.publicUrl
+}
+
+export const deleteRoomImage = async (url: string): Promise<void> => {
+  const path = url.split('/room-images/')[1]
+  if (!path) return
+  await supabase.storage.from('room-images').remove([path])
+}
 
 
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Room, ServiceZone, updateRoom, markTenantLeft, getInvoicesByRoom, getContracts, type Contract, type Invoice } from '../lib/db';
+import { Room, ServiceZone, updateRoom, markTenantLeft, getInvoicesByRoom, getContracts, uploadRoomImage, deleteRoomImage, type Contract, type Invoice } from '../lib/db';
 import { playSuccess } from '../lib/sound';
 import { PaymentModal } from './PaymentModal';
 import { RoomAssetsTab } from './RoomAssetsTab';
@@ -78,6 +78,11 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
 
   const [activeTab, setActiveTab] = useState<'info' | 'assets' | 'vehicles' | 'history'>(initialTab);
   const [payInvoice, setPayInvoice] = useState<Invoice | null>(null);
+  const [isEditingArea, setIsEditingArea] = useState(false);
+  const [areaInput, setAreaInput] = useState(String(room.area || ''));
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUrls, setImageUrls] = useState<string[]>(room.image_urls || []);
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ['invoices', room.id],
@@ -170,7 +175,8 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
           <div className="p-6 overflow-y-auto max-h-[70vh] bg-gray-50/30">
 
             {activeTab === 'info' && (
-              <div className="grid grid-cols-2 gap-6 animate-[fadeIn_0.2s_ease-out]">
+              <div className="flex flex-col gap-6 animate-[fadeIn_0.2s_ease-out]">
+              <div className="grid grid-cols-2 gap-6">
                 {/* THÔNG TIN PHÒNG */}
                 <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
                   <h3 className="text-sm font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -197,7 +203,42 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
                       </div>
                       <div>
                         <div className="text-xs text-gray-500 mb-1">Diện tích</div>
-                        <div className="font-semibold text-gray-800">{room.area ? `${room.area} m²` : '—'}</div>
+                        {isEditingArea ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              value={areaInput}
+                              onChange={e => setAreaInput(e.target.value)}
+                              onKeyDown={async e => {
+                                if (e.key === 'Enter') {
+                                  const val = Number(areaInput) || undefined
+                                  await updateRoom(room.id, { area: val })
+                                  queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                                  setIsEditingArea(false)
+                                }
+                                if (e.key === 'Escape') setIsEditingArea(false)
+                              }}
+                              autoFocus
+                              className="w-20 border border-blue-300 rounded px-2 py-0.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-200"
+                            />
+                            <span className="text-xs text-gray-500">m²</span>
+                            <button onClick={async () => {
+                              const val = Number(areaInput) || undefined
+                              await updateRoom(room.id, { area: val })
+                              queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                              setIsEditingArea(false)
+                            }} className="text-[11px] text-green-600 font-bold">Lưu</button>
+                            <button onClick={() => setIsEditingArea(false)} className="text-[11px] text-gray-400">Hủy</button>
+                          </div>
+                        ) : (
+                          <div
+                            className="font-semibold text-gray-800 cursor-pointer hover:text-blue-600 flex items-center gap-1 group"
+                            onClick={() => { setAreaInput(String(room.area || '')); setIsEditingArea(true) }}
+                          >
+                            {room.area ? `${room.area} m²` : <span className="text-gray-400">—</span>}
+                            <i className="fa-solid fa-pen text-[9px] text-gray-300 group-hover:text-blue-400 transition"></i>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -349,6 +390,156 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
 
                 </div>
               </div>
+              {/* GALLERY ẢNH PHÒNG */}
+              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm mt-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <i className="fa-solid fa-images text-purple-500"></i>
+                    ẢNH PHÒNG
+                    <span className="text-[11px] font-normal text-gray-400">({imageUrls.length}/5)</span>
+                  </h3>
+                  {imageUrls.length < 5 && (
+                    <label className={`text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer transition flex items-center gap-1.5 ${isUploadingImage ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'}`}>
+                      {isUploadingImage
+                        ? <><i className="fa-solid fa-spinner fa-spin"></i> Đang tải...</>
+                        : <><i className="fa-solid fa-plus"></i> Thêm ảnh</>}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        disabled={isUploadingImage}
+                        onChange={async (e) => {
+                          const files = Array.from(e.target.files || [])
+                          if (!files.length) return
+                          const remaining = 5 - imageUrls.length
+                          const toUpload = files.slice(0, remaining)
+                          setIsUploadingImage(true)
+                          try {
+                            const urls: string[] = []
+                            for (const file of toUpload) {
+                              const url = await uploadRoomImage(room.id, file)
+                              urls.push(url)
+                            }
+                            const newUrls = [...imageUrls, ...urls]
+                            setImageUrls(newUrls)
+                            await updateRoom(room.id, { image_urls: newUrls })
+                            queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                          } catch (err) {
+                            alert('Upload thất bại: ' + (err instanceof Error ? err.message : 'Lỗi không xác định'))
+                          } finally {
+                            setIsUploadingImage(false)
+                            e.target.value = ''
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
+                {imageUrls.length === 0 ? (
+                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 rounded-xl py-8 cursor-pointer hover:border-purple-300 hover:bg-purple-50/30 transition group">
+                    <i className="fa-solid fa-camera text-3xl text-gray-300 group-hover:text-purple-400 transition mb-2"></i>
+                    <span className="text-sm text-gray-400 group-hover:text-purple-500 transition">Nhấn để thêm ảnh phòng</span>
+                    <input type="file" accept="image/*" multiple className="hidden" disabled={isUploadingImage}
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []).slice(0, 5)
+                        if (!files.length) return
+                        setIsUploadingImage(true)
+                        try {
+                          const urls: string[] = []
+                          for (const file of files) {
+                            const url = await uploadRoomImage(room.id, file)
+                            urls.push(url)
+                          }
+                          setImageUrls(urls)
+                          await updateRoom(room.id, { image_urls: urls })
+                          queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                        } catch (err) {
+                          alert('Upload thất bại: ' + (err instanceof Error ? err.message : 'Lỗi không xác định'))
+                        } finally {
+                          setIsUploadingImage(false)
+                          e.target.value = ''
+                        }
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <div className="grid grid-cols-5 gap-2">
+                    {imageUrls.map((url, idx) => (
+                      <div
+                        key={url}
+                        className="relative group aspect-square rounded-lg overflow-hidden border border-gray-100 shadow-sm cursor-pointer"
+                        onClick={() => setLightboxIndex(idx)}
+                      >
+                        <img src={url} alt={`Ảnh ${idx + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition opacity-0 group-hover:opacity-100 flex items-end justify-end p-1.5">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation()
+                              const newUrls = imageUrls.filter((_, i) => i !== idx)
+                              setImageUrls(newUrls)
+                              await deleteRoomImage(url)
+                              await updateRoom(room.id, { image_urls: newUrls })
+                              queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                            }}
+                            className="w-7 h-7 bg-red-500/90 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition shadow"
+                          >
+                            <i className="fa-solid fa-trash text-xs"></i>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* LIGHTBOX */}
+              {lightboxIndex !== null && (
+                <div
+                  className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center"
+                  onClick={() => setLightboxIndex(null)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowLeft' && lightboxIndex > 0) setLightboxIndex(lightboxIndex - 1)
+                    if (e.key === 'ArrowRight' && lightboxIndex < imageUrls.length - 1) setLightboxIndex(lightboxIndex + 1)
+                    if (e.key === 'Escape') setLightboxIndex(null)
+                  }}
+                  tabIndex={0}
+                  ref={el => el?.focus()}
+                >
+                  <button
+                    className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition"
+                    onClick={() => setLightboxIndex(null)}
+                  >
+                    <i className="fa-solid fa-xmark text-lg"></i>
+                  </button>
+                  {lightboxIndex > 0 && (
+                    <button
+                      className="absolute left-4 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition"
+                      onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1) }}
+                    >
+                      <i className="fa-solid fa-chevron-left"></i>
+                    </button>
+                  )}
+                  <img
+                    src={imageUrls[lightboxIndex]}
+                    alt=""
+                    className="max-h-[88vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  {lightboxIndex < imageUrls.length - 1 && (
+                    <button
+                      className="absolute right-4 w-11 h-11 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition"
+                      onClick={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1) }}
+                    >
+                      <i className="fa-solid fa-chevron-right"></i>
+                    </button>
+                  )}
+                  <div className="absolute bottom-4 text-white/60 text-sm">
+                    {lightboxIndex + 1} / {imageUrls.length}
+                  </div>
+                </div>
+              )}
+              </div>
             )}
 
             {activeTab === 'assets' && (
@@ -363,75 +554,87 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
               </div>
             )}
 
-            {activeTab === 'history' && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm animate-[fadeIn_0.2s_ease-out] overflow-hidden">
-                {invoicesLoading ? (
-                  <div className="p-8 text-center text-gray-400">Đang tải lịch sử...</div>
-                ) : invoices.length === 0 ? (
-                  <div className="p-10 text-center">
-                    <div className="text-gray-300 text-4xl mb-3"><i className="fa-solid fa-folder-open"></i></div>
-                    <div className="text-gray-500 font-medium">Phòng này chưa có dữ liệu điện nước</div>
-                    <div className="text-sm text-gray-400 mt-1">Lập phiếu thu đầu tiên để ghi nhận lịch sử</div>
-                  </div>
-                ) : (
-                  <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-[#112D4E] text-white">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold text-center border-r border-[#3F72AF]">Tháng</th>
-                        <th className="px-4 py-3 font-semibold text-center bg-yellow-500/20 border-r border-[#3F72AF]/50 text-yellow-100" colSpan={4}><i className="fa-solid fa-bolt mr-1"></i> ĐIỆN</th>
-                        <th className="px-4 py-3 font-semibold text-center bg-blue-500/20 text-blue-100" colSpan={4}><i className="fa-solid fa-droplet mr-1"></i> NƯỚC</th>
-                      </tr>
-                      <tr className="bg-[#3F72AF]/90 text-white/90 text-[11px] uppercase tracking-wider">
-                        <th className="px-4 py-2 border-r border-[#112D4E]/30 text-center">Kỳ</th>
-
-                        <th className="px-4 py-2 text-right">Số Cũ</th>
-                        <th className="px-4 py-2 text-right">Số Mới</th>
-                        <th className="px-4 py-2 text-right border-r border-[#112D4E]/30">Tiêu Thụ</th>
-
-                        <th className="px-4 py-2 text-right">Số Cũ</th>
-                        <th className="px-4 py-2 text-right">Số Mới</th>
-                        <th className="px-4 py-2 text-right border-r border-[#112D4E]/30">Tiêu Thụ</th>
-
-                        <th className="px-4 py-2 text-right text-green-100">Tổng Tiền Thu</th>
-                        <th className="px-4 py-2 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {invoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-gray-50 transition">
-                          <td className="px-4 py-3 font-bold text-gray-700 text-center border-r border-gray-100">{String(inv.month).padStart(2, '0')}/{inv.year}</td>
-
-                          <td className="px-4 py-3 text-right text-gray-500">{inv.electric_old}</td>
-                          <td className="px-4 py-3 text-right text-gray-900 font-semibold">{inv.electric_new}</td>
-                          <td className="px-4 py-3 text-right bg-yellow-50/50 text-yellow-700 font-bold border-r border-gray-100">{inv.electric_usage} <span className="text-[10px] font-normal text-yellow-600/70">kWh</span></td>
-
-                          <td className="px-4 py-3 text-right text-gray-500">{inv.water_old}</td>
-                          <td className="px-4 py-3 text-right text-gray-900 font-semibold">{inv.water_new}</td>
-                          <td className="px-4 py-3 text-right bg-blue-50/50 text-blue-700 font-bold border-r border-gray-100">{inv.water_usage} <span className="text-[10px] font-normal text-blue-600/70">Khối</span></td>
-
-                          <td className="px-4 py-3 text-right text-green-600 font-bold bg-green-50/30">
-                            {formatVND(inv.total_amount)} đ
-                            <div className="text-[10px] font-normal text-gray-400 mt-0.5">{inv.payment_status === 'paid' ? 'Đã thu' : inv.payment_status === 'partial' ? `Đã thu: ${formatVND(inv.paid_amount || 0)}đ` : 'Chưa thu'}</div>
-                          </td>
-                          <td className="px-4 py-3 text-center border-l border-gray-100 bg-gray-50/50">
-                            {inv.payment_status !== 'paid' && (
-                              <button
-                                onClick={() => setPayInvoice(inv)}
-                                className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded flex flex-col items-center justify-center text-[10px] font-bold transition whitespace-normal leading-tight mx-auto"
-                                style={{ width: '60px' }}
-                              >
-                                <i className="fa-solid fa-hand-holding-dollar mb-1 text-sm bg-white rounded-full w-5 h-5 flex items-center justify-center shadow-sm text-green-600"></i>
-                                XÁC NHẬN<br />THU TIỀN
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
+            {activeTab === 'history' && (() => {
+              const utilityInvoices = invoices
+                .filter(i =>
+                  i.payment_status !== 'cancelled' &&
+                  i.payment_status !== 'merged' &&
+                  (i.billing_reason === 'monthly' || i.has_transfer === true)
+                )
+                .sort((a, b) => {
+                  if (a.year !== b.year) return b.year - a.year
+                  if (a.month !== b.month) return b.month - a.month
+                  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                })
+              return (
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm animate-[fadeIn_0.2s_ease-out] overflow-hidden flex flex-col">
+                  {invoicesLoading ? (
+                    <div className="p-8 text-center text-gray-400">Đang tải lịch sử...</div>
+                  ) : utilityInvoices.length === 0 ? (
+                    <div className="p-10 text-center">
+                      <div className="text-gray-300 text-4xl mb-3"><i className="fa-solid fa-folder-open"></i></div>
+                      <div className="text-gray-500 font-medium">Phòng này chưa có lịch sử điện nước</div>
+                      <div className="text-sm text-gray-400 mt-1">Dữ liệu sẽ xuất hiện sau khi lập hóa đơn hàng tháng</div>
+                    </div>
+                  ) : (
+                    <div className="overflow-auto">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-[#112D4E] text-white sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-3 font-semibold text-center border-r border-[#3F72AF]">Kỳ thu</th>
+                            <th className="px-4 py-3 font-semibold text-center bg-yellow-500/20 border-r border-[#3F72AF]/50 text-yellow-100" colSpan={3}><i className="fa-solid fa-bolt mr-1"></i> ĐIỆN</th>
+                            <th className="px-4 py-3 font-semibold text-center bg-blue-500/20 text-blue-100" colSpan={3}><i className="fa-solid fa-droplet mr-1"></i> NƯỚC</th>
+                            <th className="px-4 py-3 font-semibold text-right text-green-100">Tổng tiền</th>
+                          </tr>
+                          <tr className="bg-[#3F72AF]/90 text-white/90 text-[11px] uppercase tracking-wider">
+                            <th className="px-4 py-2 border-r border-[#112D4E]/30 text-center">Ngày</th>
+                            <th className="px-4 py-2 text-right">Số cũ</th>
+                            <th className="px-4 py-2 text-right">Số mới</th>
+                            <th className="px-4 py-2 text-right border-r border-[#112D4E]/30">Tiêu thụ</th>
+                            <th className="px-4 py-2 text-right">Số cũ</th>
+                            <th className="px-4 py-2 text-right">Số mới</th>
+                            <th className="px-4 py-2 text-right border-r border-[#112D4E]/30">Tiêu thụ</th>
+                            <th className="px-4 py-2 text-right"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {utilityInvoices.map((inv) => {
+                            const dateStr = inv.invoice_date || inv.billing_period_end || inv.created_at
+                            const date = dateStr ? new Date(dateStr) : null
+                            const dayStr = date ? String(date.getDate()).padStart(2, '0') : ''
+                            const monthYearStr = `${String(inv.month).padStart(2, '0')}/${inv.year}`
+                            return (
+                              <tr key={inv.id} className="hover:bg-gray-50 transition">
+                                <td className="px-4 py-3 text-center border-r border-gray-100">
+                                  {dayStr && <div className="text-xs text-gray-400">ngày {dayStr}</div>}
+                                  <div className="font-bold text-gray-700">{monthYearStr}</div>
+                                </td>
+                                <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{inv.electric_old}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 font-semibold tabular-nums">{inv.electric_new}</td>
+                                <td className="px-4 py-3 text-right bg-yellow-50/50 text-yellow-700 font-bold border-r border-gray-100 tabular-nums">
+                                  +{inv.electric_usage} <span className="text-[10px] font-normal text-yellow-600/70">kWh</span>
+                                </td>
+                                <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{inv.water_old}</td>
+                                <td className="px-4 py-3 text-right text-gray-900 font-semibold tabular-nums">{inv.water_new}</td>
+                                <td className="px-4 py-3 text-right bg-blue-50/50 text-blue-700 font-bold border-r border-gray-100 tabular-nums">
+                                  +{inv.water_usage} <span className="text-[10px] font-normal text-blue-600/70">m³</span>
+                                </td>
+                                <td className="px-4 py-3 text-right tabular-nums">
+                                  <div className="font-bold text-gray-800">{formatVND(inv.total_amount)} đ</div>
+                                  <div className={`text-[10px] mt-0.5 ${inv.payment_status === 'paid' ? 'text-emerald-600 font-semibold' : inv.payment_status === 'partial' ? 'text-orange-500' : 'text-gray-400'}`}>
+                                    {inv.payment_status === 'paid' ? '✓ Đã thu' : inv.payment_status === 'partial' ? `Đã thu ${formatVND(inv.paid_amount || 0)}đ` : 'Chưa thu'}
+                                  </div>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center gap-3 justify-end">

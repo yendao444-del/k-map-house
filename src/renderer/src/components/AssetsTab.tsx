@@ -613,14 +613,14 @@ const RoomAssetPanel: React.FC<{
       </div>
 
       {modal === 'add' && !canAdjustAssets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-              <h3 className="font-bold text-gray-900">Thêm tài sản</h3>
-              <button data-tour="add-asset-close" onClick={() => setModal(null)} className="text-gray-400 hover:text-gray-600"><i className="fa-solid fa-xmark"></i></button>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={() => setModal(null)}>
+          <div className="w-full max-w-2xl rounded-[24px] bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+              <h3 className="font-bold text-gray-900 text-lg">Thêm tài sản</h3>
+              <button data-tour="add-asset-close" onClick={() => setModal(null)} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"><i className="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div className="space-y-4 p-5">
-              <div data-tour="asset-select-area" className="grid grid-cols-4 gap-2">
+            <div className="space-y-6 p-6">
+              <div data-tour="asset-select-area" className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4">
                 {assetTemplates.map((name) => {
                   const selected = !!selectedAssets[name];
                   const colorClass = assetColor(name);
@@ -635,32 +635,53 @@ const RoomAssetPanel: React.FC<{
                           return next;
                         })
                       }
-                      className={`rounded-xl border-2 p-2 text-center text-[10px] font-semibold transition-all duration-200 ${selected ? 'border-primary bg-primary text-white shadow-lg shadow-primary/30 ring-2 ring-primary/20 scale-[1.02]' : `border-transparent ${colorClass}`}`}
+                      className={`flex flex-col items-center justify-center rounded-2xl border-2 p-3 sm:p-4 text-center transition-all duration-200 ease-out hover:scale-[1.02] ${selected ? 'border-primary bg-primary text-white shadow-lg shadow-primary/30 ring-4 ring-primary/10 scale-[1.02]' : `border-transparent ${colorClass}`}`}
                     >
-                      <i className={`fa-solid ${assetIcon(name)} mb-1.5 block text-lg`}></i>
-                      {name}
+                      <i className={`fa-solid ${assetIcon(name)} mb-2 sm:mb-2.5 block text-xl sm:text-2xl opacity-90`}></i>
+                      <span className="text-[11px] sm:text-xs font-bold leading-tight break-words px-1">{name}</span>
                     </button>
                   );
                 })}
               </div>
-              <div className="flex gap-2">
-                <input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Nhập tên tài sản..." className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-primary" />
+              <div className="flex gap-3 pt-2">
+                <input
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="Hoặc nhập tên tài sản không có trong danh sách..."
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && manualName.trim()) {
+                      setSelectedAssets((prev) => ({ ...prev, [manualName.trim()]: (prev[manualName.trim()] || 0) + 1 }));
+                      setManualName('');
+                    }
+                  }}
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-3.5 text-sm font-medium outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+                />
                 <button
                   disabled={!manualName.trim()}
                   onClick={() => {
                     setSelectedAssets((prev) => ({ ...prev, [manualName.trim()]: (prev[manualName.trim()] || 0) + 1 }));
                     setManualName('');
                   }}
-                  className="rounded-xl bg-gray-100 px-3 text-sm font-bold text-gray-600 disabled:opacity-40"
+                  className="flex items-center gap-2 rounded-xl bg-gray-100 px-6 py-3.5 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-40"
                 >
-                  Thêm
+                  <i className="fa-solid fa-plus"></i><span className="hidden sm:inline">Thêm</span>
                 </button>
               </div>
             </div>
-            <div className="flex justify-end gap-2 border-t border-gray-100 px-5 py-4">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
-              <button onClick={() => addMut.mutate()} data-tour="save-asset-btn" disabled={Object.keys(selectedAssets).length === 0 || addMut.isPending} className="rounded-lg bg-gray-900 px-5 py-2 text-sm font-bold text-white disabled:opacity-40">
-                Lưu tài sản
+            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 px-6 py-5 rounded-b-[24px]">
+              <button
+                onClick={() => setModal(null)}
+                className="rounded-xl border border-gray-200 bg-white px-6 py-3 text-sm font-bold text-gray-600 shadow-sm transition hover:bg-gray-50 hover:text-gray-900"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => addMut.mutate()}
+                data-tour="save-asset-btn"
+                disabled={Object.keys(selectedAssets).length === 0 || addMut.isPending}
+                className="rounded-xl bg-gray-900 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-gray-900/20 transition hover:bg-gray-800 disabled:opacity-40"
+              >
+                {addMut.isPending ? 'Đang thêm...' : `Lưu ${Object.keys(selectedAssets).length > 0 ? `(${Object.keys(selectedAssets).length})` : ''} tài sản`}
               </button>
             </div>
           </div>

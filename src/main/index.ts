@@ -227,7 +227,7 @@ function setupInvoiceHandlers(): void {
               body?.offsetWidth || 0
             )
             const height = Math.max(
-              Math.ceil(rootRect.height + 24),
+              Math.ceil(rootRect.height + 4),
               doc?.scrollHeight || 0,
               doc?.clientHeight || 0,
               body?.scrollHeight || 0,
@@ -238,7 +238,7 @@ function setupInvoiceHandlers(): void {
         `) as { width?: number; height?: number }
 
         const captureWidth = Math.min(2200, Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12))
-        const captureHeight = Math.min(9000, Math.max(1180, Math.ceil(Number(contentSize?.height || 1180)) + 120))
+        const captureHeight = Math.min(9000, Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4))
 
         captureWindow.setContentSize(captureWidth, captureHeight)
         await new Promise((resolve) => setTimeout(resolve, 220))
@@ -532,7 +532,7 @@ function createWindow(): void {
     height: 900,
     show: false,
     autoHideMenuBar: true,
-    title: 'DBY HOME',
+    title: 'AN KHANG HOME',
     backgroundColor: '#002b36',
     icon: useSafeWindow ? undefined : icon,
     ...(useCustomTitleBar
@@ -586,7 +586,7 @@ function createWindow(): void {
   })
 
   if (useSafeWindow) {
-    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>DBY HOME Safe Window</h1></body></html>')
+    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>AN KHANG HOME Safe Window</h1></body></html>')
   } else if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -595,7 +595,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  app.setName('DBY HOME')
+  app.setName('AN KHANG HOME')
   electronApp.setAppUserModelId('com.kmaphouse.app')
   writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()

@@ -2162,7 +2162,7 @@ const App: React.FC = () => {
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-sm font-bold tracking-tight text-white">
-                DBY HOME
+                AN KHANG HOME
               </span>
               <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
                 Quản lý phòng trọ
@@ -2459,7 +2459,7 @@ const App: React.FC = () => {
                     <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
                     <p className="text-sm text-gray-500">
                       Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
-                      <span className="font-bold text-primary">DBY HOME</span>
+                      <span className="font-bold text-primary">AN KHANG HOME</span>
                     </p>
                   </div>
                 </div>
@@ -3112,25 +3112,28 @@ const App: React.FC = () => {
                                     </div>
                                   )
                                 }
-                                return (
-                                  <div>
-                                    <EditableCell
-                                      value={room.default_deposit || 0}
-                                      displayValue={`${formatVND(room.default_deposit || 0)} đ`}
-                                      type="number"
-                                      className="font-bold text-gray-800"
-                                      onSave={(v) =>
-                                        handleQueueChange(room.id, { default_deposit: Number(v) })
-                                      }
-                                    />
-                                    {room.status === 'occupied' && (
-                                      <div className="text-[10px] text-red-500 mt-0.5 leading-tight">
-                                        <span className="italic whitespace-nowrap">
-                                          (Chưa thu tiền cọc)
-                                        </span>
+                                if (activeContract) {
+                                  return (
+                                    <div>
+                                      <div className="font-bold text-gray-800">
+                                        {formatVND(activeContract.deposit_amount)} đ
                                       </div>
-                                    )}
-                                  </div>
+                                      <div className="text-[10px] text-red-500 mt-0.5 italic whitespace-nowrap">
+                                        Chưa thu tiền cọc
+                                      </div>
+                                    </div>
+                                  )
+                                }
+                                return (
+                                  <EditableCell
+                                    value={room.default_deposit || 0}
+                                    displayValue={`${formatVND(room.default_deposit || 0)} đ`}
+                                    type="number"
+                                    className="font-bold text-gray-800"
+                                    onSave={(v) =>
+                                      handleQueueChange(room.id, { default_deposit: Number(v) })
+                                    }
+                                  />
                                 )
                               })()}
                             </td>
@@ -3287,6 +3290,8 @@ const App: React.FC = () => {
                                     i.payment_status !== 'cancelled' &&
                                     i.payment_status !== 'merged' &&
                                     !i.is_settlement &&
+                                    i.billing_reason !== 'deposit_collect' &&
+                                    i.billing_reason !== 'deposit_refund' &&
                                     (!hasActiveContract?.tenant_id ||
                                       i.tenant_id === hasActiveContract.tenant_id) &&
                                     (!contractStartedAt || i.created_at >= contractStartedAt)
@@ -3344,6 +3349,13 @@ const App: React.FC = () => {
                               )
                               const isNewContract = !!hasActiveContract && !firstMonthInvoice
                               const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
+                              const hasDepositCollected =
+                                hasActiveContract?.deposit_pre_collected === true ||
+                                currentTenantInvoices.some(
+                                  (i) =>
+                                    (i.billing_reason === 'deposit_collect' || (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
+                                    i.paid_amount > 0
+                                )
 
                               const btnNewContract = (
                                 <td className="px-4 py-3 text-center">
@@ -3397,6 +3409,22 @@ const App: React.FC = () => {
                                 }
                                 if (isNewContract && !hasReceivedAssets) return btnReceiveRoom
                                 if (isNewContract) {
+                                  if (hasDepositCollected) {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setSelectedRoom(room)
+                                          }}
+                                          className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
+                                        >
+                                          <div><i className="fa-solid fa-lock mr-1"></i>Đã thu cọc</div>
+                                          <div className="mt-0.5 font-normal opacity-90">Chưa lập HĐ đầu tiên</div>
+                                        </button>
+                                      </td>
+                                    )
+                                  }
                                   return btnNewContract
                                 }
                                 return (
@@ -3532,7 +3560,7 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : activeTab === 'invoices' ? (
-          <InvoicesTab />
+          <InvoicesTab currentUser={currentUser} />
         ) : activeTab === 'assets' ? (
           <AssetsTab
             initialRoomId={assetModuleInitialRoomId}
