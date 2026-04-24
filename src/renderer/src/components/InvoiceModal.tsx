@@ -51,6 +51,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   });
 
   const activeContract = useMemo(() => contracts.find(c => c.room_id === room.id && c.status === 'active'), [contracts, room.id]);
+  const isMigratedContract = activeContract?.is_migration === true;
   const th = activeContract?.transfer_history;
   const hasTransfer = Boolean(th && !th.history_billed_in_invoice_id);
   const transferHistory = useMemo(() => {
@@ -107,8 +108,13 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
   const [billingReason, setBillingReason] = useState<BillingReason>('first_month');
   const unpaidFirstMonthBlocksMonthly = billingReason === 'monthly' ? unpaidFirstMonthInvoice : null;
+  const migrationFirstMonthBlocked = isMigratedContract && billingReason === 'first_month';
 
   useEffect(() => {
+    if (isMigratedContract) {
+      setBillingReason('monthly');
+      return;
+    }
     if (hasTransfer) {
       setBillingReason('monthly');
       return;
@@ -125,7 +131,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       setBillingReason('monthly');
       return;
     }
-  }, [hasPaidFirstMonthInvoice, existingInvoices.length, hasTransfer, unpaidFirstMonthInvoice]);
+  }, [hasPaidFirstMonthInvoice, existingInvoices.length, hasTransfer, isMigratedContract, unpaidFirstMonthInvoice]);
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [depositAmount, setDepositAmount] = useState<number>(room.default_deposit || 0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
@@ -447,6 +453,11 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                 let locked = false;
                 let suffix = '';
 
+                if (option.value === 'first_month' && isMigratedContract) {
+                  locked = true;
+                  suffix = ' (khách cũ)';
+                }
+
                 // Đã thu HD đầu tiên thì khóa "Thu tháng đầu tiên"
                 if (option.value === 'first_month' && hasPaidFirstMonthInvoice) {
                   locked = true;
@@ -466,6 +477,15 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
               })}
             </select>
           </div>
+
+          {isMigratedContract && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              <div className="font-semibold">Khách cũ từ phần mềm khác</div>
+              <div className="mt-1 text-xs text-slate-600">
+                Không lập phiếu tháng đầu cho hợp đồng di trú. Hãy lập hóa đơn hàng tháng hoặc các khoản thu cần theo dõi.
+              </div>
+            </div>
+          )}
 
           {unpaidFirstMonthBlocksMonthly && (
             <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
@@ -766,6 +786,10 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                 setPayingInvoice(unpaidFirstMonthInvoice);
                 return;
               }
+              if (migrationFirstMonthBlocked) {
+                setMutationError('Khách cũ từ phần mềm khác không được lập hóa đơn tháng đầu.');
+                return;
+              }
               if (!canCreateInvoice) {
                 setMutationError('Không thể tạo hóa đơn vì phòng này chưa có khách thuê hoặc hợp đồng đang hoạt động.');
                 return;
@@ -773,7 +797,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
               setMutationError(null);
               invoiceMutation.mutate();
             }}
-            disabled={invoiceMutation.isPending || !canCreateInvoice || (!!duplicateInvoice && !confirmedDuplicate) || utilityValidationFailed || !!firstMonthBlocksMonthly || !!unpaidFirstMonthBlocksMonthly}
+            disabled={invoiceMutation.isPending || !canCreateInvoice || (!!duplicateInvoice && !confirmedDuplicate) || utilityValidationFailed || !!firstMonthBlocksMonthly || !!unpaidFirstMonthBlocksMonthly || migrationFirstMonthBlocked}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {invoiceMutation.isPending ? 'Đang lưu...' : 'Thêm hóa đơn'}

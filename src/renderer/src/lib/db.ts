@@ -525,6 +525,23 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
 
   const month = invoiceData.month
   const year = invoiceData.year
+
+  if (invoiceData.is_first_month) {
+    const { data: migratedContract, error: migratedContractError } = await supabase
+      .from('contracts')
+      .select('id')
+      .eq('room_id', invoiceData.room_id as string)
+      .eq('tenant_id', invoiceData.tenant_id as string)
+      .eq('status', 'active')
+      .eq('is_migration', true)
+      .limit(1)
+
+    if (migratedContractError) throw new Error(migratedContractError.message)
+    if ((migratedContract || []).length > 0) {
+      throw new Error('Khách cũ từ phần mềm khác không được lập hóa đơn tháng đầu.')
+    }
+  }
+
   const shouldCheckReasonDuplicate =
     !!invoiceData.billing_reason && !invoiceData.is_first_month && !invoiceData.allow_duplicate
 
