@@ -123,15 +123,6 @@ interface LoginScreenProps {
   onLogin: (user: AppUser) => void
 }
 
-const LEGACY_DEV_ADMIN: AppUser = {
-  id: 'legacy-local-admin',
-  username: 'admin',
-  email: 'admin@local.dev',
-  full_name: 'Admin',
-  role: 'admin',
-  status: 'active',
-  created_at: '2026-01-01T00:00:00.000Z'
-}
 
 export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
   const [email, setEmail] = useState('')
@@ -157,11 +148,6 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
     setError('')
 
     try {
-      if (email.trim().toLowerCase() === 'admin' && password === 'admin123') {
-        onLogin(LEGACY_DEV_ADMIN)
-        return
-      }
-
       const user = await signInUser(email, password)
 
       onLogin(user as AppUser)
@@ -203,11 +189,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
           <div className="mb-10 text-center">
             <div className="mb-4 flex justify-center">
               <div className="relative flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/10 bg-[#002b36] p-4 shadow-[0_22px_55px_-24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.1)] hover:scale-110 hover:shadow-emerald-500/20 active:scale-95 transition-all duration-500 cursor-pointer group/logo">
-                <img src={logoNavbar} alt="DBY HOME" className="h-full w-full object-contain drop-shadow-sm group-hover/logo:rotate-3 transition-transform duration-500" />
+                <img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain drop-shadow-sm group-hover/logo:rotate-3 transition-transform duration-500" />
               </div>
             </div>
             <h2 className="text-2xl font-extrabold uppercase tracking-tight text-slate-800">
-              DBY HOME
+              AN KHANG HOME
             </h2>
             <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-slate-400">
               Quản lý phòng trọ
@@ -277,7 +263,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
           {' '} by DBY SOFTWARE
         </p>
         <p className="text-[10px] italic text-white/30">
-          &copy; 2026 DBY HOME Luxury. All rights reserved.
+          &copy; 2026 AN KHANG HOME Luxury. All rights reserved.
         </p>
         <p className="block text-[10px] text-white/30">
           Phiên bản v{version}

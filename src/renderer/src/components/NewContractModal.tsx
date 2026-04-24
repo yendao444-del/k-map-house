@@ -111,6 +111,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
   }, [availableTenants, tenantQuery])
 
   const [isMigration, setIsMigration] = useState(initialIsMigration ?? false)
+  const [depositPreCollected, setDepositPreCollected] = useState(true)
 
   const [form, setForm] = useState({
     tenant_dob: '',
@@ -162,6 +163,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
         ].filter(Boolean).join('\n') || undefined,
         is_migration: isMigration || undefined,
         migration_debt: isMigration && form.migration_debt > 0 ? form.migration_debt : undefined,
+        deposit_pre_collected: isMigration && depositPreCollected ? true : undefined,
       }),
     onSuccess: () => {
       playCreate()
@@ -550,12 +552,28 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               </div>
 
               {isMigration && (
-                <div className="col-span-2 pt-1">
-                  <label className="block text-[11px] font-bold text-red-500 mb-1.5">
-                    Nợ cũ / Nợ di trú (Nếu có)
-                  </label>
-                  <CurrencyInput value={form.migration_debt} onChange={v => set('migration_debt', v)} className="w-full border border-red-200 bg-red-50 rounded-lg px-3 py-2 text-sm font-bold text-red-600 outline-none focus:border-red-400 transition tabular-nums" />
-                </div>
+                <>
+                  <div className="col-span-2 pt-1">
+                    <label className="block text-[11px] font-bold text-red-500 mb-1.5">
+                      Nợ cũ / Nợ di trú (Nếu có)
+                    </label>
+                    <CurrencyInput value={form.migration_debt} onChange={v => set('migration_debt', v)} className="w-full border border-red-200 bg-red-50 rounded-lg px-3 py-2 text-sm font-bold text-red-600 outline-none focus:border-red-400 transition tabular-nums" />
+                  </div>
+                  <div className="col-span-2 pt-1">
+                    <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={depositPreCollected}
+                        onChange={e => setDepositPreCollected(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 rounded accent-orange-500 shrink-0"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold text-orange-800">Tiền cọc đã thu từ app cũ</div>
+                        <div className="text-[11px] text-orange-600 mt-0.5">Khi lập hóa đơn tháng đầu sẽ không thu lại tiền cọc. Thanh lý hợp đồng vẫn hoàn cọc bình thường.</div>
+                      </div>
+                    </label>
+                  </div>
+                </>
               )}
             </div>
           </div>

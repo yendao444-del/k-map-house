@@ -53,13 +53,13 @@ const formatDateShort = (dateStr?: string) => {
 
 export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTemplateProps>(
     ({ contract, room, settings }, ref) => {
-        const landlordName = settings.property_owner_name || 'Đỗ Kim Ngân'
+        const landlordName = settings.property_owner_name || 'AN KHANG HOME'
         const landlordPhone = settings.property_owner_phone || '.....................'
         const landlordIdCard = settings.property_owner_id_card || '034300002743'
         const propertyAddress = settings.property_address || 'Số nhà 8, ngách 132b, ngõ 28, tổ dân phố 18, phường Đại Mỗ, Hà Nội'
         const bankName = settings.bank_id || 'BIDV'
         const bankAccountNo = settings.account_no || '8856782931'
-        const bankAccountName = settings.account_name || 'Đỗ Kim Ngân'
+        const bankAccountName = settings.account_name || 'AN KHANG HOME'
         const invoiceDay = contract.invoice_day || 5
 
         return (

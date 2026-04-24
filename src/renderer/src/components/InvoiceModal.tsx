@@ -171,13 +171,14 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const includesDeposit = ['first_month', 'deposit_collect', 'deposit_refund'].includes(billingReason);
 
   const depositAlreadyCollected = useMemo(() =>
+    activeContract?.deposit_pre_collected === true ||
     existingInvoices.some(i =>
       i.tenant_id === currentTenantId &&
       i.payment_status !== 'cancelled' &&
       i.paid_amount > 0 &&
       (i.deposit_amount || 0) > 0
     ),
-    [existingInvoices, currentTenantId]
+    [existingInvoices, currentTenantId, activeContract]
   );
 
   // --- TÍNH TOÁN THEO LỊCH SỬ CHUYỂN PHÒNG ---
@@ -219,7 +220,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const normalizedDeposit = useMemo(() => {
     if (!includesDeposit) return 0;
     if (billingReason === 'deposit_refund') return -Math.abs(depositAmount || 0);
-    if (depositAlreadyCollected) return 0;
+    if (billingReason === 'first_month' && depositAlreadyCollected) return 0;
     return Math.abs(depositAmount || 0);
   }, [billingReason, depositAmount, includesDeposit, depositAlreadyCollected]);
 
@@ -669,16 +670,16 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
 
           {includesDeposit && (
-            <div className={`rounded-xl border p-4 ${depositAlreadyCollected && billingReason !== 'deposit_refund' ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-orange-100 bg-orange-50/70'}`}>
+            <div className={`rounded-xl border p-4 ${depositAlreadyCollected && billingReason === 'first_month' ? 'border-gray-200 bg-gray-50 opacity-60' : 'border-orange-100 bg-orange-50/70'}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className="text-sm font-bold text-gray-800">Tiền cọc</div>
-                {depositAlreadyCollected && billingReason !== 'deposit_refund' && (
+                {depositAlreadyCollected && billingReason === 'first_month' && (
                   <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
                     <i className="fa-solid fa-lock"></i> Đã thu
                   </span>
                 )}
               </div>
-              {depositAlreadyCollected && billingReason !== 'deposit_refund' ? (
+              {depositAlreadyCollected && billingReason === 'first_month' ? (
                 <div className="text-xs text-gray-500 italic">Tiền cọc đã được thu trước đó, không thu thêm.</div>
               ) : (
                 <>

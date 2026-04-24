@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, type Invoice, type Room } from '../lib/db';
+import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, type Invoice, type Room, type AppUser } from '../lib/db';
 import { PaymentModal } from './PaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
@@ -27,7 +27,8 @@ function getBillingPeriod(invoice: Invoice, _room: Room | undefined): { start: s
   };
 }
 
-export const InvoicesTab: React.FC = () => {
+export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ currentUser }) => {
+  const isAdmin = currentUser?.role === 'admin';
   const queryClient = useQueryClient();
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
@@ -525,7 +526,8 @@ export const InvoicesTab: React.FC = () => {
         const invoice = filteredInvoices.find(i => i.id === openMenuId);
         if (!invoice) return null;
         const isPaidMenu = invoice.payment_status === 'paid';
-        const canEditInvoice = invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0;
+        const canEditInvoice = (invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0) || (isPaidMenu && isAdmin);
+        const canDeleteInvoice = !isPaidMenu || isAdmin;
         return (
           <div
             ref={menuRef}
@@ -554,15 +556,22 @@ export const InvoicesTab: React.FC = () => {
               }}
               disabled={!canEditInvoice}
               className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canEditInvoice ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 cursor-not-allowed'}`}
-              title={canEditInvoice ? 'Sua hoa don' : 'Hoa don da thu tien, khong cho sua so tien'}
+              title={canEditInvoice ? 'Sửa hóa đơn' : 'Đã thu tiền — chỉ admin mới sửa được'}
             >
-              <i className="fa-solid fa-pen-to-square w-4"></i>{canEditInvoice ? 'Sua hoa don' : 'Da khoa sua'}
+              <i className="fa-solid fa-pen-to-square w-4"></i>
+              {canEditInvoice ? 'Sửa hóa đơn' : 'Đã khóa'}
             </button>
             <button
-              onClick={() => { setDeletingId(invoice.id); setDeleteError(null); setOpenMenuId(null); }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 font-semibold"
+              onClick={() => {
+                if (!canDeleteInvoice) return;
+                setDeletingId(invoice.id); setDeleteError(null); setOpenMenuId(null);
+              }}
+              disabled={!canDeleteInvoice}
+              className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canDeleteInvoice ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed'}`}
+              title={canDeleteInvoice ? 'Hủy phiếu thu' : 'Đã thu tiền — chỉ admin mới hủy được'}
             >
-              <i className="fa-solid fa-ban w-4"></i>Hủy phiếu
+              <i className="fa-solid fa-ban w-4"></i>
+              {canDeleteInvoice ? 'Hủy phiếu' : 'Đã khóa'}
             </button>
           </div>
         );
