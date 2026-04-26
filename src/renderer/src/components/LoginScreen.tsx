@@ -125,7 +125,7 @@ interface LoginScreenProps {
 
 
 export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
-  const [email, setEmail] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -148,7 +148,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
     setError('')
 
     try {
-      const user = await signInUser(email, password)
+      const user = await signInUser(login, password)
 
       onLogin(user as AppUser)
     } catch (error) {
@@ -205,10 +205,10 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
             <div className="group relative">
               <i className="fa-solid fa-user absolute left-4 top-1/2 -translate-y-1/2 text-sm text-slate-300 transition-colors group-focus-within:text-emerald-500"></i>
               <input
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                value={login}
+                onChange={(event) => setLogin(event.target.value)}
                 autoFocus
-                placeholder="Email đăng nhập"
+                placeholder="Email hoặc username"
                 className="w-full rounded-xl border-[1.5px] border-slate-200 bg-white py-3.5 pl-12 pr-4 text-sm font-semibold text-slate-700 transition-all focus:border-emerald-500 focus:outline-none focus:ring-4 focus:ring-emerald-500/10"
               />
             </div>

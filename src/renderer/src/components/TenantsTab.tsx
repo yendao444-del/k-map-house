@@ -147,7 +147,7 @@ export const TenantsTab: React.FC = () => {
   }, [tenants, contracts]);
 
   return (
-    <div className="w-full space-y-6">
+    <div className="flex h-full min-h-0 w-full flex-col gap-6 p-4">
       {/* Header Widget */}
       <div className="flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200 pointer-events-auto">
@@ -182,8 +182,8 @@ export const TenantsTab: React.FC = () => {
         </div>
       </div>
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex-1 flex flex-col">
-        <div className="overflow-x-auto overflow-y-visible custom-scrollbar">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 bg-slate-50 text-[11px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
               <tr>
@@ -454,7 +454,7 @@ export const TenantsTab: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+        <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
           <div>Hiển thị {filteredTenants.length} / {tenants.length} khách thuê</div>
           <div className="flex items-center gap-1">
             <button disabled className="px-2 py-1 rounded border border-slate-200 bg-white opacity-50">Trang trước</button>

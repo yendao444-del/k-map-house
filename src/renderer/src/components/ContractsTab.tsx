@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getContracts, getRooms, getAppSettings, updateContract, type Contract, type ContractStatus, type Room } from '../lib/db'
+import { getContracts, getRooms, getAppSettings, getInvoices, updateContract, type Contract, type ContractStatus, type Invoice, type Room } from '../lib/db'
 import { ContractViewModal } from './ContractViewModal'
 import { playClick, playSuccess } from '../lib/sound'
 
@@ -177,6 +177,7 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ onCreateContract }) 
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: settings } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings })
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const [statusFilter, setStatusFilter] = useState<'all' | ContractStatus>('active')
   const [isPickingRoom, setIsPickingRoom] = useState(false)
 
@@ -259,7 +260,17 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ onCreateContract }) 
                       {formatVND(contract.base_rent)} đ
                     </td>
                     <td className="px-5 py-4 text-right font-semibold tabular-nums text-gray-600">
-                      {formatVND(contract.deposit_amount)} đ
+                      {formatVND((() => {
+                        const dep = (invoices as Invoice[]).find(
+                          i => i.room_id === contract.room_id &&
+                               i.tenant_id === contract.tenant_id &&
+                               (i.deposit_amount || 0) > 0 &&
+                               (i.payment_status === 'paid' || i.payment_status === 'partial') &&
+                               i.paid_amount > 0 &&
+                               i.created_at >= contract.created_at
+                        )
+                        return dep?.deposit_amount || contract.deposit_amount
+                      })())} đ
                     </td>
                     <td className="px-5 py-4 text-center">
                       <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${getStatusClassName(contract.status)}`}>

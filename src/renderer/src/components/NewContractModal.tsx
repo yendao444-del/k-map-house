@@ -4,7 +4,6 @@ import {
   createContract,
   getContracts,
   getTenants,
-  createTenant,
   getRoomAssets,
   type Invoice,
   type Room,
@@ -73,7 +72,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
   const today = new Date().toISOString().split('T')[0]
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
-  const { data: roomAssets = [] } = useQuery({ queryKey: ['roomAssets', room.id], queryFn: () => getRoomAssets(room.id) })
+  const { data: roomAssets = [] } = useQuery({ queryKey: ['room_assets', room.id], queryFn: () => getRoomAssets(room.id) })
 
   const activeTenantIds = useMemo(
     () => new Set(contracts.filter(contract => contract.status === 'active').map(contract => contract.tenant_id).filter(Boolean)),
@@ -88,6 +87,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     () => !!lastInvoice || contracts.some(contract => contract.room_id === room.id),
     [contracts, lastInvoice, room.id]
   )
+  // hasReadingHistory: có chỉ số thực để auto-fill — chỉ khi có hóa đơn trước đó
+  const hasReadingHistory = !!lastInvoice
   const initialElectricReading = lastInvoice?.electric_new ?? room.electric_new ?? room.electric_old ?? 0
   const initialWaterReading = lastInvoice?.water_new ?? room.water_new ?? room.water_old ?? 0
 
@@ -105,7 +106,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     return availableTenants
       .filter(tenant =>
         tenant.full_name.toLowerCase().includes(q) ||
-        (tenant.phone || '').toLowerCase().includes(q)
+        (tenant.phone || '').toLowerCase().includes(q) ||
+        (tenant.identity_card || '').toLowerCase().includes(q)
       )
       .slice(0, 10)
   }, [availableTenants, tenantQuery])
@@ -118,16 +120,15 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     occupant_count: 1,
     move_in_date: initialMoveInDate || today,
     base_rent: room.base_rent,
-    deposit_amount: room.default_deposit || room.base_rent,
+    deposit_amount: room.base_rent || room.default_deposit || 0,
     invoice_day: room.invoice_day || 5,
-    electric_init: hasPreviousRoomHistory ? initialElectricReading : '',
-    water_init: hasPreviousRoomHistory ? initialWaterReading : '',
+    electric_init: hasReadingHistory ? initialElectricReading : '',
+    water_init: hasReadingHistory ? initialWaterReading : '',
     migration_debt: 0,
     notes: '',
   })
 
-  const [isQuickAdding, setIsQuickAdding] = useState(false)
-  const [quickTenant, setQuickTenant] = useState({ full_name: '', phone: '', identity_card: '' })
+  const [depositLinked, setDepositLinked] = useState(true)
   const [electricTouched, setElectricTouched] = useState(false)
   const [waterTouched, setWaterTouched] = useState(false)
   const [allowReadingEdit, setAllowReadingEdit] = useState(false)
@@ -135,7 +136,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
 
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const readingsReady = hasPreviousRoomHistory || (form.electric_init !== '' && form.water_init !== '')
+  const readingsReady = hasReadingHistory || (form.electric_init !== '' && form.water_init !== '')
   const isMissingElectricReading = form.electric_init === ''
   const isMissingWaterReading = form.water_init === ''
 
@@ -193,21 +194,6 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     setSelectedTenantId(tenant?.id || '')
     setTenantQuery(tenant ? `${tenant.full_name}${tenant.phone ? ` - ${tenant.phone}` : ''}` : '')
     setTenantMenuOpen(false)
-  }
-
-  const quickAddMutation = useMutation({
-    mutationFn: (tenantData: Partial<Tenant>) => createTenant(tenantData),
-    onSuccess: (newTenant) => {
-      queryClient.invalidateQueries({ queryKey: ['tenants'] })
-      selectTenant(newTenant)
-      setIsQuickAdding(false)
-      setQuickTenant({ full_name: '', phone: '', identity_card: '' })
-    },
-  })
-
-  const confirmQuickAdd = () => {
-    if (!quickTenant.full_name) return
-    quickAddMutation.mutate(quickTenant)
   }
 
   const pickDemoTenant = () => {
@@ -359,8 +345,8 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
           </div>
 
           {/* ── SECTION: KHÁCH THUÊ ── */}
-          <div className="border border-blue-100 rounded-xl overflow-hidden shadow-sm bg-white">
-            <div className="bg-blue-50 px-4 py-2.5 flex items-center gap-2.5 border-b border-blue-100/50">
+          <div className="relative z-20 border border-blue-100 rounded-xl shadow-sm bg-white">
+            <div className="bg-blue-50 px-4 py-2.5 flex items-center gap-2.5 border-b border-blue-100/50 rounded-t-xl">
               <div className="w-7 h-7 rounded-lg bg-white border border-blue-200 flex items-center justify-center text-blue-500 shrink-0">
                 <i className="fa-solid fa-user-check text-[11px]"></i>
               </div>
@@ -383,32 +369,17 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                   />
                   <i className="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs text-gray-300"></i>
                   {tenantMenuOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1 z-20 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl shadow-gray-200/50 py-1">
+                    <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-[min(45vh,22rem)] overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl shadow-gray-200/50 py-1">
                       {tenantSuggestions.map(t => (
                         <button key={t.id} type="button" onClick={() => selectTenant(t)} className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex flex-col items-start gap-0.5">
                           <span className="font-bold text-gray-700 text-sm">{t.full_name}</span>
                           <span className="text-[11px] text-gray-400">{t.phone || 'Không có SĐT'}</span>
                         </button>
                       ))}
-                      <div className="px-2 pt-1 pb-1">
-                        <button type="button" onClick={() => setIsQuickAdding(true)} className="w-full py-1.5 text-center text-blue-600 border border-dashed border-blue-200 hover:bg-blue-50 rounded text-[11px] font-bold transition-colors">
-                          + Thêm nhanh khách hàng
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
               </div>
-
-              {isQuickAdding && (
-                <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100 flex flex-col gap-2 animate-[fadeIn_0.2s]">
-                  <input autoFocus placeholder="Họ và tên..." value={quickTenant.full_name} onChange={e => setQuickTenant(p => ({ ...p, full_name: e.target.value }))} className="w-full border border-blue-200 rounded-md px-2.5 py-1.5 text-xs outline-none focus:border-blue-400 shadow-sm" />
-                  <div className="flex gap-2">
-                    <input placeholder="SĐT..." value={quickTenant.phone} onChange={e => setQuickTenant(p => ({ ...p, phone: e.target.value }))} className="flex-1 border border-blue-200 rounded-md px-2.5 py-1.5 text-xs outline-none focus:border-blue-400 shadow-sm" />
-                    <button type="button" onClick={confirmQuickAdd} className="bg-blue-600 text-white px-4 rounded-md text-[11px] font-bold shadow-sm hover:bg-blue-700 transition">Lưu</button>
-                  </div>
-                </div>
-              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -439,7 +410,13 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               <div className="col-span-2">
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Giá thuê phòng / tháng <span className="text-red-400">*</span></label>
                 <div className="relative">
-                  <CurrencyInput value={form.base_rent} onChange={v => set('base_rent', v)} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-900 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
+                  <CurrencyInput value={form.base_rent} onChange={v => {
+                    setForm(prev => ({
+                      ...prev,
+                      base_rent: v,
+                      deposit_amount: depositLinked ? v : prev.deposit_amount
+                    }))
+                  }} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-bold text-gray-900 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">VNĐ</span>
                 </div>
               </div>
@@ -447,7 +424,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               <div>
                 <label className="block text-[11px] font-semibold text-gray-500 mb-1.5">Tiền đặt cọc</label>
                 <div className="relative">
-                  <CurrencyInput value={form.deposit_amount} onChange={v => set('deposit_amount', v)} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-orange-600 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
+                  <CurrencyInput value={form.deposit_amount} onChange={v => { set('deposit_amount', v); setDepositLinked(false) }} className="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-orange-600 outline-none focus:border-green-400 focus:ring-1 focus:ring-green-200 transition tabular-nums" />
                 </div>
               </div>
 
@@ -491,7 +468,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
             </div>
 
             <div className={`mx-4 mt-3 rounded-xl border px-4 py-3 text-[11px] font-bold border-amber-200 bg-amber-50/50 text-amber-900`}>
-              {hasPreviousRoomHistory ? (
+              {hasReadingHistory ? (
                 <>
                   <i className="fa-solid fa-circle-info mr-2 text-amber-600"></i>
                   Phòng đã có lịch sử. Số điện/nước được lấy từ lần chốt trước và được khóa mặc định.
@@ -504,7 +481,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               )}
             </div>
 
-            {hasPreviousRoomHistory && (
+            {hasReadingHistory && (
               <div className="mx-4 mt-2">
                 {!allowReadingEdit ? (
                   <button
@@ -536,7 +513,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                 <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
                   <i className="fa-solid fa-bolt text-amber-500 mr-1.5"></i> Số điện
                 </label>
-                <input type="number" required readOnly={hasPreviousRoomHistory && !allowReadingEdit} value={form.electric_init} onChange={e => { if (hasPreviousRoomHistory && !allowReadingEdit) return; set('electric_init', e.target.value === '' ? '' : Number(e.target.value)); setElectricTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasPreviousRoomHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : electricTouched && isMissingElectricReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
+                <input type="number" required readOnly={hasReadingHistory && !allowReadingEdit} value={form.electric_init} onChange={e => { if (hasReadingHistory && !allowReadingEdit) return; set('electric_init', e.target.value === '' ? '' : Number(e.target.value)); setElectricTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasReadingHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : electricTouched && isMissingElectricReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
                 {electricTouched && isMissingElectricReading && (
                   <div className="mt-1.5 text-[10px] font-black text-red-600 uppercase tracking-tight">Bắt buộc nhập số điện.</div>
                 )}
@@ -545,7 +522,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                 <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
                   <i className="fa-solid fa-droplet text-blue-500 mr-1.5"></i> Số nước
                 </label>
-                <input type="number" required readOnly={hasPreviousRoomHistory && !allowReadingEdit} value={form.water_init} onChange={e => { if (hasPreviousRoomHistory && !allowReadingEdit) return; set('water_init', e.target.value === '' ? '' : Number(e.target.value)); setWaterTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasPreviousRoomHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : waterTouched && isMissingWaterReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
+                <input type="number" required readOnly={hasReadingHistory && !allowReadingEdit} value={form.water_init} onChange={e => { if (hasReadingHistory && !allowReadingEdit) return; set('water_init', e.target.value === '' ? '' : Number(e.target.value)); setWaterTouched(true) }} className={`w-full rounded-xl px-4 py-3 text-[15px] font-black outline-none transition tabular-nums ${hasReadingHistory && !allowReadingEdit ? 'border-2 border-gray-100 bg-gray-50 text-slate-900 cursor-not-allowed opacity-90' : waterTouched && isMissingWaterReading ? 'border-2 border-red-200 bg-red-50 text-red-900 focus:border-red-400 animate-pulse' : 'border-2 border-slate-100 bg-slate-50/50 text-slate-900 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50'}`} />
                 {waterTouched && isMissingWaterReading && (
                   <div className="mt-1.5 text-[10px] font-black text-red-600 uppercase tracking-tight">Bắt buộc nhập số nước.</div>
                 )}

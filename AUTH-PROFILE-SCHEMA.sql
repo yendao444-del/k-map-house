@@ -126,3 +126,24 @@ with check (
       and u.status = 'active'
   )
 );
+
+create unique index if not exists users_username_lower_key
+on public.users (lower(username))
+where username is not null;
+
+create or replace function public.resolve_login_email(login_name text)
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select u.email
+  from public.users u
+  where u.status = 'active'
+    and lower(u.username) = lower(trim(login_name))
+    and u.email is not null
+  limit 1
+$$;
+
+revoke all on function public.resolve_login_email(text) from public;
+grant execute on function public.resolve_login_email(text) to anon, authenticated;

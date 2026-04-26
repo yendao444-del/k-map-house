@@ -1004,14 +1004,32 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   return appUser
 }
 
-export const signInUser = async (email: string, password: string): Promise<AppUser> => {
-  const normalizedEmail = email.trim()
-  if (!normalizedEmail || !password) {
-    throw new Error('Vui lòng nhập email và mật khẩu.')
+const resolveLoginEmail = async (login: string): Promise<string> => {
+  const normalizedLogin = login.trim()
+  if (normalizedLogin.includes('@')) return normalizedLogin
+
+  const { data, error } = await supabase.rpc('resolve_login_email', {
+    login_name: normalizedLogin.toLowerCase()
+  })
+  if (error) throw new Error(error.message)
+
+  const resolvedEmail = typeof data === 'string' ? data.trim() : ''
+  if (!resolvedEmail) {
+    throw new Error('Tai khoan khong ton tai hoac da bi vo hieu hoa.')
   }
 
+  return resolvedEmail
+}
+
+export const signInUser = async (login: string, password: string): Promise<AppUser> => {
+  const normalizedLogin = login.trim()
+  if (!normalizedLogin || !password) {
+    throw new Error('Vui lòng nhập email/username và mật khẩu.')
+  }
+
+  const loginEmail = await resolveLoginEmail(normalizedLogin)
   const { error } = await supabase.auth.signInWithPassword({
-    email: normalizedEmail,
+    email: loginEmail,
     password
   })
   if (error) throw new Error(error.message)
