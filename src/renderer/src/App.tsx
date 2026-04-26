@@ -2635,9 +2635,11 @@ const App: React.FC = () => {
                           activeContract &&
                           !checkInvoices.some(
                             (i) =>
-                              i.payment_status === 'paid' ||
-                              i.payment_status === 'partial' ||
-                              i.paid_amount > 0
+                              i.payment_status !== 'cancelled' &&
+                              i.payment_status !== 'merged' &&
+                              (i.payment_status === 'paid' ||
+                                i.payment_status === 'partial' ||
+                                i.paid_amount > 0)
                           )
                         const canDeleteRoom =
                           roomInvoices.length === 0 && roomMoveInReceipts.length === 0
@@ -3099,23 +3101,24 @@ const App: React.FC = () => {
                                     (!activeContract?.tenant_id ||
                                       i.tenant_id === activeContract.tenant_id)
                                 )
-                                const depositCollected =
-                                  Boolean(receipt) ||
-                                  currentTenantInvoices.some(
-                                    (i) =>
-                                      (i.payment_status === 'paid' ||
-                                        i.payment_status === 'partial') &&
-                                      (i.deposit_amount || 0) > 0 &&
-                                      i.paid_amount > 0 &&
-                                      (!activeContract || i.created_at >= activeContract.created_at)
-                                  )
+                                const depositInvoice = currentTenantInvoices.find(
+                                  (i) =>
+                                    (i.payment_status === 'paid' || i.payment_status === 'partial') &&
+                                    (i.deposit_amount || 0) > 0 &&
+                                    i.paid_amount > 0 &&
+                                    (!activeContract || i.created_at >= activeContract.created_at)
+                                )
+                                const depositCollected = Boolean(receipt) || Boolean(depositInvoice)
+                                const actualDepositAmount =
+                                  depositInvoice?.deposit_amount ||
+                                  activeContract?.deposit_amount ||
+                                  room.default_deposit ||
+                                  0
                                 if (depositCollected) {
                                   return (
                                     <div>
                                       <div className="font-bold text-gray-800">
-                                        {formatVND(
-                                          activeContract?.deposit_amount || room.default_deposit || 0
-                                        )}{' '}
+                                        {formatVND(actualDepositAmount)}{' '}
                                         đ
                                       </div>
                                       <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-600">
