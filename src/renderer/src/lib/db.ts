@@ -318,7 +318,42 @@ export const createContract = async (data: Partial<Contract>): Promise<Contract>
   }
   const result = await safeQuery(() => supabase.from('contracts').insert(newContract).select().single())
   const contract = result as any as Contract
-  await supabase.from('rooms').update({ status: 'occupied', tenant_name: contract.tenant_name, tenant_phone: contract.tenant_phone, move_in_date: contract.move_in_date, electric_old: contract.electric_init, electric_new: contract.electric_init, water_old: contract.water_init, water_new: contract.water_init } as any).eq('id', contract.room_id)
+  await supabase.from('rooms').update({
+    status: 'occupied',
+    tenant_name: contract.tenant_name,
+    tenant_phone: contract.tenant_phone,
+    move_in_date: contract.move_in_date,
+    base_rent: contract.base_rent,
+    invoice_day: contract.invoice_day,
+    electric_old: contract.electric_init,
+    electric_new: contract.electric_init,
+    water_old: contract.water_init,
+    water_new: contract.water_init,
+  } as any).eq('id', contract.room_id)
+
+  // Hợp đồng di cư đã thu cọc từ app cũ → tạo hóa đơn cọc paid tự động
+  if (contract.is_migration && contract.deposit_pre_collected && (contract.deposit_amount || 0) > 0) {
+    const now = new Date().toISOString()
+    const d = new Date()
+    await supabase.from('invoices').insert({
+      id: createEntityId('inv'),
+      room_id: contract.room_id,
+      tenant_id: contract.tenant_id,
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      electric_old: 0, electric_new: 0, electric_usage: 0, electric_cost: 0,
+      water_old: 0, water_new: 0, water_usage: 0, water_cost: 0,
+      room_cost: 0, wifi_cost: 0, garbage_cost: 0, old_debt: 0,
+      total_amount: contract.deposit_amount,
+      paid_amount: contract.deposit_amount,
+      deposit_amount: contract.deposit_amount,
+      payment_status: 'paid',
+      payment_date: contract.move_in_date,
+      billing_reason: 'Tiền đặt cọc (đã thu từ app cũ)',
+      created_at: now,
+    })
+  }
+
   return contract
 }
 

@@ -19,10 +19,11 @@ export function CancelContractModal({ room, onClose }: Props) {
         try {
             await cancelContract(room.id)
             playDelete()
-            queryClient.invalidateQueries({ queryKey: ['rooms'] })
-            queryClient.invalidateQueries({ queryKey: ['contracts'] })
-            queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
-            queryClient.invalidateQueries({ queryKey: ['invoices'] })
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+              queryClient.invalidateQueries({ queryKey: ['contracts'] }),
+              queryClient.invalidateQueries({ queryKey: ['activeContracts'] }),
+            ])
             onClose()
         } catch (err: any) {
             setError(err.message || 'Có lỗi xảy ra')
