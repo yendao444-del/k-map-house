@@ -235,3 +235,12 @@ input[type='checkbox'] {
     shake 0.5s ease-in-out,
     shake 0.5s ease-in-out 2s infinite;
 }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}

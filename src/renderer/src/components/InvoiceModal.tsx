@@ -616,16 +616,16 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                     </div>
                     {/* Cảnh báo điện */}
                     {electricNotEntered && !electricNewInvalid && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs text-white">
-                        <i className="fa-solid fa-triangle-exclamation"></i>
-                        <span>Bạn chưa nhập chỉ số điện mới. Vui lòng điền để tính tiền điện tháng này.</span>
-                      </div>
+                      <p className="mt-1.5 flex items-center gap-1 text-xs text-amber-600">
+                        <i className="fa-solid fa-circle-info text-amber-400"></i>
+                        Chưa nhập chỉ số mới — tiền điện chưa được tính.
+                      </p>
                     )}
                     {electricNewInvalid && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs text-white">
+                      <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
                         <i className="fa-solid fa-circle-xmark"></i>
-                        <span>Chỉ số mới ({electricNew}) không được nhỏ hơn chỉ số cũ ({electricOld}).</span>
-                      </div>
+                        Chỉ số mới ({electricNew}) nhỏ hơn chỉ số cũ ({electricOld}).
+                      </p>
                     )}
                     {electricUsage > 0 && (
                       <div className="mt-2 flex justify-between text-xs">
@@ -665,16 +665,16 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                     </div>
                     {/* Cảnh báo nước */}
                     {waterNotEntered && !waterNewInvalid && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs text-white">
-                        <i className="fa-solid fa-triangle-exclamation"></i>
-                        <span>Bạn chưa nhập chỉ số nước mới. Vui lòng điền để tính tiền nước tháng này.</span>
-                      </div>
+                      <p className="mt-1.5 flex items-center gap-1 text-xs text-amber-600">
+                        <i className="fa-solid fa-circle-info text-amber-400"></i>
+                        Chưa nhập chỉ số mới — tiền nước chưa được tính.
+                      </p>
                     )}
                     {waterNewInvalid && (
-                      <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs text-white">
+                      <p className="mt-1.5 flex items-center gap-1 text-xs text-red-500">
                         <i className="fa-solid fa-circle-xmark"></i>
-                        <span>Chỉ số mới ({waterNew}) không được nhỏ hơn chỉ số cũ ({waterOld}).</span>
-                      </div>
+                        Chỉ số mới ({waterNew}) nhỏ hơn chỉ số cũ ({waterOld}).
+                      </p>
                     )}
                     {waterUsage > 0 && (
                       <div className="mt-2 flex justify-between text-xs">

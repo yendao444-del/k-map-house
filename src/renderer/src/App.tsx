@@ -5,12 +5,11 @@ import {
   Users,
   Settings as SettingsIcon,
   Bell,
-  ChevronDown,
   Box,
   ClipboardList,
   BarChart3
 } from 'lucide-react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   getRooms,
   updateRoom,
@@ -26,6 +25,7 @@ import {
   getAssetSnapshotsByRoomIds,
   getAppSettings,
   getCurrentSessionUser,
+  isDepositOnlyInvoice,
   signOutUser,
   updateAppSettings,
   type Room,
@@ -45,7 +45,6 @@ import { AssetsTab } from './components/AssetsTab'
 import { ContractsTab } from './components/ContractsTab'
 import { SettingsTab } from './components/SettingsTab'
 import { BusinessReport } from './components/BusinessReport'
-import { CashFlowTab } from './components/CashFlowTab'
 import NewContractModal from './components/NewContractModal'
 import { EndContractNoticeModal } from './components/EndContractNoticeModal'
 import { TerminateContractModal } from './components/TerminateContractModal'
@@ -1209,6 +1208,7 @@ const App: React.FC = () => {
   >({
     queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey, activeContractStartKey],
     enabled: rooms.length > 0,
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const snapshots = await getAssetSnapshotsByRoomIds(roomIds, ['move_in', 'move_out', 'handover'])
       const roomWorkflow: Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }> = {}
@@ -1256,7 +1256,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<AppTab>('rooms')
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
-  const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance'>('cashflow')
+  const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance'>('finance')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
   const [detailRoomInitialTab, setDetailRoomInitialTab] = useState<
@@ -1318,12 +1318,10 @@ const App: React.FC = () => {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
-  const [reportMenuPosition, setReportMenuPosition] = useState({ top: 0, left: 0 })
+  const [reportMenuPosition] = useState({ top: 0, left: 0 })
   const notificationMenuRef = React.useRef<HTMLDivElement | null>(null)
   const accountMenuRef = React.useRef<HTMLDivElement | null>(null)
-  const reportMenuRef = React.useRef<HTMLDivElement | null>(null)
   const reportDropdownRef = React.useRef<HTMLDivElement | null>(null)
-  const reportButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const notificationCountRef = React.useRef<number | null>(null)
 
   const handleAssetReceivePendingChange = React.useCallback((pending: PendingAssetReceive | null) => {
@@ -1463,40 +1461,11 @@ const App: React.FC = () => {
       if (!accountMenuRef.current?.contains(event.target as Node)) {
         setIsAccountMenuOpen(false)
       }
-      const targetNode = event.target as Node
-      if (
-        !reportMenuRef.current?.contains(targetNode) &&
-        !reportDropdownRef.current?.contains(targetNode)
-      ) {
-        setIsReportMenuOpen(false)
-      }
     }
 
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [])
-
-  useEffect(() => {
-    if (!isReportMenuOpen) return
-
-    const updateReportMenuPosition = () => {
-      if (!reportButtonRef.current) return
-      const rect = reportButtonRef.current.getBoundingClientRect()
-      setReportMenuPosition({
-        top: rect.bottom + 8,
-        left: rect.left
-      })
-    }
-
-    updateReportMenuPosition()
-    window.addEventListener('resize', updateReportMenuPosition)
-    window.addEventListener('scroll', updateReportMenuPosition, true)
-
-    return () => {
-      window.removeEventListener('resize', updateReportMenuPosition)
-      window.removeEventListener('scroll', updateReportMenuPosition, true)
-    }
-  }, [isReportMenuOpen])
 
   const handleLogout = async () => {
     await signOutUser()
@@ -2193,13 +2162,12 @@ const App: React.FC = () => {
                 </button>
               )
             })}
-            <div className="relative shrink-0" ref={reportMenuRef}>
+            <div className="relative shrink-0">
               <button
-                ref={reportButtonRef}
                 type="button"
                 onClick={() => {
                   playClick()
-                  setIsReportMenuOpen((prev) => !prev)
+                  requestActiveTab('reports')
                 }}
                 className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${activeTab === 'reports'
                   ? 'bg-white/10 text-white'
@@ -2209,7 +2177,6 @@ const App: React.FC = () => {
               >
                 <BarChart3 size={18} className="text-white" />
                 <span className="text-white">Báo cáo</span>
-                <ChevronDown size={14} className={`ml-1 text-white opacity-50 transition-transform ${isReportMenuOpen ? 'rotate-180' : ''}`} />
               </button>
             </div>
           </nav>
@@ -3305,8 +3272,7 @@ const App: React.FC = () => {
                                     i.payment_status !== 'cancelled' &&
                                     i.payment_status !== 'merged' &&
                                     !i.is_settlement &&
-                                    i.billing_reason !== 'deposit_collect' &&
-                                    i.billing_reason !== 'deposit_refund' &&
+                                    !isDepositOnlyInvoice(i) &&
                                     (!hasActiveContract?.tenant_id ||
                                       i.tenant_id === hasActiveContract.tenant_id) &&
                                     (!contractStartedAt || i.created_at >= contractStartedAt)
@@ -3368,7 +3334,7 @@ const App: React.FC = () => {
                                 hasActiveContract?.deposit_pre_collected === true ||
                                 currentTenantInvoices.some(
                                   (i) =>
-                                    (i.billing_reason === 'deposit_collect' || (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
+                                    (isDepositOnlyInvoice(i) || (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
                                     i.paid_amount > 0
                                 )
 
@@ -3587,11 +3553,7 @@ const App: React.FC = () => {
         ) : activeTab === 'contracts' ? (
           <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
         ) : activeTab === 'reports' ? (
-          reportSubTab === 'cashflow' ? (
-            <CashFlowTab />
-          ) : (
-            <BusinessReport />
-          )
+          <BusinessReport onNavigateToInvoices={() => requestActiveTab('invoices')} />
         ) : activeTab === 'tenants' ? (
           <TenantsTab />
         ) : activeTab === 'settings' ? (

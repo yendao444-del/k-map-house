@@ -27,7 +27,31 @@ export interface RoomAsset { id: string; room_id: string; name: string; quantity
 export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; name: string; quantity: number; reason: string; recorded_at: string; }
 export interface AssetSnapshot { id: string; room_id: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
 export interface RoomVehicle { id: string; room_id: string; owner_name?: string; license_plate: string; vehicle_type?: string; brand?: string; color?: string; registered_at: string; }
-export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; sepay_api_token?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; }
+export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; sepay_api_token?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; opening_balance_cash?: number; opening_balance_bank?: number; opening_balance_date?: string; }
+
+export const isDepositOnlyInvoice = (invoice: Pick<Invoice, 'billing_reason' | 'deposit_amount' | 'is_first_month' | 'is_settlement' | 'room_cost' | 'wifi_cost' | 'garbage_cost' | 'old_debt' | 'electric_cost' | 'water_cost' | 'total_amount' | 'transfer_room_cost' | 'transfer_electric_cost' | 'transfer_water_cost' | 'transfer_service_cost' | 'new_room_cost' | 'new_room_service_cost'>): boolean => {
+  const billingReason = (invoice.billing_reason || '').trim()
+  if (billingReason === 'deposit_collect' || billingReason === 'deposit_refund') return true
+
+  const depositAmount = Number(invoice.deposit_amount || 0)
+  if (depositAmount === 0 || invoice.is_first_month || invoice.is_settlement) return false
+
+  const nonDepositTotal =
+    Number(invoice.room_cost || 0) +
+    Number(invoice.wifi_cost || 0) +
+    Number(invoice.garbage_cost || 0) +
+    Number(invoice.old_debt || 0) +
+    Number(invoice.electric_cost || 0) +
+    Number(invoice.water_cost || 0) +
+    Number(invoice.transfer_room_cost || 0) +
+    Number(invoice.transfer_electric_cost || 0) +
+    Number(invoice.transfer_water_cost || 0) +
+    Number(invoice.transfer_service_cost || 0) +
+    Number(invoice.new_room_cost || 0) +
+    Number(invoice.new_room_service_cost || 0)
+
+  return nonDepositTotal === 0 && Math.abs(Number(invoice.total_amount || 0)) === Math.abs(depositAmount)
+}
 
 // =========================================================
 // UTILS
@@ -164,14 +188,16 @@ export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Ro
 }
 
 export const deleteRoom = async (id: string): Promise<void> => {
-  // Xóa toàn bộ dữ liệu liên quan trước để tránh FK constraint
-  await supabase.from('invoices').delete().eq('room_id', id)
-  await supabase.from('move_in_receipts').delete().eq('room_id', id)
-  await supabase.from('contracts').delete().eq('room_id', id)
-  await supabase.from('room_assets').delete().eq('room_id', id)
-  await supabase.from('asset_snapshots').delete().eq('room_id', id)
-  await supabase.from('room_vehicles').delete().eq('room_id', id)
-  await supabase.from('room_asset_adjustments').delete().eq('room_id', id)
+  // Xóa song song toàn bộ dữ liệu liên quan trước để tránh FK constraint
+  await Promise.all([
+    supabase.from('invoices').delete().eq('room_id', id),
+    supabase.from('move_in_receipts').delete().eq('room_id', id),
+    supabase.from('contracts').delete().eq('room_id', id),
+    supabase.from('room_assets').delete().eq('room_id', id),
+    supabase.from('asset_snapshots').delete().eq('room_id', id),
+    supabase.from('room_vehicles').delete().eq('room_id', id),
+    supabase.from('room_asset_adjustments').delete().eq('room_id', id),
+  ])
   await safeQuery(() => supabase.from('rooms').delete().eq('id', id))
 }
 
@@ -195,10 +221,12 @@ export const updateTenant = async (id: string, updates: Partial<Tenant>): Promis
 }
 
 export const deleteTenant = async (id: string): Promise<void> => {
-  await safeQuery(() => supabase.from('move_in_receipts').delete().eq('tenant_id', id))
-  await safeQuery(() => supabase.from('asset_snapshots').delete().eq('tenant_id', id))
-  await safeQuery(() => supabase.from('invoices').delete().eq('tenant_id', id))
-  await safeQuery(() => supabase.from('contracts').delete().eq('tenant_id', id))
+  await Promise.all([
+    safeQuery(() => supabase.from('move_in_receipts').delete().eq('tenant_id', id)),
+    safeQuery(() => supabase.from('asset_snapshots').delete().eq('tenant_id', id)),
+    safeQuery(() => supabase.from('invoices').delete().eq('tenant_id', id)),
+    safeQuery(() => supabase.from('contracts').delete().eq('tenant_id', id)),
+  ])
   await safeQuery(() => supabase.from('tenants').delete().eq('id', id))
 }
 
@@ -349,7 +377,8 @@ export const createContract = async (data: Partial<Contract>): Promise<Contract>
       deposit_amount: contract.deposit_amount,
       payment_status: 'paid',
       payment_date: contract.move_in_date,
-      billing_reason: 'Tiền đặt cọc (đã thu từ app cũ)',
+      billing_reason: 'deposit_collect',
+      note: 'Tiền đặt cọc đã thu từ app cũ',
       created_at: now,
     })
   }
@@ -423,10 +452,12 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
 export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
   if (!data.contract_id) throw new Error('Không tìm thấy hợp đồng đang hiệu lực để tất toán.')
 
-  // Fetch room + contract + zone để tính toán tất toán
-  const { data: room } = await supabase.from('rooms').select('*').eq('id', data.room_id).maybeSingle()
+  // Fetch song song room + contract để tính toán tất toán
+  const [{ data: room }, { data: contract }] = await Promise.all([
+    supabase.from('rooms').select('*').eq('id', data.room_id).maybeSingle(),
+    supabase.from('contracts').select('*').eq('id', data.contract_id).maybeSingle(),
+  ])
   if (!room) throw new Error('Không tìm thấy phòng.')
-  const { data: contract } = await supabase.from('contracts').select('*').eq('id', data.contract_id).maybeSingle()
   if (!contract) throw new Error('Không tìm thấy hợp đồng.')
 
   let zone: ServiceZone | null = null
@@ -778,17 +809,16 @@ export const createAssetSnapshots = async (data: Partial<AssetSnapshot>[]): Prom
   const replacedGroups = new Set<string>()
   for (const snap of data) {
     if (!snap.room_id || !snap.type) continue
-    const key = `${snap.room_id}|${snap.type}`
-    if (replacedGroups.has(key)) continue
-    replacedGroups.add(key)
-    await safeQuery(() =>
-      supabase
-        .from('asset_snapshots')
-        .delete()
-        .eq('room_id', snap.room_id as string)
-        .eq('type', snap.type as string)
-    )
+    replacedGroups.add(`${snap.room_id}|${snap.type}`)
   }
+  await Promise.all(
+    Array.from(replacedGroups).map(key => {
+      const [roomId, type] = key.split('|')
+      return safeQuery(() =>
+        supabase.from('asset_snapshots').delete().eq('room_id', roomId).eq('type', type)
+      )
+    })
+  )
 
   const recordedAt = new Date().toISOString()
   const snaps = data.map(s => ({ ...s, id: createEntityId('snap'), recorded_at: recordedAt }))
