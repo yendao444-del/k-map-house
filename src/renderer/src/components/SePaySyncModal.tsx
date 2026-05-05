@@ -18,6 +18,8 @@ interface SepayTransaction {
   transaction_date: string
   bank_brand_name: string
   account_number: string
+  account_name?: string
+  sub_account?: string
   reference_number: string
 }
 
@@ -39,7 +41,29 @@ interface MatchResult {
   matchType: 'exact' | 'partial' | 'over'
 }
 
+interface InvoiceCodeInfo {
+  invoice: Invoice
+  roomName: string
+  room?: Room
+  code: string
+  normalizedCode: string
+  remaining: number
+  isPending: boolean
+}
+
 const formatVND = (v: number): string => new Intl.NumberFormat('vi-VN').format(v)
+
+const fmtDate = (d?: string): string =>
+  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
+
+const getInvoiceTitle = (invoice: Invoice): string => {
+  if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc'
+  if (invoice.billing_reason === 'deposit_collect') return 'Thu tiền cọc'
+  if (invoice.billing_reason === 'contract_end') return 'Tất toán hợp đồng'
+  if (invoice.billing_reason === 'service') return 'Thu phí dịch vụ'
+  if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên'
+  return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`
+}
 
 export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoices, rooms, onClose }) => {
   const queryClient = useQueryClient()
@@ -55,9 +79,142 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
     return map
   }, [rooms])
 
+  const roomById = useMemo(() => {
+    const map = new Map<string, Room>()
+    rooms.forEach((room) => map.set(room.id, room))
+    return map
+  }, [rooms])
+
   const pendingInvoices = invoices.filter(
     (inv) => !inv.is_settlement && ['unpaid', 'partial'].includes(inv.payment_status)
   )
+
+  const invoiceCodeInfos = useMemo<InvoiceCodeInfo[]>(
+    () =>
+      invoices
+        .filter((inv) => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged' && !inv.is_settlement)
+        .map((invoice) => {
+          const roomName = roomNameById.get(invoice.room_id) || ''
+          const code = buildInvoiceTransferDescription(invoice, roomName)
+          return {
+            invoice,
+            roomName,
+            room: rooms.find((room) => room.id === invoice.room_id),
+            code,
+            normalizedCode: normalizeTransferText(code),
+            remaining: Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0)),
+            isPending: ['unpaid', 'partial'].includes(invoice.payment_status)
+          }
+        }),
+    [invoices, roomNameById, rooms]
+  )
+
+  const pendingCodeInfos = useMemo(
+    () => invoiceCodeInfos.filter((info) => info.isPending),
+    [invoiceCodeInfos]
+  )
+
+  const recentTxDiagnostics = useMemo(() => {
+    return rawTxs.slice(0, 5).map((tx) => {
+      const amount = Number(tx.amount_in)
+      const accountLabel = [tx.account_name, tx.bank_brand_name].filter(Boolean).join(' - ') || 'Tài khoản nhận'
+      const accountNumber = tx.account_number || tx.sub_account || ''
+      const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+      const pendingCodeMatches = pendingCodeInfos.filter((info) =>
+        normalizedContent.includes(info.normalizedCode)
+      )
+      const allCodeMatches = invoiceCodeInfos.filter((info) =>
+        normalizedContent.includes(info.normalizedCode)
+      )
+      const roomToken = normalizedContent.match(/P([A-Z0-9]+)T\d{6}C/)?.[1] || ''
+      const roomMatch = roomToken
+        ? rooms.find((room) => (room.name.match(/\d+/g)?.join('') || '') === roomToken)
+        : undefined
+      const pendingByRoom = roomMatch
+        ? pendingCodeInfos.filter((info) => info.invoice.room_id === roomMatch.id)
+        : []
+
+      let status: 'ok' | 'warn' | 'error' = 'error'
+      let title = 'Chưa khớp hóa đơn'
+      let detail = 'Không tìm thấy mã chuyển khoản của hóa đơn đang chờ thu.'
+
+      if (pendingCodeMatches.length === 1) {
+        const info = pendingCodeMatches[0]
+        if (Math.abs(amount - info.remaining) < 1) {
+          status = 'ok'
+          title = 'Khớp đủ điều kiện'
+          detail = `${info.roomName}: đúng mã và đúng số còn thu ${formatVND(info.remaining)} đ.`
+        } else {
+          status = 'warn'
+          title = 'Đúng mã nhưng lệch tiền'
+          detail = `${info.roomName}: SePay ${formatVND(amount)} đ, hóa đơn còn thu ${formatVND(info.remaining)} đ.`
+        }
+      } else if (pendingCodeMatches.length > 1) {
+        status = 'warn'
+        title = 'Một giao dịch khớp nhiều hóa đơn'
+        detail = 'Nội dung chuyển khoản chứa nhiều mã hóa đơn, cần kiểm tra thủ công.'
+      } else if (allCodeMatches.length > 0) {
+        const info = allCodeMatches[0]
+        if (info.invoice.payment_status === 'paid') {
+          const paidAt = tx.transaction_date
+            ? new Date(tx.transaction_date).toLocaleString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+              })
+            : ''
+          status = 'ok'
+          title = 'Đã chuyển khoản'
+          detail = `${info.roomName}: hóa đơn đã thu đủ${paidAt ? ` lúc ${paidAt}` : ''}.`
+        } else {
+          status = 'warn'
+          title = 'Đúng mã nhưng chưa cần chốt'
+          detail = `${info.roomName}: trạng thái hiện tại là ${info.invoice.payment_status}.`
+        }
+      } else if (roomMatch && pendingByRoom.length > 0) {
+        status = 'warn'
+        title = `Có vẻ là ${roomMatch.name}, nhưng sai mã hóa đơn`
+        detail = `Mã đang chờ: ${pendingByRoom.map((info) => info.code).join(', ')}.`
+      } else if (roomMatch) {
+        status = 'warn'
+        title = `Có vẻ là ${roomMatch.name}`
+        detail = 'Phòng này hiện không có hóa đơn đang chờ thu trong danh sách đồng bộ.'
+      }
+
+      const relatedInfo = pendingCodeMatches[0] || allCodeMatches[0] || pendingByRoom[0]
+      const relatedInvoice = relatedInfo?.invoice
+      const relatedRoom = relatedInfo?.room || (relatedInvoice ? rooms.find((room) => room.id === relatedInvoice.room_id) : roomMatch)
+      const relatedRoomName = relatedInfo?.roomName || relatedRoom?.name || roomMatch?.name || ''
+      const tenantName = relatedRoom?.tenant_name || ''
+      const tenantPhone = relatedRoom?.tenant_phone || ''
+      const invoiceTitle = relatedInvoice ? getInvoiceTitle(relatedInvoice) : ''
+      const periodText = relatedInvoice
+        ? relatedInvoice.billing_period_start && relatedInvoice.billing_period_end
+          ? `${fmtDate(relatedInvoice.billing_period_start)} - ${fmtDate(relatedInvoice.billing_period_end)}`
+          : `T.${String(relatedInvoice.month).padStart(2, '0')}/${relatedInvoice.year}`
+        : ''
+      const transferCode = relatedInfo?.code || ''
+
+      return {
+        tx,
+        amount,
+        accountLabel,
+        accountNumber,
+        status,
+        title,
+        detail,
+        roomName: relatedRoomName,
+        tenantName,
+        tenantPhone,
+        invoiceTitle,
+        periodText,
+        transferCode,
+        remaining: relatedInfo?.remaining,
+      }
+    })
+  }, [invoiceCodeInfos, pendingCodeInfos, rawTxs, rooms])
 
   const fetchTransactions = async (): Promise<void> => {
     setLoading(true)
@@ -182,6 +339,83 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
               <p className="text-gray-500 text-sm mt-1">Lịch sử SePay hiện không có khoản tiền khớp đủ điều kiện strict.</p>
 
               {rawTxs.length > 0 && (
+                <div className="mt-6 w-full space-y-3 text-left">
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+                    <div className="mb-3">
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-500">
+                        5 giao dịch SePay gần nhất
+                      </div>
+                      <div className="mt-1 text-[11px] text-slate-400">
+                        Hiển thị lý do từng giao dịch chưa được tự động chốt.
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {recentTxDiagnostics.map(({ tx, amount, accountLabel, accountNumber, status, title, detail }) => (
+                        <div
+                          key={tx.id}
+                          className={`rounded-lg border px-3 py-2 ${
+                            status === 'ok'
+                              ? 'border-emerald-200 bg-emerald-50'
+                              : status === 'warn'
+                                ? 'border-amber-200 bg-amber-50'
+                                : 'border-slate-200 bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-black text-slate-900">{formatVND(amount)} đ</span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                    status === 'ok'
+                                      ? 'bg-emerald-600 text-white'
+                                      : status === 'warn'
+                                        ? 'bg-amber-500 text-white'
+                                        : 'bg-slate-300 text-slate-700'
+                                  }`}
+                                >
+                                  {title}
+                                </span>
+                              </div>
+                              <div className="mt-1 break-all rounded bg-white/70 px-2 py-1 font-mono text-[11px] text-slate-600">
+                                {tx.transaction_content || 'Không có nội dung'}
+                              </div>
+                              <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                                <span>Người nhận: {accountLabel}</span>
+                                {accountNumber && <span>STK: {accountNumber}</span>}
+                              </div>
+                              <div className="mt-1 text-[11px] font-semibold text-slate-600">{detail}</div>
+                            </div>
+                            <div className="shrink-0 text-[10px] text-slate-400">
+                              {tx.transaction_date ? new Date(tx.transaction_date).toLocaleDateString('vi-VN') : ''}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                    <div className="mb-2 text-xs font-black uppercase tracking-wide text-emerald-700">
+                      Mã chuyển khoản đang chờ thu
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {pendingCodeInfos.map((info) => (
+                        <div key={info.invoice.id} className="rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
+                          <div className="font-bold text-slate-800">{info.roomName || 'Phòng ?'}</div>
+                          <div className="mt-0.5 font-mono text-[11px] text-emerald-700">{info.code}</div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">Còn thu {formatVND(info.remaining)} đ</div>
+                        </div>
+                      ))}
+                      {pendingCodeInfos.length === 0 && (
+                        <div className="text-xs font-semibold text-emerald-700">Không còn hóa đơn nào đang chờ thu.</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {false && rawTxs.length > 0 && (
                 <div className="mt-6 text-left border border-gray-200 rounded-lg p-4 bg-white w-full">
                   <div className="text-xs font-bold text-gray-500 mb-2">DEBUG: 5 GIAO DỊCH GẦN NHẤT TỪ SEPAY</div>
                   <ul className="text-xs text-gray-600 space-y-2">
@@ -209,6 +443,16 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
               <div className="text-sm font-semibold text-gray-600 mb-2">Phát hiện {matches.length} giao dịch khớp tuyệt đối:</div>
               {matches.map((match) => {
                 const actual = Number(match.transaction.amount_in)
+                const invoice = match.invoice
+                const room = roomById.get(invoice.room_id)
+                const roomName = room?.name || roomNameById.get(invoice.room_id) || 'Phòng ?'
+                const tenantName = room?.tenant_name || 'Chưa rõ khách thuê'
+                const tenantPhone = room?.tenant_phone || ''
+                const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                const transferCode = buildInvoiceTransferDescription(invoice, roomName)
+                const periodText = invoice.billing_period_start && invoice.billing_period_end
+                  ? `${fmtDate(invoice.billing_period_start)} - ${fmtDate(invoice.billing_period_end)}`
+                  : `T.${String(invoice.month).padStart(2, '0')}/${invoice.year}`
                 return (
                   <div
                     key={match.transaction.id}
@@ -216,14 +460,39 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
                   >
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-gray-800">Giao dịch</span>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 font-black text-emerald-700 border border-emerald-100">
+                            {roomName}
+                          </span>
+                          <span className="font-bold text-gray-800">{tenantName}</span>
+                          {tenantPhone && <span className="text-xs font-semibold text-gray-500">{tenantPhone}</span>}
                           <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-mono border border-gray-200">
                             Ref: {match.transaction.reference_number}
                           </span>
                           <span className="font-bold text-emerald-600">{formatVND(actual)} đ</span>
                         </div>
-                        <div className="text-xs text-green-600 font-bold">Khớp mã + khớp đúng số tiền</div>
+                        <div className="grid gap-1.5 text-xs text-slate-600 sm:grid-cols-2">
+                          <div>
+                            <span className="font-semibold text-slate-500">Hóa đơn:</span>{' '}
+                            <span className="font-bold text-slate-800">{getInvoiceTitle(invoice)}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Kỳ thu:</span>{' '}
+                            <span className="font-bold text-slate-800">{periodText}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Cần thu:</span>{' '}
+                            <span className="font-bold text-red-600">{formatVND(remaining)} đ</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Mã CK:</span>{' '}
+                            <span className="font-mono font-bold text-blue-700">{transferCode}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 border border-slate-100">
+                          {match.transaction.transaction_content || 'Không có nội dung chuyển khoản'}
+                        </div>
+                        <div className="mt-2 text-xs text-green-600 font-bold">Khớp mã + khớp đúng số tiền. Có thể duyệt chốt phiếu.</div>
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0 justify-center">

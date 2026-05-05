@@ -196,20 +196,6 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     setTenantMenuOpen(false)
   }
 
-  const pickDemoTenant = () => {
-    if (availableTenants.length === 0) return
-    selectTenant(availableTenants[0])
-    setForm(prev => ({
-      ...prev,
-      tenant_dob: '1995-05-15',
-      occupant_count: 2,
-      electric_init: 125,
-      water_init: 15,
-    }))
-    setElectricTouched(true)
-    setWaterTouched(true)
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedTenantId) {
@@ -261,10 +247,6 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
               {(room as any).zone?.name || 'Khu vực chưa xác định'}
             </p>
           </div>
-          <button type="button" onClick={pickDemoTenant} className="px-2.5 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-colors shrink-0">
-            <i className="fa-solid fa-magic-wand-sparkles"></i>
-            DEMO
-          </button>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition shrink-0">
             <i className="fa-solid fa-xmark"></i>
           </button>
@@ -579,7 +561,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
             Hủy bỏ
           </button>
           <button
-            type="submit"
+            type="button"
             onClick={handleSubmit}
             disabled={mutation.isPending || !selectedTenantId}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow-sm shadow-green-100 transition disabled:opacity-60 disabled:hover:bg-green-600 flex items-center justify-center gap-2"

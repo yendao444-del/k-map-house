@@ -1,18 +1,483 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, type Invoice, type Room, type AppUser } from '../lib/db';
+import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, isDepositOnlyInvoice, updateInvoice, type Invoice, type Room, type AppUser, type Tenant, type AppSettings } from '../lib/db';
 import { PaymentModal } from './PaymentModal';
 import { EditInvoiceModal } from './EditInvoiceModal';
 import { InvoiceDetailModal } from './InvoiceDetailModal';
 import { SePaySyncModal } from './SePaySyncModal';
+import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
+import logoNgang from '../assets/logo_navbar.png';
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
+const INVOICE_EXPORT_MARKER = '[INVOICE_EXPORTED]'
+
+const isInvoiceExported = (invoice: Invoice): boolean => (invoice.note || '').includes(INVOICE_EXPORT_MARKER)
+
+const appendInvoiceExportNote = (note: string | undefined, filePath: string): string => {
+  const marker = `${INVOICE_EXPORT_MARKER} ${new Date().toISOString()} ${filePath}`
+  const cleanNote = (note || '')
+    .split('\n')
+    .filter((line) => !line.includes(INVOICE_EXPORT_MARKER))
+    .join('\n')
+    .trim()
+  return [cleanNote, marker].filter(Boolean).join('\n')
+}
+
+const escapeHtml = (value: string | number | undefined | null): string =>
+  String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char] || char))
+
+const cleanInvoiceNote = (note: string | undefined): string =>
+  (note || '')
+    .split('\n')
+    .filter((line) => !line.includes(INVOICE_EXPORT_MARKER))
+    .join('\n')
+    .trim()
+
+const getShortName = (name: string): string => name.trim().split(/\s+/).pop() || name
+
+const getImageDataUrl = async (src: string): Promise<string> => {
+  try {
+    const response = await fetch(src)
+    const blob = await response.blob()
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return src
+  }
+}
+
+function numberToWords(amount: number): string {
+  if (amount === 0) return 'Không đồng';
+  if (amount < 0) return `Hoàn ${numberToWords(Math.abs(amount)).toLowerCase()}`;
+  const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+
+  function threeDigits(n: number, isHead: boolean): string {
+    if (n === 0) return '';
+    const h = Math.floor(n / 100);
+    const t = Math.floor((n % 100) / 10);
+    const u = n % 10;
+    let result = '';
+    if (h > 0) result += units[h] + ' trăm';
+    else if (!isHead && (t > 0 || u > 0)) result += 'không trăm';
+    if (t === 0) {
+      if (u > 0) {
+        const unitWord = u === 1 ? 'một' : u === 5 ? 'lăm' : units[u];
+        result += h > 0 || !isHead ? ' lẻ ' + unitWord : unitWord;
+      }
+    } else if (t === 1) {
+      result += ' mười';
+      if (u > 0) result += ' ' + (u === 5 ? 'lăm' : u === 1 ? 'một' : units[u]);
+    } else {
+      result += ' ' + units[t] + ' mươi';
+      if (u === 1) result += ' mốt';
+      else if (u === 5) result += ' lăm';
+      else if (u > 0) result += ' ' + units[u];
+    }
+    return result.trim();
+  }
+
+  const billion = Math.floor(amount / 1_000_000_000);
+  const million = Math.floor((amount % 1_000_000_000) / 1_000_000);
+  const thousand = Math.floor((amount % 1_000_000) / 1_000);
+  const remainder = amount % 1_000;
+  const parts: string[] = [];
+  if (billion > 0) parts.push(threeDigits(billion, parts.length === 0) + ' tỷ');
+  if (million > 0) parts.push(threeDigits(million, parts.length === 0) + ' triệu');
+  if (thousand > 0) parts.push(threeDigits(thousand, parts.length === 0) + ' nghìn');
+  if (remainder > 0) parts.push(threeDigits(remainder, parts.length === 0));
+  const result = parts.join(' ');
+  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng';
+}
+
+const buildBulkInvoiceHtml = (
+  invoice: Invoice,
+  room: Room | undefined,
+  tenant: Tenant | undefined,
+  settings: AppSettings,
+): string => {
+  const rows = [
+    ['Tiền phòng', invoice.room_cost],
+    ['Tiền điện', invoice.electric_cost],
+    ['Tiền nước', invoice.water_cost],
+    ['Internet / WiFi', invoice.wifi_cost],
+    ['Phí vệ sinh', invoice.garbage_cost],
+    ['Nợ cũ', invoice.old_debt],
+    ['Cộng thêm / Giảm trừ', invoice.adjustment_amount || 0],
+    ['Thu/trả cọc', invoice.deposit_amount || 0],
+  ].filter(([, amount]) => Number(amount) !== 0)
+  const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+  const period = getBillingPeriod(invoice, room)
+  const title = getInvoiceLabel(invoice)
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px; background: #eef2f7; font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; }
+    .capture-page { max-width: 760px; margin: 0 auto; }
+    .invoice-export-frame { background: #fff; border: 1px solid #cbd5e1; border-radius: 18px; overflow: hidden; box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14); }
+    .head { padding: 26px 30px 18px; border-bottom: 2px solid #10b981; text-align: center; }
+    .brand { font-size: 18px; font-weight: 900; color: #065f46; text-transform: uppercase; }
+    .addr { margin-top: 4px; font-size: 12px; color: #64748b; }
+    .title { margin-top: 18px; font-size: 24px; font-weight: 900; letter-spacing: .4px; }
+    .sub { margin-top: 6px; font-size: 14px; font-weight: 700; color: #334155; }
+    .info { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; padding: 18px 30px; font-size: 13px; border-bottom: 1px solid #e2e8f0; }
+    .label { color: #64748b; font-weight: 700; }
+    table { width: calc(100% - 60px); margin: 20px 30px; border-collapse: collapse; font-size: 13px; }
+    th { background: #ecfdf5; color: #047857; text-align: left; padding: 10px 12px; border: 1px solid #a7f3d0; }
+    th:last-child, td:last-child { text-align: right; }
+    td { padding: 10px 12px; border: 1px solid #e2e8f0; }
+    .total td { font-size: 16px; font-weight: 900; background: #f8fafc; }
+    .paid td { color: #059669; font-weight: 800; }
+    .remain td { color: #dc2626; font-weight: 900; background: #fff7ed; }
+    .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 12px 30px 36px; text-align: center; font-size: 13px; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <div class="capture-page">
+    <div class="invoice-export-frame">
+      <div class="head">
+        <div class="brand">${escapeHtml(settings.property_name || 'AN KHANG HOME')}</div>
+        <div class="addr">${escapeHtml(settings.property_address || '')}</div>
+        <div class="title">HÓA ĐƠN THANH TOÁN</div>
+        <div class="sub">${escapeHtml(title)} - T.${invoice.month}/${invoice.year}</div>
+      </div>
+      <div class="info">
+        <div><span class="label">Phòng:</span> ${escapeHtml(room?.name || 'Không rõ')}</div>
+        <div><span class="label">Khách thuê:</span> ${escapeHtml(tenant?.full_name || room?.tenant_name || '')}</div>
+        <div><span class="label">Ngày lập:</span> ${escapeHtml(new Date(invoice.created_at).toLocaleDateString('vi-VN'))}</div>
+        <div><span class="label">Kỳ:</span> ${period ? `${escapeHtml(fmtDate(period.start))} - ${escapeHtml(fmtDate(period.end))}` : `T.${invoice.month}/${invoice.year}`}</div>
+      </div>
+      <table>
+        <thead><tr><th>Khoản thu</th><th>Số tiền</th></tr></thead>
+        <tbody>
+          ${rows.map(([label, amount]) => `<tr><td>${escapeHtml(String(label))}</td><td>${formatVND(Number(amount))} đ</td></tr>`).join('')}
+          <tr class="total"><td>Tổng cộng</td><td>${formatVND(invoice.total_amount)} đ</td></tr>
+          <tr class="paid"><td>Đã thu</td><td>${formatVND(invoice.paid_amount)} đ</td></tr>
+          <tr class="remain"><td>Còn lại</td><td>${formatVND(remaining)} đ</td></tr>
+        </tbody>
+      </table>
+      <div class="sig">
+        <div>Người đại diện thu</div>
+        <div>Khách thuê</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+}
+void buildBulkInvoiceHtml
+
+function getInvoiceNumber(invoice: Invoice): string {
+  const parts = invoice.id.split('-')
+  const ts = parseInt(parts[1] || '0', 10)
+  const d = ts ? new Date(ts) : new Date(invoice.created_at || '')
+  const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
+  const rand = (parts[2] || '').slice(0, 4).toUpperCase()
+  return `${ym}-${rand}`
+}
+
+interface DetailExportLine {
+  label: string
+  detail?: string
+  amount: number
+}
+
+const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): DetailExportLine[] => {
+  const lines: DetailExportLine[] = []
+  const periodStart = invoice.billing_period_start
+  const periodEnd = invoice.billing_period_end
+  const monthlyRent = room?.base_rent ?? invoice.room_cost
+
+  if (invoice.has_transfer) {
+    lines.push({
+      label: `Tiền phòng cũ (${invoice.transfer_old_room_name || ''})`,
+      detail: `${invoice.transfer_days || 0} ngày`,
+      amount: invoice.transfer_room_cost || 0,
+    })
+    lines.push({
+      label: `Tiền phòng mới (${room?.name || ''})`,
+      detail: `${invoice.new_room_days || 0} ngày`,
+      amount: invoice.room_cost || 0,
+    })
+  } else {
+    lines.push({
+      label: 'Tiền phòng',
+      detail: periodStart && periodEnd
+        ? `${fmtDate(periodStart)} - ${fmtDate(periodEnd)}${invoice.prorata_days ? ` (${invoice.prorata_days} ngày)` : ''}\n${formatVND(monthlyRent)}đ/1 tháng`
+        : undefined,
+      amount: invoice.room_cost,
+    })
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_electric_cost || 0) > 0) {
+    lines.push({
+      label: `Tiền điện (${invoice.transfer_old_room_name || ''})`,
+      detail: `${invoice.transfer_electric_usage || 0} kWh`,
+      amount: invoice.transfer_electric_cost || 0,
+    })
+  }
+  if (invoice.electric_cost > 0) {
+    lines.push({
+      label: invoice.has_transfer ? `Tiền điện (${room?.name || ''})` : 'Tiền điện',
+      detail: invoice.electric_usage > 0 ? `${invoice.electric_old} → ${invoice.electric_new} (${invoice.electric_usage} kWh)` : undefined,
+      amount: invoice.electric_cost,
+    })
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_water_cost || 0) > 0) {
+    lines.push({
+      label: `Tiền nước (${invoice.transfer_old_room_name || ''})`,
+      detail: `${invoice.transfer_water_usage || 0} m³`,
+      amount: invoice.transfer_water_cost || 0,
+    })
+  }
+  if (invoice.water_cost > 0) {
+    lines.push({
+      label: invoice.has_transfer ? `Tiền nước (${room?.name || ''})` : 'Tiền nước',
+      detail: invoice.water_usage > 0 ? `${invoice.water_old} → ${invoice.water_new} (${invoice.water_usage} m³)` : undefined,
+      amount: invoice.water_cost,
+    })
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_service_cost || 0) > 0) {
+    lines.push({
+      label: `Phí dịch vụ (${invoice.transfer_old_room_name || ''})`,
+      detail: `${invoice.transfer_days || 0} ngày`,
+      amount: invoice.transfer_service_cost || 0,
+    })
+  }
+  if (invoice.wifi_cost > 0) {
+    lines.push({ label: invoice.has_transfer ? `Internet / WiFi (${room?.name || ''})` : 'Internet / WiFi', amount: invoice.wifi_cost })
+  }
+  if (invoice.garbage_cost > 0) {
+    lines.push({ label: invoice.has_transfer ? `Phí vệ sinh (${room?.name || ''})` : 'Phí vệ sinh', amount: invoice.garbage_cost })
+  }
+  if (invoice.old_debt > 0) {
+    lines.push({ label: 'Nợ kỳ trước', amount: invoice.old_debt })
+  }
+
+  const depositAmt = invoice.deposit_amount || 0
+  if (depositAmt !== 0) {
+    lines.push({ label: depositAmt > 0 ? 'Thu tiền cọc' : 'Trả tiền cọc', amount: Math.abs(depositAmt) })
+  }
+
+  const adjustmentAmt = invoice.adjustment_amount || 0
+  if (adjustmentAmt !== 0) {
+    lines.push({
+      label: adjustmentAmt > 0
+        ? `Cộng thêm${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`
+        : `Giảm trừ${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`,
+      amount: Math.abs(adjustmentAmt),
+    })
+  }
+
+  return lines.filter((line) => line.amount !== 0)
+}
+
+const renderDetailExportLine = (detail?: string): string => {
+  if (!detail) return ''
+  return detail
+    .split('\n')
+    .map((line, index) => `<div class="${index === 0 ? 'line-detail-main' : 'line-detail-sub'}">${escapeHtml(line)}</div>`)
+    .join('')
+}
+
+const buildInvoiceDetailExportHtml = (
+  invoice: Invoice,
+  room: Room | undefined,
+  tenant: Tenant | undefined,
+  settings: AppSettings,
+  logoSrc: string,
+): string => {
+  const displayName = tenant?.full_name || room?.tenant_name || 'Khách thuê'
+  const displayPhone = tenant?.phone || room?.tenant_phone || ''
+  const propertyAddress = settings.property_address || ''
+  const ownerPhone = settings.property_owner_phone || ''
+  const ownerFullName = settings.property_owner_name || 'AN KHANG HOME'
+  const ownerShortName = getShortName(ownerFullName)
+  const tenantShortName = getShortName(displayName)
+  const label = getInvoiceLabel(invoice)
+  const remaining = invoice.total_amount - invoice.paid_amount
+  const wordsText = invoice.total_amount < 0
+    ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
+    : numberToWords(invoice.total_amount)
+  const dueDate = invoice.due_date ? fmtDate(invoice.due_date) : null
+  const note = cleanInvoiceNote(invoice.note)
+  const lines = buildDetailExportLines(invoice, room)
+  const transferDes = remaining > 0 && settings.account_no && settings.bank_id
+    ? buildInvoiceTransferDescription(invoice, room?.name)
+    : ''
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+    body { font-family: "Segoe UI", Arial, sans-serif; background: linear-gradient(180deg, #eef2f7 0%, #e5ebf3 100%); color: #0f172a; padding: 24px 24px 0; }
+    .capture-page { max-width: 760px; margin: 0 auto; padding-bottom: 0; }
+    .invoice-export-frame { background: #fff; border: 1px solid #d1d5db; border-radius: 18px; overflow: hidden; box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.8) inset; }
+    .invoice-wrap { position: relative; background: #fff; border: 2px solid #334155; overflow: hidden; max-width: 700px; min-height: 500px; margin: 0 auto; }
+    .watermark { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; opacity: 0.15; }
+    .watermark img { width: 70%; max-width: 400px; object-fit: contain; }
+    .section { position: relative; z-index: 1; background: transparent; }
+    .header { padding: 20px 24px 16px; border-bottom: 2px solid #334155; }
+    .header-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 12px; color: #334155; }
+    .header-left, .header-right { display: flex; flex-direction: column; gap: 2px; }
+    .header-right { text-align: right; }
+    .brand { font-weight: 900; text-transform: uppercase; letter-spacing: .03em; color: #0f172a; }
+    .bold { font-weight: 700; color: #0f172a; }
+    .title-block { margin-top: 16px; text-align: center; }
+    .title-main { font-size: 30px; line-height: 1.15; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: #0f172a; }
+    .title-period { margin-top: 4px; font-size: 13px; font-weight: 700; letter-spacing: .03em; color: #334155; }
+    .info { padding: 12px 24px; border-bottom: 1px solid #94a3b8; font-size: 13px; color: #1e293b; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+    .table-wrap { padding: 0 24px 16px; }
+    table { width: 100%; border-collapse: collapse; background: transparent; font-size: 14px; }
+    th { background: #047857; color: #fff; font-weight: 700; padding: 8px 12px; border: 1px solid #064e3b; }
+    th:nth-child(1), td:nth-child(1) { text-align: center; width: 7%; }
+    th:nth-child(2) { text-align: left; width: 33%; }
+    th:nth-child(3) { text-align: left; }
+    th:nth-child(4), td:nth-child(4) { text-align: right; width: 25%; }
+    td { padding: 8px 12px; border: 1px solid #94a3b8; vertical-align: middle; color: #1e293b; }
+    .item-label { font-weight: 600; }
+    .amount { font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .line-detail-main { color: #374151; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .line-detail-sub { color: #6b7280; font-size: 11px; margin-top: 2px; white-space: nowrap; }
+    .total-label { font-weight: 800; text-transform: uppercase; color: #0f172a; }
+    .total-amount { font-size: 16px; font-weight: 900; color: #0f172a; }
+    .words-label { font-size: 12px; font-weight: 700; color: #1e293b; }
+    .words { text-align: right; font-size: 12px; font-weight: 800; font-style: italic; color: #0f172a; }
+    .summary-label { font-weight: 600; text-transform: uppercase; }
+    .summary-strong { font-size: 16px; font-weight: 900; }
+    .signature { padding: 0 24px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; text-align: center; font-size: 14px; }
+    .sig-title { font-weight: 700; color: #374151; }
+    .sig-hint { margin-top: 2px; color: #9ca3af; font-size: 11px; font-style: italic; }
+    .sig-cursive { font-family: "Great Vibes", cursive; font-size: 44px; color: #0f172a; transform: rotate(-5deg); display: inline-block; margin-top: 8px; line-height: .8; }
+    .sig-print { margin-top: 4px; border-top: 1px solid #d1d5db; padding-top: 4px; font-size: 12px; font-weight: 700; color: #374151; }
+    .tenant-short { font-size: 18px; color: #0f172a; font-weight: 700; margin: 20px 0 8px; line-height: 1; }
+    .note { padding: 0 24px 20px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4b5563; }
+    .due { color: #6b7280; }
+    .qr { margin: 0 24px 24px; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 24px; position: relative; z-index: 1; }
+    .qr-box { flex: 0 0 auto; background: #fff; padding: 8px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
+    .qr-box img { width: 128px; height: 128px; object-fit: contain; display: block; }
+    .qr-info { font-size: 14px; color: #4b5563; }
+    .qr-title { font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 4px; }
+    .qr-row { margin-bottom: 2px; }
+    .qr-money { color: #dc2626; font-weight: 800; }
+    .qr-des { margin-top: 8px; display: inline-block; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 8px; }
+    .paid-stamp { margin: 0 24px 24px; position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; padding: 16px; border: 2px solid #94a3b8; border-radius: 12px; color: #334155; font-size: 18px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="capture-page">
+    <div class="invoice-export-frame">
+      <div class="invoice-wrap">
+        <div class="watermark"><img src="${escapeHtml(logoSrc)}" alt="watermark" /></div>
+        <div class="section header">
+          <div class="header-grid">
+            <div class="header-left">
+              <div class="brand">${escapeHtml(settings.property_name || 'PHIẾU THU TIỀN NHÀ')}</div>
+              <div>Địa chỉ: <span class="bold">${escapeHtml(propertyAddress || '—')}</span></div>
+              <div>Điện thoại: <span class="bold">${escapeHtml(ownerPhone || '—')}</span></div>
+            </div>
+            <div class="header-right">
+              <div>Mẫu số: <span class="bold">HDTN</span></div>
+              <div>Số: <span class="bold">${escapeHtml(getInvoiceNumber(invoice))}</span></div>
+              <div>Ngày lập: <span class="bold">${escapeHtml(fmtDate(invoice.invoice_date || invoice.created_at))}</span></div>
+              ${dueDate ? `<div>Hạn thanh toán: <span class="bold">${escapeHtml(dueDate)}</span></div>` : ''}
+            </div>
+          </div>
+          <div class="title-block">
+            <h1 class="title-main">Hóa đơn tiền thuê nhà</h1>
+            <div class="title-period">Tháng ${String(invoice.month).padStart(2, '0')} / ${invoice.year}</div>
+          </div>
+        </div>
+        <div class="section info">
+          <div class="info-grid">
+            <div>Khách hàng: <span class="bold">${escapeHtml(displayName)}</span></div>
+            <div>Số điện thoại: <span class="bold">${escapeHtml(displayPhone || '—')}</span></div>
+            <div>Phòng: <span class="bold">${escapeHtml(room?.name || '—')}</span></div>
+            <div>Nội dung thu: <span class="bold">${escapeHtml(label)}</span></div>
+          </div>
+        </div>
+        <div class="section table-wrap">
+          <table>
+            <thead>
+              <tr><th>STT</th><th>Nội dung</th><th>Chi tiết</th><th>Thành tiền</th></tr>
+            </thead>
+            <tbody>
+              ${lines.map((line, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td class="item-label">${escapeHtml(line.label)}</td>
+                  <td>${renderDetailExportLine(line.detail)}</td>
+                  <td class="amount">${formatVND(line.amount)}đ</td>
+                </tr>`).join('')}
+              <tr><td colspan="3" class="total-label">Tổng tiền</td><td class="total-amount amount">${formatVND(invoice.total_amount)}đ</td></tr>
+              <tr><td class="words-label">Tổng tiền bằng chữ</td><td colspan="3" class="words">${escapeHtml(wordsText)}</td></tr>
+              <tr><td colspan="3" class="summary-label">Đã thu</td><td class="amount">${invoice.paid_amount > 0 ? `${formatVND(invoice.paid_amount)}đ` : '0đ'}</td></tr>
+              <tr><td colspan="3" class="summary-label summary-strong">Còn lại</td><td class="summary-strong amount">${remaining > 0 ? `${formatVND(remaining)}đ` : '0đ'}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="section signature">
+          <div>
+            <div class="sig-title">Người đại diện thu</div>
+            <div class="sig-hint">(Ký, ghi rõ họ tên)</div>
+            <div class="sig-cursive">${escapeHtml(ownerShortName)}</div>
+            <div class="sig-print">${escapeHtml(ownerFullName)}</div>
+          </div>
+          <div>
+            <div class="sig-title">Khách thuê</div>
+            <div class="sig-hint">(Ký, ghi rõ họ tên)</div>
+            <div class="tenant-short">${escapeHtml(tenantShortName)}</div>
+            <div class="sig-print">${escapeHtml(displayName)}</div>
+          </div>
+        </div>
+        ${(note || dueDate) ? `<div class="section note">${note ? `<div><span class="bold">Ghi chú:</span> ${escapeHtml(note)}</div>` : ''}${dueDate ? `<div class="due">Vui lòng thanh toán đúng hạn trước ngày <strong>${escapeHtml(dueDate)}</strong></div>` : ''}</div>` : ''}
+        ${transferDes ? `
+          <div class="qr">
+            <div class="qr-box"><img src="https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id || '')}&acc=${encodeURIComponent(settings.account_no || '')}&amount=${remaining}&des=${encodeURIComponent(transferDes)}" alt="VietQR" /></div>
+            <div class="qr-info">
+              <div class="qr-title">Quét mã để thanh toán</div>
+              <div class="qr-row">Ngân hàng: <span class="bold">${escapeHtml(settings.bank_id)}</span></div>
+              <div class="qr-row">Số tài khoản: <span class="bold">${escapeHtml(settings.account_no)}</span></div>
+              <div class="qr-row">Chủ tài khoản: <span class="bold">${escapeHtml((settings.account_name || ownerFullName).toUpperCase())}</span></div>
+              <div class="qr-row">Số tiền: <span class="qr-money">${formatVND(remaining)} VNĐ</span></div>
+              <div class="qr-des">Nội dung: <span class="bold">${escapeHtml(transferDes)}</span></div>
+            </div>
+          </div>` : ''}
+        ${remaining <= 0 && invoice.total_amount > 0 ? '<div class="paid-stamp">Đã thanh toán xong</div>' : ''}
+      </div>
+    </div>
+  </div>
+</body>
+</html>`
+}
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
 function getInvoiceLabel(invoice: Invoice): string {
   if (invoice.is_settlement) return 'Hóa đơn tất toán hợp đồng';
+  if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc';
+  if (invoice.billing_reason === 'deposit_collect' || isDepositOnlyInvoice(invoice)) return 'Thu tiền cọc';
   if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
   if (invoice.billing_reason === 'contract_end') return 'Tất toán hợp đồng';
   return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
@@ -46,6 +511,8 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [showSePaySync, setShowSePaySync] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkExportMessage, setBulkExportMessage] = useState('');
 
   const deleteMutation = useMutation({
     mutationFn: deleteInvoice,
@@ -87,7 +554,7 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
   }, []);
 
   // Multi-select filter dạng checkbox
-  const [filters, setFilters] = useState({ paid: true, unpaid: true, partial: true, settlement: true, cancelled: false });
+  const [filters, setFilters] = useState({ paid: false, unpaid: true, partial: false, settlement: false, cancelled: false });
 
   const toggleFilter = (key: keyof typeof filters) =>
     setFilters(prev => ({ ...prev, [key]: !prev[key] }));
@@ -137,9 +604,6 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
       if (inv.payment_status === 'partial' && !filters.partial) return false;
       const roomName = roomNameById.get(inv.room_id) || '';
       return roomName.toLowerCase().includes(normalizedSearch);
-    }).filter(inv => {
-      const roomName = roomNameById.get(inv.room_id) || '';
-      return roomName.toLowerCase().includes(normalizedSearch);
     });
     return result.sort((a, b) => {
       const roomA = roomNameById.get(a.room_id) || '';
@@ -150,6 +614,63 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
   }, [monthInvoices, filters, roomNameById, searchQuery, sortOrder]);
+
+  const unpaidInvoicesToExport = useMemo(
+    () =>
+      monthInvoices.filter(
+        (invoice) =>
+          invoice.payment_status === 'unpaid' &&
+          !invoice.is_settlement &&
+          !isInvoiceExported(invoice)
+      ),
+    [monthInvoices]
+  );
+
+  const handleBulkExportUnpaid = async () => {
+    if (bulkExporting) return;
+    if (unpaidInvoicesToExport.length === 0) {
+      setBulkExportMessage('Không có hóa đơn chưa thu nào cần xuất trong tháng này.')
+      return
+    }
+
+    setBulkExporting(true)
+    setBulkExportMessage('')
+    let exported = 0
+    let lastPath = ''
+
+    try {
+      const saveToDownloads = window.api.invoice.saveImageToDownloads
+      if (typeof saveToDownloads !== 'function') {
+        throw new Error('Chức năng xuất vào Downloads vừa được cập nhật. Vui lòng tắt app và mở lại để nạp bản mới.')
+      }
+
+      const logoSrc = await getImageDataUrl(logoNgang)
+
+      for (const invoice of unpaidInvoicesToExport) {
+        const room = rooms.find((item) => item.id === invoice.room_id)
+        const tenant = tenants.find((item) => item.id === invoice.tenant_id)
+        const html = buildInvoiceDetailExportHtml(invoice, room, tenant, appSettings, logoSrc)
+        const roomName = (room?.name || 'phong').replace(/\s+/g, '-')
+        const fileName = `hoa-don-${roomName}-T${String(invoice.month).padStart(2, '0')}-${invoice.year}.jpg`
+        const result = await saveToDownloads({ html, fileName })
+        if (!result.ok || !result.filePath) {
+          throw new Error(result.error || `Không thể xuất hóa đơn ${room?.name || invoice.id}.`)
+        }
+        lastPath = result.filePath
+        await updateInvoice(invoice.id, {
+          note: appendInvoiceExportNote(invoice.note, result.filePath)
+        })
+        exported += 1
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      setBulkExportMessage(`Đã xuất ${exported} hóa đơn chưa thu vào Downloads${lastPath ? ` (${lastPath})` : ''}.`)
+    } catch (err) {
+      setBulkExportMessage(err instanceof Error ? err.message : 'Không thể xuất hóa đơn hàng loạt.')
+    } finally {
+      setBulkExporting(false)
+    }
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -173,14 +694,25 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
             >
               <i className="fa-solid fa-rotate"></i><span>Đồng bộ SePay</span>
             </button>
-            <button className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition">
-              <i className="fa-solid fa-print"></i><span>In h.đơn</span>
+            <button
+              onClick={handleBulkExportUnpaid}
+              disabled={bulkExporting}
+              className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+              title="Xuất toàn bộ hóa đơn chưa thu của tháng đang chọn vào Downloads"
+            >
+              <i className="fa-solid fa-print"></i><span>{bulkExporting ? 'Đang xuất...' : 'Xuất HĐ'}</span>
             </button>
             <button className="flex items-center gap-2 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium text-sm transition">
               <i className="fa-solid fa-file-export"></i><span>Xuất excel</span>
             </button>
           </div>
         </div>
+        {bulkExportMessage && (
+          <div className="px-4 py-2 bg-emerald-50 border-b border-emerald-100 text-xs font-semibold text-emerald-700">
+            <i className="fa-solid fa-circle-info mr-1.5"></i>
+            {bulkExportMessage}
+          </div>
+        )}
 
         {/* Month Tabs */}
         <div className="px-4 pt-3 overflow-x-auto border-b border-gray-100">
@@ -301,6 +833,7 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
                   const isPaid = invoice.payment_status === 'paid';
                   const isPartial = invoice.payment_status === 'partial';
                   const isCancelled = invoice.payment_status === 'cancelled';
+                  const exported = isInvoiceExported(invoice);
                   const remaining = invoice.total_amount - invoice.paid_amount;
                   const elecWaterCost = invoice.electric_cost + invoice.water_cost;
                   const depositAmt = invoice.deposit_amount || 0;
@@ -467,9 +1000,16 @@ export const InvoicesTab: React.FC<{ currentUser?: AppUser | null }> = ({ curren
                             <i className="fa-solid fa-hourglass-half mr-1"></i>Thu thiếu
                           </span>
                         ) : (
-                          <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap">
-                            <i className="fa-solid fa-clock mr-1"></i>Chưa thu
-                          </span>
+                          <div className="inline-flex flex-col items-center gap-1">
+                            <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap">
+                              <i className="fa-solid fa-clock mr-1"></i>Chưa thu
+                            </span>
+                            {exported && (
+                              <span className="bg-blue-100 text-blue-700 text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap">
+                                <i className="fa-solid fa-file-export mr-1"></i>Đã xuất HĐ
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 

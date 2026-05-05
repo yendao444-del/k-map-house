@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { type Invoice, type Room, type AppSettings } from '../lib/db';
+import { isDepositOnlyInvoice, type Invoice, type Room, type AppSettings } from '../lib/db';
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
 import logoNgang from '../assets/logo_navbar.png';
 
@@ -31,7 +31,7 @@ function getInvoiceNumber(invoice: Invoice): string {
 
 function getInvoiceLabel(invoice: Invoice): string {
   if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc';
-  if (invoice.billing_reason === 'deposit_collect') return 'Thu tiền cọc';
+  if (invoice.billing_reason === 'deposit_collect' || isDepositOnlyInvoice(invoice)) return 'Thu tiền cọc';
   if (invoice.billing_reason === 'contract_end') return 'Thanh lý hợp đồng';
   if (invoice.billing_reason === 'service') return 'Thu phí dịch vụ';
   if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
@@ -58,7 +58,10 @@ function numberToWords(amount: number): string {
     }
 
     if (t === 0) {
-      if (u > 0) result += ' lẻ ' + (u === 1 ? 'một' : u === 5 ? 'lăm' : units[u]);
+      if (u > 0) {
+        const unitWord = u === 1 ? 'một' : u === 5 ? 'lăm' : units[u];
+        result += h > 0 || !isHead ? ' lẻ ' + unitWord : unitWord;
+      }
     } else if (t === 1) {
       result += ' mười';
       if (u > 0) result += ' ' + (u === 5 ? 'lăm' : u === 1 ? 'một' : units[u]);

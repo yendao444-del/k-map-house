@@ -128,10 +128,13 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   const [loading, setLoading] = useState(true)
   const [savingInfo, setSavingInfo] = useState(false)
   const [savingPayment, setSavingPayment] = useState(false)
+  const [savingBalance, setSavingBalance] = useState(false)
   const [savedInfo, setSavedInfo] = useState(false)
   const [savedPayment, setSavedPayment] = useState(false)
+  const [savedBalance, setSavedBalance] = useState(false)
   const [infoError, setInfoError] = useState('')
   const [paymentError, setPaymentError] = useState('')
+  const [balanceError, setBalanceError] = useState('')
   const [showBankDropdown, setShowBankDropdown] = useState(false)
   const [qrPreviewUrl, setQrPreviewUrl] = useState('')
   const [qrPreviewError, setQrPreviewError] = useState('')
@@ -206,6 +209,29 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   const hasPaymentChanges = useMemo(
     () => JSON.stringify(paymentSettings) !== JSON.stringify(initialPaymentSettings),
     [paymentSettings, initialPaymentSettings]
+  )
+
+  const balanceSettings = useMemo(
+    () => ({
+      opening_balance_cash: settings.opening_balance_cash ?? 0,
+      opening_balance_bank: settings.opening_balance_bank ?? 0,
+      opening_balance_date: settings.opening_balance_date ?? '',
+    }),
+    [settings]
+  )
+
+  const initialBalanceSettings = useMemo(
+    () => ({
+      opening_balance_cash: initialSettings.opening_balance_cash ?? 0,
+      opening_balance_bank: initialSettings.opening_balance_bank ?? 0,
+      opening_balance_date: initialSettings.opening_balance_date ?? '',
+    }),
+    [initialSettings]
+  )
+
+  const hasBalanceChanges = useMemo(
+    () => JSON.stringify(balanceSettings) !== JSON.stringify(initialBalanceSettings),
+    [balanceSettings, initialBalanceSettings]
   )
 
   useEffect(() => {
@@ -318,6 +344,21 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
       setPaymentError(msg)
     } finally {
       setSavingPayment(false)
+    }
+  }
+
+  const handleSaveBalance = async () => {
+    setBalanceError('')
+    setSavingBalance(true)
+    try {
+      await updateAppSettings(balanceSettings)
+      setInitialSettings((prev) => ({ ...prev, ...balanceSettings }))
+      setSavedBalance(true)
+      setTimeout(() => setSavedBalance(false), 2500)
+    } catch (error) {
+      setBalanceError(error instanceof Error ? error.message : 'Không thể lưu.')
+    } finally {
+      setSavingBalance(false)
     }
   }
 
@@ -592,6 +633,111 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
                 className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-violet-500/20 transition hover:bg-violet-700 disabled:opacity-50"
               >
                 {savingPayment ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
+                Lưu cài đặt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Số dư ban đầu */}
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
+        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 shadow-inner">
+              <i className="fa-solid fa-wallet" />
+            </div>
+            <div>
+              <h2 className="text-[15px] font-bold text-gray-800">Số dư ban đầu</h2>
+              <p className="mt-0.5 text-[12px] text-gray-500">Điểm xuất phát để tính tồn quỹ hiện tại trong tab Thu / Chi.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                <i className="fa-solid fa-calendar-day text-gray-300" style={{ fontSize: 10 }} />
+                Ngày bắt đầu tính
+              </label>
+              <input
+                type="date"
+                value={settings.opening_balance_date || ''}
+                onChange={(e) => setSettings((prev) => ({ ...prev, opening_balance_date: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                <i className="fa-solid fa-money-bill-wave text-gray-300" style={{ fontSize: 10 }} />
+                Tiền mặt (VNĐ)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={settings.opening_balance_cash != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_cash) : ''}
+                onChange={(e) => {
+                  const raw = Number(e.target.value.replace(/\D/g, ''))
+                  setSettings((prev) => ({ ...prev, opening_balance_cash: isNaN(raw) ? 0 : raw }))
+                }}
+                placeholder="0"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] font-bold tabular-nums text-gray-800 placeholder-gray-300 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
+                <i className="fa-solid fa-building-columns text-gray-300" style={{ fontSize: 10 }} />
+                Ngân hàng (VNĐ)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={settings.opening_balance_bank != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_bank) : ''}
+                onChange={(e) => {
+                  const raw = Number(e.target.value.replace(/\D/g, ''))
+                  setSettings((prev) => ({ ...prev, opening_balance_bank: isNaN(raw) ? 0 : raw }))
+                }}
+                placeholder="0"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] font-bold tabular-nums text-gray-800 placeholder-gray-300 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5">
+            <i className="fa-solid fa-circle-info text-sm text-emerald-400" />
+            <span className="text-[11px] font-medium text-emerald-600">
+              Nhập số tiền thực tế đang có tại <strong>ngày bắt đầu tính</strong>. Hệ thống sẽ cộng/trừ các giao dịch phát sinh sau đó để ra tồn quỹ hiện tại.
+            </span>
+          </div>
+
+          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
+            <div className="h-5">
+              {savedBalance && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
+                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
+                </span>
+              )}
+              {balanceError && !savedBalance && (
+                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
+                  <i className="fa-solid fa-triangle-exclamation" /> {balanceError}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSettings((prev) => ({ ...prev, ...initialBalanceSettings }))}
+                disabled={!hasBalanceChanges || savingBalance}
+                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSaveBalance}
+                disabled={!hasBalanceChanges || savingBalance}
+                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {savingBalance ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
                 Lưu cài đặt
               </button>
             </div>

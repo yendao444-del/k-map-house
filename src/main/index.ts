@@ -166,6 +166,117 @@ function setupZaloHandlers(): void {
 
 function setupInvoiceHandlers(): void {
   ipcMain.removeHandler('invoice:saveImage')
+  ipcMain.removeHandler('invoice:saveImageToDownloads')
+
+  const captureInvoiceImage = async (rawHtml: string, targetPath: string): Promise<void> => {
+    const tempDir = join(app.getPath('temp'), 'phongtro-invoices')
+    mkdirSync(tempDir, { recursive: true })
+    const htmlPath = join(tempDir, `invoice_temp_${Date.now()}_${Math.random().toString(36).slice(2)}.html`)
+
+    const captureWindow = new BrowserWindow({
+      width: 820,
+      height: 1180,
+      show: false,
+      frame: false,
+      webPreferences: { sandbox: false }
+    })
+
+    writeFileSync(htmlPath, rawHtml, 'utf-8')
+
+    try {
+      await captureWindow.loadFile(htmlPath)
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+
+      const contentSize = await captureWindow.webContents.executeJavaScript(`
+        (() => {
+          window.scrollTo(0, 0)
+          const doc = document.documentElement
+          const body = document.body
+          const exportRoot = document.querySelector('.capture-page') || body
+          const rootRect = exportRoot.getBoundingClientRect()
+          const width = Math.max(
+            Math.ceil(rootRect.width + 24),
+            doc?.scrollWidth || 0,
+            doc?.clientWidth || 0,
+            body?.scrollWidth || 0,
+            body?.offsetWidth || 0
+          )
+          const height = Math.max(
+            Math.ceil(rootRect.height + 4),
+            doc?.scrollHeight || 0,
+            doc?.clientHeight || 0,
+            body?.scrollHeight || 0,
+            body?.offsetHeight || 0
+          )
+          return { width, height }
+        })()
+      `) as { width?: number; height?: number }
+
+      const captureWidth = Math.min(2200, Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12))
+      const captureHeight = Math.min(9000, Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4))
+
+      captureWindow.setContentSize(captureWidth, captureHeight)
+      await new Promise((resolve) => setTimeout(resolve, 220))
+
+      const actualBounds = captureWindow.getContentBounds()
+      const viewportWidth = Math.max(1, actualBounds.width)
+      const viewportHeight = Math.max(1, actualBounds.height)
+
+      if (viewportHeight < captureHeight - 8) {
+        const scale = Math.max(0.45, Math.min(1, (viewportHeight - 16) / captureHeight))
+        await captureWindow.webContents.executeJavaScript(`
+          (() => {
+            const s = ${scale}
+            document.documentElement.style.overflow = 'hidden'
+            document.body.style.transformOrigin = 'top left'
+            document.body.style.transform = 'scale(' + s + ')'
+            document.body.style.width = (100 / s) + '%'
+            document.body.style.margin = '0'
+          })()
+        `)
+        await new Promise((resolve) => setTimeout(resolve, 180))
+      }
+
+      const image = await captureWindow.webContents.capturePage({
+        x: 0,
+        y: 0,
+        width: viewportWidth,
+        height: viewportHeight
+      })
+      writeFileSync(targetPath, image.toJPEG(92))
+    } finally {
+      captureWindow.destroy()
+    }
+  }
+
+  ipcMain.handle('invoice:saveImageToDownloads', async (_event, payload: { html: string, fileName: string }) => {
+    try {
+      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
+      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
+
+      if (!rawHtml.trim()) {
+        return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
+      }
+
+      const safeBaseName =
+        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').replace(/\.(jpg|jpeg|png)$/i, '').trim() ||
+        `hoa-don-${Date.now()}`
+      const downloadsDir = app.getPath('downloads')
+      mkdirSync(downloadsDir, { recursive: true })
+      let targetPath = join(downloadsDir, `${safeBaseName}.jpg`)
+      let index = 2
+      while (existsSync(targetPath)) {
+        targetPath = join(downloadsDir, `${safeBaseName}-${index}.jpg`)
+        index += 1
+      }
+
+      await captureInvoiceImage(rawHtml, targetPath)
+      return { ok: true, filePath: targetPath }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
+      return { ok: false, error: message }
+    }
+  })
 
   ipcMain.handle('invoice:saveImage', async (_event, payload: { html: string, fileName: string }) => {
     try {

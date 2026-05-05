@@ -2,15 +2,18 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   getCashTransactions,
+  getContracts,
   getInvoices,
   getInvoicePaymentRecords,
   getRooms,
   getTenants,
   type CashTransaction,
   type CashTransactionCategory,
+  type Contract,
   type Invoice,
   type InvoicePaymentRecord,
 } from '../lib/db'
+import { CashFlowTab } from './CashFlowTab'
 
 type InvoiceDrillType =
   | 'roomMonthly'
@@ -33,7 +36,7 @@ type Drill =
   | { mode: 'invoice'; type: InvoiceDrillType; title: string }
   | { mode: 'cash'; type: 'income' | 'expense'; category?: CashTransactionCategory; title: string }
 
-type PnlSection = 'revenue' | 'deposit' | 'opex' | 'result'
+type PnlSection = 'revenue' | 'opex' | 'result'
 
 type PnlRow = {
   key: string
@@ -122,11 +125,14 @@ const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
   }
 }
 
-export function BusinessReport() {
+export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?: () => void } = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const { data: cashTransactions = [] } = useQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
+  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
+
+  const [activeTab, setActiveTab] = useState<'pnl' | 'deposit' | 'cashflow'>('pnl')
 
   const today = new Date()
   const [viewMode, setViewMode] = useState<'range' | 'daily'>('range')
@@ -135,7 +141,7 @@ export function BusinessReport() {
   const [selectedDate, setSelectedDate] = useState(iso(today))
   const [drill, setDrill] = useState<Drill | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(
-    () => new Set(['revenue', 'deposit', 'opex'])
+    () => new Set()
   )
 
   const period = useMemo(() => {
@@ -184,54 +190,21 @@ export function BusinessReport() {
   }, [filteredCash])
 
   const pnl = useMemo(() => {
-    const sumInvoice = (type: InvoiceDrillType) => filteredInvoices.reduce((sum, invoice) => sum + getInvoiceDrillAmount(invoice, type), 0)
     const sumExpense = EXPENSE_CATEGORIES.reduce((sum, item) => sum + (expenseByCategory.get(item.value) || 0), 0)
     const cashIncome = filteredCash.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
 
-    const roomMonthly = sumInvoice('roomMonthly')
-    const roomFirstMonth = sumInvoice('roomFirstMonth')
-    const roomTransfer = sumInvoice('roomTransfer')
-    const electricRevenue = sumInvoice('electric')
-    const waterRevenue = sumInvoice('water')
-    const internetRevenue = sumInvoice('internet')
-    const cleaningRevenue = sumInvoice('cleaning')
-    const transferServiceRevenue = sumInvoice('transferService')
-    const adjustmentRevenue = sumInvoice('adjustment')
-    const damageRevenue = sumInvoice('damage')
-    const oldDebtRevenue = sumInvoice('oldDebt')
-    const invoiceRevenue = roomMonthly + roomFirstMonth + roomTransfer + electricRevenue + waterRevenue + internetRevenue + cleaningRevenue + transferServiceRevenue + adjustmentRevenue + damageRevenue + oldDebtRevenue
-    const operatingRevenue = invoiceRevenue + cashIncome
-
-    const depositCollected = sumInvoice('deposit')
-    const refundPayable = sumInvoice('refund')
     const cashCollected = invoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
-    const receivable = sumInvoice('receivable')
+    const operatingRevenue = cashCollected + cashIncome
+
     const netProfit = operatingRevenue - sumExpense
-    const cashFlow = cashCollected + cashIncome - sumExpense - refundPayable
     const margin = operatingRevenue > 0 ? (netProfit / operatingRevenue) * 100 : 0
 
     return {
-      roomMonthly,
-      roomFirstMonth,
-      roomTransfer,
-      electricRevenue,
-      waterRevenue,
-      internetRevenue,
-      cleaningRevenue,
-      transferServiceRevenue,
-      adjustmentRevenue,
-      damageRevenue,
-      oldDebtRevenue,
-      invoiceRevenue,
       cashIncome,
-      operatingRevenue,
-      depositCollected,
-      refundPayable,
       cashCollected,
-      receivable,
+      operatingRevenue,
       operatingCost: sumExpense,
       netProfit,
-      cashFlow,
       margin,
       invoiceCount: filteredInvoices.length,
       cashCount: filteredCash.length + invoiceCashRows.length,
@@ -249,26 +222,12 @@ export function BusinessReport() {
   }))
 
   const rows: PnlRow[] = [
-    { key: 'rev', label: 'A. Doanh thu vận hành', amount: pnl.operatingRevenue, section: 'revenue', group: true, color: 'text-emerald-700' },
-    { key: 'roomMonthly', label: 'Tiền phòng hàng tháng', amount: pnl.roomMonthly, section: 'revenue', invoiceType: 'roomMonthly', indent: true },
-    { key: 'roomFirstMonth', label: 'Tiền phòng tháng đầu', amount: pnl.roomFirstMonth, section: 'revenue', invoiceType: 'roomFirstMonth', indent: true },
-    { key: 'roomTransfer', label: 'Tiền phòng chuyển đổi', amount: pnl.roomTransfer, section: 'revenue', invoiceType: 'roomTransfer', indent: true },
-    { key: 'electric', label: 'Tiền điện thu khách', amount: pnl.electricRevenue, section: 'revenue', invoiceType: 'electric', indent: true },
-    { key: 'water', label: 'Tiền nước thu khách', amount: pnl.waterRevenue, section: 'revenue', invoiceType: 'water', indent: true },
-    { key: 'internet', label: 'Internet / wifi thu khách', amount: pnl.internetRevenue, section: 'revenue', invoiceType: 'internet', indent: true },
-    { key: 'cleaning', label: 'Rác / vệ sinh thu khách', amount: pnl.cleaningRevenue, section: 'revenue', invoiceType: 'cleaning', indent: true },
-    { key: 'transferService', label: 'Dịch vụ tháng đầu / chuyển phòng', amount: pnl.transferServiceRevenue, section: 'revenue', invoiceType: 'transferService', indent: true },
-    { key: 'adjustment', label: 'Phụ thu / điều chỉnh', amount: pnl.adjustmentRevenue, section: 'revenue', invoiceType: 'adjustment', indent: true },
-    { key: 'damage', label: 'Đền bù tài sản', amount: pnl.damageRevenue, section: 'revenue', invoiceType: 'damage', indent: true },
-    { key: 'oldDebt', label: 'Nợ cũ / nợ gộp', amount: pnl.oldDebtRevenue, section: 'revenue', invoiceType: 'oldDebt', indent: true },
-    { key: 'cashIncome', label: 'Khoản thu khác từ Thu / Chi', amount: pnl.cashIncome, section: 'revenue', cashType: 'income', indent: true },
-    { key: 'depositGroup', label: 'B. Tiền cọc & tất toán', amount: pnl.depositCollected - pnl.refundPayable, section: 'deposit', group: true, color: 'text-blue-700' },
-    { key: 'deposit', label: 'Tiền cọc đã ghi nhận', amount: pnl.depositCollected, section: 'deposit', invoiceType: 'deposit', indent: true },
-    { key: 'refund', label: 'Hoàn cọc / khoản âm cần trả', amount: -pnl.refundPayable, section: 'deposit', invoiceType: 'refund', indent: true },
-    { key: 'cost', label: 'C. Chi phí vận hành thực tế', amount: -pnl.operatingCost, section: 'opex', group: true, color: 'text-red-700' },
+    { key: 'rev', label: 'A. Doanh thu thực thu', amount: pnl.operatingRevenue, section: 'revenue', group: true, color: 'text-emerald-700' },
+    { key: 'invoiceCash', label: 'Thu từ hóa đơn (đã nhận)', amount: pnl.cashCollected, section: 'revenue', invoiceType: 'cash', indent: true },
+    { key: 'cashIncome', label: 'Thu khác (chứng từ)', amount: pnl.cashIncome, section: 'revenue', cashType: 'income', indent: true },
+    { key: 'cost', label: 'B. Chi phí vận hành thực tế', amount: -pnl.operatingCost, section: 'opex', group: true, color: 'text-red-700' },
     ...expenseRows,
-    { key: 'net', label: 'D. Lợi nhuận vận hành', amount: pnl.netProfit, section: 'result', total: true, color: pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700' },
-    { key: 'cash', label: 'E. Dòng tiền thực thu sau chi phí', amount: pnl.cashFlow, section: 'result', invoiceType: 'cash', total: true, color: pnl.cashFlow >= 0 ? 'text-sky-700' : 'text-red-700' },
+    { key: 'net', label: 'C. Lợi nhuận thực (A − B)', amount: pnl.netProfit, section: 'result', total: true, color: pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700' },
   ]
 
   const visibleRows = rows.filter(row => row.group || row.total || !collapsedSections.has(row.section))
@@ -297,6 +256,31 @@ export function BusinessReport() {
       ? drillInvoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
       : drillInvoices.reduce((sum, invoice) => sum + getInvoiceDrillAmount(invoice, drill.type), 0))
     : drillCash.reduce((sum, item) => sum + item.amount, 0)
+
+  const depositRows = useMemo(() => {
+    return contracts
+      .filter((c: Contract) => c.status === 'active' && (c.deposit_amount || 0) > 0)
+      .map((c: Contract) => ({
+        contract: c,
+        room: roomById.get(c.room_id),
+      }))
+      .sort((a, b) => (a.room?.name || '').localeCompare(b.room?.name || '', 'vi'))
+  }, [contracts, roomById])
+
+  const pendingRefundRows = useMemo(() => {
+    return contracts
+      .filter((c: Contract) =>
+        (c.status === 'terminated' || c.status === 'expired') && (c.deposit_amount || 0) > 0
+      )
+      .map((c: Contract) => ({ contract: c, room: roomById.get(c.room_id) }))
+  }, [contracts, roomById])
+
+  const depositSummary = useMemo(() => ({
+    totalHeld: depositRows.reduce((s, r) => s + (r.contract.deposit_amount || 0), 0),
+    activeCount: depositRows.length,
+    pendingRefund: pendingRefundRows.reduce((s, r) => s + (r.contract.deposit_amount || 0), 0),
+    pendingCount: pendingRefundRows.length,
+  }), [depositRows, pendingRefundRows])
 
   const toggleSection = (section: PnlSection) => {
     setCollapsedSections(prev => {
@@ -333,17 +317,117 @@ export function BusinessReport() {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f5f6f8] p-5 space-y-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <i className="fa-solid fa-chart-line text-primary"></i>
-            Báo cáo Kinh doanh (P&L)
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">Doanh thu lấy từ hóa đơn, chi phí lấy từ chứng từ trong module Thu / Chi.</p>
-        </div>
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab('pnl')}
+          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <i className="fa-solid fa-table-list mr-2"></i>Kết quả kinh doanh
+        </button>
+        <button
+          onClick={() => setActiveTab('deposit')}
+          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
+          {depositSummary.pendingCount > 0 && (
+            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">{depositSummary.pendingCount}</span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab('cashflow')}
+          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <i className="fa-solid fa-wallet mr-2"></i>Thu / Chi
+        </button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
+      {activeTab === 'cashflow' && (
+        <CashFlowTab embedded onNavigateToInvoices={onNavigateToInvoices} />
+      )}
+
+      {activeTab === 'deposit' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Đang giữ cọc</p>
+              <p className="text-2xl font-black text-emerald-700">{fmt(depositSummary.totalHeld)} đ</p>
+              <p className="text-xs text-slate-400 mt-1">{depositSummary.activeCount} phòng đang thuê</p>
+            </div>
+            <div className={`bg-white rounded-xl border shadow-sm p-5 ${depositSummary.pendingCount > 0 ? 'border-red-200' : 'border-slate-200'}`}>
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Chờ hoàn cọc</p>
+              <p className={`text-2xl font-black ${depositSummary.pendingCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>{fmt(depositSummary.pendingRefund)} đ</p>
+              <p className="text-xs text-slate-400 mt-1">{depositSummary.pendingCount} hợp đồng đã kết thúc</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h2 className="font-black text-slate-900 flex items-center gap-2">
+                <i className="fa-solid fa-vault text-primary"></i>
+                Cọc đang giữ — phòng hiện tại
+              </h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="text-left px-5 py-3">Phòng</th>
+                  <th className="text-left px-5 py-3">Khách thuê</th>
+                  <th className="text-left px-5 py-3">Ngày vào</th>
+                  <th className="text-right px-5 py-3">Tiền cọc</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {depositRows.map(({ contract, room }) => (
+                  <tr key={contract.id} className="hover:bg-slate-50">
+                    <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
+                    <td className="px-5 py-3 text-slate-700">{contract.tenant_name}</td>
+                    <td className="px-5 py-3 text-slate-500">{new Date(contract.move_in_date).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-5 py-3 text-right font-black tabular-nums text-slate-800">{fmt(contract.deposit_amount)} đ</td>
+                  </tr>
+                ))}
+                {depositRows.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-5 py-12 text-center text-slate-400">Không có phòng nào đang giữ cọc.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {pendingRefundRows.length > 0 && (
+            <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-red-100 bg-red-50/50">
+                <h2 className="font-black text-red-700 flex items-center gap-2">
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  Chờ hoàn cọc — hợp đồng đã kết thúc ({pendingRefundRows.length})
+                </h2>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="text-left px-5 py-3">Phòng</th>
+                    <th className="text-left px-5 py-3">Khách thuê</th>
+                    <th className="text-left px-5 py-3">Ngày kết thúc</th>
+                    <th className="text-right px-5 py-3">Cọc cần hoàn</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pendingRefundRows.map(({ contract, room }) => (
+                    <tr key={contract.id} className="hover:bg-red-50/30">
+                      <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
+                      <td className="px-5 py-3 text-slate-700">{contract.tenant_name}</td>
+                      <td className="px-5 py-3 text-slate-500">{contract.end_date ? new Date(contract.end_date).toLocaleDateString('vi-VN') : '—'}</td>
+                      <td className="px-5 py-3 text-right font-black tabular-nums text-red-600">{fmt(contract.deposit_amount)} đ</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'pnl' && <><div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
         <div className="flex rounded-lg bg-slate-100 p-1">
           <button onClick={() => setViewMode('range')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${viewMode === 'range' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo khoảng</button>
           <button onClick={() => setViewMode('daily')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${viewMode === 'daily' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo ngày</button>
@@ -547,6 +631,7 @@ export function BusinessReport() {
           </div>
         </div>
       )}
+      </>}
     </div>
   )
 }

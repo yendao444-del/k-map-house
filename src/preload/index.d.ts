@@ -97,6 +97,7 @@ interface UpdateAPI {
 
 interface InvoiceAPI {
   saveImage: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }>
+  saveImageToDownloads: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string }>
 }
 
 interface SepayAPI {

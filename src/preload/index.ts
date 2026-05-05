@@ -23,7 +23,9 @@ const api = {
   },
   invoice: {
     saveImage: (payload: { html: string, fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
-      ipcRenderer.invoke('invoice:saveImage', payload)
+      ipcRenderer.invoke('invoice:saveImage', payload),
+    saveImageToDownloads: (payload: { html: string, fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string }> =>
+      ipcRenderer.invoke('invoice:saveImageToDownloads', payload)
   },
   contract: {
     savePDF: (payload: { html: string; fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
