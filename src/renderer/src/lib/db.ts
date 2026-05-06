@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin, safeQuery } from './supabase'
+﻿import { supabase, safeQuery } from './supabase'
 
 // =========================================================
 // TYPES & CONSTANTS
@@ -962,8 +962,7 @@ export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<
 }
 
 export const getUsers = async (): Promise<AppUser[]> => {
-  const client = supabaseAdmin ?? supabase
-  const data = await safeQuery(() =>
+  const result = await safeQuery(() => supabase.from('users').update(updates).eq('id', id).select().single())
     client.from('users').select('*').order('created_at', { ascending: false })
   )
   return (data || []).map((row) => buildAppUser(row as Record<string, unknown>))
@@ -982,15 +981,13 @@ export const createUserViaAdmin = async (data: {
   username?: string
   role?: UserRole
 }): Promise<AppUser> => {
-  if (!supabaseAdmin) {
-    throw new Error('Chức năng tạo tài khoản yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
-  }
-  const { data: authData, error } = await supabaseAdmin.auth.admin.createUser({
-    email: data.email.trim(),
-    password: data.password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: data.full_name.trim(),
+  const ipcAdmin = (window as any).api?.supabase?.admin
+  if (!ipcAdmin) throw new Error('Chuc nang tao tai khoan yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
+  const res = await ipcAdmin.createUser({ email: data.email.trim(), password: data.password, full_name: data.full_name.trim(), username: data.username })
+  if (!res.ok) throw new Error(res.error || 'Khong the tao tai khoan.')
+  const authUser = (res.data as any)?.user ?? (res.data as any)
+  const userId = authUser?.id
+  if (!userId) throw new Error('Khong lay duoc ID nguoi dung.')
       username: (data.username || data.email.split('@')[0]).trim()
     }
   })
@@ -1020,8 +1017,7 @@ export const createUserViaAdmin = async (data: {
 }
 
 export const updateUser = async (id: string, updates: Partial<AppUser>): Promise<AppUser> => {
-  const client = supabaseAdmin ?? supabase
-  const result = await safeQuery(() => client.from('users').update(updates).eq('id', id).select().single())
+  const result = await safeQuery(() => supabase.from('users').update(updates).eq('id', id).select().single())
   return buildAppUser((result || {}) as Record<string, unknown>)
 }
 
@@ -1029,8 +1025,9 @@ export const updateUserRole = async (userId: string, role: UserRole): Promise<Ap
 export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => { return updateUser(userId, { status }) }
 export const updateUserProfile = async (userId: string, data: { full_name: string }): Promise<AppUser> => { return updateUser(userId, data) }
 export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
-  if (!supabaseAdmin) throw new Error('Chức năng đổi mật khẩu yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password: newPassword })
+  const ipcAdminPwd = (window as any).api?.supabase?.admin
+  if (!ipcAdminPwd) throw new Error('Chuc nang doi mat khau yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
+  const res2 = await ipcAdmin2.resetPassword(userId, newPassword)
   if (error) throw new Error(error.message)
 }
 
@@ -1040,8 +1037,9 @@ export const changeOwnPassword = async (newPassword: string): Promise<void> => {
 }
 
 export const deleteUser = async (id: string): Promise<void> => {
-  if (!supabaseAdmin) throw new Error('Chức năng xóa tài khoản yêu cầu VITE_SUPABASE_SERVICE_ROLE_KEY trong file .env')
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
+  const ipcAdminDel = (window as any).api?.supabase?.admin
+  if (!ipcAdminDel) throw new Error('Chuc nang xoa tai khoan yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
+  const res3 = await ipcAdmin3.deleteUser(id)
   if (error) throw new Error(error.message)
 }
 

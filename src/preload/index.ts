@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+﻿import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
 // Custom APIs for renderer - Database IPC
@@ -35,7 +35,20 @@ const api = {
     fetchTransactions: (token: string): Promise<{ ok: boolean, error?: string, data?: unknown }> =>
       ipcRenderer.invoke('sepay:fetchTransactions', token)
   },
-  update: {
+  supabase: {
+    admin: {
+      createUser: (data: {
+        email: string; password: string; full_name: string; username?: string
+      }): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
+        ipcRenderer.invoke('supabase:admin:createUser', data),
+      resetPassword: (userId: string, newPassword: string): Promise<{ ok: boolean; error?: string }> =>
+        ipcRenderer.invoke('supabase:admin:resetPassword', userId, newPassword),
+      deleteUser: (userId: string): Promise<{ ok: boolean; error?: string }> =>
+        ipcRenderer.invoke('supabase:admin:deleteUser', userId),
+      updateUser: (userId: string, updates: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
+        ipcRenderer.invoke('supabase:admin:updateUser', userId, updates)
+    }
+  },  update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),
     download: (url: string): Promise<unknown> => ipcRenderer.invoke('update:download', url),

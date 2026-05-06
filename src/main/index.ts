@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
+﻿import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
 import * as https from 'https'
 import { extname, join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
@@ -470,6 +470,85 @@ function setupContractHandlers(): void {
 
 
 
+
+
+function setupSupabaseAdminHandlers(): void {
+  ipcMain.removeHandler('supabase:admin:createUser')
+  ipcMain.removeHandler('supabase:admin:resetPassword')
+  ipcMain.removeHandler('supabase:admin:deleteUser')
+  ipcMain.removeHandler('supabase:admin:updateUser')
+
+  const supabaseUrl = process.env.SUPABASE_URL || ''
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+
+  function supabaseAdminRequest(
+    method: string,
+    path: string,
+    body?: unknown
+  ): Promise<{ ok: boolean; data?: unknown; error?: string }> {
+    return new Promise((resolve) => {
+      if (!supabaseUrl || !serviceRoleKey) {
+        resolve({ ok: false, error: 'Chua cau hinh SUPABASE_URL hoac SUPABASE_SERVICE_ROLE_KEY trong .env' })
+        return
+      }
+      const urlObj = new URL(supabaseUrl)
+      const bodyStr = body ? JSON.stringify(body) : undefined
+      const options: import('https').RequestOptions = {
+        hostname: urlObj.hostname,
+        path,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'apikey': serviceRoleKey,
+          ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
+        }
+      }
+      const req = https.request(options, (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => {
+          try {
+            const parsed = data ? JSON.parse(data) : {}
+            const ok = (res.statusCode || 500) < 300
+            resolve(ok ? { ok: true, data: parsed } : { ok: false, error: parsed?.message || `HTTP ${res.statusCode}` })
+          } catch {
+            resolve({ ok: false, error: 'Phan hoi khong hop le tu Supabase.' })
+          }
+        })
+      })
+      req.on('error', (err: Error) => { resolve({ ok: false, error: err.message }) })
+      req.setTimeout(15000, () => { req.destroy(); resolve({ ok: false, error: 'Yeu cau qua thoi gian cho.' }) })
+      if (bodyStr) req.write(bodyStr)
+      req.end()
+    })
+  }
+
+  ipcMain.handle('supabase:admin:createUser', async (_event, data: {
+    email: string; password: string; full_name: string; username?: string
+  }) => {
+    return supabaseAdminRequest('POST', '/auth/v1/admin/users', {
+      email: data.email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { full_name: data.full_name, username: data.username || data.email.split('@')[0] }
+    })
+  })
+
+  ipcMain.handle('supabase:admin:resetPassword', async (_event, userId: string, newPassword: string) => {
+    return supabaseAdminRequest('PUT', `/auth/v1/admin/users/${userId}`, { password: newPassword })
+  })
+
+  ipcMain.handle('supabase:admin:deleteUser', async (_event, userId: string) => {
+    return supabaseAdminRequest('DELETE', `/auth/v1/admin/users/${userId}`)
+  })
+
+  ipcMain.handle('supabase:admin:updateUser', async (_event, userId: string, updates: Record<string, unknown>) => {
+    return supabaseAdminRequest('PUT', `/auth/v1/admin/users/${userId}`, updates)
+  })
+}
+
+
 function setupBankLookupHandlers(): void {
   ipcMain.removeHandler('bank:lookup')
 
@@ -483,8 +562,8 @@ function setupBankLookupHandlers(): void {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
-          'x-client-id': 'REDACTED_VIETQR_CLIENT_ID',
-          'x-api-key': 'REDACTED_VIETQR_API_KEY'
+          'x-client-id': process.env.VIETQR_CLIENT_ID || '',
+          'x-api-key': process.env.VIETQR_API_KEY || ''
         }
       }
       const req = https.request(options, (res) => {
