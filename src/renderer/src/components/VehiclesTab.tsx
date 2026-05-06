@@ -48,12 +48,25 @@ export const RoomVehiclePanel: React.FC<{ room: Room }> = ({ room }) => {
         }).sort((a, b) => new Date(b.registered_at).getTime() - new Date(a.registered_at).getTime());
     }, [vehicles, room.id, searchQuery]);
 
+    const roomVehicleCount = vehicles.filter(v => v.room_id === room.id).length;
+    const isOccupied = room.status === 'occupied' || room.status === 'ending';
+    const showNoVehicleWarning = isOccupied && roomVehicleCount === 0;
+
     if (isVehiclesLoading) {
         return <div className="flex-1 flex justify-center items-center text-slate-500 text-sm">Đang tải dữ liệu...</div>;
     }
 
     return (
         <div className="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
+            {showNoVehicleWarning && (
+                <div className="mx-5 mt-4 shrink-0 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-500 shrink-0 text-base"></i>
+                    <div>
+                        <span className="font-semibold">Chưa có phương tiện!</span>
+                        <span className="ml-1">Phòng này chưa đăng ký xe nào. Hãy nhấn <span className="font-semibold">"Đăng ký xe mới"</span> để thêm.</span>
+                    </div>
+                </div>
+            )}
             {/* Header Widget */}
             <div className="px-5 py-4 border-b border-gray-100 bg-white flex items-center justify-between shrink-0">
                 <div>
