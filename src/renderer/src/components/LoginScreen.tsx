@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import logoNavbar from '../assets/logo_navbar.png'
+import logoNavbar from '../assets/an_khang_home_logo.png'
 import { signInUser, type AppUser } from '../lib/db'
 
 const seasonStyles = `
@@ -188,8 +188,8 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
           {/* Logo & Title */}
           <div className="mb-10 text-center">
             <div className="mb-4 flex justify-center">
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-[28px] border border-white/10 bg-[#002b36] p-4 shadow-[0_22px_55px_-24px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.1)] hover:scale-110 hover:shadow-emerald-500/20 active:scale-95 transition-all duration-500 cursor-pointer group/logo">
-                <img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain drop-shadow-sm group-hover/logo:rotate-3 transition-transform duration-500" />
+              <div className="relative flex h-40 w-40 items-center justify-center hover:scale-110 active:scale-95 transition-all duration-500 cursor-pointer group/logo">
+                <img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain group-hover/logo:rotate-3 transition-transform duration-500" />
               </div>
             </div>
             <h2 className="text-2xl font-extrabold uppercase tracking-tight text-slate-800">

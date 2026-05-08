@@ -30,6 +30,8 @@ function writeCrashLog(scope: string, error: unknown): void {
 }
 
 function writeDebugLog(scope: string, details?: unknown): void {
+  if (process.env.KMAP_DEBUG_LOG !== '1') return
+
   try {
     const logDir = join(app.getPath('temp'), 'k-map-house-logs')
     mkdirSync(logDir, { recursive: true })
@@ -794,12 +796,15 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  ipcMain.on('ping', () => console.log('pong'))
+  if (is.dev) {
+    ipcMain.on('ping', () => console.log('pong'))
+  }
 
   setupDBHandlers()
   setupZaloHandlers()
   setupInvoiceHandlers()
   setupContractHandlers()
+  setupSupabaseAdminHandlers()
   setupBankLookupHandlers()
   setupSepayHandlers()
   registerUpdateHandlers()

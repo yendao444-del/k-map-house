@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react'
 import {
   Home,
   FileText,
@@ -34,27 +34,34 @@ import {
   type AppUser
 } from './lib/db'
 import { playSuccess, playCreate, playDelete, playClick, playNotification } from './lib/sound'
-import { InvoiceModal } from './components/InvoiceModal'
-import { RoomDetailsModal } from './components/RoomDetailsModal'
 import { EditableCell } from './components/EditableCell'
+import { LogoLoading } from './components/LogoLoading'
 
-import { PaymentModal } from './components/PaymentModal'
-import { TenantsTab } from './components/TenantsTab'
-import { InvoicesTab } from './components/InvoicesTab'
-import { AssetsTab } from './components/AssetsTab'
-import { ContractsTab } from './components/ContractsTab'
-import { SettingsTab } from './components/SettingsTab'
-import { BusinessReport } from './components/BusinessReport'
-import NewContractModal from './components/NewContractModal'
-import { EndContractNoticeModal } from './components/EndContractNoticeModal'
-import { TerminateContractModal } from './components/TerminateContractModal'
-import { CancelContractModal } from './components/CancelContractModal'
-import { ChangeRoomModal } from './components/ChangeRoomModal'
-import { TourOverlay } from './components/TourOverlay'
 import { LoginScreen } from './components/LoginScreen'
-import { ProfileModal } from './components/ProfileModal'
 import { setupRealtime } from './lib/realtime'
-import logoNavbar from './assets/logo_navbar.png'
+import { buildInvoiceTransferDescription, normalizeTransferText } from './lib/invoiceTransfer'
+import logoNavbar from './assets/an_khang_home_logo.png'
+
+const InvoiceModal = lazy(() => import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal })))
+const RoomDetailsModal = lazy(() => import('./components/RoomDetailsModal').then((module) => ({ default: module.RoomDetailsModal })))
+const PaymentModal = lazy(() => import('./components/PaymentModal').then((module) => ({ default: module.PaymentModal })))
+const NewContractModal = lazy(() => import('./components/NewContractModal'))
+const EndContractNoticeModal = lazy(() => import('./components/EndContractNoticeModal').then((module) => ({ default: module.EndContractNoticeModal })))
+const TerminateContractModal = lazy(() => import('./components/TerminateContractModal').then((module) => ({ default: module.TerminateContractModal })))
+const CancelContractModal = lazy(() => import('./components/CancelContractModal').then((module) => ({ default: module.CancelContractModal })))
+const ChangeRoomModal = lazy(() => import('./components/ChangeRoomModal').then((module) => ({ default: module.ChangeRoomModal })))
+const TourOverlay = lazy(() => import('./components/TourOverlay').then((module) => ({ default: module.TourOverlay })))
+const ProfileModal = lazy(() => import('./components/ProfileModal').then((module) => ({ default: module.ProfileModal })))
+const TenantsTab = lazy(() => import('./components/TenantsTab').then((module) => ({ default: module.TenantsTab })))
+const InvoicesTab = lazy(() => import('./components/InvoicesTab').then((module) => ({ default: module.InvoicesTab })))
+const AssetsTab = lazy(() => import('./components/AssetsTab').then((module) => ({ default: module.AssetsTab })))
+const ContractsTab = lazy(() => import('./components/ContractsTab').then((module) => ({ default: module.ContractsTab })))
+const SettingsTab = lazy(() => import('./components/SettingsTab').then((module) => ({ default: module.SettingsTab })))
+const BusinessReport = lazy(() => import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport })))
+
+const TabLoading = () => (
+  <LogoLoading className="flex-1 bg-gray-50" />
+)
 const isDev = import.meta.env.DEV
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
@@ -69,6 +76,28 @@ type UpdateBannerInfo = {
   status?: string
   message?: string
   progress?: number
+}
+type SepayBackgroundTransaction = {
+  id: string
+  amount_in: string
+  transaction_content: string
+  transaction_date?: string
+  reference_number?: string
+}
+type SepayBackgroundFetchResult = {
+  ok: boolean
+  data?: {
+    status?: number
+    transactions?: SepayBackgroundTransaction[]
+  }
+}
+type SepayBackgroundMatch = {
+  invoice: Invoice
+  roomName: string
+  tenantName: string
+  amount: number
+  transactionId: string
+  referenceNumber: string
 }
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
@@ -1290,9 +1319,10 @@ const App: React.FC = () => {
 
   // --- REALTIME SYNC ---
   useEffect(() => {
+    if (!currentUser) return undefined
     const cleanup = setupRealtime(queryClient)
     return () => cleanup()
-  }, [queryClient])
+  }, [currentUser, queryClient])
 
   const [editRoom, setEditRoom] = useState<Room | null>(null)
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
@@ -1315,6 +1345,7 @@ const App: React.FC = () => {
   const [cancelContractRoom, setCancelContractRoom] = useState<Room | null>(null)
   const [changeTargetRoom, setChangeTargetRoom] = useState<Room | null>(null)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [sepaySyncOpenSignal, setSepaySyncOpenSignal] = useState(0)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
@@ -1360,6 +1391,9 @@ const App: React.FC = () => {
   const [saveToast, setSaveToast] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [updateBanner, setUpdateBanner] = useState<UpdateBannerInfo | null>(null)
+  const handleSePaySyncSignalHandled = useCallback(() => {
+    setSepaySyncOpenSignal(0)
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -1662,6 +1696,73 @@ const App: React.FC = () => {
     return map
   }, [rooms])
 
+  const sepayPendingInvoices = useMemo(
+    () =>
+      invoices.filter(
+        (invoice) =>
+          !invoice.is_settlement &&
+          invoice.payment_status !== 'cancelled' &&
+          invoice.payment_status !== 'merged' &&
+          (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial')
+      ),
+    [invoices]
+  )
+
+  const sepayPendingInvoicesKey = useMemo(
+    () =>
+      sepayPendingInvoices
+        .map((invoice) => `${invoice.id}:${invoice.paid_amount}:${invoice.total_amount}:${invoice.payment_status}`)
+        .sort()
+        .join('|'),
+    [sepayPendingInvoices]
+  )
+
+  const { data: sepayBackgroundMatches = [] } = useQuery<SepayBackgroundMatch[]>({
+    queryKey: ['sepayBackgroundMatches', appSettings.sepay_api_token || '', sepayPendingInvoicesKey],
+    enabled: Boolean(currentUser && appSettings.sepay_api_token && sepayPendingInvoices.length > 0),
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const token = appSettings.sepay_api_token || ''
+      const res = (await window.api.sepay.fetchTransactions(token)) as SepayBackgroundFetchResult
+      if (!res.ok || res.data?.status !== 200) return []
+
+      const txs = res.data.transactions || []
+      const matches: SepayBackgroundMatch[] = []
+
+      for (const tx of txs) {
+        const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+        const amount = Number(tx.amount_in)
+        if (!Number.isFinite(amount) || amount <= 0) continue
+
+        const matchedInvoices = sepayPendingInvoices.filter((invoice) => {
+          const roomName = roomById.get(invoice.room_id)?.name || ''
+          const transferCode = buildInvoiceTransferDescription(invoice, roomName)
+          return normalizedContent.includes(normalizeTransferText(transferCode))
+        })
+        const uniqueInvoiceIds = new Set(matchedInvoices.map((invoice) => invoice.id))
+        if (uniqueInvoiceIds.size !== 1) continue
+
+        const invoice = matchedInvoices[0]
+        const remaining = Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0))
+        if (Math.abs(amount - remaining) >= 1) continue
+
+        const room = roomById.get(invoice.room_id)
+        matches.push({
+          invoice,
+          roomName: room?.name || 'Phòng ?',
+          tenantName: room?.tenant_name || '',
+          amount,
+          transactionId: tx.id,
+          referenceNumber: tx.reference_number || ''
+        })
+      }
+
+      return matches.slice(0, 9)
+    }
+  })
+
   const serviceZoneById = useMemo(() => {
     const map = new Map<string, ServiceZone>()
     for (const zone of serviceZones) {
@@ -1847,8 +1948,23 @@ const App: React.FC = () => {
       }
     })
 
+  const sepayNotificationItems = sepayBackgroundMatches.map((match) => ({
+    id: `sepay-${match.transactionId}-${match.invoice.id}`,
+    icon: 'fa-building-columns',
+    iconClass: 'text-emerald-500',
+    title: `${match.roomName} có tiền SePay khớp ${formatVND(match.amount)}đ`,
+    description: `${match.tenantName ? `${match.tenantName} · ` : ''}Đúng mã chuyển khoản và đúng số tiền còn thu.`,
+    actionLabel: 'Mở đồng bộ SePay',
+    onClick: () => {
+      setIsNotificationOpen(false)
+      requestActiveTab('invoices')
+      setSepaySyncOpenSignal((value) => value + 1)
+    }
+  }))
+
   const readNotificationIds = new Set(appSettings.notification_read_ids || [])
   const notificationItems = [
+    ...sepayNotificationItems,
     ...endingNotificationItems,
     ...dueNotificationItems,
     ...unpaidNotificationItems
@@ -1893,7 +2009,8 @@ const App: React.FC = () => {
   ]
 
   return (
-    <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
+    <Suspense fallback={<TabLoading />}>
+      <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
       {invoiceGuardNotice &&
         (() => {
           const inv = invoiceGuardNotice.invoice
@@ -2187,15 +2304,12 @@ const App: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNotificationOpen((prev) => !prev)}
-              className="relative flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
+              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
               title="Thông báo"
             >
-              <Bell size={18} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
+              <Bell size={20} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
               {notificationItems.length > 0 && (
-                <span
-                  className={`absolute -right-1 -top-1 min-w-[18px] rounded-full border-2 border-[#002b36] bg-gradient-to-b from-orange-400 to-orange-500 px-1 text-center text-[10px] font-black leading-[18px] text-white shadow-[0_6px_14px_-8px_rgba(251,146,60,0.9)] ${!isNotificationOpen ? 'notification-badge-pulse' : ''
-                    }`}
-                >
+                <span className="absolute right-0.5 top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-[3px] text-[9px] font-bold text-white">
                   {notificationBadgeLabel}
                 </span>
               )}
@@ -2551,7 +2665,7 @@ const App: React.FC = () => {
                     {isLoading ? (
                       <tr>
                         <td colSpan={12} className="text-center py-10 text-gray-400">
-                          Đang tải danh sách phòng...
+                          <LogoLoading message="Đang tải danh sách phòng..." className="min-h-[45vh]" />
                         </td>
                       </tr>
                     ) : (
@@ -3541,23 +3655,39 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : activeTab === 'invoices' ? (
-          <InvoicesTab currentUser={currentUser} />
+          <Suspense fallback={<TabLoading />}>
+            <InvoicesTab
+              currentUser={currentUser}
+              openSePaySyncSignal={sepaySyncOpenSignal}
+              onSePaySyncSignalHandled={handleSePaySyncSignalHandled}
+            />
+          </Suspense>
         ) : activeTab === 'assets' ? (
-          <AssetsTab
-            initialRoomId={assetModuleInitialRoomId}
-            onReceivePendingChange={handleAssetReceivePendingChange}
-            guideMode={assetModuleGuideMode}
-            guideRoomId={assetModuleInitialRoomId}
-            onGuideHandled={() => setAssetModuleGuideMode(null)}
-          />
+          <Suspense fallback={<TabLoading />}>
+            <AssetsTab
+              initialRoomId={assetModuleInitialRoomId}
+              onReceivePendingChange={handleAssetReceivePendingChange}
+              guideMode={assetModuleGuideMode}
+              guideRoomId={assetModuleInitialRoomId}
+              onGuideHandled={() => setAssetModuleGuideMode(null)}
+            />
+          </Suspense>
         ) : activeTab === 'contracts' ? (
-          <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
+          <Suspense fallback={<TabLoading />}>
+            <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
+          </Suspense>
         ) : activeTab === 'reports' ? (
-          <BusinessReport onNavigateToInvoices={() => requestActiveTab('invoices')} />
+          <Suspense fallback={<TabLoading />}>
+            <BusinessReport currentUser={currentUser} onNavigateToInvoices={() => requestActiveTab('invoices')} />
+          </Suspense>
         ) : activeTab === 'tenants' ? (
-          <TenantsTab />
+          <Suspense fallback={<TabLoading />}>
+            <TenantsTab />
+          </Suspense>
         ) : activeTab === 'settings' ? (
-          <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+          <Suspense fallback={<TabLoading />}>
+            <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+          </Suspense>
         ) : null}
       </div>
 
@@ -3636,6 +3766,7 @@ const App: React.FC = () => {
             zone={serviceZones.find((z) => z.id === detailRoom.service_zone_id) || null}
             zones={serviceZones}
             initialTab={detailRoomInitialTab}
+            currentUser={currentUser}
             onClose={() => {
               setDetailRoom(null)
               setDetailRoomInitialTab('info')
@@ -3806,7 +3937,8 @@ const App: React.FC = () => {
       }
 
       <TourOverlay />
-    </div >
+      </div >
+    </Suspense>
   )
 }
 

@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"name": "app",
+			"path": "."
+		}
+	],
+	"settings": {
+		"[javascript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode"
+		},
+		"[json]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode"
+		}
+	}
+}

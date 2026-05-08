@@ -19,12 +19,14 @@ export type ContractStatus = 'active' | 'expired' | 'terminated' | 'cancelled'
 export interface Contract { id: string; room_id: string; tenant_name: string; tenant_phone?: string; tenant_id_card?: string; tenant_id_card_issued_date?: string; tenant_id_card_issued_place?: string; tenant_address?: string; tenant_dob?: string; occupant_count: number; move_in_date: string; duration_months: number; expiration_date?: string; base_rent: number; deposit_amount: number; billing_cycle: number; invoice_day: number; electric_init: number; water_init: number; status: ContractStatus; notes?: string; created_at: string; end_date?: string; end_note?: string; final_electric?: number; final_water?: number; tenant_id?: string; is_migration?: boolean; migration_debt?: number; deposit_pre_collected?: boolean; transfer_history?: any; }
 export interface MoveInReceipt { id: string; room_id: string; tenant_id?: string; move_in_date: string; deposit_amount: number; prorata_days: number; prorata_amount: number; next_month_rent: number; electric_init: number; water_init: number; total_amount: number; payment_status: PaymentStatus; payment_method?: PaymentMethod; payment_date?: string; created_at: string; }
 export type CashTransactionType = 'income' | 'expense'
-export type CashTransactionCategory = 'electric' | 'water' | 'internet' | 'cleaning' | 'maintenance' | 'management' | 'software' | 'other_income' | 'other_expense'
+export type CashTransactionCategory = string
 export interface CashTransaction { id: string; type: CashTransactionType; category: CashTransactionCategory; transaction_date: string; amount: number; room_id?: string; payment_method?: PaymentMethod; note?: string; created_at: string; updated_at: string; }
+export interface ExpenseCategory { id: string; value: string; name: string; type: CashTransactionType; icon?: string; color?: string; is_default: boolean; sort_order: number; created_at: string; }
 export interface AssetTemplate { id: string; name: string; sort_order: number; is_active: boolean; }
 export type AssetType = 'furniture' | 'appliance' | 'plumbing' | 'electrical'
 export interface RoomAsset { id: string; room_id: string; name: string; quantity: number; sort_order: number; type?: AssetType; status?: 'ok' | 'error' | 'repairing'; issue_note?: string; icon?: string; repairman_name?: string; repairman_phone?: string; repair_called_at?: string; repaired_at?: string; }
 export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; name: string; quantity: number; reason: string; recorded_at: string; }
+export interface MeterReadingAdjustment { id: string; room_id: string; invoice_id?: string; contract_id?: string; old_electric: number; new_electric: number; old_water: number; new_water: number; reason: string; adjusted_by?: string; adjusted_by_name?: string; recorded_at: string; }
 export interface AssetSnapshot { id: string; room_id: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
 export interface RoomVehicle { id: string; room_id: string; owner_name?: string; license_plate: string; vehicle_type?: string; brand?: string; color?: string; registered_at: string; }
 export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; sepay_api_token?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; opening_balance_cash?: number; opening_balance_bank?: number; opening_balance_date?: string; }
@@ -67,6 +69,18 @@ const formatRoomName = (name: string) => {
 
 const createEntityId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  { id: 'default-electric', value: 'electric', name: 'Hóa đơn điện tổng', type: 'expense', icon: 'fa-bolt', color: 'yellow', is_default: true, sort_order: 10, created_at: '' },
+  { id: 'default-water', value: 'water', name: 'Hóa đơn nước tổng', type: 'expense', icon: 'fa-droplet', color: 'sky', is_default: true, sort_order: 20, created_at: '' },
+  { id: 'default-internet', value: 'internet', name: 'Internet / wifi', type: 'expense', icon: 'fa-wifi', color: 'blue', is_default: true, sort_order: 30, created_at: '' },
+  { id: 'default-cleaning', value: 'cleaning', name: 'Rác / vệ sinh / môi trường', type: 'expense', icon: 'fa-broom', color: 'emerald', is_default: true, sort_order: 40, created_at: '' },
+  { id: 'default-maintenance', value: 'maintenance', name: 'Bảo trì / sửa chữa', type: 'expense', icon: 'fa-screwdriver-wrench', color: 'orange', is_default: true, sort_order: 50, created_at: '' },
+  { id: 'default-management', value: 'management', name: 'Lương / quản lý', type: 'expense', icon: 'fa-user-tie', color: 'violet', is_default: true, sort_order: 60, created_at: '' },
+  { id: 'default-software', value: 'software', name: 'Phần mềm / công cụ', type: 'expense', icon: 'fa-laptop-code', color: 'indigo', is_default: true, sort_order: 70, created_at: '' },
+  { id: 'default-other-expense', value: 'other_expense', name: 'Chi phí khác', type: 'expense', icon: 'fa-receipt', color: 'slate', is_default: true, sort_order: 80, created_at: '' },
+  { id: 'default-other-income', value: 'other_income', name: 'Khoản thu khác', type: 'income', icon: 'fa-circle-dollar-to-slot', color: 'emerald', is_default: true, sort_order: 10, created_at: '' },
+]
 
 const resolveUserRole = (role: unknown): UserRole => (role === 'admin' ? 'admin' : 'user')
 
@@ -187,6 +201,114 @@ export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Ro
   return result as any as Room
 }
 
+const insertMeterReadingAdjustmentLog = async (log: Omit<MeterReadingAdjustment, 'id' | 'recorded_at'>): Promise<void> => {
+  const entry = { ...log, id: createEntityId('meter-adj'), recorded_at: new Date().toISOString() }
+  const { error } = await supabase.from('meter_reading_adjustments').insert(entry)
+  if (!error) return
+
+  const message = String(error.message || '')
+  const missingTable = error.code === 'PGRST205' || /meter_reading_adjustments/i.test(message)
+  if (!missingTable) {
+    console.warn('Khong ghi duoc audit dieu chinh chi so:', message)
+    return
+  }
+
+  const fallbackNote = [
+    '[METER_READING_ADJUSTMENT]',
+    `Thoi gian: ${entry.recorded_at}`,
+    `Nguoi sua: ${entry.adjusted_by_name || entry.adjusted_by || 'admin'}`,
+    `Dien: ${entry.old_electric} -> ${entry.new_electric}`,
+    `Nuoc: ${entry.old_water} -> ${entry.new_water}`,
+    `Ly do: ${entry.reason}`,
+  ].join(' | ')
+
+  const { data: room } = await supabase.from('rooms').select('notes').eq('id', entry.room_id).maybeSingle()
+  const nextNotes = [room?.notes || '', fallbackNote].filter(Boolean).join('\n')
+  const { error: fallbackError } = await supabase.from('rooms').update({ notes: nextNotes } as any).eq('id', entry.room_id)
+  if (fallbackError) console.warn('Khong ghi duoc fallback audit dieu chinh chi so:', fallbackError.message)
+}
+
+export const adjustRoomMeterReadings = async (data: {
+  room_id: string
+  electric_reading: number
+  water_reading: number
+  reason: string
+  adjusted_by?: string
+  adjusted_by_name?: string
+}): Promise<{ room: Room; invoice?: Invoice }> => {
+  if (!data.room_id) throw new Error('Thiếu phòng cần điều chỉnh.')
+  if (!data.reason.trim()) throw new Error('Vui lòng nhập lý do điều chỉnh chỉ số.')
+  if (!isValidNumber(data.electric_reading) || data.electric_reading < 0) throw new Error('Chỉ số điện không hợp lệ.')
+  if (!isValidNumber(data.water_reading) || data.water_reading < 0) throw new Error('Chỉ số nước không hợp lệ.')
+
+  const { data: roomData, error: roomError } = await supabase.from('rooms').select('*').eq('id', data.room_id).maybeSingle()
+  if (roomError) throw new Error(roomError.message)
+  if (!roomData) throw new Error('Không tìm thấy phòng.')
+  const room = roomData as Room
+
+  const { data: activeContract } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: invoiceRows, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .neq('payment_status', 'cancelled')
+    .neq('payment_status', 'merged')
+    .or('billing_reason.eq.monthly,has_transfer.eq.true')
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (invoiceError) throw new Error(invoiceError.message)
+
+  const hasUtilityHistory = ((invoiceRows || []) as Invoice[]).some(
+    (invoice) =>
+      Number(invoice.electric_usage || 0) > 0 ||
+      Number(invoice.water_usage || 0) > 0 ||
+      Number(invoice.electric_cost || 0) > 0 ||
+      Number(invoice.water_cost || 0) > 0 ||
+      invoice.billing_reason === 'monthly' ||
+      invoice.has_transfer === true
+  )
+  if (hasUtilityHistory) {
+    throw new Error('Phòng đã có lịch sử điện/nước. Không thể sửa mốc đầu kỳ; hãy xử lý bằng khoản điều chỉnh ở hóa đơn kỳ sau.')
+  }
+
+  const updatedRoom = await updateRoom(data.room_id, {
+    electric_old: data.electric_reading,
+    electric_new: data.electric_reading,
+    water_old: data.water_reading,
+    water_new: data.water_reading,
+  })
+
+  if (activeContract?.id) {
+    await supabase
+      .from('contracts')
+      .update({ electric_init: data.electric_reading, water_init: data.water_reading } as any)
+      .eq('id', activeContract.id)
+  }
+
+  await insertMeterReadingAdjustmentLog({
+    room_id: data.room_id,
+    contract_id: activeContract?.id,
+    old_electric: Number(room.electric_new || room.electric_old || 0),
+    new_electric: data.electric_reading,
+    old_water: Number(room.water_new || room.water_old || 0),
+    new_water: data.water_reading,
+    reason: data.reason.trim(),
+    adjusted_by: data.adjusted_by,
+    adjusted_by_name: data.adjusted_by_name,
+  })
+
+  return { room: updatedRoom }
+}
+
 export const deleteRoom = async (id: string): Promise<void> => {
   // Xóa song song toàn bộ dữ liệu liên quan trước để tránh FK constraint
   await Promise.all([
@@ -197,6 +319,7 @@ export const deleteRoom = async (id: string): Promise<void> => {
     supabase.from('asset_snapshots').delete().eq('room_id', id),
     supabase.from('room_vehicles').delete().eq('room_id', id),
     supabase.from('room_asset_adjustments').delete().eq('room_id', id),
+    supabase.from('meter_reading_adjustments').delete().eq('room_id', id),
   ])
   await safeQuery(() => supabase.from('rooms').delete().eq('id', id))
 }
@@ -656,7 +779,6 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
   const newInvoice = { ...invoiceInsertData, id: createEntityId('inv'), created_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('invoices').insert(newInvoice).select().single())
   const inv = result as any as Invoice
-  if (invoiceData.room_id && !invoiceData.is_settlement) { await supabase.from('rooms').update({ electric_old: inv.electric_new, electric_new: inv.electric_new, water_old: inv.water_new, water_new: inv.water_new } as any).eq('id', invoiceData.room_id) }
   return inv
 }
 
@@ -705,8 +827,43 @@ export const updateInvoice = async (id: string, updates: Partial<Invoice>): Prom
 }
 
 export const deleteInvoice = async (id: string): Promise<Invoice> => {
+  const { data: current, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!current) throw new Error('Không tìm thấy hóa đơn.')
+
   const result = await safeQuery(() => supabase.from('invoices').update({ payment_status: 'cancelled', note: '[Đã hủy phiếu]' } as any).eq('id', id).select().single())
-  return result as any as Invoice
+  const cancelled = result as any as Invoice
+
+  if (
+    Number(current.paid_amount || 0) <= 0 &&
+    current.payment_status === 'unpaid' &&
+    current.room_id &&
+    !current.is_settlement
+  ) {
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('electric_new,water_new')
+      .eq('id', current.room_id)
+      .maybeSingle()
+
+    if (
+      room &&
+      Number(room.electric_new || 0) === Number(current.electric_new || 0) &&
+      Number(room.water_new || 0) === Number(current.water_new || 0)
+    ) {
+      await supabase
+        .from('rooms')
+        .update({
+          electric_old: current.electric_old,
+          electric_new: current.electric_old,
+          water_old: current.water_old,
+          water_new: current.water_old,
+        } as any)
+        .eq('id', current.room_id)
+    }
+  }
+
+  return cancelled
 }
 
 export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string }): Promise<Invoice> => {
@@ -715,7 +872,21 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
   if (!inv) throw new Error('Không tìm thấy hóa đơn.')
   const newPaidAmount = (inv.paid_amount || 0) + data.amount
   const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }
-  const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: newPaidAmount >= inv.total_amount ? 'paid' : 'partial', payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
+  const nextStatus: PaymentStatus = newPaidAmount >= inv.total_amount ? 'paid' : 'partial'
+  const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: nextStatus, payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
+  const updated = result as any as Invoice
+
+  if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && !updated.is_settlement) {
+    await supabase
+      .from('rooms')
+      .update({
+        electric_old: updated.electric_new,
+        electric_new: updated.electric_new,
+        water_old: updated.water_new,
+        water_new: updated.water_new,
+      } as any)
+      .eq('id', updated.room_id)
+  }
 
   // Khi thu tiền cọc bổ sung → cộng vào tổng cọc đang giữ của hợp đồng
   if (inv.billing_reason === 'deposit_collect' && inv.room_id) {
@@ -734,7 +905,7 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
     }
   }
 
-  return result as any as Invoice
+  return updated
 }
 
 // =========================================================
@@ -962,9 +1133,7 @@ export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<
 }
 
 export const getUsers = async (): Promise<AppUser[]> => {
-  const result = await safeQuery(() => supabase.from('users').update(updates).eq('id', id).select().single())
-    client.from('users').select('*').order('created_at', { ascending: false })
-  )
+  const data = await safeQuery(() => supabase.from('users').select('*').order('created_at', { ascending: false }))
   return (data || []).map((row) => buildAppUser(row as Record<string, unknown>))
 }
 
@@ -988,30 +1157,26 @@ export const createUserViaAdmin = async (data: {
   const authUser = (res.data as any)?.user ?? (res.data as any)
   const userId = authUser?.id
   if (!userId) throw new Error('Khong lay duoc ID nguoi dung.')
-      username: (data.username || data.email.split('@')[0]).trim()
-    }
-  })
-  if (error) throw new Error(error.message)
 
-  if (data.role === 'admin' && authData.user) {
-    await supabase.from('users').update({ role: 'admin' }).eq('id', authData.user.id)
+  if (data.role === 'admin') {
+    await supabase.from('users').update({ role: 'admin' }).eq('id', userId)
   }
 
   const { data: profile } = await supabase
     .from('users')
     .select('*')
-    .eq('id', authData.user!.id)
+    .eq('id', userId)
     .maybeSingle()
 
   return buildAppUser(
     (profile || {
-      id: authData.user!.id,
-      email: authData.user!.email,
+      id: userId,
+      email: data.email.trim(),
       full_name: data.full_name.trim(),
       username: (data.username || data.email.split('@')[0]).trim(),
       role: data.role || 'user',
       status: 'active',
-      created_at: authData.user!.created_at
+      created_at: new Date().toISOString()
     }) as Record<string, unknown>
   )
 }
@@ -1027,8 +1192,8 @@ export const updateUserProfile = async (userId: string, data: { full_name: strin
 export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
   const ipcAdminPwd = (window as any).api?.supabase?.admin
   if (!ipcAdminPwd) throw new Error('Chuc nang doi mat khau yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
-  const res2 = await ipcAdmin2.resetPassword(userId, newPassword)
-  if (error) throw new Error(error.message)
+  const result = await ipcAdminPwd.resetPassword(userId, newPassword)
+  if (!result?.ok) throw new Error(result?.error || 'Khong the doi mat khau')
 }
 
 export const changeOwnPassword = async (newPassword: string): Promise<void> => {
@@ -1039,8 +1204,8 @@ export const changeOwnPassword = async (newPassword: string): Promise<void> => {
 export const deleteUser = async (id: string): Promise<void> => {
   const ipcAdminDel = (window as any).api?.supabase?.admin
   if (!ipcAdminDel) throw new Error('Chuc nang xoa tai khoan yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
-  const res3 = await ipcAdmin3.deleteUser(id)
-  if (error) throw new Error(error.message)
+  const result = await ipcAdminDel.deleteUser(id)
+  if (!result?.ok) throw new Error(result?.error || 'Khong the xoa tai khoan')
 }
 
 export const getCurrentSessionUser = async (): Promise<AppUser | null> => {

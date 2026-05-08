@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createInvoice, getInvoicesByRoom, getServiceZones, getContracts, type Invoice, type Room, type Tenant } from '../lib/db';
@@ -135,10 +136,10 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const [invoiceDate, setInvoiceDate] = useState(today);
   const [depositAmount, setDepositAmount] = useState<number>(room.default_deposit || 0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
-  const [confirmedDuplicate, setConfirmedDuplicate] = useState(false);
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
-  const warningRef = useRef<HTMLDivElement>(null);
+  const [enterSubmitConfirmOpen, setEnterSubmitConfirmOpen] = useState(false);
+  const waterInputRef = useRef<HTMLInputElement>(null);
 
   // Monthly billing - meter readings
   const electricOld = room.electric_new || 0;
@@ -153,7 +154,10 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     const d = new Date(today);
     return toDateInput(new Date(d.getFullYear(), d.getMonth(), 1));
   }, [today]);
-  const defaultPeriodEnd = today; // mặc định đến hôm nay
+  const defaultPeriodEnd = useMemo(() => {
+    const d = new Date(today);
+    return toDateInput(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  }, [today]);
   const [periodStart, setPeriodStart] = useState(defaultPeriodStart);
   const [periodEnd, setPeriodEnd] = useState(defaultPeriodEnd);
 
@@ -254,17 +258,21 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const totalAmount = roomCost + transferRoomCost + internetCost + cleaningCost + transferServiceCost + normalizedDeposit + electricCost + transferElectricCost + waterCost + transferWaterCost;
   const canCreateInvoice = Boolean(currentTenantId);
 
-  const duplicateInvoice = useMemo(() => {
+  const findDuplicateInvoice = (reason: BillingReason) => {
     if (!currentTenantId) return null;
-    if (billingReason === 'first_month' && unpaidFirstMonthInvoice) return null;
-    const normalizedReason = billingReason === 'first_month' ? 'first_month' : billingReason;
+    if (reason === 'first_month' && unpaidFirstMonthInvoice) return null;
     return existingInvoices.find((inv) =>
       inv.tenant_id === currentTenantId &&
-      (inv.billing_reason || (inv.is_first_month ? 'first_month' : undefined)) === normalizedReason &&
+      (inv.billing_reason || (inv.is_first_month ? 'first_month' : undefined)) === reason &&
       inv.month === billingMonth &&
       inv.year === billingYear &&
       inv.payment_status !== 'cancelled'
     ) || null;
+  };
+
+  const duplicateInvoice = useMemo(() => {
+    return findDuplicateInvoice(billingReason);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingInvoices, billingReason, billingMonth, billingYear, currentTenantId, unpaidFirstMonthInvoice]);
 
   // Chặn lập HĐ hàng tháng nếu cùng tháng đã có phiếu thu tháng đầu (mirror logic db.ts)
@@ -278,15 +286,6 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       i.payment_status !== 'cancelled'
     ) || null;
   }, [existingInvoices, billingReason, billingMonth, billingYear, currentTenantId]);
-
-  useEffect(() => {
-    if (duplicateInvoice && warningRef.current) {
-      const el = warningRef.current;
-      el.classList.remove('animate-shake');
-      void el.offsetWidth;
-      el.classList.add('animate-shake');
-    }
-  }, [duplicateInvoice]);
 
   const invoiceMutation = useMutation({
     mutationFn: async () => {
@@ -320,7 +319,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
         is_first_month: billingReason === 'first_month',
         electric_price_snapshot: electricPrice,
         water_price_snapshot: waterPrice,
-        allow_duplicate: confirmedDuplicate && billingReason !== 'first_month',
+        allow_duplicate: false,
 
         has_transfer: hasTransfer,
         transfer_old_room_name: th?.old_room_name,
@@ -360,6 +359,48 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     },
   });
 
+  const invoiceSubmitBlocked =
+    invoiceMutation.isPending ||
+    !canCreateInvoice ||
+    !!duplicateInvoice ||
+    utilityValidationFailed ||
+    !!firstMonthBlocksMonthly ||
+    !!unpaidFirstMonthBlocksMonthly ||
+    migrationFirstMonthBlocked;
+
+  const submitInvoice = () => {
+    if (billingReason === 'first_month' && unpaidFirstMonthInvoice) {
+      setPayingInvoice(unpaidFirstMonthInvoice);
+      return;
+    }
+    if (migrationFirstMonthBlocked) {
+      setMutationError('Khách cũ từ phần mềm khác không được lập hóa đơn tháng đầu.');
+      return;
+    }
+    if (!canCreateInvoice) {
+      setMutationError('Không thể tạo hóa đơn vì phòng này chưa có khách thuê hoặc hợp đồng đang hoạt động.');
+      return;
+    }
+    setMutationError(null);
+    invoiceMutation.mutate();
+  };
+
+  const handleElectricNewKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    setElectricTouched(true);
+    waterInputRef.current?.focus();
+    waterInputRef.current?.select();
+  };
+
+  const handleWaterNewKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    setWaterTouched(true);
+    if (invoiceSubmitBlocked) return;
+    setEnterSubmitConfirmOpen(true);
+  };
+
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center bg-black/50 p-4 pt-8 backdrop-blur-sm">
       <div
@@ -385,23 +426,18 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
         <div className="space-y-4 overflow-y-auto px-5 py-4">
           {duplicateInvoice && (
-            <div ref={warningRef} className="animate-pulse rounded-xl bg-red-500 px-4 py-3">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <div className="flex items-start gap-3">
-                <i className="fa-solid fa-circle-exclamation mt-0.5 text-white"></i>
-                <div className="text-sm text-white">
-                  <span className="font-bold">Phòng này đã có hóa đơn "{reasonOptions.find(r => r.value === billingReason)?.label}" trong tháng {billingMonth}/{billingYear}.</span>
-                  {' '}Tạo thêm có thể gây trùng lặp.
+                <i className="fa-solid fa-lock mt-0.5 text-amber-600"></i>
+                <div className="text-sm text-amber-900">
+                  <div className="font-bold">
+                    Đã có hóa đơn "{reasonOptions.find(r => r.value === billingReason)?.label}" trong tháng {billingMonth}/{billingYear}.
+                  </div>
+                  <div className="mt-1 text-xs text-amber-800">
+                    Chức năng lập thêm đã được khóa để tránh trùng doanh thu. Nếu cần xử lý lại, hãy mở hóa đơn hiện có để sửa, thu hoặc hủy.
+                  </div>
                 </div>
               </div>
-              <label className="mt-3 flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={confirmedDuplicate}
-                  onChange={(e) => setConfirmedDuplicate(e.target.checked)}
-                  className="h-4 w-4 rounded accent-white"
-                />
-                <span className="text-sm font-semibold text-white">Tôi xác nhận muốn tạo thêm hóa đơn này</span>
-              </label>
             </div>
           )}
           {!canCreateInvoice && (
@@ -446,12 +482,13 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
             <label className="mb-1 block text-xs font-semibold text-gray-600">Lý do thu tiền</label>
             <select
               value={billingReason}
-              onChange={(e) => { setBillingReason(e.target.value as BillingReason); setConfirmedDuplicate(false); }}
+              onChange={(e) => { setBillingReason(e.target.value as BillingReason); }}
               className="w-full rounded-xl border border-blue-200 px-4 py-3 text-sm font-medium text-gray-800 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               {reasonOptions.map((option) => {
                 let locked = false;
                 let suffix = '';
+                const optionDuplicateInvoice = findDuplicateInvoice(option.value);
 
                 if (option.value === 'first_month' && isMigratedContract) {
                   locked = true;
@@ -466,7 +503,13 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
                 // Chưa thu HD đầu tiên thì KHÓA tất cả trừ "Thu tháng đầu tiên"
                 if (unpaidFirstMonthInvoice && option.value === 'monthly') {
+                  locked = true;
                   suffix = ' (phải thu HĐ đầu tiên trước)';
+                }
+
+                if (optionDuplicateInvoice) {
+                  locked = true;
+                  suffix = ' (đã có hóa đơn)';
                 }
 
                 return (
@@ -510,7 +553,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
               <input
                 type="date"
                 value={invoiceDate}
-                onChange={(e) => { setInvoiceDate(e.target.value); setConfirmedDuplicate(false); }}
+                onChange={(e) => { setInvoiceDate(e.target.value); }}
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
               />
               {isProratedReason && (
@@ -604,6 +647,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                           type="number"
                           value={electricNew || ''}
                           onChange={e => { setElectricNew(Number(e.target.value) || 0); setElectricTouched(true); }}
+                          onKeyDown={handleElectricNewKeyDown}
                           className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:ring-2 ${electricNewInvalid
                             ? 'border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-100'
                             : electricNotEntered
@@ -650,9 +694,11 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                       <div>
                         <label className="mb-1 block text-xs text-gray-500">Chỉ số mới</label>
                         <input
+                          ref={waterInputRef}
                           type="number"
                           value={waterNew || ''}
                           onChange={e => { setWaterNew(Number(e.target.value) || 0); setWaterTouched(true); }}
+                          onKeyDown={handleWaterNewKeyDown}
                           className={`w-full rounded-lg border px-3 py-2 text-sm font-semibold text-gray-800 outline-none focus:ring-2 ${waterNewInvalid
                             ? 'border-red-400 bg-red-50 focus:border-red-400 focus:ring-red-100'
                             : waterNotEntered
@@ -797,13 +843,76 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
               setMutationError(null);
               invoiceMutation.mutate();
             }}
-            disabled={invoiceMutation.isPending || !canCreateInvoice || (!!duplicateInvoice && !confirmedDuplicate) || utilityValidationFailed || !!firstMonthBlocksMonthly || !!unpaidFirstMonthBlocksMonthly || migrationFirstMonthBlocked}
+            disabled={invoiceSubmitBlocked}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {invoiceMutation.isPending ? 'Đang lưu...' : 'Thêm hóa đơn'}
+            {invoiceMutation.isPending ? 'Đang lưu...' : duplicateInvoice ? 'Đã có hóa đơn' : 'Thêm hóa đơn'}
           </button>
         </div>
       </div>
+      {enterSubmitConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
+          onClick={() => setEnterSubmitConfirmOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <i className="fa-solid fa-keyboard"></i>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">Xác nhận thêm hóa đơn?</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Bạn đang dùng phím Enter để thêm hóa đơn. Kiểm tra lại chỉ số điện nước trước khi xác nhận.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-600">Điện</span>
+                <span className="text-right font-semibold text-gray-900">
+                  {electricOld} → {electricNew} ({electricUsage} kWh) · {formatVND(electricCost)} đ
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-600">Nước</span>
+                <span className="text-right font-semibold text-gray-900">
+                  {waterOld} → {waterNew} ({waterUsage} m³) · {formatVND(waterCost)} đ
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t border-gray-200 pt-2">
+                <span className="font-semibold text-gray-700">Tổng cộng</span>
+                <span className="text-lg font-black text-green-600">{formatVND(totalAmount)} đ</span>
+              </div>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setEnterSubmitConfirmOpen(false)}
+                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50"
+              >
+                Kiểm tra lại
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEnterSubmitConfirmOpen(false);
+                  submitInvoice();
+                }}
+                disabled={invoiceSubmitBlocked}
+                className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Xác nhận thêm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {payingInvoice && (
         <PaymentModal
           invoice={payingInvoice}

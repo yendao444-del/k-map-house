@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+﻿import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createCashTransaction,
   deleteCashTransaction,
+  DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
   getAppSettings,
   getInvoices,
@@ -12,28 +13,23 @@ import {
   type CashTransaction,
   type CashTransactionCategory,
   type CashTransactionType,
+  type ExpenseCategory,
   type Invoice,
   type InvoicePaymentRecord,
   type PaymentMethod,
+  type AppUser,
 } from '../lib/db'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const todayIso = () => new Date().toISOString().split('T')[0]
 
-const CATEGORY_OPTIONS: Array<{ value: CashTransactionCategory; label: string; type: CashTransactionType }> = [
-  { value: 'electric', label: 'Hóa đơn điện tổng', type: 'expense' },
-  { value: 'water', label: 'Hóa đơn nước tổng', type: 'expense' },
-  { value: 'internet', label: 'Internet / wifi', type: 'expense' },
-  { value: 'cleaning', label: 'Rác / vệ sinh / môi trường', type: 'expense' },
-  { value: 'maintenance', label: 'Bảo trì / sửa chữa', type: 'expense' },
-  { value: 'management', label: 'Lương / quản lý', type: 'expense' },
-  { value: 'software', label: 'Phần mềm / công cụ', type: 'expense' },
-  { value: 'other_expense', label: 'Chi phí khác', type: 'expense' },
-  { value: 'other_income', label: 'Khoản thu khác', type: 'income' },
-]
+type CategoryOption = { value: CashTransactionCategory; label: string; type: CashTransactionType }
 
-const categoryLabel = (category: CashTransactionCategory) =>
-  CATEGORY_OPTIONS.find(item => item.value === category)?.label || 'Khác'
+const toCategoryOptions = (categories: ExpenseCategory[]): CategoryOption[] =>
+  categories.map(item => ({ value: item.value, label: item.name, type: item.type }))
+
+const categoryLabel = (category: CashTransactionCategory, options: CategoryOption[]) =>
+  options.find(item => item.value === category)?.label || 'Khác'
 
 type CashFlowRow =
   | (CashTransaction & { source: 'manual' })
@@ -43,6 +39,79 @@ type CashFlowRow =
       invoiceStatus: Invoice['payment_status']
       paymentRecordId: string
     })
+
+type ConfirmAction =
+  | { type: 'edit'; transaction: CashTransaction }
+  | { type: 'delete'; transaction: CashTransaction }
+
+function ConfirmActionModal({
+  action,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  action: ConfirmAction
+  isPending: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const isDelete = action.type === 'delete'
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onClick={onCancel}>
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+        <div className="flex items-start gap-3 border-b border-slate-100 px-5 py-4">
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${isDelete ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+            <i className={`fa-solid ${isDelete ? 'fa-trash' : 'fa-pen'} text-base`} />
+          </div>
+          <div>
+            <h3 className="text-base font-black text-slate-900">
+              {isDelete ? 'Xác nhận xóa chứng từ' : 'Xác nhận sửa chứng từ'}
+            </h3>
+            <p className="mt-1 text-sm leading-5 text-slate-500">
+              {isDelete
+                ? 'Chứng từ này sẽ bị xóa khỏi sổ thu/chi. Thao tác này chỉ dành cho admin.'
+                : 'Bạn sắp sửa thông tin chứng từ thu/chi. Thao tác này chỉ dành cho admin.'}
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 px-5 py-4 text-sm">
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">Loại</span>
+            <span className={`font-bold ${action.transaction.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}>
+              {action.transaction.type === 'income' ? 'Thu' : 'Chi'}
+            </span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">Số tiền</span>
+            <span className="font-black text-slate-900">{formatVND(action.transaction.amount)} đ</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-slate-500">Ngày</span>
+            <span className="font-semibold text-slate-800">{new Date(action.transaction.transaction_date).toLocaleDateString('vi-VN')}</span>
+          </div>
+        </div>
+        <div className="flex gap-3 border-t border-slate-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isPending}
+            className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isPending}
+            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition disabled:opacity-60 ${isDelete ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+          >
+            {isPending ? 'Đang xử lý...' : isDelete ? 'Xóa chứng từ' : 'Tiếp tục sửa'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const buildInvoiceIncomeRows = (invoices: Invoice[]): CashFlowRow[] =>
   invoices
@@ -68,9 +137,11 @@ const buildInvoiceIncomeRows = (invoices: Invoice[]): CashFlowRow[] =>
 
 function CashTransactionModal({
   transaction,
+  categoryOptions,
   onClose,
 }: {
   transaction: CashTransaction | null
+  categoryOptions: CategoryOption[]
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -91,7 +162,7 @@ function CashTransactionModal({
     onError: (err: Error) => setError(err.message || 'Không thể lưu chứng từ.'),
   })
 
-  const categories = CATEGORY_OPTIONS.filter(item => item.type === type)
+  const categories = categoryOptions.filter(item => item.type === type)
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '')
@@ -290,9 +361,11 @@ function CashTransactionModal({
 
 export function CashFlowTab({
   embedded = false,
+  currentUser,
   onNavigateToInvoices,
 }: {
   embedded?: boolean
+  currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
 } = {}) {
   const queryClient = useQueryClient()
@@ -302,6 +375,7 @@ export function CashFlowTab({
   const { data: appSettings } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings })
   const [editing, setEditing] = useState<CashTransaction | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | CashTransactionType>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | CashTransactionCategory>('all')
   const [month, setMonth] = useState(new Date().getMonth() + 1)
@@ -309,8 +383,12 @@ export function CashFlowTab({
 
   const deleteMutation = useMutation({
     mutationFn: deleteCashTransaction,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cashTransactions'] }),
+    onSuccess: () => {
+      setConfirmAction(null)
+      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
+    },
   })
+  const isAdmin = currentUser?.role === 'admin'
 
   const monthOptions = useMemo(() => {
     const now = new Date()
@@ -319,6 +397,11 @@ export function CashFlowTab({
       return { month: date.getMonth() + 1, year: date.getFullYear() }
     })
   }, [])
+
+  const categoryOptions = useMemo(
+    () => toCategoryOptions(DEFAULT_EXPENSE_CATEGORIES),
+    []
+  )
 
   const roomById = useMemo(() => new Map(rooms.map(room => [room.id, room])), [rooms])
   const invoiceIncomeRows = useMemo(() => buildInvoiceIncomeRows(invoices), [invoices])
@@ -382,6 +465,27 @@ export function CashFlowTab({
   const openEdit = (transaction: CashTransaction) => {
     setEditing(transaction)
     setModalOpen(true)
+  }
+
+  const requestEdit = (transaction: CashTransaction) => {
+    if (!isAdmin) return
+    setConfirmAction({ type: 'edit', transaction })
+  }
+
+  const requestDelete = (transaction: CashTransaction) => {
+    if (!isAdmin) return
+    setConfirmAction({ type: 'delete', transaction })
+  }
+
+  const confirmPendingAction = () => {
+    if (!confirmAction || !isAdmin) return
+    if (confirmAction.type === 'edit') {
+      const transaction = confirmAction.transaction
+      setConfirmAction(null)
+      openEdit(transaction)
+      return
+    }
+    deleteMutation.mutate(confirmAction.transaction.id)
   }
 
   return (
@@ -468,7 +572,7 @@ export function CashFlowTab({
           </select>
           <select value={categoryFilter} onChange={event => setCategoryFilter(event.target.value as typeof categoryFilter)} className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 outline-none focus:border-green-400">
             <option value="all">Tất cả nhóm</option>
-            {CATEGORY_OPTIONS.map(item => (
+            {categoryOptions.map(item => (
               <option key={item.value} value={item.value}>{item.label}</option>
             ))}
           </select>
@@ -523,7 +627,7 @@ export function CashFlowTab({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 font-bold text-gray-800">{categoryLabel(item.category)}</td>
+                  <td className="px-4 py-3 font-bold text-gray-800">{categoryLabel(item.category, categoryOptions)}</td>
                   <td className="px-4 py-3 text-gray-600">{item.room_id ? roomById.get(item.room_id)?.name || 'Không rõ' : 'Không gắn phòng'}</td>
                   <td className={`px-4 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}>
                     {item.type === 'expense' ? '-' : ''}{formatVND(item.amount)} đ
@@ -545,10 +649,20 @@ export function CashFlowTab({
                     <div className="flex justify-center gap-2">
                       {item.source === 'manual' ? (
                         <>
-                          <button onClick={() => openEdit(item)} className="w-8 h-8 rounded-lg border border-gray-200 hover:bg-blue-50 hover:text-blue-600 transition">
+                          <button
+                            onClick={() => requestEdit(item)}
+                            disabled={!isAdmin}
+                            title={isAdmin ? 'Sửa chứng từ' : 'Chỉ admin mới được sửa'}
+                            className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
+                          >
                             <i className="fa-solid fa-pen text-xs"></i>
                           </button>
-                          <button onClick={() => deleteMutation.mutate(item.id)} className="w-8 h-8 rounded-lg border border-gray-200 hover:bg-red-50 hover:text-red-600 transition">
+                          <button
+                            onClick={() => requestDelete(item)}
+                            disabled={!isAdmin}
+                            title={isAdmin ? 'Xóa chứng từ' : 'Chỉ admin mới được xóa'}
+                            className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
+                          >
                             <i className="fa-solid fa-trash text-xs"></i>
                           </button>
                         </>
@@ -578,12 +692,24 @@ export function CashFlowTab({
       {modalOpen && (
         <CashTransactionModal
           transaction={editing}
+          categoryOptions={categoryOptions}
           onClose={() => {
             setModalOpen(false)
             setEditing(null)
           }}
         />
       )}
+      {confirmAction && (
+        <ConfirmActionModal
+          action={confirmAction}
+          isPending={deleteMutation.isPending}
+          onCancel={() => {
+            if (!deleteMutation.isPending) setConfirmAction(null)
+          }}
+          onConfirm={confirmPendingAction}
+        />
+      )}
     </div>
   )
 }
+

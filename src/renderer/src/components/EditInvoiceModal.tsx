@@ -41,10 +41,22 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
   const [garbageCost, setGarbageCost] = useState(invoice.garbage_cost);
   const [electricCost, setElectricCost] = useState(invoice.electric_cost);
   const [waterCost, setWaterCost] = useState(invoice.water_cost);
+  const [electricNew, setElectricNew] = useState(invoice.electric_new);
+  const [waterNew, setWaterNew] = useState(invoice.water_new);
   const [adjustment, setAdjustment] = useState(invoice.adjustment_amount || 0);
   const [adjustmentNote, setAdjustmentNote] = useState(invoice.adjustment_note || '');
   const [note, setNote] = useState(invoice.note || '');
   const canEditAmount = invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0;
+  const electricPrice =
+    Number(invoice.electric_price_snapshot || 0) ||
+    (invoice.electric_usage > 0 ? Number(invoice.electric_cost || 0) / Number(invoice.electric_usage || 1) : 0);
+  const waterPrice =
+    Number(invoice.water_price_snapshot || 0) ||
+    (invoice.water_usage > 0 ? Number(invoice.water_cost || 0) / Number(invoice.water_usage || 1) : 0);
+  const electricUsage = Math.max(0, electricNew - invoice.electric_old);
+  const waterUsage = Math.max(0, waterNew - invoice.water_old);
+  const electricInvalid = electricNew < invoice.electric_old;
+  const waterInvalid = waterNew < invoice.water_old;
 
   const normalizedDeposit = invoice.deposit_amount && invoice.deposit_amount < 0
     ? -Math.abs(depositAmount)
@@ -60,7 +72,11 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
         deposit_amount: normalizedDeposit,
         wifi_cost: wifiCost,
         garbage_cost: garbageCost,
+        electric_new: electricNew,
+        electric_usage: electricUsage,
         electric_cost: electricCost,
+        water_new: waterNew,
+        water_usage: waterUsage,
         water_cost: waterCost,
         adjustment_amount: adjustment,
         adjustment_note: adjustmentNote,
@@ -76,6 +92,16 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
       window.alert(err?.message || 'Khong the sua hoa don.')
     },
   });
+
+  const updateElectricNew = (value: number) => {
+    setElectricNew(value);
+    setElectricCost(Math.round(Math.max(0, value - invoice.electric_old) * electricPrice));
+  };
+
+  const updateWaterNew = (value: number) => {
+    setWaterNew(value);
+    setWaterCost(Math.round(Math.max(0, value - invoice.water_old) * waterPrice));
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -106,10 +132,61 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
           <MoneyInput label="Internet" value={wifiCost} onChange={setWifiCost} />
           <MoneyInput label="Rác / vệ sinh" value={garbageCost} onChange={setGarbageCost} />
 
-          {(invoice.electric_cost > 0 || invoice.water_cost > 0) && (
+          {(invoice.billing_reason === 'monthly' || invoice.has_transfer || invoice.electric_cost > 0 || invoice.water_cost > 0 || invoice.electric_usage > 0 || invoice.water_usage > 0) && (
             <>
-              <MoneyInput label="Tiền điện" value={electricCost} onChange={setElectricCost} />
-              <MoneyInput label="Tiền nước" value={waterCost} onChange={setWaterCost} />
+              <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3">
+                <div className="mb-2 flex items-center justify-between text-xs font-bold text-amber-800">
+                  <span>Điện</span>
+                  <span>{formatVND(electricPrice)} đ/kWh</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-500">Số cũ</label>
+                    <input value={invoice.electric_old} disabled className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm font-bold text-gray-500" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600">Số mới</label>
+                    <input
+                      type="number"
+                      value={electricNew}
+                      onChange={(e) => updateElectricNew(Number(e.target.value) || 0)}
+                      className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none transition ${electricInvalid ? 'border-red-300 text-red-600 focus:ring-2 focus:ring-red-100' : 'border-gray-200 text-gray-800 focus:border-green-400 focus:ring-2 focus:ring-green-100'}`}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-between text-xs font-semibold text-amber-700">
+                  <span>Tiêu thụ: {electricUsage} kWh</span>
+                  <span>{formatVND(electricCost)} đ</span>
+                </div>
+                {electricInvalid && <div className="mt-1 text-xs font-medium text-red-500">Số mới không được nhỏ hơn số cũ.</div>}
+              </div>
+
+              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-3">
+                <div className="mb-2 flex items-center justify-between text-xs font-bold text-blue-800">
+                  <span>Nước</span>
+                  <span>{formatVND(waterPrice)} đ/m³</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-500">Số cũ</label>
+                    <input value={invoice.water_old} disabled className="w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-sm font-bold text-gray-500" />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-600">Số mới</label>
+                    <input
+                      type="number"
+                      value={waterNew}
+                      onChange={(e) => updateWaterNew(Number(e.target.value) || 0)}
+                      className={`w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none transition ${waterInvalid ? 'border-red-300 text-red-600 focus:ring-2 focus:ring-red-100' : 'border-gray-200 text-gray-800 focus:border-green-400 focus:ring-2 focus:ring-green-100'}`}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2 flex justify-between text-xs font-semibold text-blue-700">
+                  <span>Tiêu thụ: {waterUsage} m³</span>
+                  <span>{formatVND(waterCost)} đ</span>
+                </div>
+                {waterInvalid && <div className="mt-1 text-xs font-medium text-red-500">Số mới không được nhỏ hơn số cũ.</div>}
+              </div>
             </>
           )}
 
@@ -171,7 +248,7 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
           </button>
           <button
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !canEditAmount}
+            disabled={mutation.isPending || !canEditAmount || electricInvalid || waterInvalid}
             className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-bold text-white hover:bg-blue-700 transition disabled:opacity-60"
           >
             {mutation.isPending ? 'Dang luu...' : !canEditAmount ? 'Da khoa sua so tien' : 'Luu thay doi'}

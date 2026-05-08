@@ -10,12 +10,14 @@ import {
   getRoomAssetAdjustments,
   getRoomAssets,
   getRooms,
+  getVehicles,
   updateRoomAsset,
   type AssetSnapshot,
   type Room,
   type RoomAsset,
 } from '../lib/db';
 import { RoomVehiclePanel } from './VehiclesTab';
+import { LogoLoading } from './LogoLoading';
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 const parseVNDInput = (value: string) => Number(value.replace(/\D/g, '')) || 0;
@@ -431,17 +433,17 @@ const RoomAssetPanel: React.FC<{
     ]);
   };
 
-  if (isLoading) return <div className="flex-1 p-8 text-center text-sm text-gray-400">Đang tải...</div>;
+  if (isLoading) return <LogoLoading className="flex-1 p-8" />;
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-5 py-4">
         <div>
-          <h3 className="flex items-center gap-2 text-base font-bold text-gray-900">
-            <i className="fa-solid fa-door-open text-primary text-sm"></i>
+          <h3 className="flex items-center gap-2 text-xl font-bold text-gray-900">
+            <i className="fa-solid fa-door-open text-primary text-base"></i>
             {room.name}
           </h3>
-          <p className="mt-0.5 text-xs text-gray-400">
+          <p className="mt-0.5 text-sm text-gray-400">
             {assets.length} tài sản · {hasMoveInHistory ? 'Đã chốt nhận' : 'Chưa chốt nhận'}
             {!isActiveRentalCycle && hasMoveInHistory && ' · Phòng trống - đã mở khóa'}
             {moveOutSnaps.length > 0 && ' · Đã đối chiếu'}
@@ -453,7 +455,7 @@ const RoomAssetPanel: React.FC<{
             data-tour="move-in-btn"
             onClick={openMoveIn}
             disabled={hasMoveInHistory}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed ${hasMoveInHistory ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+            className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${hasMoveInHistory ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
           >
             <i className={`fa-solid ${hasMoveInHistory ? 'fa-check-circle' : 'fa-arrow-right-to-bracket'} mr-1.5`}></i>
             {hasMoveInHistory ? 'Đã nhận phòng' : 'Chốt nhận phòng'}
@@ -462,7 +464,7 @@ const RoomAssetPanel: React.FC<{
             data-tour="move-out-btn"
             onClick={openMoveOut}
             disabled={!assetsLocked}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed ${!assetsLocked ? 'opacity-40' : moveOutSnaps.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
+            className={`rounded-lg border px-3.5 py-2 text-sm font-semibold transition disabled:cursor-not-allowed ${!assetsLocked ? 'opacity-40' : moveOutSnaps.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100'}`}
           >
             <i className={`fa-solid ${moveOutSnaps.length > 0 ? 'fa-check-circle' : 'fa-arrow-right-from-bracket'} mr-1.5`}></i>
             {moveOutSnaps.length > 0 ? 'Đã trả phòng' : 'Khách trả phòng'}
@@ -471,7 +473,7 @@ const RoomAssetPanel: React.FC<{
             data-tour="add-asset-btn"
             onClick={() => !canAdjustAssets && setModal('add')}
             disabled={canAdjustAssets}
-            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-primary/20 transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
           >
             <i className={`fa-solid ${canAdjustAssets ? 'fa-lock' : 'fa-plus'} mr-1.5`}></i>
             Thêm
@@ -479,7 +481,7 @@ const RoomAssetPanel: React.FC<{
           {canAdjustAssets && (
             <button
               onClick={() => openAdjustModal()}
-              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-amber-200 transition hover:bg-amber-700"
+              className="rounded-lg bg-amber-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm shadow-amber-200 transition hover:bg-amber-700"
             >
               <i className="fa-solid fa-file-pen mr-1.5"></i>
               Điều chỉnh
@@ -562,45 +564,45 @@ const RoomAssetPanel: React.FC<{
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col items-start text-left">
                       {editId === asset.id ? (
-                        <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); else setEditId(null); }} onKeyDown={e => { if (e.key === 'Enter' && editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); if (e.key === 'Escape') setEditId(null); }} className="w-full text-sm font-extrabold text-blue-700 bg-transparent border-b border-blue-400 outline-none p-0 focus:ring-0" />
+                        <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); else setEditId(null); }} onKeyDown={e => { if (e.key === 'Enter' && editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); if (e.key === 'Escape') setEditId(null); }} className="w-full text-base font-extrabold text-blue-700 bg-transparent border-b border-blue-400 outline-none p-0 focus:ring-0" />
                       ) : (
-                        <h3 className="font-extrabold text-gray-900 text-[13px] leading-snug truncate w-full" title={asset.name}>{asset.name}</h3>
+                        <h3 className="font-extrabold text-gray-900 text-[15px] leading-snug truncate w-full" title={asset.name}>{asset.name}</h3>
                       )}
-                      <p className="text-[10px] text-gray-500 font-bold mt-[1px] truncate bg-gray-100/80 px-2 py-0.5 rounded-md">SL: {asset.quantity}</p>
+                      <p className="text-xs text-gray-500 font-bold mt-[1px] truncate bg-gray-100/80 px-2 py-0.5 rounded-md">SL: {asset.quantity}</p>
                     </div>
                   </div>
 
                   {/* Vùng Thông tin (Timeline) */}
                   <div className="mt-auto relative z-10 w-full" onClick={e => e.stopPropagation()}>
                     {!snapIn ? (
-                      <div className="bg-gray-50/70 rounded-xl p-2 flex flex-col items-center justify-center border border-gray-100/50 h-[46px]">
-                        <p className="text-[10px] font-bold text-gray-400 tracking-wide uppercase"><i className="fa-solid fa-hourglass-half mr-1"></i> Chờ chốt nhận</p>
+                      <div className="bg-gray-50/70 rounded-xl p-2 flex flex-col items-center justify-center border border-gray-100/50 h-[52px]">
+                        <p className="text-xs font-bold text-gray-400 tracking-wide uppercase"><i className="fa-solid fa-hourglass-half mr-1"></i> Chờ chốt nhận</p>
                       </div>
                     ) : snapOut ? (
-                      <div className={`bg-white rounded-xl py-1.5 px-3 flex items-center justify-between border ${snapOut.deduction > 0 ? 'border-amber-100 bg-amber-50/20' : bad ? 'border-red-100 bg-red-50/20' : 'border-indigo-50 bg-indigo-50/30'} h-[46px]`}>
+                      <div className={`bg-white rounded-xl py-1.5 px-3 flex items-center justify-between border ${snapOut.deduction > 0 ? 'border-amber-100 bg-amber-50/20' : bad ? 'border-red-100 bg-red-50/20' : 'border-indigo-50 bg-indigo-50/30'} h-[52px]`}>
                         <div className="flex-[0.45] text-center min-w-0 pr-1">
-                          <div className={`text-[10px] font-bold truncate rounded leading-tight px-1 py-0.5 max-w-full ${conditionLabels[snapIn.condition]?.color || 'bg-gray-100 text-gray-600 border-gray-200'}`} title={conditionLabels[snapIn.condition]?.label}>{conditionLabels[snapIn.condition]?.label}</div>
+                          <div className={`text-xs font-bold truncate rounded leading-tight px-1 py-0.5 max-w-full ${conditionLabels[snapIn.condition]?.color || 'bg-gray-100 text-gray-600 border-gray-200'}`} title={conditionLabels[snapIn.condition]?.label}>{conditionLabels[snapIn.condition]?.label}</div>
                         </div>
                         <div className="w-[16px] shrink-0 flex items-center justify-center relative h-full">
                           <div className={`absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[2px] ${snapOut.deduction > 0 ? 'bg-red-200' : 'bg-indigo-100'}`}></div>
                           <i className={`fa-solid fa-chevron-right text-[8px] ${snapOut.deduction > 0 ? 'text-red-400' : 'text-indigo-400'} bg-white px-0.5 rounded-full z-10 relative`}></i>
                         </div>
                         <div className="flex-[0.55] text-center min-w-0 pl-1">
-                          <div className={`text-[10px] font-bold truncate rounded leading-tight px-1 py-0.5 max-w-full inline-block ${snapOut.deduction > 0 ? 'bg-red-50 text-red-600 border border-red-100' : bad ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white border-gray-100 border text-indigo-700'}`} title={conditionLabels[snapOut.condition]?.label}>{conditionLabels[snapOut.condition]?.label}</div>
+                          <div className={`text-xs font-bold truncate rounded leading-tight px-1 py-0.5 max-w-full inline-block ${snapOut.deduction > 0 ? 'bg-red-50 text-red-600 border border-red-100' : bad ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white border-gray-100 border text-indigo-700'}`} title={conditionLabels[snapOut.condition]?.label}>{conditionLabels[snapOut.condition]?.label}</div>
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-slate-50/70 rounded-xl py-1.5 px-3 flex items-center justify-between border border-slate-100 h-[46px]">
+                      <div className="bg-slate-50/70 rounded-xl py-1.5 px-3 flex items-center justify-between border border-slate-100 h-[52px]">
                         <div className="flex-[0.45] text-center min-w-0 pr-1">
-                          <div className="text-[8px] tracking-wide text-gray-400 font-bold uppercase mb-[2px]">Lúc nhận</div>
-                          <div className={`text-[10px] font-bold truncate rounded leading-tight px-1 py-[1.5px] border max-w-full inline-block ${conditionLabels[snapIn.condition]?.color || 'bg-gray-100 text-gray-600 border-gray-200'}`} title={conditionLabels[snapIn.condition]?.label}>{conditionLabels[snapIn.condition]?.label}</div>
+                          <div className="text-[10px] tracking-wide text-gray-400 font-bold uppercase mb-[2px]">Lúc nhận</div>
+                          <div className={`text-xs font-bold truncate rounded leading-tight px-1 py-[1.5px] border max-w-full inline-block ${conditionLabels[snapIn.condition]?.color || 'bg-gray-100 text-gray-600 border-gray-200'}`} title={conditionLabels[snapIn.condition]?.label}>{conditionLabels[snapIn.condition]?.label}</div>
                         </div>
                         <div className="w-[20px] shrink-0 flex items-center justify-center relative h-full">
                           <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-[1.5px] bg-slate-200"></div>
                         </div>
                         <div className="flex-[0.55] text-center flex flex-col justify-center min-w-0 pl-1">
-                          <div className="text-[8px] tracking-wide text-gray-400 font-bold uppercase mb-[2px]">Hiện tại</div>
-                          <div className="text-[10px] font-bold text-emerald-600 bg-emerald-50 rounded-md px-1 py-[1.5px] truncate border border-emerald-100">Đang ở</div>
+                          <div className="text-[10px] tracking-wide text-gray-400 font-bold uppercase mb-[2px]">Hiện tại</div>
+                          <div className="text-xs font-bold text-emerald-600 bg-emerald-50 rounded-md px-1 py-[1.5px] truncate border border-emerald-100">Đang ở</div>
                         </div>
                       </div>
                     )}
@@ -968,6 +970,7 @@ export const AssetsTab: React.FC<{
 }> = ({ initialRoomId, onReceivePendingChange, guideMode, guideRoomId, onGuideHandled }) => {
   const { data: rooms = [], isLoading } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: allAssets = [] } = useQuery({ queryKey: ['allRoomAssets'], queryFn: getAllRoomAssets });
+  const { data: allVehicles = [] } = useQuery({ queryKey: ['vehicles'], queryFn: getVehicles });
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(initialRoomId || null);
   const [subTab, setSubTab] = useState<'assets' | 'vehicles'>('assets');
   const [receivePending, setReceivePending] = useState<PendingReceive | null>(null);
@@ -1031,17 +1034,20 @@ export const AssetsTab: React.FC<{
     <div className="flex flex-1 overflow-hidden bg-gray-50">
       <div className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3.5">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Danh sách phòng</h2>
-          <p className="mt-0.5 text-[11px] text-gray-400">{rooms.filter((room) => room.status === 'occupied').length} phòng đang ở</p>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500">Danh sách phòng</h2>
+          <p className="mt-0.5 text-[13px] text-gray-400">{rooms.filter((room) => room.status === 'occupied').length} phòng đang ở</p>
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2">
           {isLoading ? (
-            <div className="px-4 py-6 text-center text-xs text-gray-400">Đang tải...</div>
+            <LogoLoading message="Đang tải danh sách phòng..." className="px-4 py-6" size="sm" />
           ) : (
             rooms.map((room) => {
               const selected = room.id === selectedRoomId;
               const errCount = getErrorCount(room.id);
               const assetCount = allAssets.filter((asset) => asset.room_id === room.id).length;
+              const vehicleCount = allVehicles.filter((v) => v.room_id === room.id).length;
+              const isOccupied = room.status === 'occupied' || room.status === 'ending';
+              const hasNoVehicles = isOccupied && vehicleCount === 0;
               return (
                 <button
                   key={room.id}
@@ -1051,14 +1057,22 @@ export const AssetsTab: React.FC<{
                   }}
                   className={`mb-1 flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${selected ? 'border-primary/20 bg-primary/10 shadow-sm' : 'border-transparent hover:bg-gray-50'}`}
                 >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${errCount > 0 ? 'bg-red-100 text-red-600' : room.status === 'occupied' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold ${errCount > 0 ? 'bg-red-100 text-red-600' : room.status === 'occupied' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
                     {room.name.replace(/[^0-9]/g, '') || room.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-gray-800">{room.name}</div>
-                    <div className="text-[10px] text-gray-400">{assetCount > 0 ? `${assetCount} tài sản` : 'Chưa có tài sản'}</div>
+                    <div className="truncate text-base font-semibold text-gray-800">{room.name}</div>
+                    <div className="text-xs text-gray-400">
+                      {assetCount > 0 ? `${assetCount} tài sản` : 'Chưa có tài sản'}
+                      {hasNoVehicles && <span className="ml-1 text-amber-500 font-medium">• Chưa có xe</span>}
+                    </div>
                   </div>
-                  {errCount > 0 && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{errCount}</span>}
+                  {errCount > 0 && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">{errCount}</span>}
+                  {hasNoVehicles && errCount === 0 && (
+                    <span title="Chưa đăng ký phương tiện" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[11px] text-white">
+                      <i className="fa-solid fa-motorcycle"></i>
+                    </span>
+                  )}
                 </button>
               );
             })
@@ -1070,11 +1084,14 @@ export const AssetsTab: React.FC<{
         {selectedRoom ? (
           <div className="flex flex-1 flex-col overflow-hidden bg-white">
             <div className="flex items-center gap-6 border-b border-gray-200 px-5 pt-3">
-              <button onClick={() => setSubTab('assets')} className={`border-b-2 pb-3 text-sm font-bold transition-colors ${subTab === 'assets' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+              <button onClick={() => setSubTab('assets')} className={`border-b-2 pb-3 text-base font-bold transition-colors ${subTab === 'assets' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                 <i className="fa-solid fa-couch mr-1.5"></i> Thiết bị phòng
               </button>
-              <button onClick={() => confirmPendingReceive(() => setSubTab('vehicles'))} className={`border-b-2 pb-3 text-sm font-bold transition-colors ${subTab === 'vehicles' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-                <i className="fa-solid fa-motorcycle mr-1.5"></i> Phương tiện
+              <button onClick={() => confirmPendingReceive(() => setSubTab('vehicles'))} className={`border-b-2 pb-3 text-base font-bold transition-colors flex items-center gap-1.5 ${subTab === 'vehicles' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
+                <i className="fa-solid fa-motorcycle"></i> Phương tiện
+                {selectedRoom && (selectedRoom.status === 'occupied' || selectedRoom.status === 'ending') && allVehicles.filter((v) => v.room_id === selectedRoom.id).length === 0 && (
+                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[11px] font-bold text-white">!</span>
+                )}
               </button>
             </div>
             <div className="relative flex flex-1 flex-col overflow-hidden">

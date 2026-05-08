@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
+  DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
   getContracts,
   getInvoices,
@@ -10,10 +11,13 @@ import {
   type CashTransaction,
   type CashTransactionCategory,
   type Contract,
+  type ExpenseCategory,
   type Invoice,
   type InvoicePaymentRecord,
+  type AppUser,
 } from '../lib/db'
 import { CashFlowTab } from './CashFlowTab'
+import { OverviewTab } from './OverviewTab'
 
 type InvoiceDrillType =
   | 'roomMonthly'
@@ -60,19 +64,15 @@ type InvoiceCashRow = {
 const fmt = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const iso = (date: Date) => date.toISOString().split('T')[0]
 
-const EXPENSE_CATEGORIES: Array<{ value: CashTransactionCategory; label: string }> = [
-  { value: 'electric', label: 'Hóa đơn điện tổng' },
-  { value: 'water', label: 'Hóa đơn nước tổng' },
-  { value: 'internet', label: 'Internet / wifi' },
-  { value: 'cleaning', label: 'Rác / vệ sinh / môi trường' },
-  { value: 'maintenance', label: 'Bảo trì / sửa chữa' },
-  { value: 'management', label: 'Lương / quản lý' },
-  { value: 'software', label: 'Phần mềm / công cụ' },
-  { value: 'other_expense', label: 'Chi phí khác' },
-]
+type ExpenseCategoryOption = { value: CashTransactionCategory; label: string }
 
-const categoryLabel = (category: CashTransactionCategory) =>
-  EXPENSE_CATEGORIES.find(item => item.value === category)?.label || (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
+const toExpenseOptions = (categories: ExpenseCategory[]): ExpenseCategoryOption[] =>
+  categories
+    .filter(item => item.type === 'expense')
+    .map(item => ({ value: item.value, label: item.name }))
+
+const categoryLabel = (category: CashTransactionCategory, options: ExpenseCategoryOption[]) =>
+  options.find(item => item.value === category)?.label || (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
 
 const getInvoiceDate = (invoice: Invoice) =>
   invoice.invoice_date || invoice.payment_date || invoice.created_at?.split('T')[0] || `${invoice.year}-${String(invoice.month).padStart(2, '0')}-01`
@@ -125,14 +125,20 @@ const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
   }
 }
 
-export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?: () => void } = {}) {
+export function BusinessReport({
+  currentUser,
+  onNavigateToInvoices,
+}: {
+  currentUser?: AppUser | null
+  onNavigateToInvoices?: () => void
+} = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const { data: cashTransactions = [] } = useQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
 
-  const [activeTab, setActiveTab] = useState<'pnl' | 'deposit' | 'cashflow'>('pnl')
+  const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow'>('overview')
 
   const today = new Date()
   const [viewMode, setViewMode] = useState<'range' | 'daily'>('range')
@@ -178,19 +184,23 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
 
   const roomById = useMemo(() => new Map(rooms.map(room => [room.id, room])), [rooms])
   const tenantById = useMemo(() => new Map(tenants.map(tenant => [tenant.id, tenant])), [tenants])
+  const expenseCategories = useMemo(
+    () => toExpenseOptions(DEFAULT_EXPENSE_CATEGORIES),
+    []
+  )
 
   const expenseByCategory = useMemo(() => {
     const map = new Map<CashTransactionCategory, number>()
-    for (const category of EXPENSE_CATEGORIES) map.set(category.value, 0)
+    for (const category of expenseCategories) map.set(category.value, 0)
     for (const item of filteredCash) {
       if (item.type !== 'expense') continue
       map.set(item.category, (map.get(item.category) || 0) + item.amount)
     }
     return map
-  }, [filteredCash])
+  }, [expenseCategories, filteredCash])
 
   const pnl = useMemo(() => {
-    const sumExpense = EXPENSE_CATEGORIES.reduce((sum, item) => sum + (expenseByCategory.get(item.value) || 0), 0)
+    const sumExpense = expenseCategories.reduce((sum, item) => sum + (expenseByCategory.get(item.value) || 0), 0)
     const cashIncome = filteredCash.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
 
     const cashCollected = invoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
@@ -209,9 +219,9 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
       invoiceCount: filteredInvoices.length,
       cashCount: filteredCash.length + invoiceCashRows.length,
     }
-  }, [expenseByCategory, filteredCash, filteredInvoices, invoiceCashRows])
+  }, [expenseByCategory, expenseCategories, filteredCash, filteredInvoices, invoiceCashRows])
 
-  const expenseRows: PnlRow[] = EXPENSE_CATEGORIES.map(item => ({
+  const expenseRows: PnlRow[] = expenseCategories.map(item => ({
     key: `expense-${item.value}`,
     label: item.label,
     amount: -(expenseByCategory.get(item.value) || 0),
@@ -319,6 +329,12 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
     <div className="flex-1 overflow-y-auto bg-[#f5f6f8] p-5 space-y-4">
       <div className="flex gap-2">
         <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+        >
+          <i className="fa-solid fa-chart-pie mr-2"></i>Tổng quát
+        </button>
+        <button
           onClick={() => setActiveTab('pnl')}
           className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
         >
@@ -341,8 +357,12 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
         </button>
       </div>
 
+      {activeTab === 'overview' && (
+        <OverviewTab />
+      )}
+
       {activeTab === 'cashflow' && (
-        <CashFlowTab embedded onNavigateToInvoices={onNavigateToInvoices} />
+        <CashFlowTab embedded currentUser={currentUser} onNavigateToInvoices={onNavigateToInvoices} />
       )}
 
       {activeTab === 'deposit' && (
@@ -611,7 +631,7 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
                       <tr key={item.id} className="hover:bg-slate-50">
                         <td className="px-5 py-3 font-semibold text-slate-600">{new Date(item.transaction_date).toLocaleDateString('vi-VN')}</td>
                         <td className="px-5 py-3 font-bold">{item.type === 'income' ? 'Thu' : 'Chi'}</td>
-                        <td className="px-5 py-3 text-slate-700">{categoryLabel(item.category)}</td>
+                        <td className="px-5 py-3 text-slate-700">{categoryLabel(item.category, expenseCategories)}</td>
                         <td className="px-5 py-3 text-slate-600">{item.room_id ? roomById.get(item.room_id)?.name || 'Không rõ' : 'Không gắn phòng'}</td>
                         <td className={`px-5 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}>
                           {item.type === 'expense' ? '-' : ''}{fmt(item.amount)} đ
@@ -635,3 +655,4 @@ export function BusinessReport({ onNavigateToInvoices }: { onNavigateToInvoices?
     </div>
   )
 }
+

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { isDepositOnlyInvoice, type Invoice, type Room, type AppSettings } from '../lib/db';
+import { isDepositOnlyInvoice, type AppSettings, type Invoice, type Room } from '../lib/db';
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
-import logoNgang from '../assets/logo_navbar.png';
+import logoNgang from '../assets/an_khang_home_logo_ngang.png';
+import logoMark from '../assets/an_khang_home_logo.png';
 
 interface InvoiceDetailModalProps {
   invoice: Invoice;
@@ -12,21 +13,62 @@ interface InvoiceDetailModalProps {
   onClose: () => void;
 }
 
-// ----------------------------------------------------------------
-// Helpers
-// ----------------------------------------------------------------
-const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
+const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 
-const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fmtDate = (date: string) =>
+  new Date(date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+const fmtDateTime = (date: string) =>
+  new Date(date).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+const toDateKey = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+const getMonthEndDate = (month: number, year: number): string => toDateKey(new Date(year, month, 0));
+
+function getBillingPeriod(invoice: Invoice): { start: string; end: string } | null {
+  if (!invoice.billing_period_start || !invoice.billing_period_end) return null;
+
+  const monthEnd = getMonthEndDate(invoice.month, invoice.year);
+  const isMonthlyInvoice =
+    !invoice.is_settlement &&
+    !isDepositOnlyInvoice(invoice) &&
+    invoice.billing_reason !== 'deposit_collect' &&
+    invoice.billing_reason !== 'deposit_refund' &&
+    invoice.billing_reason !== 'contract_end';
+  const savedEnd = new Date(invoice.billing_period_end);
+  const savedEndIsInsideInvoiceMonth =
+    !Number.isNaN(savedEnd.getTime()) &&
+    savedEnd.getFullYear() === invoice.year &&
+    savedEnd.getMonth() + 1 === invoice.month &&
+    invoice.billing_period_end < monthEnd;
+
+  return {
+    start: invoice.billing_period_start,
+    end: isMonthlyInvoice && savedEndIsInsideInvoiceMonth ? monthEnd : invoice.billing_period_end,
+  };
+}
+
+const cleanInvoiceNote = (note?: string): string =>
+  (note || '')
+    .split('\n')
+    .filter((line) => !line.includes('[INVOICE_EXPORTED]'))
+    .join('\n')
+    .trim();
 
 function getInvoiceNumber(invoice: Invoice): string {
-  const parts = invoice.id.split('-')
-  const ts = parseInt(parts[1] || '0', 10)
-  const d = ts ? new Date(ts) : new Date(invoice.created_at || '')
-  const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`
-  const rand = (parts[2] || '').slice(0, 4).toUpperCase()
-  return `${ym}-${rand}`
+  const parts = invoice.id.split('-');
+  const timestamp = parseInt(parts[1] || '0', 10);
+  const date = timestamp ? new Date(timestamp) : new Date(invoice.created_at || '');
+  const ym = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const suffix = (parts[2] || '').slice(0, 4).toUpperCase();
+  return `${ym}-${suffix || 'HD'}`;
 }
 
 function getInvoiceLabel(invoice: Invoice): string {
@@ -38,39 +80,37 @@ function getInvoiceLabel(invoice: Invoice): string {
   return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
 }
 
-// Chuyển số thành chữ tiếng Việt
 function numberToWords(amount: number): string {
   if (amount === 0) return 'Không đồng';
   if (amount < 0) return `Hoàn ${numberToWords(Math.abs(amount)).toLowerCase()}`;
+
   const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
 
-  function threeDigits(n: number, isHead: boolean): string {
-    if (n === 0) return '';
-    const h = Math.floor(n / 100);
-    const t = Math.floor((n % 100) / 10);
-    const u = n % 10;
+  function threeDigits(value: number, isHead: boolean): string {
+    if (value === 0) return '';
+    const hundred = Math.floor(value / 100);
+    const ten = Math.floor((value % 100) / 10);
+    const unit = value % 10;
     let result = '';
 
-    if (h > 0) {
-      result += units[h] + ' trăm';
-    } else if (!isHead && (t > 0 || u > 0)) {
-      result += 'không trăm';
+    if (hundred > 0) result += `${units[hundred]} trăm`;
+    else if (!isHead && (ten > 0 || unit > 0)) result += 'không trăm';
+
+    if (ten === 0) {
+      if (unit > 0) {
+        const unitWord = unit === 1 ? 'một' : unit === 5 ? 'lăm' : units[unit];
+        result += hundred > 0 || !isHead ? ` lẻ ${unitWord}` : unitWord;
+      }
+    } else if (ten === 1) {
+      result += ' mười';
+      if (unit > 0) result += ` ${unit === 5 ? 'lăm' : unit === 1 ? 'một' : units[unit]}`;
+    } else {
+      result += ` ${units[ten]} mươi`;
+      if (unit === 1) result += ' mốt';
+      else if (unit === 5) result += ' lăm';
+      else if (unit > 0) result += ` ${units[unit]}`;
     }
 
-    if (t === 0) {
-      if (u > 0) {
-        const unitWord = u === 1 ? 'một' : u === 5 ? 'lăm' : units[u];
-        result += h > 0 || !isHead ? ' lẻ ' + unitWord : unitWord;
-      }
-    } else if (t === 1) {
-      result += ' mười';
-      if (u > 0) result += ' ' + (u === 5 ? 'lăm' : u === 1 ? 'một' : units[u]);
-    } else {
-      result += ' ' + units[t] + ' mươi';
-      if (u === 1) result += ' mốt';
-      else if (u === 5) result += ' lăm';
-      else if (u > 0) result += ' ' + units[u];
-    }
     return result.trim();
   }
 
@@ -78,20 +118,38 @@ function numberToWords(amount: number): string {
   const million = Math.floor((amount % 1_000_000_000) / 1_000_000);
   const thousand = Math.floor((amount % 1_000_000) / 1_000);
   const remainder = amount % 1_000;
-
   const parts: string[] = [];
-  if (billion > 0) parts.push(threeDigits(billion, parts.length === 0) + ' tỷ');
-  if (million > 0) parts.push(threeDigits(million, parts.length === 0) + ' triệu');
-  if (thousand > 0) parts.push(threeDigits(thousand, parts.length === 0) + ' nghìn');
+
+  if (billion > 0) parts.push(`${threeDigits(billion, parts.length === 0)} tỷ`);
+  if (million > 0) parts.push(`${threeDigits(million, parts.length === 0)} triệu`);
+  if (thousand > 0) parts.push(`${threeDigits(thousand, parts.length === 0)} nghìn`);
   if (remainder > 0) parts.push(threeDigits(remainder, parts.length === 0));
 
   const result = parts.join(' ');
-  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng';
+  return `${result.charAt(0).toUpperCase()}${result.slice(1)} đồng`;
 }
 
-// ----------------------------------------------------------------
-// Component
-// ----------------------------------------------------------------
+interface LineItem {
+  label: string;
+  detail?: React.ReactNode;
+  amount: number;
+}
+
+const imageToDataUrl = async (src: string): Promise<string> => {
+  try {
+    const response = await fetch(src);
+    const blob = await response.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return src;
+  }
+};
+
 export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   invoice,
   room,
@@ -101,205 +159,207 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   onClose,
 }) => {
   const printRef = useRef<HTMLDivElement>(null);
-  // Base64 chỉ dùng cho cửa sổ in (fetch giữ nguyên alpha channel của PNG)
   const [logoPrintSrc, setLogoPrintSrc] = useState<string>(logoNgang);
+  const [logoMarkSrc, setLogoMarkSrc] = useState<string>(logoMark);
   const [sendingZalo, setSendingZalo] = useState(false);
 
   useEffect(() => {
-    fetch(logoNgang)
-      .then(r => r.blob())
-      .then(blob => new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      }))
-      .then(setLogoPrintSrc)
-      .catch(() => setLogoPrintSrc(logoNgang));
+    imageToDataUrl(logoNgang).then(setLogoPrintSrc);
+    imageToDataUrl(logoMark).then(setLogoMarkSrc);
   }, []);
 
-  // Đóng bằng Escape
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const handlePrint = () => {
-    const content = printRef.current;
-    if (!content) return;
-    // Thay URL ảnh bằng base64 để print window tải được
-    const printHtml = content.innerHTML.replace(
-      /src="[^"]*logo[^"]*"/,
-      `src="${logoPrintSrc}"`
-    );
-    const printWindow = window.open('', '_blank', 'width=800,height=900');
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Hóa đơn - ${room?.name || ''}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet" />
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; color: #222; }
-          .invoice-wrap { max-width: 700px; margin: 0 auto; padding: 24px; }
-          .header-bar { position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #fcfffc 100%); border-radius: 12px 12px 0 0; padding: 34px 24px 18px; text-align: center; }
-          .header-wave { position: absolute; top: -22px; height: 40px; border-radius: 999px; }
-          .header-wave.wave-a { left: -6%; width: 44%; background: #16a34a; transform: rotate(-5deg); }
-          .header-wave.wave-b { left: 24%; width: 56%; background: #84cc16; top: -18px; }
-          .header-wave.wave-c { right: -8%; width: 40%; background: #22c55e; transform: rotate(4deg); }
-          .brand-row { display: inline-flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 8px; position: relative; z-index: 1; }
-          .brand-mark { width: 76px; height: 46px; display: flex; align-items: center; justify-content: center; padding: 2px 0; flex: 0 0 auto; }
-          .brand-mark img { max-width: 100%; max-height: 100%; object-fit: contain; }
-          .brand-copy { display: flex; flex-direction: column; align-items: center; gap: 4px; max-height: 34px; overflow: hidden; }
-          .brand-title { font-size: 16px; font-weight: 900; letter-spacing: 0.4px; color: #1f2937; }
-          .logo-sub { font-size: 11px; color: #4b5563; font-weight: 700; letter-spacing: 0.4px; }
-          .logo-sub strong { color: #16a34a; }
-          .title-section { text-align: center; padding: 4px 0 2px; position: relative; z-index: 1; }
-          .title-main { font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: 0.6px; }
-          .title-period { font-size: 15px; font-weight: 800; color: #111827; margin-top: 4px; }
-          .address-bar { text-align: center; font-size: 12px; color: #666; padding-bottom: 10px; }
-          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; padding: 10px 0 14px; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; margin-bottom: 14px; }
-          .info-row { font-size: 13px; color: #333; padding: 3px 0; }
-          .info-label { font-weight: 600; color: #555; }
-          table { width: 100%; border-collapse: collapse; font-size: 13px; }
-          th { background: #f0fdf4; color: #166534; font-weight: 700; padding: 9px 12px; text-align: left; border: 1px solid #d1fae5; }
-          th:last-child { text-align: right; }
-          td { padding: 9px 12px; border: 1px solid #e5e7eb; vertical-align: top; }
-          td:last-child { text-align: right; font-weight: 600; }
-          .td-detail { font-size: 11px; color: #059669; margin-top: 3px; }
-          .row-total td { background: #f9fafb; font-weight: 700; font-size: 14px; }
-          .row-words td { background: #f0fdf4; font-style: italic; color: #166534; }
-          .row-paid td { color: #059669; }
-          .row-remain td { background: #fff1f2; color: #dc2626; font-weight: 700; font-size: 14px; }
-          .sig-section { display: grid; grid-template-columns: 1fr 1fr; margin-top: 20px; text-align: center; gap: 24px; }
-          .sig-label { font-weight: 700; font-size: 13px; color: #333; margin-bottom: 4px; }
-          .sig-cursive { font-family: 'Great Vibes', cursive; font-size: 40px; color: #0f172a; margin-top: 10px; line-height: 1; transform: rotate(-5deg); display: inline-block; }
-          .sig-full-name { font-size: 12px; font-weight: 600; color: #374151; margin-top: 4px; border-top: 1px solid #d1d5db; padding-top: 4px; display: inline-block; min-width: 120px; }
-          .sig-name { font-size: 12px; color: #555; margin-top: 24px; }
-          .note-section { margin-top: 14px; font-size: 12px; color: #555; border-top: 1px dashed #d1d5db; padding-top: 10px; }
-          .hidden { display: none !important; }
-          @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-        </style>
-      </head>
-      <body>${printHtml}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); }, 400);
-  };
+  const displayName = tenantName || room?.tenant_name || 'Khách thuê';
+  const displayPhone = tenantPhone || room?.tenant_phone || '';
+  const ownerFullName = settings.property_owner_name || 'AN KHANG HOME';
+  const ownerShortName = ownerFullName.trim().split(/\s+/).pop() || ownerFullName;
+  const tenantShortName = displayName.trim().split(/\s+/).pop() || displayName;
+  const propertyAddress = settings.property_address || '';
+  const ownerPhone = settings.property_owner_phone || '';
+  const label = getInvoiceLabel(invoice);
+  const period = getBillingPeriod(invoice);
+  const monthlyRent = room?.base_rent ?? invoice.room_cost;
+  const displayedRoomCost = Number(invoice.room_cost || 0);
+  const roomRentDetail =
+    displayedRoomCost > 0 && displayedRoomCost !== monthlyRent
+      ? `${formatVND(displayedRoomCost)}đ/kỳ này`
+      : `${formatVND(monthlyRent)}đ/1 tháng`;
+  const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount);
+  const wordsText =
+    invoice.total_amount < 0
+      ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
+      : numberToWords(invoice.total_amount);
+  const dueDate = invoice.due_date ? fmtDate(invoice.due_date) : null;
+  const displayNote = cleanInvoiceNote(invoice.note);
+
+  const lines: LineItem[] = [];
+
+  if (invoice.has_transfer) {
+    lines.push({
+      label: `Tiền phòng cũ (${invoice.transfer_old_room_name || ''})`,
+      detail: <span>{invoice.transfer_days || 0} ngày</span>,
+      amount: invoice.transfer_room_cost || 0,
+    });
+    lines.push({
+      label: `Tiền phòng mới (${room?.name || ''})`,
+      detail: <span>{invoice.new_room_days || 0} ngày</span>,
+      amount: invoice.room_cost || 0,
+    });
+  } else {
+    lines.push({
+      label: 'Tiền phòng',
+      detail: period ? (
+        <div className="space-y-0.5">
+          <div className="font-semibold text-slate-950 whitespace-nowrap">
+            {fmtDate(period.start)} - {fmtDate(period.end)}
+            {invoice.prorata_days ? ` (${invoice.prorata_days} ngày)` : ''}
+          </div>
+          <div className="text-slate-900 whitespace-nowrap">{roomRentDetail}</div>
+        </div>
+      ) : undefined,
+      amount: invoice.room_cost,
+    });
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_electric_cost || 0) > 0) {
+    lines.push({
+      label: `Tiền điện (${invoice.transfer_old_room_name || ''})`,
+      detail: <span>{invoice.transfer_electric_usage || 0} kWh</span>,
+      amount: invoice.transfer_electric_cost || 0,
+    });
+  }
+  if (invoice.electric_cost > 0) {
+    lines.push({
+      label: invoice.has_transfer ? `Tiền điện (${room?.name || ''})` : 'Tiền điện',
+      detail:
+        invoice.electric_usage > 0 ? (
+          <span>Số cũ: {invoice.electric_old} - Số mới: {invoice.electric_new} ({invoice.electric_usage} kWh)</span>
+        ) : undefined,
+      amount: invoice.electric_cost,
+    });
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_water_cost || 0) > 0) {
+    lines.push({
+      label: `Tiền nước (${invoice.transfer_old_room_name || ''})`,
+      detail: <span>{invoice.transfer_water_usage || 0} m³</span>,
+      amount: invoice.transfer_water_cost || 0,
+    });
+  }
+  if (invoice.water_cost > 0) {
+    lines.push({
+      label: invoice.has_transfer ? `Tiền nước (${room?.name || ''})` : 'Tiền nước',
+      detail:
+        invoice.water_usage > 0 ? (
+          <span>Số cũ: {invoice.water_old} - Số mới: {invoice.water_new} ({invoice.water_usage} m³)</span>
+        ) : undefined,
+      amount: invoice.water_cost,
+    });
+  }
+
+  if (invoice.has_transfer && (invoice.transfer_service_cost || 0) > 0) {
+    lines.push({
+      label: `Phí dịch vụ (${invoice.transfer_old_room_name || ''})`,
+      detail: <span>{invoice.transfer_days || 0} ngày</span>,
+      amount: invoice.transfer_service_cost || 0,
+    });
+  }
+  if (invoice.wifi_cost > 0) lines.push({ label: 'Internet / WiFi', detail: <span>-</span>, amount: invoice.wifi_cost });
+  if (invoice.garbage_cost > 0) lines.push({ label: 'Phí vệ sinh', detail: <span>-</span>, amount: invoice.garbage_cost });
+  if (invoice.old_debt > 0) lines.push({ label: 'Nợ kỳ trước', amount: invoice.old_debt });
+  if ((invoice.deposit_amount || 0) !== 0) {
+    const deposit = invoice.deposit_amount || 0;
+    lines.push({ label: deposit > 0 ? 'Thu tiền cọc' : 'Trả tiền cọc', amount: Math.abs(deposit) });
+  }
+  if ((invoice.adjustment_amount || 0) !== 0) {
+    const adjustment = invoice.adjustment_amount || 0;
+    lines.push({
+      label: adjustment > 0 ? `Cộng thêm${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}` : `Giảm trừ${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`,
+      amount: Math.abs(adjustment),
+    });
+  }
 
   const buildInvoiceHtml = () => {
     const content = printRef.current;
     if (!content) return null;
 
-    const printHtml = content.innerHTML.replace(
-      /src="[^"]*logo[^"]*"/,
-      `src="${logoPrintSrc}"`
-    );
+    const printHtml = content.innerHTML
+      .replace(/src="[^"]*an_khang_home_logo_ngang[^"]*"/g, `src="${logoPrintSrc}"`)
+      .replace(/src="[^"]*an_khang_home_logo[^"]*"/g, `src="${logoMarkSrc}"`);
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>Hóa đơn - ${room?.name || ''}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet" />
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
-          body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            background: linear-gradient(180deg, #eef2f7 0%, #e5ebf3 100%);
-            color: #222;
-            padding: 24px 24px 0 24px;
-          }
-          .capture-page { max-width: 760px; margin: 0 auto; padding-bottom: 0; }
-          .invoice-export-frame {
-            background: #fff;
-            border: 1px solid #d1d5db;
-            border-radius: 18px;
-            overflow: hidden;
-            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
-          }
-          .hidden { display: none !important; }
-        </style>
-      </head>
-      <body>
-        <div class="capture-page">
-          <div class="invoice-export-frame">
-            ${printHtml}
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Hóa đơn - ${room?.name || ''}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; }
+    ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+    body { margin: 0; background: #fff; font-family: Inter, Arial, sans-serif; color: #111827; }
+    .capture-page { max-width: 1120px; margin: 0 auto; }
+    .invoice-wrap { position: relative; max-width: 768px; margin: 0 auto; background: #fff; border: 3px solid #002855 !important; overflow: hidden; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="capture-page">
+    <div class="invoice-wrap">${printHtml}</div>
+  </div>
+</body>
+</html>`;
   };
 
-  // Dữ liệu
-  const displayName = tenantName || room?.tenant_name || 'Khách thuê';
-  const displayPhone = tenantPhone || room?.tenant_phone || '';
-  const propertyAddress = settings.property_address || '';
-  const ownerPhone = settings.property_owner_phone || '';
-  const ownerFullName = settings.property_owner_name || 'AN KHANG HOME';
-  // Tên viết tay = tên cuối cùng (tên riêng)
-  const ownerShortName = ownerFullName.trim().split(/\s+/).pop() || ownerFullName;
-  const tenantShortName = displayName.trim().split(/\s+/).pop() || displayName;
-  const label = getInvoiceLabel(invoice);
+  const handlePrint = () => {
+    const content = printRef.current;
+    if (!content) return;
+    const printWindow = window.open('', '_blank', 'width=900,height=1100');
+    if (!printWindow) return;
+    printWindow.document.write(`<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    body { margin: 0; background: #fff; font-family: Inter, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .invoice-wrap { max-width: 768px; margin: 0 auto; border: 3px solid #002855 !important; overflow: hidden; }
+  </style>
+</head>
+<body><div class="invoice-wrap">${content.innerHTML}</div></body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 400);
+  };
 
-  const periodStart = invoice.billing_period_start;
-  const periodEnd = invoice.billing_period_end;
-  const prorataDays = invoice.prorata_days;
-  const monthlyRent = room?.base_rent ?? invoice.room_cost;
-
-  const depositAmt = invoice.deposit_amount ?? 0;
-  const adjustmentAmt = invoice.adjustment_amount ?? 0;
-  const remaining = invoice.total_amount - invoice.paid_amount;
-  const wordsText = invoice.total_amount < 0
-    ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
-    : numberToWords(invoice.total_amount);
-
-  const dueDate = invoice.due_date
-    ? fmtDate(invoice.due_date)
-    : null;
-
-  // Các dòng hiển thị trên hóa đơn
   const handleSendZalo = async () => {
-    const phone = displayPhone.replace(/\D/g, ''); // Fix số zalo (loại bỏ ký tự không phải số)
     const html = buildInvoiceHtml();
-
+    const phone = displayPhone.replace(/\D/g, '');
     if (!html) return;
 
-    // Validate: SĐT Việt Nam phải có đúng 9-10 chữ số
     if (!phone || phone.length < 9 || phone.length > 11) {
-      const msg = !phone
-        ? 'Khách thuê chưa có số điện thoại để gửi Zalo.'
-        : `Số điện thoại "${displayPhone}" không hợp lệ (cần 9-11 số, hiện có ${phone.length} số).\nVui lòng cập nhật đúng SĐT trong thông tin khách thuê.`;
-      window.alert(msg);
+      window.alert(!phone ? 'Khách thuê chưa có số điện thoại để gửi Zalo.' : `Số điện thoại "${displayPhone}" không hợp lệ.`);
       return;
     }
 
     try {
       setSendingZalo(true);
-      const monthLabel = String(invoice.month).padStart(2, '0');
-      // Fix phone number (đưa về chuẩn nếu cần, nhưng user nói web bị lỗi 84 nên truyền thẳng vào Zalo protocol)
-      // Mặc định window.api.zalo.send đang dùng 84, ta có thể đổi lại trong code main.
       const result = await window.api.zalo.send({
-        phone: phone.startsWith('0') ? phone : `0${phone}`, // Đảm bảo số có số 0 ở đầu
+        phone: phone.startsWith('0') ? phone : `0${phone}`,
         html,
-        fileName: `hoa-don-${room?.name || 'phong'}-${monthLabel}-${invoice.year}.png`,
-        // Bỏ message để không ghi đè ảnh trên clipboard
+        fileName: `hoa-don-${room?.name || 'phong'}-${String(invoice.month).padStart(2, '0')}-${invoice.year}.png`,
       });
-
-      if (!result.ok) {
-        throw new Error(result.error || 'Không thể gửi nội dung qua Zalo.');
-      }
+      if (!result.ok) throw new Error(result.error || 'Không thể gửi nội dung qua Zalo.');
     } catch (error) {
-      console.error(error);
       const message = error instanceof Error ? error.message : 'Không thể chuẩn bị nội dung gửi Zalo.';
       window.alert(`Không thể gửi Zalo.\n${message}`);
     } finally {
@@ -312,438 +372,203 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
     if (!html) return;
 
     try {
-      const monthLabel = String(invoice.month).padStart(2, '0');
-      const fileName = `HOA-DON-${room?.name || 'PHONG'}-T${monthLabel}-${invoice.year}.jpg`;
-
+      const fileName = `HOA-DON-${room?.name || 'PHONG'}-T${String(invoice.month).padStart(2, '0')}-${invoice.year}.jpg`;
       const saveImageFn =
         window.api?.invoice?.saveImage ||
-        ((payload: { html: string; fileName: string }) =>
-          window.electron?.ipcRenderer?.invoke('invoice:saveImage', payload));
+        ((payload: { html: string; fileName: string }) => window.electron?.ipcRenderer?.invoke('invoice:saveImage', payload));
 
-      if (!saveImageFn) {
-        throw new Error('Không tìm thấy API lưu ảnh. Vui lòng khởi động lại ứng dụng.');
-      }
-
+      if (!saveImageFn) throw new Error('Không tìm thấy chức năng lưu ảnh. Vui lòng khởi động lại ứng dụng.');
       const result = await saveImageFn({ html, fileName });
-
-      if (!result.ok) {
-        throw new Error(result.error || 'Lỗi khi lưu ảnh.');
-      }
-
-      if (!result.canceled) {
-        // Có thể hiện thông báo báo thành công nếu muốn
-        console.log("Đã lưu ảnh thành công:", result.filePath);
-      }
+      if (!result.ok) throw new Error(result.error || 'Lỗi khi lưu ảnh.');
     } catch (error) {
-      console.error("Lỗi khi lưu ảnh:", error);
-      const errMsg = error instanceof Error ? error.message : String(error);
-      if (errMsg.includes("No handler registered for 'invoice:saveImage'")) {
-        window.alert('Ứng dụng đang chạy bản cũ của tiến trình chính. Vui lòng tắt hẳn app và mở lại rồi thử lưu ảnh.');
-        return;
-      }
-      window.alert("Đã xảy ra lỗi khi tạo ảnh hóa đơn: " + errMsg);
+      const message = error instanceof Error ? error.message : String(error);
+      window.alert(`Không thể lưu ảnh hóa đơn.\n${message}`);
     }
   };
 
-  interface LineItem {
-    label: string;
-    detail?: React.ReactNode;
-    amount: number;
-    highlight?: 'green' | 'red';
-  }
-  const lines: LineItem[] = [];
-
-  // Tiền phòng
-  if (invoice.has_transfer) {
-    lines.push({
-      label: `Tiền phòng cũ (${invoice.transfer_old_room_name})`,
-      detail: <div className="text-gray-400 text-[11px]">{invoice.transfer_days} ngày</div>,
-      amount: invoice.transfer_room_cost || 0,
-    });
-    lines.push({
-      label: `Tiền phòng mới (${room?.name})`,
-      detail: <div className="text-gray-400 text-[11px]">{invoice.new_room_days} ngày</div>,
-      amount: invoice.room_cost || 0,
-    });
-  } else {
-    lines.push({
-      label: 'Tiền phòng',
-      detail: periodStart && periodEnd ? (
-        <>
-          <div className="text-gray-700 font-medium text-[11px] whitespace-nowrap">
-            {fmtDate(periodStart)} - {fmtDate(periodEnd)}
-            {prorataDays ? ` (${prorataDays} ngày)` : ''}
-          </div>
-          <div className="text-gray-500 text-[11px] whitespace-nowrap mt-0.5">
-            {formatVND(monthlyRent)}đ/1 tháng
-          </div>
-        </>
-      ) : undefined,
-      amount: invoice.room_cost,
-    });
-  }
-
-  // Điện
-  if (invoice.has_transfer && invoice.transfer_electric_cost! > 0) {
-    lines.push({
-      label: `Tiền điện (${invoice.transfer_old_room_name})`,
-      detail: <div className="text-gray-400 text-[11px]">{invoice.transfer_electric_usage} kWh</div>,
-      amount: invoice.transfer_electric_cost!,
-    });
-  }
-  if (invoice.electric_cost > 0) {
-    lines.push({
-      label: invoice.has_transfer ? `Tiền điện (${room?.name})` : 'Tiền điện',
-      detail: invoice.electric_usage > 0 ? (
-        <div className="text-gray-400 text-[11px]">
-          {invoice.electric_old} → {invoice.electric_new} ({invoice.electric_usage} kWh)
-        </div>
-      ) : undefined,
-      amount: invoice.electric_cost,
-    });
-  }
-
-  // Nước
-  if (invoice.has_transfer && invoice.transfer_water_cost! > 0) {
-    lines.push({
-      label: `Tiền nước (${invoice.transfer_old_room_name})`,
-      detail: <div className="text-gray-400 text-[11px]">{invoice.transfer_water_usage} m³</div>,
-      amount: invoice.transfer_water_cost!,
-    });
-  }
-  if (invoice.water_cost > 0) {
-    lines.push({
-      label: invoice.has_transfer ? `Tiền nước (${room?.name})` : 'Tiền nước',
-      detail: invoice.water_usage > 0 ? (
-        <div className="text-gray-400 text-[11px]">
-          {invoice.water_old} → {invoice.water_new} ({invoice.water_usage} m³)
-        </div>
-      ) : undefined,
-      amount: invoice.water_cost,
-    });
-  }
-
-  // Dịch vụ của phòng cũ nếu có
-  if (invoice.has_transfer && invoice.transfer_service_cost! > 0) {
-    lines.push({
-      label: `Phí dịch vụ (${invoice.transfer_old_room_name})`,
-      detail: <div className="text-gray-400 text-[11px]">{invoice.transfer_days} ngày</div>,
-      amount: invoice.transfer_service_cost!
-    });
-  }
-
-  // WiFi
-  if (invoice.wifi_cost > 0) {
-    lines.push({ label: invoice.has_transfer ? `Internet / WiFi (${room?.name})` : 'Internet / WiFi', amount: invoice.wifi_cost });
-  }
-
-  // Vệ sinh
-  if (invoice.garbage_cost > 0) {
-    lines.push({ label: invoice.has_transfer ? `Phí vệ sinh (${room?.name})` : 'Phí vệ sinh', amount: invoice.garbage_cost });
-  }
-
-  // Nợ cũ
-  if (invoice.old_debt > 0) {
-    lines.push({ label: 'Nợ kỳ trước', amount: invoice.old_debt });
-  }
-
-  // Tiền cọc
-  if (depositAmt !== 0) {
-    lines.push({
-      label: depositAmt > 0 ? 'Thu tiền cọc' : 'Trả tiền cọc',
-      amount: Math.abs(depositAmt),
-      highlight: depositAmt < 0 ? 'red' : undefined,
-    });
-  }
-
-  // Điều chỉnh
-  if (adjustmentAmt !== 0) {
-    lines.push({
-      label: adjustmentAmt > 0
-        ? `Cộng thêm${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`
-        : `Giảm trừ${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`,
-      amount: Math.abs(adjustmentAmt),
-      highlight: adjustmentAmt < 0 ? 'red' : undefined,
-    });
-  }
+  const transferDescription = buildInvoiceTransferDescription(invoice, room?.name);
 
   return (
     <div
-      className="app-no-drag fixed inset-0 z-[320] overflow-y-auto bg-black/60 backdrop-blur-sm p-4 flex items-start justify-center"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
+      className="app-no-drag fixed inset-0 z-[320] flex items-start justify-center overflow-y-auto bg-black/60 p-5 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div
-        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[calc(100vh-2rem)] flex flex-col"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Toolbar */}
-        <div className="relative z-30 shrink-0 flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
-          <span className="font-bold text-gray-700 text-sm flex items-center gap-2">
-            <i className="fa-solid fa-file-invoice text-green-600"></i>
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="relative z-30 flex shrink-0 items-center justify-between border-b border-gray-200 bg-gray-50 px-5 py-3">
+          <span className="flex items-center gap-2 text-sm font-bold text-gray-700">
+            <i className="fa-solid fa-file-invoice text-green-600" />
             Gửi hóa đơn
           </span>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleSendZalo}
-              disabled={sendingZalo}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white text-xs font-semibold rounded-lg transition"
-            >
-              <i className="fa-solid fa-paper-plane"></i>
+            <button type="button" onClick={handleSendZalo} disabled={sendingZalo} className="flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-700 disabled:bg-sky-300">
+              <i className="fa-solid fa-paper-plane" />
               {sendingZalo ? 'Đang gửi...' : 'Gửi Zalo'}
             </button>
-            <button
-              type="button"
-              onClick={handleSaveImage}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition"
-            >
-              <i className="fa-solid fa-image"></i>Lưu ảnh (JPG)
+            <button type="button" onClick={handleSaveImage} className="flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-orange-600">
+              <i className="fa-solid fa-image" />
+              Lưu ảnh (JPG)
             </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition"
-            >
-              <i className="fa-solid fa-print"></i>In phiếu
+            <button type="button" onClick={handlePrint} className="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700">
+              <i className="fa-solid fa-print" />
+              In phiếu
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="relative z-40 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-gray-500 transition"
-              aria-label="Đóng"
-            >
-              <i className="fa-solid fa-xmark"></i>
+            <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-200" aria-label="Đóng">
+              <i className="fa-solid fa-xmark" />
             </button>
           </div>
         </div>
 
-        {/* Logo floating — nằm vắt giữa toolbar và header xanh */}
-        <div className="pointer-events-none shrink-0 flex justify-center relative z-20 pt-3 -mb-6">
-          <div className="bg-white rounded-2xl px-4 py-2 shadow-lg ring-2 ring-green-100">
-            <img
-              src={logoNgang}
-              alt="DBY"
-              className="h-9 w-auto object-contain"
-            />
-          </div>
-        </div>
+        <div className="min-h-0 overflow-y-auto bg-gray-100 px-6 py-4">
+          <div ref={printRef} className="invoice-paper relative mx-auto max-w-3xl overflow-hidden bg-white text-[#1a1a1a] shadow-sm" style={{ fontFamily: "'Inter', sans-serif" }}>
+            <div className="pointer-events-none absolute -right-20 top-0 z-0 h-56 w-56 rounded-full bg-emerald-100/75" />
+            <div className="pointer-events-none absolute right-20 top-20 z-0 h-36 w-20 rotate-45 rounded-[32px] bg-blue-100/60" />
+            <div className="pointer-events-none absolute -left-20 bottom-44 z-0 h-56 w-56 rounded-full border-[28px] border-slate-200/70" />
+            <div className="pointer-events-none absolute right-[-70px] bottom-32 z-0 h-32 w-32 rounded-full bg-emerald-100/80" />
 
-        {/* Invoice content */}
-        <div className="bg-gray-100 px-4 pb-4 pt-0 overflow-y-auto min-h-0">
-          <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet" />
-          <div ref={printRef} className="invoice-wrap relative bg-white border-2 border-slate-700 shadow-sm overflow-hidden max-w-[700px] mx-auto min-h-[500px]">
-
-            {/* Watermark Logo */}
-            <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none select-none" style={{ opacity: 0.15 }}>
-              <img src={logoPrintSrc} alt="watermark" className="w-[70%] max-w-[400px] object-contain" />
+            <div className="relative z-10 grid grid-cols-[1.15fr_1fr_0.85fr] items-start gap-5 px-7 pb-6 pt-7">
+              <div>
+                <img src={logoPrintSrc} alt="AN KHANG HOME" className="h-[78px] w-[245px] object-contain object-left" />
+                <p className="mt-2 text-[12px] italic text-[#002855]">An tâm chọn nhà - An khang cuộc sống</p>
+              </div>
+              <div className="text-center">
+                <h1 className="text-[32px] font-black uppercase leading-none tracking-tight text-[#002855]">Hóa đơn</h1>
+                <h2 className="mt-2 whitespace-nowrap text-[21px] font-bold uppercase text-blue-500">Tiền thuê nhà</h2>
+                <p className="mt-2 text-[14px] font-medium text-slate-700">Tháng {String(invoice.month).padStart(2, '0')} / {invoice.year}</p>
+                <p className="mt-1 text-[11px] font-medium text-slate-400">Ngày lập: {fmtDateTime(invoice.created_at || invoice.invoice_date || '')}</p>
+              </div>
+              <div className="border-l border-slate-200 pl-6 text-[11px] text-slate-500">
+                <div className="mb-1 flex justify-between gap-3"><span>Mẫu số:</span><b className="text-slate-800">HDTN</b></div>
+                <div className="mb-1 flex justify-between gap-3"><span>Ký hiệu:</span><b className="text-slate-800">1K26TAA</b></div>
+                <div className="mb-1 flex justify-between gap-3"><span>Số:</span><b className="text-slate-800">{getInvoiceNumber(invoice)}</b></div>
+                <div className="mb-1 flex justify-between gap-3"><span>Ngày lập:</span><b className="text-slate-800">{fmtDate(invoice.invoice_date || invoice.created_at)}</b></div>
+                {dueDate && <div className="flex justify-between gap-3"><span>Hạn TT:</span><b className="text-slate-800">{dueDate}</b></div>}
+              </div>
             </div>
 
-            {/* Header kiểu hành chính */}
-            <div className="px-6 pt-5 pb-4 border-b-2 border-slate-700 bg-transparent relative z-10">
-              <div className="grid grid-cols-2 gap-4 text-[12px] text-slate-700">
-                <div className="space-y-0.5">
-                  <div className="font-black uppercase tracking-wide text-slate-900">{settings.property_name || 'PHIẾU THU TIỀN NHÀ'}</div>
-                  <div>Địa chỉ: <span className="font-semibold">{propertyAddress || '—'}</span></div>
-                  <div>Điện thoại: <span className="font-semibold">{ownerPhone || '—'}</span></div>
+            <div className="relative z-10 grid grid-cols-2 gap-7 px-7 pb-5">
+              <section>
+                <div className="mb-3 inline-flex rounded-md bg-[#002855] px-4 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">Thông tin bên cho thuê</div>
+                <h3 className="mb-2 text-[16px] font-black uppercase text-[#002855]">AN KHANG HOME</h3>
+                <div className="space-y-2 text-[12px] text-slate-700">
+                  <div className="flex gap-2"><i className="fa-solid fa-house mt-0.5 text-slate-400" /><span>Địa chỉ: <b className="font-semibold text-slate-800">{propertyAddress || '-'}</b></span></div>
+                  <div className="flex gap-2"><i className="fa-solid fa-phone mt-0.5 text-slate-400" /><span>Điện thoại: <b className="font-bold text-[#002855]">{ownerPhone || '-'}</b></span></div>
                 </div>
-                <div className="space-y-0.5 text-right">
-                  <div>Mẫu số: <span className="font-bold">HDTN</span></div>
-                  <div>Số: <span className="font-bold">{getInvoiceNumber(invoice)}</span></div>
-                  <div>Ngày lập: <span className="font-bold">{fmtDate(invoice.invoice_date || invoice.created_at)}</span></div>
-                  {dueDate && <div>Hạn thanh toán: <span className="font-bold">{dueDate}</span></div>}
+              </section>
+              <section className="border-l border-slate-200 pl-7">
+                <div className="mb-3 inline-flex rounded-md bg-emerald-600 px-4 py-1.5 text-[10px] font-black uppercase tracking-wide text-white">Thông tin khách thuê</div>
+                <div className="grid grid-cols-[100px_1fr] gap-y-2 text-[12px]">
+                  <span className="text-slate-500">Khách hàng:</span><b>{displayName}</b>
+                  <span className="text-slate-500">Số điện thoại:</span><b>{displayPhone || '-'}</b>
+                  <span className="text-slate-500">Phòng:</span><b className="text-[16px] text-[#002855]">{room?.name || '-'}</b>
+                  <span className="text-slate-500">Nội dung thu:</span><span>{label}</span>
                 </div>
-              </div>
-              <div className="mt-4 text-center">
-                <h1 className="text-[30px] font-black tracking-[0.08em] uppercase text-slate-900">Hóa đơn tiền thuê nhà</h1>
-                <p className="text-[13px] font-semibold tracking-wide text-slate-700 mt-1">Tháng {String(invoice.month).padStart(2, '0')} / {invoice.year}</p>
-              </div>
+              </section>
             </div>
 
-            {/* Nội dung chứng từ */}
-            <div className="px-6 py-3 border-b border-slate-400 text-[13px] text-slate-800 bg-transparent relative z-10">
-              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                <div>Khách hàng: <span className="font-semibold text-slate-900">{displayName}</span></div>
-                <div>Số điện thoại: <span className="font-semibold text-slate-900">{displayPhone || '—'}</span></div>
-                <div>Phòng: <span className="font-semibold text-slate-900">{room?.name || '—'}</span></div>
-                <div>Nội dung thu: <span className="font-semibold text-slate-900">{label}</span></div>
+            <div className="relative z-10 px-7 pb-4">
+              <div className="pointer-events-none absolute left-1/2 top-[52%] z-0 -translate-x-1/2 -translate-y-1/2 opacity-[0.03]">
+                <img src={logoMarkSrc} alt="watermark" className="w-[360px] object-contain" />
               </div>
-            </div>
-
-            {/* Bảng hóa đơn */}
-            <div className="px-6 pb-4 relative z-10">
-              <table className="w-full text-sm border-collapse bg-transparent">
+              <table className="relative z-10 w-full border-separate border-spacing-0 overflow-hidden rounded-lg bg-transparent text-[12px]">
                 <thead>
-                  <tr className="bg-emerald-700 text-white">
-                    <th className="text-center font-bold px-2 py-2 border border-emerald-900 w-[7%]">STT</th>
-                    <th className="text-left font-bold px-3 py-2 border border-emerald-900 w-[33%]">Nội dung</th>
-                    <th className="text-left font-bold px-3 py-2 border border-emerald-900">Chi tiết</th>
-                    <th className="text-right font-bold px-3 py-2 border border-emerald-900 w-[25%]">Thành tiền</th>
+                  <tr>
+                    <th className="w-12 rounded-tl-lg border border-[#002855] bg-[#002855] px-2 py-2 text-center text-[10px] font-bold uppercase text-white">STT</th>
+                    <th className="border border-[#002855] bg-[#002855] px-3 py-2 text-left text-[10px] font-bold uppercase text-white">Nội dung</th>
+                    <th className="border border-[#002855] bg-[#002855] px-3 py-2 text-left text-[10px] font-bold uppercase text-white">Chi tiết</th>
+                    <th className="rounded-tr-lg border border-[#002855] bg-[#002855] px-3 py-2 text-right text-[10px] font-bold uppercase text-white">Thành tiền</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {lines.map((line, idx) => (
-                    <tr key={idx} className="border-b border-slate-400">
-                      <td className="px-2 py-2 border border-slate-400 text-center font-semibold text-slate-800">
-                        {idx + 1}
-                      </td>
-                      <td className="px-3 py-2 border border-slate-400 font-medium text-slate-800">
-                        {line.label}
-                      </td>
-                      <td className="px-3 py-2 border border-slate-400">
-                        {line.detail || null}
-                      </td>
-                      <td className="px-3 py-2 border border-slate-400 text-right font-semibold text-slate-900 tabular-nums">
-                        {formatVND(line.amount)}đ
-                      </td>
+                  {lines.map((line, index) => (
+                    <tr key={`${line.label}-${index}`}>
+                      <td className="border border-slate-200 px-2 py-2 text-center font-medium text-slate-500">{index + 1}</td>
+                      <td className="border border-slate-200 px-3 py-2 font-semibold text-slate-800">{line.label}</td>
+                      <td className="border border-slate-200 px-3 py-2 font-medium text-slate-950">{line.detail || '-'}</td>
+                      <td className="border border-slate-200 px-3 py-2 text-right text-[14px] font-black text-[#002855]">{formatVND(line.amount)}đ</td>
                     </tr>
                   ))}
-
-                  {/* Tổng tiền */}
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2.5 border border-slate-400 font-bold text-slate-900 uppercase">
-                      Tổng tiền
-                    </td>
-                    <td className="px-3 py-2.5 border border-slate-400 text-right font-black text-slate-900 text-base tabular-nums">
-                      {formatVND(invoice.total_amount)}đ
-                    </td>
-                  </tr>
-
-                  {/* Bằng chữ */}
-                  <tr>
-                    <td className="px-3 py-2 border border-slate-400 font-semibold text-slate-800 text-xs">
-                      Tổng tiền bằng chữ
-                    </td>
-                    <td colSpan={3} className="px-3 py-2 border border-slate-400 text-slate-900 font-bold italic text-xs text-right">
-                      {wordsText}
-                    </td>
-                  </tr>
-
-                  {/* Đã thu */}
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2.5 border border-slate-400 font-medium text-slate-800 uppercase">
-                      Đã thu
-                    </td>
-                    <td className="px-3 py-2.5 border border-slate-400 text-right font-bold text-slate-900 tabular-nums">
-                      {invoice.paid_amount > 0 ? `${formatVND(invoice.paid_amount)}đ` : '0đ'}
-                    </td>
-                  </tr>
-
-                  {/* Còn lại */}
-                  <tr>
-                    <td colSpan={3} className="px-3 py-2.5 border border-slate-400 font-black text-slate-900 uppercase">
-                      Còn lại
-                    </td>
-                    <td className="px-3 py-2.5 border border-slate-400 text-right font-black text-slate-900 text-base tabular-nums">
-                      {remaining > 0 ? `${formatVND(remaining)}đ` : '0đ'}
-                    </td>
-                  </tr>
                 </tbody>
               </table>
             </div>
 
-            {/* Chữ ký */}
-            <div className="px-6 pb-4 grid grid-cols-2 gap-6 text-center text-sm">
-              <div>
-                <div className="font-bold text-gray-700">Người đại diện thu</div>
-                <div className="text-gray-400 text-[11px] mt-0.5 italic">(Ký, ghi rõ họ tên)</div>
-                {/* Chữ ký viết tay */}
-                <div
-                  className="sig-cursive"
-                  style={{
-                    fontFamily: "'Great Vibes', cursive",
-                    fontSize: '44px',
-                    color: '#0f172a',
-                    transform: 'rotate(-5deg)',
-                    display: 'inline-block',
-                    marginTop: '8px',
-                    lineHeight: 0.8,
-                  }}
-                >
-                  {ownerShortName}
-                </div>
-                <div className="mt-1 border-t border-gray-300 pt-1 font-semibold text-gray-700 text-[12px]">
-                  {ownerFullName}
-                </div>
+            <div className="relative z-10 px-7 pb-5">
+              <div className="mb-3 flex items-center justify-between rounded-md border border-blue-100 bg-blue-50/60 px-4 py-3">
+                <span className="text-[12px] font-black uppercase tracking-widest text-[#002855]">Tổng cộng</span>
+                <span className="text-[26px] font-black text-[#002855]">{formatVND(invoice.total_amount)}đ</span>
               </div>
-              <div>
-                <div className="font-bold text-gray-700">Khách thuê</div>
-                <div className="text-gray-400 text-[11px] mt-0.5 italic">(Ký, ghi rõ họ tên)</div>
-                {/* Chữ ký Khách thuê */}
-                <div
-                  style={{
-                    fontSize: '18px',
-                    color: '#0f172a',
-                    fontWeight: 700,
-                    marginTop: '20px',
-                    marginBottom: '8px',
-                    lineHeight: 1,
-                  }}
-                >
-                  {tenantShortName}
-                </div>
-                <div className="mt-1 border-t border-gray-300 pt-1 font-semibold text-gray-700 text-[12px]">
-                  {displayName}
-                </div>
+              <div className="mb-4 flex text-[12px]">
+                <span className="w-28 font-medium italic text-slate-400">Bằng chữ:</span>
+                <span className="flex-1 font-bold italic text-slate-800">{wordsText}</span>
               </div>
-            </div>
-
-            {/* Ghi chú */}
-            <div className="px-6 pb-5 space-y-1">
-              {invoice.note && (
-                <div className="text-xs text-gray-600">
-                  <span className="font-semibold">Ghi chú:</span> {invoice.note}
-                </div>
-              )}
-              {dueDate && (
-                <div className="text-xs text-gray-500">
-                  <i className="fa-solid fa-circle-exclamation text-amber-500 mr-1"></i>
-                  Vui lòng thanh toán đúng hạn trước ngày <strong>{dueDate}</strong>
-                </div>
-              )}
-            </div>
-
-            {/* Phần mã QR thanh toán (Chỉ hiển thị nếu còn nợ) */}
-            {remaining > 0 && settings.account_no && settings.bank_id && (() => {
-              const transferDes = buildInvoiceTransferDescription(invoice, room?.name);
-
-              return (
-                <div className="mx-6 mb-6 px-4 py-4 bg-transparent flex items-center gap-6 justify-center relative z-10" data-html2canvas-ignore="false">
-                  <div className="bg-white p-2 rounded-lg shadow-sm border border-slate-200 shrink-0">
-                    <img
-                      src={`https://qr.sepay.vn/img?bank=${settings.bank_id}&acc=${settings.account_no}&amount=${remaining}&des=${transferDes}`}
-                      alt="VietQR"
-                      className="w-32 h-32 object-contain"
-                      crossOrigin="anonymous"
-                    />
+              {invoice.paid_amount > 0 && (
+                <>
+                  <div className="flex justify-between border-b border-slate-100 py-3 text-[12px] font-bold uppercase tracking-wide text-slate-400">
+                    <span>Số tiền đã thanh toán</span>
+                    <span>{formatVND(invoice.paid_amount)}đ</span>
                   </div>
-                  <div className="text-sm">
-                    <div className="font-bold text-slate-800 text-base mb-1">Quét mã để thanh toán</div>
-                    <div className="text-gray-600 mb-0.5">Ngân hàng: <span className="font-semibold text-gray-800">{settings.bank_id}</span></div>
-                    <div className="text-gray-600 mb-0.5">Số tài khoản: <span className="font-semibold text-gray-800">{settings.account_no}</span></div>
-                    <div className="text-gray-600 mb-0.5">Chủ tài khoản: <span className="font-semibold text-gray-800 uppercase">{settings.account_name || ownerFullName}</span></div>
-                    <div className="text-gray-600 mb-0.5">Số tiền: <span className="font-bold text-red-600">{formatVND(remaining)} VNĐ</span></div>
-                    <div className="text-gray-600 mt-2 bg-white px-2 py-1 rounded inline-block border border-gray-200">
-                      Nội dung: <span className="font-bold text-blue-700">{transferDes}</span>
+                  {remaining > 0 && (
+                    <div className="mt-3 flex justify-between rounded-md bg-blue-600 p-4 text-white shadow-lg shadow-blue-100">
+                      <span className="text-[15px] font-black uppercase">Số tiền còn lại</span>
+                      <span className="text-[26px] font-black">{formatVND(remaining)}đ</span>
                     </div>
-                  </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="relative z-10 grid grid-cols-2 gap-8 px-7 pb-5 text-center">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#002855]">Người đại diện thu</p>
+                <p className="mb-7 mt-1 text-[10px] italic text-slate-400">(Ký, ghi rõ họ tên)</p>
+                <p className="mb-2 text-[18px] font-semibold italic text-slate-500">{ownerShortName}</p>
+                <p className="font-bold text-slate-900">{ownerFullName}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-widest text-[#002855]">Khách thuê</p>
+                <p className="mb-7 mt-1 text-[10px] italic text-slate-400">(Ký, ghi rõ họ tên)</p>
+                <p className="mb-2 text-[18px] font-semibold italic text-slate-500">{tenantShortName}</p>
+                <p className="font-bold text-slate-900">{displayName}</p>
+              </div>
+            </div>
+
+            {displayNote && (
+              <div className="relative z-10 mx-7 mb-4 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                <span className="font-bold text-slate-800">Ghi chú:</span> {displayNote}
+              </div>
+            )}
+
+            {remaining > 0 && settings.account_no && settings.bank_id && (
+              <div className="relative z-10 mx-7 mb-5 grid grid-cols-[170px_1fr] gap-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-center justify-center rounded border border-slate-200 bg-white p-2">
+                  <img
+                    src={`https://qr.sepay.vn/img?bank=${settings.bank_id}&acc=${settings.account_no}&amount=${remaining}&des=${transferDescription}`}
+                    alt="VietQR"
+                    className="h-[150px] w-[150px] object-contain"
+                    crossOrigin="anonymous"
+                  />
                 </div>
-              );
-            })()}
-            {remaining <= 0 && invoice.total_amount > 0 && (
-              <div className="mx-6 mb-6 relative z-10">
-                <div className="flex items-center justify-center py-4 border-2 border-slate-400 rounded-xl bg-transparent text-slate-700 text-lg font-black tracking-widest uppercase shadow-sm relative overflow-hidden">
-                  {/* Watermark style text */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
-                    <span className="text-5xl transform -rotate-12 whitespace-nowrap text-slate-900">ĐÃ THANH TOÁN</span>
+                <div className="text-[12px]">
+                  <h4 className="mb-3 border-b border-slate-200 pb-2 text-[15px] font-black uppercase text-[#002855]">Quét mã để thanh toán</h4>
+                  <div className="grid grid-cols-[110px_1fr] gap-y-2">
+                    <span className="text-slate-500">Ngân hàng:</span><b>{settings.bank_id}</b>
+                    <span className="text-slate-500">Số tài khoản:</span><b className="tracking-wide text-blue-700">{settings.account_no}</b>
+                    <span className="text-slate-500">Chủ tài khoản:</span><b className="uppercase">{settings.account_name || ownerFullName}</b>
+                    <span className="font-bold text-slate-500">Số tiền:</span><b className="text-[24px] text-red-600">{formatVND(remaining)} VND</b>
                   </div>
-                  <i className="fa-solid fa-circle-check mr-2 text-2xl relative z-10"></i>
-                  <span className="relative z-10">ĐÃ THANH TOÁN XONG</span>
+                  <div className="mt-4 rounded border border-dashed border-slate-300 bg-white p-2 font-mono text-[10px] text-slate-700">
+                    Nội dung: <b className="text-[#002855]">{transferDescription}</b>
+                  </div>
                 </div>
               </div>
             )}
 
+            <div className="relative z-10 mx-7 flex flex-wrap justify-center gap-5 border-t-2 border-[#002855] bg-white p-4 text-[9px] font-bold uppercase tracking-widest text-[#002855]/70">
+              <span><i className="fa-solid fa-house mr-2" />AN KHANG HOME</span>
+              <span><i className="fa-solid fa-location-dot mr-2" />{propertyAddress || '-'}</span>
+              <span><i className="fa-solid fa-phone mr-2" />{ownerPhone || '-'}</span>
+            </div>
           </div>
         </div>
       </div>

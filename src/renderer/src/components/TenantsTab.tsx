@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getMoveInReceiptsByTenant, type Tenant, type MoveInReceipt } from '../lib/db';
 import { ConfirmModal } from './ConfirmModal';
+import { LogoLoading } from './LogoLoading';
 
 export const TenantsTab: React.FC = () => {
   const queryClient = useQueryClient();
@@ -157,7 +158,7 @@ export const TenantsTab: React.FC = () => {
               <button
                 key={f}
                 onClick={() => setFilterActive(f)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 ${filterActive === f ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 font-medium hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${filterActive === f ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 font-medium hover:bg-slate-50'}`}
               >
                 {label} ({filterCounts[f]})
               </button>
@@ -173,10 +174,10 @@ export const TenantsTab: React.FC = () => {
               placeholder="Tìm tên, SĐT, CCCD..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-4 py-2 focus:ring-2 focus:ring-primary/20 outline-none transition text-xs"
+              className="w-full bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none transition text-sm"
             />
           </div>
-          <button data-tour="add-tenant-btn" onClick={openAddModal} className="bg-primary text-white px-4 py-2 rounded-lg font-bold hover:bg-primary-dark transition shadow-sm flex items-center gap-2 text-xs">
+          <button data-tour="add-tenant-btn" onClick={openAddModal} className="bg-primary text-white px-4 py-2.5 rounded-lg font-bold hover:bg-primary-dark transition shadow-sm flex items-center gap-2 text-sm">
             <i className="fa-solid fa-plus"></i> Thêm khách mới
           </button>
         </div>
@@ -185,7 +186,7 @@ export const TenantsTab: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 bg-slate-50 text-[11px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
+            <thead className="sticky top-0 bg-slate-50 text-[13px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
               <tr>
                 <th className="px-6 py-4">Khách hàng</th>
                 <th className="px-6 py-4">Liên hệ</th>
@@ -198,12 +199,11 @@ export const TenantsTab: React.FC = () => {
                 <th className="px-6 py-4 text-center">Xem thêm</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-sm">
+            <tbody className="divide-y divide-slate-50 text-base">
               {isLoading && (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
-                    <i className="fa-solid fa-spinner fa-spin text-3xl mb-3"></i>
-                    <p className="text-[13px] font-medium">Đang tải dữ liệu...</p>
+                    <LogoLoading className="min-h-[45vh]" />
                   </td>
                 </tr>
               )}
@@ -211,7 +211,7 @@ export const TenantsTab: React.FC = () => {
                 <tr>
                   <td colSpan={9} className="px-6 py-16 text-center text-slate-400">
                     <i className="fa-solid fa-user-slash text-3xl opacity-50 mb-3"></i>
-                    <p className="text-[13px] font-medium">Không tìm thấy khách hàng nào</p>
+                    <p className="text-base font-medium">Không tìm thấy khách hàng nào</p>
                   </td>
                 </tr>
               )}
@@ -239,10 +239,10 @@ export const TenantsTab: React.FC = () => {
                   <tr key={tenant.id} className="hover:bg-slate-50/80 transition group relative">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-xl ${avatarColors[colorIdx]} flex items-center justify-center font-bold text-xs shrink-0`}>
+                        <div className={`w-10 h-10 rounded-xl ${avatarColors[colorIdx]} flex items-center justify-center font-bold text-sm shrink-0`}>
                           {initials}
                         </div>
-                        <div className="font-bold text-slate-900 text-[13px] group-hover:text-primary transition">
+                        <div className="font-bold text-slate-900 text-base group-hover:text-primary transition">
                           {tenant.full_name}
                         </div>
                       </div>
@@ -252,7 +252,7 @@ export const TenantsTab: React.FC = () => {
                       <div className="flex flex-col gap-1.5 items-start">
                         {tenant.phone ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-[12.5px] font-medium text-slate-700 font-mono">
+                            <span className="text-[15px] font-medium text-slate-700 font-mono">
                               {tenant.phone}
                             </span>
                             <a
@@ -267,10 +267,10 @@ export const TenantsTab: React.FC = () => {
                             </a>
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic text-[11px]">Chưa có SĐT</span>
+                          <span className="text-slate-400 italic text-[13px]">Chưa có SĐT</span>
                         )}
                         {tenant.email && (
-                          <div className="text-[11.5px] text-slate-500 flex items-center gap-1.5">
+                          <div className="text-[14px] text-slate-500 flex items-center gap-1.5">
                             <i className="fa-regular fa-envelope text-[10px] text-slate-400"></i>
                             <span className="truncate max-w-[120px]">{tenant.email}</span>
                           </div>
@@ -280,9 +280,9 @@ export const TenantsTab: React.FC = () => {
 
                     <td className="px-6 py-4 text-center">
                       {roomLabel !== '—' ? (
-                        <span className={`px-3 py-1 rounded-full font-bold text-[11px] border shadow-sm whitespace-nowrap ${isActuallyActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{roomLabel}</span>
+                        <span className={`px-3 py-1 rounded-full font-bold text-[13px] border shadow-sm whitespace-nowrap ${isActuallyActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{roomLabel}</span>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic bg-transparent">—</span>
+                        <span className="text-[13px] text-slate-400 italic bg-transparent">—</span>
                       )}
                     </td>
 
@@ -293,17 +293,17 @@ export const TenantsTab: React.FC = () => {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                           </span>
-                          <span className="text-emerald-700 font-bold text-[12.5px] whitespace-nowrap tracking-tight">Đang ở</span>
+                          <span className="text-emerald-700 font-bold text-[15px] whitespace-nowrap tracking-tight">Đang ở</span>
                         </div>
                       ) : hasLeft ? (
                         <div className="flex items-center gap-2 justify-center">
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                          <span className="text-amber-700 font-bold text-[12.5px] whitespace-nowrap tracking-tight">Đã rời đi</span>
+                          <span className="text-amber-700 font-bold text-[15px] whitespace-nowrap tracking-tight">Đã rời đi</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 justify-center opacity-70">
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-                          <span className="text-slate-500 font-bold text-[12.5px] whitespace-nowrap tracking-tight">Chưa ở</span>
+                          <span className="text-slate-500 font-bold text-[15px] whitespace-nowrap tracking-tight">Chưa ở</span>
                         </div>
                       )}
                     </td>
@@ -311,13 +311,13 @@ export const TenantsTab: React.FC = () => {
                     <td className="px-6 py-4">
                       {activeContract && activeContract.deposit_amount > 0 ? (
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-bold text-[13px] text-amber-600">
+                          <span className="font-bold text-base text-amber-600">
                             {activeContract.deposit_amount.toLocaleString('vi-VN')}₫
                           </span>
-                          <span className="text-[10px] text-slate-400 font-medium">Hợp đồng hiện tại</span>
+                          <span className="text-xs text-slate-400 font-medium">Hợp đồng hiện tại</span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic">—</span>
+                        <span className="text-[13px] text-slate-400 italic">—</span>
                       )}
                     </td>
 
@@ -346,18 +346,18 @@ export const TenantsTab: React.FC = () => {
                           }}
                           onMouseLeave={() => setCccdHover(null)}
                         >
-                          <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-[11px] font-mono hover:bg-slate-200 transition">
+                          <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-[13px] font-mono hover:bg-slate-200 transition">
                             <i className="fa-solid fa-address-card text-slate-400"></i>
                             {tenant.identity_card}
                           </div>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic bg-transparent">—</span>
+                        <span className="text-[13px] text-slate-400 italic bg-transparent">—</span>
                       )}
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-2 text-slate-600 text-[12px]">
+                      <div className="flex items-center gap-2 text-slate-600 text-sm">
                         <i className="fa-solid fa-calendar-day text-slate-300"></i>
                         <span className="font-medium">{new Date(tenant.created_at).toLocaleDateString('vi-VN')}</span>
                       </div>
@@ -365,12 +365,12 @@ export const TenantsTab: React.FC = () => {
 
                     <td className="px-6 py-4">
                       {tenant.left_at ? (
-                        <div className="flex items-center gap-2 text-slate-600 text-[12px]">
+                        <div className="flex items-center gap-2 text-slate-600 text-sm">
                           <i className="fa-solid fa-person-walking text-slate-300"></i>
                           <span className="font-medium">{leftDateLabel}</span>
                         </div>
                       ) : (
-                        <span className="text-[11px] text-slate-400 italic">—</span>
+                        <span className="text-[13px] text-slate-400 italic">—</span>
                       )}
                     </td>
 
@@ -401,7 +401,7 @@ export const TenantsTab: React.FC = () => {
                           <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 z-[200] animate-[fadeIn_0.1s_ease-out] text-left">
                             <button
                               onClick={(e) => { e.stopPropagation(); setSelectedTenant(tenant); setMenuOpenId(null); }}
-                              className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
+                              className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
                             >
                               <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem / Sửa hồ sơ
                             </button>
@@ -413,7 +413,7 @@ export const TenantsTab: React.FC = () => {
                                   updateStatusMut.mutate({ id: tenant.id, is_active: false });
                                   setMenuOpenId(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-[15px] font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition flex items-center gap-2"
                               >
                                 <i className="fa-solid fa-power-off font-sm w-4 text-amber-500"></i> Đánh dấu rời đi
                               </button>
@@ -424,7 +424,7 @@ export const TenantsTab: React.FC = () => {
                                   updateStatusMut.mutate({ id: tenant.id, is_active: true });
                                   setMenuOpenId(null);
                                 }}
-                                className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition flex items-center gap-2"
+                                className="w-full text-left px-3 py-2 text-[15px] font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition flex items-center gap-2"
                               >
                                 <i className="fa-solid fa-check font-sm w-4 text-emerald-500"></i> Đánh dấu đang ở
                               </button>
@@ -438,7 +438,7 @@ export const TenantsTab: React.FC = () => {
                                 setConfirmDelete(tenant);
                                 setMenuOpenId(null);
                               }}
-                              className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
+                              className="w-full text-left px-3 py-2 text-[15px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
                             >
                               <i className="fa-solid fa-trash-can font-sm w-4 text-red-400"></i> Xóa khách thuê
                             </button>
@@ -454,7 +454,7 @@ export const TenantsTab: React.FC = () => {
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+        <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[13px] text-slate-500 font-medium">
           <div>Hiển thị {filteredTenants.length} / {tenants.length} khách thuê</div>
           <div className="flex items-center gap-1">
             <button disabled className="px-2 py-1 rounded border border-slate-200 bg-white opacity-50">Trang trước</button>
@@ -484,7 +484,7 @@ export const TenantsTab: React.FC = () => {
           >
             <button
               onClick={() => { setSelectedTenant(tenant); setMenuOpenId(null); }}
-              className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
             >
               <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem / Sửa hồ sơ
             </button>
@@ -496,7 +496,7 @@ export const TenantsTab: React.FC = () => {
                   setConfirmMarkLeft(tenant);
                   setMenuOpenId(null);
                 }}
-                className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition flex items-center gap-2"
+                className="w-full text-left px-3 py-2 text-[15px] font-medium text-amber-600 hover:bg-amber-50 rounded-lg transition flex items-center gap-2"
               >
                 <i className="fa-solid fa-person-walking-arrow-right font-sm w-4 text-amber-500"></i>
                 Đánh dấu đã chuyển đi
@@ -504,7 +504,7 @@ export const TenantsTab: React.FC = () => {
             )}
 
             {hasLeft && (
-              <div className="w-full px-3 py-2 text-[12.5px] font-medium rounded-lg flex items-center gap-2 text-slate-400 bg-slate-50">
+              <div className="w-full px-3 py-2 text-[15px] font-medium rounded-lg flex items-center gap-2 text-slate-400 bg-slate-50">
                 <i className="fa-solid fa-user-clock text-slate-300 font-sm w-4"></i>
                 Khách này đã rời đi
               </div>
@@ -516,7 +516,7 @@ export const TenantsTab: React.FC = () => {
                 setConfirmDelete(tenant);
                 setMenuOpenId(null);
               }}
-              className="w-full text-left px-3 py-2 text-[12.5px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
+              className="w-full text-left px-3 py-2 text-[15px] font-medium text-red-500 hover:bg-red-50 rounded-lg transition flex items-center gap-2"
             >
               <i className="fa-solid fa-trash-can font-sm w-4 text-red-400"></i> Xóa khách thuê
             </button>
@@ -665,25 +665,25 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
         <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
           {/* Tên */}
           <div>
-            <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
-            <input ref={fullNameRef} autoFocus name="full_name" type="text" placeholder="Nhập tên khách thuê (vd: Nguyễn Văn A)" className="w-full border border-emerald-500 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-emerald-500/20 outline-none transition bg-white shadow-sm" />
+            <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
+            <input ref={fullNameRef} autoFocus name="full_name" type="text" placeholder="Nhập tên khách thuê (vd: Nguyễn Văn A)" className="w-full border border-emerald-500 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-emerald-500/20 outline-none transition bg-white shadow-sm" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
-              <input name="phone" type="tel" placeholder="vd: 0912 345 678" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
+              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
+              <input name="phone" type="tel" placeholder="vd: 0912 345 678" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
             </div>
             <div>
-              <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
-              <input name="email" type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
+              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
+              <input name="email" type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
             </div>
           </div>
 
 
 
           <div className="bg-slate-50/50 rounded-xl border border-slate-200 p-4">
-            <h4 className="text-[13px] font-bold text-slate-800 mb-3 flex items-center gap-2">
+            <h4 className="text-[15px] font-bold text-slate-800 mb-3 flex items-center gap-2">
               <div className="w-5 h-5 rounded bg-slate-200 text-slate-500 flex justify-center items-center">
                 <i className="fa-regular fa-id-card text-[10px]"></i>
               </div>
@@ -691,7 +691,7 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
             </h4>
             <div className="space-y-3">
               <div>
-                <input name="identity_card" type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
+                <input name="identity_card" type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
 
               </div>
               <div
@@ -714,8 +714,8 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
                     <div className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center text-slate-400 mb-2 group-hover:bg-primary/10 group-hover:text-primary transition shadow-sm border border-slate-200">
                       <i className="fa-solid fa-cloud-arrow-up text-[11px]"></i>
                     </div>
-                    <div className="text-[12px] font-bold text-slate-600">Nhấp để tải ảnh lên</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, tối đa 5MB</div>
+                    <div className="text-sm font-bold text-slate-600">Nhấp để tải ảnh lên</div>
+                    <div className="text-xs text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, tối đa 5MB</div>
                   </>
                 )}
               </div>
@@ -723,8 +723,8 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
           </div>
 
           <div>
-            <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
-            <textarea name="notes" placeholder="Biển số xe, thói quen sinh hoạt..." rows={2} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm resize-none"></textarea>
+            <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
+            <textarea name="notes" placeholder="Biển số xe, thói quen sinh hoạt..." rows={2} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm resize-none"></textarea>
           </div>
         </div>
 
@@ -737,8 +737,8 @@ const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () 
           </div>
         )}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-[13px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-          <button type="submit" data-tour="tenant-submit-btn" disabled={isPending} className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
+          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
+          <button type="submit" data-tour="tenant-submit-btn" disabled={isPending} className="px-6 py-2.5 rounded-xl text-[15px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
             {isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Tạo khách hàng
           </button>
         </div>
@@ -815,7 +815,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
       <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={() => setIsEditing(false)}>
         <form onSubmit={handleEditSubmit} className="bg-white flex flex-col rounded-2xl w-full max-w-md overflow-hidden max-h-[90vh] shadow-2xl border border-slate-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
           <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 z-10">
-            <h3 className="font-bold text-[17px] text-slate-800 flex items-center gap-2">
+            <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
                 <i className="fa-solid fa-pen-to-square text-xs"></i>
               </div>
@@ -828,28 +828,28 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
 
           <div className="p-6 space-y-5 overflow-y-auto">
             <div>
-              <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
-              <input name="full_name" defaultValue={tenant.full_name} required type="text" placeholder="Nhập tên khách thuê" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
+              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
+              <input name="full_name" defaultValue={tenant.full_name} required type="text" placeholder="Nhập tên khách thuê" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
-                <input name="phone" defaultValue={tenant.phone} type="tel" placeholder="09xx..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
+                <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
+                <input name="phone" defaultValue={tenant.phone} type="tel" placeholder="09xx..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
               </div>
               <div>
-                <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
-                <input name="email" defaultValue={tenant.email} type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
+                <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
+                <input name="email" defaultValue={tenant.email} type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
               </div>
             </div>
 
 
 
             <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-              <h4 className="text-[13px] font-bold text-slate-800 mb-3 flex items-center gap-2"><i className="fa-regular fa-id-card text-slate-400"></i> Định danh cá nhân (CCCD/CMND)</h4>
+              <h4 className="text-[15px] font-bold text-slate-800 mb-3 flex items-center gap-2"><i className="fa-regular fa-id-card text-slate-400"></i> Định danh cá nhân (CCCD/CMND)</h4>
               <div className="space-y-4">
                 <div>
-                  <input name="identity_card" defaultValue={tenant.identity_card} type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
+                  <input name="identity_card" defaultValue={tenant.identity_card} type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
 
                 </div>
 
@@ -884,14 +884,14 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
             </div>
 
             <div>
-              <label className="block text-[13px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
-              <textarea name="notes" defaultValue={tenant.notes} rows={2} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[13px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white resize-none"></textarea>
+              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
+              <textarea name="notes" defaultValue={tenant.notes} rows={2} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white resize-none"></textarea>
             </div>
           </div>
 
           <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
-            <button type="button" onClick={() => setIsEditing(false)} className="px-5 py-2 rounded-xl text-[13px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-            <button type="submit" disabled={updateMut.isPending} className="px-5 py-2 bg-primary text-white rounded-xl text-[13px] font-bold shadow-sm hover:bg-primary-dark flex items-center gap-2">
+            <button type="button" onClick={() => setIsEditing(false)} className="px-5 py-2 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
+            <button type="submit" disabled={updateMut.isPending} className="px-5 py-2 bg-primary text-white rounded-xl text-[15px] font-bold shadow-sm hover:bg-primary-dark flex items-center gap-2">
               {updateMut.isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Lưu thay đổi
             </button>
           </div>
@@ -909,8 +909,8 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
               {tenant.full_name?.charAt(0).toUpperCase() || '?'}
             </div>
             <div>
-              <h2 className="text-[19px] font-bold text-slate-800 tracking-tight">{tenant.full_name}</h2>
-              <div className="flex items-center gap-4 mt-1 text-[12px] text-slate-500 font-medium tracking-wide">
+              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{tenant.full_name}</h2>
+              <div className="flex items-center gap-4 mt-1 text-sm text-slate-500 font-medium tracking-wide">
                 {tenant.phone && <span className="flex items-center gap-1.5"><i className="fa-solid fa-phone text-[10px] text-slate-400"></i>{tenant.phone}</span>}
                 {tenant.identity_card && <span className="flex items-center gap-1.5"><i className="fa-regular fa-id-card text-[10px] text-slate-400"></i>{tenant.identity_card}</span>}
               </div>
@@ -923,7 +923,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
 
         <div className="p-6 bg-[#fbfcfd] space-y-6 overflow-y-auto">
           {/* Notes / Detail Box */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col gap-3 text-[13px]">
+          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col gap-3 text-[15px]">
             {tenant.identity_image_url && (
               <div className="w-full pb-3 border-b border-slate-100 flex flex-col gap-2">
                 <div className="flex justify-between items-center">
@@ -954,7 +954,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
 
           {/* Lịch sử tiền cọc */}
           <div className="space-y-3">
-            <h3 className="font-bold text-slate-800 text-[13px] flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 text-[15px] flex items-center gap-2">
               <i className="fa-solid fa-hand-holding-dollar text-slate-400"></i> LỊCH SỬ TIỀN CỌC
             </h3>
             {depositReceipts.length > 0 ? (
@@ -966,7 +966,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
                     <div key={r.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex items-center justify-between gap-3 hover:border-amber-200 transition">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-[13px] text-slate-800">
+                          <span className="font-bold text-[15px] text-slate-800">
                             <i className="fa-solid fa-door-open text-slate-400 mr-1.5"></i>
                             {room?.name || 'Phòng không rõ'}
                           </span>
@@ -979,7 +979,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
                             {isPaid ? 'Đã thu' : r.payment_status === 'partial' ? 'Còn nợ' : 'Chưa thu'}
                           </span>
                         </div>
-                        <span className="text-slate-500 text-[11px] font-medium">
+                        <span className="text-slate-500 text-[13px] font-medium">
                           <i className="fa-regular fa-calendar mr-1"></i>
                           Ngày vào: {new Date(r.move_in_date).toLocaleDateString('vi-VN')}
                           {r.payment_date && (
@@ -1000,13 +1000,13 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-5 text-center text-slate-400 shadow-sm flex flex-col items-center">
                 <i className="fa-solid fa-coins text-2xl mb-2 opacity-30"></i>
-                <p className="text-[12.5px] font-medium">Chưa có phiếu thu tiền cọc nào.</p>
+                <p className="text-[15px] font-medium">Chưa có phiếu thu tiền cọc nào.</p>
               </div>
             )}
           </div>
 
           <div className="space-y-3">
-            <h3 className="font-bold text-slate-800 text-[13px] flex items-center gap-2">
+            <h3 className="font-bold text-slate-800 text-[15px] flex items-center gap-2">
               <i className="fa-solid fa-clock-rotate-left text-slate-400"></i> LỊCH SỬ HỢP ĐỒNG
             </h3>
 
@@ -1017,8 +1017,8 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
                   return (
                     <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex justify-between items-center group hover:border-emerald-300 transition">
                       <div className="flex flex-col gap-1.5">
-                        <span className="font-bold text-[13px] text-slate-800"><i className="fa-solid fa-door-open text-slate-400 mr-1.5"></i> {room?.name || 'Phòng không rõ'}</span>
-                        <span className="text-slate-500 text-[11px] font-medium tracking-wide"><i className="fa-regular fa-calendar mr-1.5"></i> {new Date(c.move_in_date).toLocaleDateString('vi-VN')} {c.expiration_date ? ` - ${new Date(c.expiration_date).toLocaleDateString('vi-VN')}` : ' - Không thời hạn'}</span>
+                        <span className="font-bold text-[15px] text-slate-800"><i className="fa-solid fa-door-open text-slate-400 mr-1.5"></i> {room?.name || 'Phòng không rõ'}</span>
+                        <span className="text-slate-500 text-[13px] font-medium tracking-wide"><i className="fa-regular fa-calendar mr-1.5"></i> {new Date(c.move_in_date).toLocaleDateString('vi-VN')} {c.expiration_date ? ` - ${new Date(c.expiration_date).toLocaleDateString('vi-VN')}` : ' - Không thời hạn'}</span>
                       </div>
                       <div>
                         {c.status === 'active' ? (
@@ -1044,19 +1044,19 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-slate-400 shadow-sm flex flex-col items-center">
                 <i className="fa-solid fa-folder-open text-3xl mb-2 opacity-30"></i>
-                <p className="text-[12.5px] font-medium leading-relaxed">Chưa có dữ liệu hợp đồng của khách thuê này.</p>
+                <p className="text-[15px] font-medium leading-relaxed">Chưa có dữ liệu hợp đồng của khách thuê này.</p>
               </div>
             )}
           </div>
         </div>
 
         <div className="px-6 py-4 bg-white border-t border-slate-100 flex justify-between items-center rounded-b-2xl">
-          <div className={`px-4 py-2 rounded-xl text-[12.5px] font-bold border flex items-center gap-2 ${hasActiveContract ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
+          <div className={`px-4 py-2 rounded-xl text-[15px] font-bold border flex items-center gap-2 ${hasActiveContract ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
             <i className={`fa-solid ${hasActiveContract ? 'fa-house-user' : 'fa-user-clock'}`}></i>
             {hasActiveContract ? 'Đang ở theo hợp đồng' : 'Chưa ở'}
           </div>
 
-          <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 rounded-xl text-[13px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all flex items-center gap-2">
+          <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 rounded-xl text-[15px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all flex items-center gap-2">
             <i className="fa-solid fa-pen-to-square"></i> Cập nhật hồ sơ
           </button>
         </div>

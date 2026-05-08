@@ -6,6 +6,7 @@ import vehicleSvgScooter from '../assets/vehicles/scooter.svg';
 import vehicleSvgMoto from '../assets/vehicles/motorcycle.svg';
 import vehicleSvgElectric from '../assets/vehicles/electric.svg';
 import vehicleSvgBicycle from '../assets/vehicles/bicycle.svg';
+import { LogoLoading } from './LogoLoading';
 
 const getVehicleImage = (brand: string): string => {
     const b = brand.toLowerCase();
@@ -53,7 +54,7 @@ export const RoomVehiclePanel: React.FC<{ room: Room }> = ({ room }) => {
     const showNoVehicleWarning = isOccupied && roomVehicleCount === 0;
 
     if (isVehiclesLoading) {
-        return <div className="flex-1 flex justify-center items-center text-slate-500 text-sm">Đang tải dữ liệu...</div>;
+        return <LogoLoading className="flex-1 bg-slate-50" />;
     }
 
     return (

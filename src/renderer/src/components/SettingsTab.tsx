@@ -35,6 +35,7 @@ import {
   type ServiceZone,
   type UserRole
 } from '../lib/db'
+import { LogoLoading } from './LogoLoading'
 
 type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
 
@@ -365,7 +366,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <i className="fa-solid fa-circle-notch fa-spin text-3xl text-gray-300" />
+        <LogoLoading className="h-full" />
       </div>
     )
   }
@@ -1391,7 +1392,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                   {isLoading && (
                     <tr>
                       <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-400">
-                        Đang tải danh sách tài khoản...
+                        <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[45vh]" />
                       </td>
                     </tr>
                   )}
@@ -2168,7 +2169,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                   {loadingHistory ? (
                     <tr>
                       <td colSpan={4} className="py-12 text-center text-slate-300">
-                        <i className="fa-solid fa-spinner animate-spin"></i>
+                        <LogoLoading message="Đang tải lịch sử cập nhật..." size="sm" />
                       </td>
                     </tr>
                   ) : history.length > 0 ? (

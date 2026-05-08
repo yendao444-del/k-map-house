@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getRooms, getInvoices } from '../lib/db'
+import { LogoLoading } from './LogoLoading'
 
 interface ElectricWaterDetailProps {
   roomId: string;
@@ -87,7 +88,7 @@ export const ElectricWaterDetail: React.FC<ElectricWaterDetailProps> = ({ roomId
             {isLoading ? (
               <tr>
                 <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
-                  <i className="fa-solid fa-spinner fa-spin mr-2"></i> Đang tải dữ liệu...
+                  <LogoLoading className="min-h-[45vh]" />
                 </td>
               </tr>
             ) : history.length === 0 ? (

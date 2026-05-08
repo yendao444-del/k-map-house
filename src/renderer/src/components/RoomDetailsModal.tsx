@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Room, ServiceZone, updateRoom, markTenantLeft, getInvoicesByRoom, getContracts, uploadRoomImage, deleteRoomImage, type Contract, type Invoice } from '../lib/db';
+import { Room, ServiceZone, updateRoom, markTenantLeft, getInvoicesByRoom, getContracts, uploadRoomImage, deleteRoomImage, adjustRoomMeterReadings, type AppUser, type Contract, type Invoice } from '../lib/db';
 import { playSuccess } from '../lib/sound';
 import { PaymentModal } from './PaymentModal';
 import { RoomAssetsTab } from './RoomAssetsTab';
 import { RoomVehiclesTab } from './RoomVehiclesTab';
+import { LogoLoading } from './LogoLoading';
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 
@@ -16,9 +17,10 @@ interface RoomDetailsModalProps {
   onOpenInvoice?: (room: Room) => void;
   onOpenFirstInvoice?: (room: Room) => void;
   initialTab?: 'info' | 'assets' | 'vehicles' | 'history';
+  currentUser?: AppUser | null;
 }
 
-export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, zones, onClose, onOpenInvoice, onOpenFirstInvoice, initialTab = 'info' }) => {
+export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, zones, onClose, onOpenInvoice, onOpenFirstInvoice, initialTab = 'info', currentUser }) => {
   const queryClient = useQueryClient();
   const [isEditingTenant, setIsEditingTenant] = useState(false);
   const [isPickingZone, setIsPickingZone] = useState(false);
@@ -83,6 +85,15 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>(room.image_urls || []);
+  const [isAdjustMeterOpen, setIsAdjustMeterOpen] = useState(false);
+  const [meterElectric, setMeterElectric] = useState<number>(room.electric_new ?? room.electric_old ?? 0);
+  const [meterWater, setMeterWater] = useState<number>(room.water_new ?? room.water_old ?? 0);
+  const [meterReason, setMeterReason] = useState('');
+  const [meterError, setMeterError] = useState<string | null>(null);
+  const isAdmin =
+    currentUser?.role === 'admin' ||
+    currentUser?.username?.trim().toLowerCase() === 'admin' ||
+    currentUser?.id === 'legacy-local-admin';
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ['invoices', room.id],
@@ -97,6 +108,30 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   const activeContract = contracts.find(
     (c: Contract) => c.room_id === room.id && c.status === 'active'
   );
+
+  const adjustMeterMutation = useMutation({
+    mutationFn: () => adjustRoomMeterReadings({
+      room_id: room.id,
+      electric_reading: meterElectric,
+      water_reading: meterWater,
+      reason: meterReason,
+      adjusted_by: currentUser?.id,
+      adjusted_by_name: currentUser?.full_name || currentUser?.username,
+    }),
+    onSuccess: () => {
+      playSuccess();
+      setIsAdjustMeterOpen(false);
+      setMeterReason('');
+      setMeterError(null);
+      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['invoices', room.id], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+    },
+    onError: (err: any) => {
+      setMeterError(err?.message || 'Không thể điều chỉnh chỉ số.')
+    }
+  });
 
   const markLeftMut = useMutation({
     mutationFn: (tenantId: string) => markTenantLeft(tenantId),
@@ -128,6 +163,94 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   return (
     <>
       {payInvoice && <PaymentModal invoice={payInvoice} room={room} onClose={() => setPayInvoice(null)} />}
+      {isAdjustMeterOpen && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Điều chỉnh chỉ số</h3>
+                <p className="mt-0.5 text-sm text-gray-500">{room.name} · Chỉ admin được thực hiện</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdjustMeterOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-400 hover:text-gray-700"
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Chỉ được điều chỉnh khi phòng chưa có bất kỳ lịch sử điện/nước nào. Khi đã phát sinh lịch sử, hãy xử lý sai lệch bằng khoản điều chỉnh ở hóa đơn kỳ sau.
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500">Chỉ số điện đúng</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={meterElectric}
+                    onChange={(event) => setMeterElectric(Math.max(0, Number(event.target.value) || 0))}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-base font-bold text-gray-800 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  />
+                  <div className="mt-1 text-xs text-gray-400">Đang lưu: {room.electric_new ?? room.electric_old ?? 0}</div>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500">Chỉ số nước đúng</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={meterWater}
+                    onChange={(event) => setMeterWater(Math.max(0, Number(event.target.value) || 0))}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-base font-bold text-gray-800 outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                  />
+                  <div className="mt-1 text-xs text-gray-400">Đang lưu: {room.water_new ?? room.water_old ?? 0}</div>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase text-gray-500">Lý do điều chỉnh</label>
+                <textarea
+                  value={meterReason}
+                  onChange={(event) => setMeterReason(event.target.value)}
+                  rows={3}
+                  placeholder="VD: Nhập sai chỉ số điện/nước khi lập hợp đồng"
+                  className="w-full resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+                />
+              </div>
+
+              {meterError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                  {meterError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setIsAdjustMeterOpen(false)}
+                className="rounded-xl border border-gray-200 px-5 py-2.5 text-sm font-bold text-gray-600 hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={adjustMeterMutation.isPending || !meterReason.trim()}
+                onClick={() => {
+                  setMeterError(null);
+                  adjustMeterMutation.mutate();
+                }}
+                className="flex-1 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-dark disabled:opacity-50"
+              >
+                {adjustMeterMutation.isPending ? 'Đang điều chỉnh...' : 'Lưu điều chỉnh'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[70]">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
@@ -566,10 +689,39 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
                   if (a.month !== b.month) return b.month - a.month
                   return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
                 })
+              const canAdjustMeter = isAdmin && utilityInvoices.length === 0
               return (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-sm animate-[fadeIn_0.2s_ease-out] overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+                    <div>
+                      <div className="text-sm font-bold text-gray-800">Lịch sử điện & nước</div>
+                      <div className="text-xs text-gray-400">Điều chỉnh chỉ số chỉ dành cho admin và có lưu vết.</div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!canAdjustMeter}
+                      title={
+                        !isAdmin
+                          ? 'Chỉ admin mới được điều chỉnh chỉ số'
+                          : utilityInvoices.length > 0
+                            ? 'Phòng đã có lịch sử điện/nước, không thể sửa mốc đầu kỳ'
+                            : 'Điều chỉnh chỉ số điện nước'
+                      }
+                      onClick={() => {
+                        setMeterElectric(room.electric_new ?? room.electric_old ?? 0);
+                        setMeterWater(room.water_new ?? room.water_old ?? 0);
+                        setMeterReason('');
+                        setMeterError(null);
+                        setIsAdjustMeterOpen(true);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <i className="fa-solid fa-gauge-high"></i>
+                      Điều chỉnh chỉ số
+                    </button>
+                  </div>
                   {invoicesLoading ? (
-                    <div className="p-8 text-center text-gray-400">Đang tải lịch sử...</div>
+                    <LogoLoading message="Đang tải lịch sử..." className="p-8" size="sm" />
                   ) : utilityInvoices.length === 0 ? (
                     <div className="p-10 text-center">
                       <div className="text-gray-300 text-4xl mb-3"><i className="fa-solid fa-folder-open"></i></div>

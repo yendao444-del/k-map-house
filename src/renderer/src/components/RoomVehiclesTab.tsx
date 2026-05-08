@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Room, getRoomVehicles, addRoomVehicle, deleteRoomVehicle } from '../lib/db';
+import { LogoLoading } from './LogoLoading';
 
 export const RoomVehiclesTab: React.FC<{ room: Room }> = ({ room }) => {
   const queryClient = useQueryClient();
@@ -52,7 +53,7 @@ export const RoomVehiclesTab: React.FC<{ room: Room }> = ({ room }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         {isLoading ? (
-          <div className="col-span-full text-center py-8 text-gray-400">Đang tải danh sách xe...</div>
+          <LogoLoading message="Đang tải danh sách xe..." className="col-span-full py-8" size="sm" />
         ) : vehicles.length === 0 ? (
           <div className="col-span-full text-center py-10 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
             <div className="text-gray-300 text-4xl mb-3"><i className="fa-solid fa-motorcycle"></i></div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Room, getRoomAssets, getAssetSnapshots, addRoomAsset, updateRoomAsset, deleteRoomAsset, type RoomAsset } from '../lib/db';
+import { LogoLoading } from './LogoLoading';
 
 export const RoomAssetsTab: React.FC<{ room: Room }> = ({ room }) => {
   const queryClient = useQueryClient();
@@ -128,7 +129,7 @@ export const RoomAssetsTab: React.FC<{ room: Room }> = ({ room }) => {
           Danh Sách Tài Sản ({assets.length})
         </h4>
         {isLoading ? (
-          <div className="text-center py-4 text-gray-500 text-sm">Đang tải...</div>
+          <LogoLoading message="Đang tải tài sản..." className="py-4" size="sm" />
         ) : assets.length === 0 ? (
           <div className="text-center py-4 text-gray-500 text-sm">Chưa có tài sản nào</div>
         ) : (
