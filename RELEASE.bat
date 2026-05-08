@@ -111,7 +111,15 @@ if "!ENABLE_GITHUB!"=="1" (
     echo [5/6] Git commit + push...
     git add -A
     git commit -m "v!NEW_VERSION! - !NOTES!"
-    git push
+
+    for /f %%b in ('git rev-parse --abbrev-ref HEAD') do set CURRENT_BRANCH=%%b
+    git rev-parse --abbrev-ref --symbolic-full-name @{u} >nul 2>&1
+    if errorlevel 1 (
+        echo     Branch !CURRENT_BRANCH! chua co upstream, dang set upstream origin/!CURRENT_BRANCH!...
+        git push --set-upstream origin !CURRENT_BRANCH!
+    ) else (
+        git push
+    )
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & pause & exit /b 1 )
 
     echo [6/6] Tao GitHub Release...
