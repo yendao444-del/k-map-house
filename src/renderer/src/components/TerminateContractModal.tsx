@@ -49,6 +49,12 @@ const getBillingDayCount = (startValue: string, endValue: string): number => {
 }
 
 type FinalPeriodChargeMode = 'prorated' | 'full_month' | 'none'
+type SettlementSummary = {
+  totalCharges: number
+  depositHeld: number
+  netDue: number
+  refundAmount: number
+}
 
 
 const BILLING_REASON_LABEL: Record<string, string> = {
@@ -77,6 +83,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   const [finalPeriodChargeMode, setFinalPeriodChargeMode] = useState<FinalPeriodChargeMode>('prorated')
   const [confirmed, setConfirmed] = useState(false)
   const [done, setDone] = useState(false)
+  const [settlementSummary, setSettlementSummary] = useState<SettlementSummary | null>(null)
 
   // Kiểm tra tài sản khi trả phòng — ĐÃ XÓA: dùng kết quả từ tab Tài sản thay thế
 
@@ -252,6 +259,8 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
 
   const mutation = useMutation({
     mutationFn: async () => {
+      const summary = { totalCharges, depositHeld, netDue, refundAmount }
+      setSettlementSummary(summary)
       await terminateContract({
         room_id: room.id,
         contract_id: activeContract?.id || '',
@@ -285,6 +294,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
 
   // --- MÀN HÌNH THÀNH CÔNG ---
   if (done) {
+    const summary = settlementSummary || { totalCharges, depositHeld, netDue, refundAmount }
     return (
       <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.2s_ease-out]">
@@ -299,16 +309,16 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
             <div className="bg-gray-50 rounded-xl p-4 text-left text-sm space-y-2 mb-6 border border-gray-100">
               <div className="flex justify-between">
                 <span className="text-gray-500">Tổng phát sinh</span>
-                <span className="font-semibold">{formatVND(totalCharges)} đ</span>
+                <span className="font-semibold">{formatVND(summary.totalCharges)} đ</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Tiền cọc đã trừ</span>
-                <span className="font-semibold text-emerald-600">− {formatVND(depositHeld)} đ</span>
+                <span className="font-semibold text-emerald-600">− {formatVND(summary.depositHeld)} đ</span>
               </div>
               <div className="border-t border-gray-200 pt-2 flex justify-between">
-                <span className="font-bold text-gray-700">{netDue > 0 ? 'Khách còn thiếu' : 'Hoàn lại khách'}</span>
-                <span className={`font-black text-lg ${netDue > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                  {netDue > 0 ? formatVND(netDue) : formatVND(refundAmount)} đ
+                <span className="font-bold text-gray-700">{summary.netDue > 0 ? 'Khách còn thiếu' : 'Hoàn lại khách'}</span>
+                <span className={`font-black text-lg ${summary.netDue > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {summary.netDue > 0 ? formatVND(summary.netDue) : formatVND(summary.refundAmount)} đ
                 </span>
               </div>
             </div>
