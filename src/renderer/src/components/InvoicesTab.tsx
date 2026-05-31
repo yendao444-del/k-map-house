@@ -1180,6 +1180,7 @@ export const InvoicesTab: React.FC<{
         const invoice = filteredInvoices.find(i => i.id === openMenuId);
         if (!invoice) return null;
         const isPaidMenu = invoice.payment_status === 'paid';
+        const isRefundMenu = Number(invoice.total_amount || 0) < 0 || Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0) < 0;
         const canEditInvoice = (invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0) || (isPaidMenu && isAdmin);
         const canDeleteInvoice = !isPaidMenu || isAdmin;
         return (
@@ -1199,7 +1200,7 @@ export const InvoicesTab: React.FC<{
                 onClick={() => { setPayingInvoice(invoice); setOpenMenuId(null); }}
                 className="flex w-full items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 font-semibold"
               >
-                <i className="fa-solid fa-money-bill-wave w-4"></i>Thu tiền
+                <i className="fa-solid fa-money-bill-wave w-4"></i>{isRefundMenu ? 'Hoàn tiền' : 'Thu tiền'}
               </button>
             )}
             <button

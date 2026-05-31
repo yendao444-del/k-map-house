@@ -655,7 +655,7 @@ export const terminateContract = async (data: {
   const netDue = totalCharges - depositHeld
 
   let paymentStatus: PaymentStatus
-  if (netDue <= 0) {
+  if (netDue === 0) {
     paymentStatus = 'paid'
   } else {
     paymentStatus = 'unpaid'
