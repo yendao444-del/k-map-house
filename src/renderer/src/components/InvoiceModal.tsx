@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createInvoice, getInvoicesByRoom, getServiceZones, getContracts, type Invoice, type Room, type Tenant } from '../lib/db';
+import { createInvoice, getInvoicesByRoom, getRoom, getServiceZones, getContracts, type Invoice, type Room, type Tenant } from '../lib/db';
 import { playCreate } from '../lib/sound';
 import { PaymentModal } from './PaymentModal';
 
@@ -35,6 +35,13 @@ type BillingReason = (typeof reasonOptions)[number]['value'];
 export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const queryClient = useQueryClient();
   const today = useMemo(() => toDateInput(new Date()), []);
+
+  const { data: latestRoom } = useQuery({
+    queryKey: ['room', room.id],
+    queryFn: () => getRoom(room.id),
+    staleTime: 0,
+  });
+  const billingRoom = latestRoom || room;
 
   const { data: serviceZones = [] } = useQuery({
     queryKey: ['serviceZones'],
@@ -103,8 +110,8 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   );
 
   const zone = useMemo(
-    () => serviceZones.find((item) => item.id === room.service_zone_id) || null,
-    [serviceZones, room.service_zone_id]
+    () => serviceZones.find((item) => item.id === billingRoom.service_zone_id) || null,
+    [billingRoom.service_zone_id, serviceZones]
   );
 
   const [billingReason, setBillingReason] = useState<BillingReason>('first_month');
@@ -134,7 +141,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     }
   }, [hasPaidFirstMonthInvoice, existingInvoices.length, hasTransfer, isMigratedContract, unpaidFirstMonthInvoice]);
   const [invoiceDate, setInvoiceDate] = useState(today);
-  const [depositAmount, setDepositAmount] = useState<number>(room.default_deposit || 0);
+  const [depositAmount, setDepositAmount] = useState<number>(billingRoom.default_deposit || 0);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -142,12 +149,18 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const waterInputRef = useRef<HTMLInputElement>(null);
 
   // Monthly billing - meter readings
-  const electricOld = room.electric_new || 0;
-  const waterOld = room.water_new || 0;
-  const [electricNew, setElectricNew] = useState<number>(room.electric_new || 0);
-  const [waterNew, setWaterNew] = useState<number>(room.water_new || 0);
+  const electricOld = billingRoom.electric_new || 0;
+  const waterOld = billingRoom.water_new || 0;
+  const [electricNew, setElectricNew] = useState<number>(billingRoom.electric_new || 0);
+  const [waterNew, setWaterNew] = useState<number>(billingRoom.water_new || 0);
   const [electricTouched, setElectricTouched] = useState(false);
   const [waterTouched, setWaterTouched] = useState(false);
+
+  useEffect(() => {
+    if (!latestRoom) return;
+    if (!electricTouched) setElectricNew(latestRoom.electric_new || 0);
+    if (!waterTouched) setWaterNew(latestRoom.water_new || 0);
+  }, [electricTouched, latestRoom, waterTouched]);
 
   // Monthly billing - period
   const defaultPeriodStart = useMemo(() => {
@@ -172,8 +185,8 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const remainingDays = daysInMonth - currentDay + 1;
   const prorataRatio = remainingDays / daysInMonth;
 
-  const internetMonthly = zone?.internet_price || room.wifi_price || 0;
-  const cleaningMonthly = zone?.cleaning_price || room.garbage_price || 0;
+  const internetMonthly = zone?.internet_price || billingRoom.wifi_price || 0;
+  const cleaningMonthly = zone?.cleaning_price || billingRoom.garbage_price || 0;
 
   const isProratedReason = billingReason === 'first_month' || billingReason === 'contract_end';
   const includesRoomCharge = ['first_month', 'monthly', 'contract_end', 'room_cycle'].includes(billingReason);
@@ -205,11 +218,11 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
   const roomCost = useMemo(() => {
     if (!includesRoomCharge) return 0;
-    const rent = activeContract?.base_rent ?? room.base_rent;
+    const rent = activeContract?.base_rent ?? billingRoom.base_rent;
     if (hasTransfer) return Math.round(rent * (newRoomDays / daysInMonth));
     if (isProratedReason) return Math.round(rent * prorataRatio);
     return rent;
-  }, [includesRoomCharge, isProratedReason, activeContract, room.base_rent, prorataRatio, hasTransfer, newRoomDays, daysInMonth]);
+  }, [includesRoomCharge, isProratedReason, activeContract, billingRoom.base_rent, prorataRatio, hasTransfer, newRoomDays, daysInMonth]);
 
   const transferServiceCost = transferHistory && includesFixedServices ? Math.round(((transferHistory.old_wifi_price + transferHistory.old_garbage_price) / daysInMonth) * tDays) : 0;
 
@@ -239,8 +252,8 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const transferWaterUsage = transferHistory ? Math.max(0, transferHistory.old_water_new - transferHistory.old_water_old) : 0;
   const transferWaterCost = transferHistory ? transferWaterUsage * transferHistory.old_water_price : 0;
 
-  const electricPrice = room.electric_price || zone?.electric_price || 0;
-  const waterPrice = room.water_price || zone?.water_price || 0;
+  const electricPrice = billingRoom.electric_price || zone?.electric_price || 0;
+  const waterPrice = billingRoom.water_price || zone?.water_price || 0;
 
   const shouldBillUtilities = billingReason === 'monthly' || hasTransfer;
   const electricUsage = shouldBillUtilities ? Math.max(0, electricNew - electricOld) : 0;
@@ -298,12 +311,12 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
         invoice_date: invoiceDate,
         billing_period_start: billingReason === 'monthly' ? periodStart : invoiceDate,
         billing_period_end: billingReason === 'monthly' ? periodEnd : new Date(billingYear, billingMonth - 1, daysInMonth).toISOString().split('T')[0],
-        electric_old: billingReason === 'monthly' ? electricOld : (room.electric_new || 0),
-        electric_new: billingReason === 'monthly' ? electricNew : (room.electric_new || 0),
+        electric_old: billingReason === 'monthly' ? electricOld : (billingRoom.electric_new || 0),
+        electric_new: billingReason === 'monthly' ? electricNew : (billingRoom.electric_new || 0),
         electric_usage: electricUsage,
         electric_cost: electricCost,
-        water_old: billingReason === 'monthly' ? waterOld : (room.water_new || 0),
-        water_new: billingReason === 'monthly' ? waterNew : (room.water_new || 0),
+        water_old: billingReason === 'monthly' ? waterOld : (billingRoom.water_new || 0),
+        water_new: billingReason === 'monthly' ? waterNew : (billingRoom.water_new || 0),
         water_usage: waterUsage,
         water_cost: waterCost,
         room_cost: roomCost,
@@ -569,8 +582,8 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
               <div className="mb-1 text-sm font-bold text-gray-800">Tiền phòng</div>
               <div className="text-xs text-gray-500">
                 {isProratedReason
-                  ? `${remainingDays}/${daysInMonth} ngày x ${formatVND(room.base_rent)} đ`
-                  : `Trọn tháng x ${formatVND(room.base_rent)} đ`}
+                  ? `${remainingDays}/${daysInMonth} ngày x ${formatVND(billingRoom.base_rent)} đ`
+                  : `Trọn tháng x ${formatVND(billingRoom.base_rent)} đ`}
               </div>
               <div className="mt-2 text-right text-2xl font-black text-gray-800">{formatVND(roomCost)} đ</div>
             </div>

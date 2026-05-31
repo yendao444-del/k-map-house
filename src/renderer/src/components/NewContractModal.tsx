@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createContract,
@@ -83,6 +83,30 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     () => tenants.filter(tenant => !activeTenantIds.has(tenant.id)),
     [activeTenantIds, tenants]
   )
+
+  // IDs của khách từng có hợp đồng nhưng đã kết thúc/huỷ
+  const formerTenantIds = useMemo(
+    () => new Set(
+      contracts
+        .filter(c => c.status !== 'active')
+        .map(c => c.tenant_id)
+        .filter(Boolean)
+    ),
+    [contracts]
+  )
+
+  // Khách hoàn toàn mới (chưa từng có hợp đồng nào)
+  const newTenants = useMemo(
+    () => availableTenants.filter(t => !formerTenantIds.has(t.id)),
+    [availableTenants, formerTenantIds]
+  )
+
+  // Khách cũ đã rời (đã có hợp đồng kết thúc)
+  const formerTenants = useMemo(
+    () => availableTenants.filter(t => formerTenantIds.has(t.id)),
+    [availableTenants, formerTenantIds]
+  )
+
   const hasPreviousRoomHistory = useMemo(
     () => !!lastInvoice || contracts.some(contract => contract.room_id === room.id),
     [contracts, lastInvoice, room.id]
@@ -95,6 +119,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
   const [selectedTenantId, setSelectedTenantId] = useState(initialTenantId || '')
   const [tenantQuery, setTenantQuery] = useState('')
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false)
+  const [showFormerTenants, setShowFormerTenants] = useState(false)
 
   const selectedTenant = useMemo(
     () => availableTenants.find(tenant => tenant.id === selectedTenantId) || null,
@@ -103,14 +128,15 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
 
   const tenantSuggestions = useMemo(() => {
     const q = tenantQuery.trim().toLowerCase()
-    return availableTenants
+    const pool = showFormerTenants ? availableTenants : newTenants
+    return pool
       .filter(tenant =>
         tenant.full_name.toLowerCase().includes(q) ||
         (tenant.phone || '').toLowerCase().includes(q) ||
         (tenant.identity_card || '').toLowerCase().includes(q)
       )
       .slice(0, 10)
-  }, [availableTenants, tenantQuery])
+  }, [availableTenants, newTenants, tenantQuery, showFormerTenants])
 
   const [isMigration, setIsMigration] = useState(initialIsMigration ?? false)
   const [depositPreCollected, setDepositPreCollected] = useState(true)
@@ -352,12 +378,38 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
                   <i className="fa-solid fa-magnifying-glass absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs text-gray-300"></i>
                   {tenantMenuOpen && (
                     <div className="absolute left-0 right-0 top-full mt-1 z-50 max-h-[min(45vh,22rem)] overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl shadow-gray-200/50 py-1">
+                      {tenantSuggestions.length === 0 && (
+                        <div className="px-3 py-3 text-center text-[11px] text-gray-400">
+                          {showFormerTenants ? 'Không tìm thấy khách nào.' : 'Không có khách mới. Thử xem khách cũ bên dưới.'}
+                        </div>
+                      )}
                       {tenantSuggestions.map(t => (
-                        <button key={t.id} type="button" onClick={() => selectTenant(t)} className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex flex-col items-start gap-0.5">
-                          <span className="font-bold text-gray-700 text-sm">{t.full_name}</span>
-                          <span className="text-[11px] text-gray-400">{t.phone || 'Không có SĐT'}</span>
+                        <button key={t.id} type="button" onClick={() => selectTenant(t)} className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-gray-700 text-sm">{t.full_name}</span>
+                              {formerTenantIds.has(t.id) && (
+                                <span className="text-[9px] font-black text-orange-500 bg-orange-50 border border-orange-200 rounded px-1 py-0.5 shrink-0">CŨ</span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-gray-400">{t.phone || 'Không có SĐT'}</span>
+                          </div>
                         </button>
                       ))}
+                      {formerTenants.length > 0 && (
+                        <div className="border-t border-gray-100 px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowFormerTenants(prev => !prev)}
+                            className="w-full text-left text-[11px] font-semibold text-blue-500 hover:text-blue-700 flex items-center gap-1.5 transition-colors"
+                          >
+                            <i className={`fa-solid ${showFormerTenants ? 'fa-eye-slash' : 'fa-clock-rotate-left'}`} />
+                            {showFormerTenants
+                              ? `Ẩn khách cũ đã rời (${formerTenants.length} người)`
+                              : `Hiện khách cũ đã rời (${formerTenants.length} người)`}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

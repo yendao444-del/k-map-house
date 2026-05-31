@@ -102,6 +102,14 @@ type SepayBackgroundMatch = {
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
 
+const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), ms)
+    })
+  ])
+
 export const formatRoomName = (raw: string) => {
   const trimmed = raw.trim()
   // Strip mọi prefix "phong/phòng" dư thừa (kể cả thiếu dấu)
@@ -1397,7 +1405,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
-    getCurrentSessionUser()
+    withTimeout(getCurrentSessionUser(), 6000, 'Không thể kết nối Supabase để kiểm tra đăng nhập.')
       .then((sessionUser) => {
         if (!mounted) return
         if (sessionUser) {
@@ -1508,29 +1516,6 @@ const App: React.FC = () => {
     setIsAccountMenuOpen(false)
     setActiveTab('rooms')
   }
-
-  // Auto-expire: phòng "ending" đã qua ngày dự kiến → tự chuyển về vacant
-  useEffect(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const expired = rooms.filter((r) => {
-      if (r.status !== 'ending' || !r.expected_end_date) return false
-      const end = new Date(r.expected_end_date)
-      end.setHours(0, 0, 0, 0)
-      return end < today
-    })
-    if (expired.length === 0) return
-    Promise.all(
-      expired.map((r) =>
-        updateRoom(r.id, {
-          status: 'vacant',
-          expected_end_date: undefined,
-          tenant_name: undefined,
-          move_in_date: undefined
-        } as any)
-      )
-    ).then(() => queryClient.invalidateQueries({ queryKey: ['rooms'] }))
-  }, [rooms])
 
   const handleQueueChange = (id: string, updates: Partial<Room>) => {
     setSaveError('')
@@ -1700,10 +1685,10 @@ const App: React.FC = () => {
     () =>
       invoices.filter(
         (invoice) =>
-          !invoice.is_settlement &&
           invoice.payment_status !== 'cancelled' &&
           invoice.payment_status !== 'merged' &&
-          (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial')
+          (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial') &&
+          Number(invoice.total_amount || 0) > Number(invoice.paid_amount || 0)
       ),
     [invoices]
   )
@@ -1716,16 +1701,16 @@ const App: React.FC = () => {
         .join('|'),
     [sepayPendingInvoices]
   )
+  const sepayApiToken = (appSettings.sepay_api_token || '').trim()
 
   const { data: sepayBackgroundMatches = [] } = useQuery<SepayBackgroundMatch[]>({
-    queryKey: ['sepayBackgroundMatches', appSettings.sepay_api_token || '', sepayPendingInvoicesKey],
-    enabled: Boolean(currentUser && appSettings.sepay_api_token && sepayPendingInvoices.length > 0),
+    queryKey: ['sepayBackgroundMatches', sepayApiToken, sepayPendingInvoicesKey],
+    enabled: Boolean(currentUser && sepayApiToken && sepayPendingInvoices.length > 0),
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
     queryFn: async () => {
-      const token = appSettings.sepay_api_token || ''
-      const res = (await window.api.sepay.fetchTransactions(token)) as SepayBackgroundFetchResult
+      const res = (await window.api.sepay.fetchTransactions(sepayApiToken)) as SepayBackgroundFetchResult
       if (!res.ok || res.data?.status !== 200) return []
 
       const txs = res.data.transactions || []
@@ -1992,7 +1977,7 @@ const App: React.FC = () => {
     notificationCountRef.current = notificationItems.length
   }, [notificationItems.length])
 
-  if (!authReady) return null
+  if (!authReady) return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
 
   if (!currentUser) {
     return <LoginScreen onLogin={setCurrentUser} />
@@ -2669,7 +2654,7 @@ const App: React.FC = () => {
                         </td>
                       </tr>
                     ) : (
-                      filteredRooms.map((origRoom) => {
+                      filteredRooms.map((origRoom, roomIndex) => {
                         const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
                         const zone = serviceZoneById.get(room.service_zone_id || '') || {
                           name: 'Chưa có',
@@ -2992,6 +2977,9 @@ const App: React.FC = () => {
                             </div>
                           </div>
                         )
+                        const tenantTooltipName = activeContract?.tenant_name || room.tenant_name || 'Chưa có khách thuê'
+                        const tenantTooltipPhone = activeContract?.tenant_phone || room.tenant_phone || '—'
+                        const showRoomTooltipAbove = roomIndex >= filteredRooms.length - 3
 
                         return (
                           <tr
@@ -3007,7 +2995,45 @@ const App: React.FC = () => {
                               >
                                 <i className="fa-solid fa-door-open"></i>
                               </div>
-                              <span className="block truncate py-1">{room.name}</span>
+                              <div className="relative group/room-tooltip min-w-0 cursor-help">
+                                <span className="block truncate py-1">{room.name}</span>
+                                <div
+                                  className={`absolute left-0 w-56 rounded-lg bg-emerald-800 p-3 text-xs text-white shadow-xl opacity-0 invisible group-hover/room-tooltip:opacity-100 group-hover/room-tooltip:visible transition-all z-50 ${
+                                    showRoomTooltipAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                                  }`}
+                                >
+                                  <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
+                                    {room.name}
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <span className="shrink-0">
+                                        <i className="fa-solid fa-user text-green-300 w-4"></i>{' '}
+                                        Người thuê:
+                                      </span>
+                                      <span className="font-semibold text-right whitespace-normal">
+                                        {tenantTooltipName}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                      <span className="shrink-0">
+                                        <i className="fa-solid fa-phone text-blue-300 w-4"></i>{' '}
+                                        SĐT:
+                                      </span>
+                                      <span className="font-semibold tabular-nums">
+                                        {tenantTooltipPhone}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className={`absolute left-6 border-4 border-transparent ${
+                                      showRoomTooltipAbove
+                                        ? 'top-full border-t-emerald-800'
+                                        : 'bottom-full border-b-emerald-800'
+                                    }`}
+                                  ></div>
+                                </div>
+                              </div>
                             </td>
                             <td className="px-3 py-2">
                               <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">

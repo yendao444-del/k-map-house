@@ -70,6 +70,13 @@ const formatRoomName = (name: string) => {
 const createEntityId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
+const normalizeRemoteErrorMessage = (message: string): string => {
+  if (/failed to fetch|fetch failed|enotfound|networkerror/i.test(message)) {
+    return 'Không kết nối được máy chủ dữ liệu. Vui lòng kiểm tra Internet/DNS rồi thử lại.'
+  }
+  return message
+}
+
 export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
   { id: 'default-electric', value: 'electric', name: 'Hóa đơn điện tổng', type: 'expense', icon: 'fa-bolt', color: 'yellow', is_default: true, sort_order: 10, created_at: '' },
   { id: 'default-water', value: 'water', name: 'Hóa đơn nước tổng', type: 'expense', icon: 'fa-droplet', color: 'sky', is_default: true, sort_order: 20, created_at: '' },
@@ -185,7 +192,21 @@ const getTenantById = async (
 // =========================================================
 export const getRooms = async (): Promise<Room[]> => {
   const data = await safeQuery(() => supabase.from('rooms').select('*').order('name', { ascending: true }))
-  return data || []
+  return ((data || []) as Room[]).map((room) => {
+    if (room.status === 'vacant' && room.expected_end_date && room.tenant_name) {
+      return { ...room, status: 'ending' }
+    }
+    return room
+  })
+}
+
+export const getRoom = async (id: string): Promise<Room> => {
+  const data = await safeQuery(() => supabase.from('rooms').select('*').eq('id', id).single())
+  const room = data as any as Room
+  if (room.status === 'vacant' && room.expected_end_date && room.tenant_name) {
+    return { ...room, status: 'ending' }
+  }
+  return room
 }
 
 export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
@@ -572,7 +593,23 @@ export const cancelContract = async (id: string, notes?: string): Promise<void> 
   await safeQuery(() => supabase.from('contracts').update({ status: 'cancelled', notes: notes || '[Hủy hợp đồng]' }).eq('id', contract.id))
 }
 
-export const terminateContract = async (data: { room_id: string; contract_id: string; end_date: string; final_electric: number; final_water: number; merge_invoice_ids: string[]; damage_amount: number; damage_note: string; payment_method: PaymentMethod; }): Promise<void> => {
+export const terminateContract = async (data: {
+  room_id: string
+  contract_id: string
+  end_date: string
+  final_electric: number
+  final_water: number
+  merge_invoice_ids: string[]
+  damage_amount: number
+  damage_note: string
+  payment_method: PaymentMethod
+  final_room_cost?: number
+  final_wifi_cost?: number
+  final_garbage_cost?: number
+  final_period_start?: string
+  final_period_end?: string
+  final_prorata_days?: number
+}): Promise<void> => {
   if (!data.contract_id) throw new Error('Không tìm thấy hợp đồng đang hiệu lực để tất toán.')
 
   // Fetch song song room + contract để tính toán tất toán
@@ -601,6 +638,9 @@ export const terminateContract = async (data: { room_id: string; contract_id: st
   const waterOld = (room as Room).water_new || 0
   const waterUsage = Math.max(0, data.final_water - waterOld)
   const waterCost = waterUsage * waterPrice
+  const finalRoomCost = Math.max(0, Number(data.final_room_cost || 0))
+  const finalWifiCost = Math.max(0, Number(data.final_wifi_cost || 0))
+  const finalGarbageCost = Math.max(0, Number(data.final_garbage_cost || 0))
 
   // Tổng nợ gộp
   let mergedDebtTotal = 0
@@ -610,22 +650,27 @@ export const terminateContract = async (data: { room_id: string; contract_id: st
   }
 
   // netDue < 0 → chủ nhà hoàn tiền; > 0 → khách còn thiếu; = 0 → hòa
-  const totalCharges = electricCost + waterCost + mergedDebtTotal + (data.damage_amount || 0)
+  const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebtTotal + (data.damage_amount || 0)
   const depositApplied = Math.min(depositHeld, totalCharges)
   const netDue = totalCharges - depositHeld
 
   let paymentStatus: PaymentStatus
-  if (netDue === 0) {
+  if (netDue <= 0) {
     paymentStatus = 'paid'
-  } else if (netDue < 0) {
-    paymentStatus = 'unpaid' // chủ nhà cần hoàn tiền
   } else {
-    paymentStatus = depositApplied > 0 ? 'partial' : 'unpaid'
+    paymentStatus = 'unpaid'
   }
 
-  // Cập nhật phòng và hợp đồng
-  await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
-  await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
+  // Nếu còn khoản phải thu thì giữ phòng ở trạng thái sắp trả để hóa đơn tất toán đi qua luồng thanh toán/SePay.
+  if (netDue > 0) {
+    await supabase
+      .from('rooms')
+      .update({ status: 'ending', expected_end_date: data.end_date } as any)
+      .eq('id', data.room_id)
+  } else {
+    await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, expected_end_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
+    await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
+  }
   if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
 
   // Tạo hóa đơn tất toán
@@ -638,8 +683,8 @@ export const terminateContract = async (data: { room_id: string; contract_id: st
     month: endDateObj.getMonth() + 1,
     year: endDateObj.getFullYear(),
     invoice_date: data.end_date,
-    billing_period_start: data.end_date,
-    billing_period_end: data.end_date,
+    billing_period_start: data.final_period_start || data.end_date,
+    billing_period_end: data.final_period_end || data.end_date,
     electric_old: electricOld,
     electric_new: data.final_electric,
     electric_usage: electricUsage,
@@ -650,17 +695,18 @@ export const terminateContract = async (data: { room_id: string; contract_id: st
     water_usage: waterUsage,
     water_cost: waterCost,
     water_price_snapshot: waterPrice,
-    room_cost: 0,
-    wifi_cost: 0,
-    garbage_cost: 0,
+    room_cost: finalRoomCost,
+    wifi_cost: finalWifiCost,
+    garbage_cost: finalGarbageCost,
     old_debt: 0,
     total_amount: netDue,
-    paid_amount: netDue <= 0 ? 0 : depositApplied,
+    paid_amount: 0,
     payment_status: paymentStatus,
     payment_method: data.payment_method,
     is_settlement: true,
     deposit_applied: depositApplied,
     deposit_amount: depositHeld > 0 ? -depositHeld : 0,
+    prorata_days: data.final_prorata_days,
     adjustment_amount: (data.damage_amount || 0) > 0 ? (data.damage_amount || 0) : undefined,
     adjustment_note: (data.damage_amount || 0) > 0 ? (data.damage_note || 'Đền bù thiệt hại tài sản') : undefined,
     damage_amount: data.damage_amount || 0,
@@ -835,11 +881,19 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
   const cancelled = result as any as Invoice
 
   if (
-    Number(current.paid_amount || 0) <= 0 &&
-    current.payment_status === 'unpaid' &&
     current.room_id &&
     !current.is_settlement
   ) {
+    const { data: laterInvoices } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('room_id', current.room_id)
+      .neq('id', current.id)
+      .neq('payment_status', 'cancelled')
+      .neq('payment_status', 'merged')
+      .gt('created_at', current.created_at)
+      .limit(1)
+
     const { data: room } = await supabase
       .from('rooms')
       .select('electric_new,water_new')
@@ -847,6 +901,7 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
       .maybeSingle()
 
     if (
+      (!laterInvoices || laterInvoices.length === 0) &&
       room &&
       Number(room.electric_new || 0) === Number(current.electric_new || 0) &&
       Number(room.water_new || 0) === Number(current.water_new || 0)
@@ -872,7 +927,14 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
   if (!inv) throw new Error('Không tìm thấy hóa đơn.')
   const newPaidAmount = (inv.paid_amount || 0) + data.amount
   const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }
-  const nextStatus: PaymentStatus = newPaidAmount >= inv.total_amount ? 'paid' : 'partial'
+  const nextStatus: PaymentStatus =
+    Number(inv.total_amount || 0) < 0
+      ? newPaidAmount <= inv.total_amount
+        ? 'paid'
+        : 'partial'
+      : newPaidAmount >= inv.total_amount
+        ? 'paid'
+        : 'partial'
   const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: nextStatus, payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
   const updated = result as any as Invoice
 
@@ -886,6 +948,46 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
         water_new: updated.water_new,
       } as any)
       .eq('id', updated.room_id)
+  }
+
+  if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && updated.is_settlement) {
+    await supabase
+      .from('rooms')
+      .update({
+        status: 'vacant',
+        tenant_name: null,
+        tenant_phone: null,
+        move_in_date: null,
+        expected_end_date: null,
+        electric_old: updated.electric_new,
+        electric_new: updated.electric_new,
+        water_old: updated.water_new,
+        water_new: updated.water_new,
+        has_move_in_receipt: false,
+      } as any)
+      .eq('id', updated.room_id)
+
+    const { data: activeContract } = await supabase
+      .from('contracts')
+      .select('id')
+      .eq('room_id', updated.room_id)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (activeContract?.id) {
+      await supabase
+        .from('contracts')
+        .update({
+          status: 'terminated',
+          end_date: updated.invoice_date || data.payment_date,
+          end_note: updated.damage_note || updated.adjustment_note || undefined,
+          final_electric: updated.electric_new,
+          final_water: updated.water_new,
+        } as any)
+        .eq('id', activeContract.id)
+    }
   }
 
   // Khi thu tiền cọc bổ sung → cộng vào tổng cọc đang giữ của hợp đồng
@@ -1211,7 +1313,7 @@ export const deleteUser = async (id: string): Promise<void> => {
 export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   console.log('[Auth] getSession:', session ? `HAS SESSION (user: ${session.user?.email})` : 'NO SESSION', sessionError || '')
-  if (sessionError) throw new Error(sessionError.message)
+  if (sessionError) throw new Error(normalizeRemoteErrorMessage(sessionError.message))
   if (!session?.user) return null
   const user = session.user
 
@@ -1221,7 +1323,7 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profileError) throw new Error(profileError.message)
+  if (profileError) throw new Error(normalizeRemoteErrorMessage(profileError.message))
 
   const appUser = buildAppUser((profile || { id: user.id }) as Record<string, unknown>, user)
   if (appUser.status !== 'active') {
@@ -1239,7 +1341,7 @@ const resolveLoginEmail = async (login: string): Promise<string> => {
   const { data, error } = await supabase.rpc('resolve_login_email', {
     login_name: normalizedLogin.toLowerCase()
   })
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 
   const resolvedEmail = typeof data === 'string' ? data.trim() : ''
   if (!resolvedEmail) {
@@ -1260,7 +1362,7 @@ export const signInUser = async (login: string, password: string): Promise<AppUs
     email: loginEmail,
     password
   })
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 
   const user = await getCurrentSessionUser()
   if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi đăng nhập.')
@@ -1269,7 +1371,7 @@ export const signInUser = async (login: string, password: string): Promise<AppUs
 
 export const signOutUser = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut()
-  if (error) throw new Error(error.message)
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 }
 
 // =========================================================

@@ -1,4 +1,5 @@
 ﻿import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
+import 'dotenv/config'
 import * as https from 'https'
 import { extname, join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'

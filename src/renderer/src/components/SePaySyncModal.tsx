@@ -68,6 +68,7 @@ const getInvoiceTitle = (invoice: Invoice): string => {
 
 export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoices, rooms, onClose }) => {
   const queryClient = useQueryClient()
+  const normalizedApiToken = apiToken.trim()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [matches, setMatches] = useState<MatchResult[]>([])
@@ -87,13 +88,15 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
   }, [rooms])
 
   const pendingInvoices = invoices.filter(
-    (inv) => !inv.is_settlement && ['unpaid', 'partial'].includes(inv.payment_status)
+    (inv) =>
+      ['unpaid', 'partial'].includes(inv.payment_status) &&
+      Number(inv.total_amount || 0) > Number(inv.paid_amount || 0)
   )
 
   const invoiceCodeInfos = useMemo<InvoiceCodeInfo[]>(
     () =>
       invoices
-        .filter((inv) => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged' && !inv.is_settlement)
+        .filter((inv) => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged' && Number(inv.total_amount || 0) > 0)
         .map((invoice) => {
           const roomName = roomNameById.get(invoice.room_id) || ''
           const code = buildInvoiceTransferDescription(invoice, roomName)
@@ -222,7 +225,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
     setError('')
 
     try {
-      const res = (await window.api.sepay.fetchTransactions(apiToken)) as SepayFetchResult
+      const res = (await window.api.sepay.fetchTransactions(normalizedApiToken)) as SepayFetchResult
       if (!res.ok) throw new Error(res.error || 'Lỗi kết nối API SePay')
 
       const data = res.data
@@ -272,13 +275,13 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
   }
 
   useEffect(() => {
-    if (!apiToken) {
+    if (!normalizedApiToken) {
       setError('Vui lòng thiết lập API Token của SePay trong tab Cài đặt trước.')
       setLoading(false)
       return
     }
     fetchTransactions()
-  }, [apiToken, invoices, rooms])
+  }, [normalizedApiToken, invoices, rooms])
 
   const updateMutation = useMutation({
     mutationFn: async ({ match }: { match: MatchResult }) => {

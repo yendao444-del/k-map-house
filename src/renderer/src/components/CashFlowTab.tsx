@@ -644,7 +644,12 @@ export function CashFlowTab({
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-gray-500 max-w-[260px] truncate">{item.note || '—'}</td>
+                  <td
+                    className="min-w-[280px] max-w-[520px] px-4 py-3 align-top leading-5 text-gray-500 whitespace-normal break-words"
+                    title={item.note || undefined}
+                  >
+                    {item.note || '—'}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-center gap-2">
                       {item.source === 'manual' ? (

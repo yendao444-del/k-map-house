@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import logoNavbar from '../assets/an_khang_home_logo.png'
 import { signInUser, type AppUser } from '../lib/db'
 
+const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), ms)
+    })
+  ])
+
 const seasonStyles = `
 @keyframes fall {
   0% { transform: translateY(-10vh) translateX(0) rotate(0deg); opacity: 1; }
@@ -148,7 +156,11 @@ export function LoginScreen({ onLogin }: LoginScreenProps): React.JSX.Element {
     setError('')
 
     try {
-      const user = await signInUser(login, password)
+      const user = await withTimeout(
+        signInUser(login, password),
+        10000,
+        'Không kết nối được máy chủ dữ liệu. Vui lòng kiểm tra Internet/DNS rồi thử lại.'
+      )
 
       onLogin(user as AppUser)
     } catch (error) {

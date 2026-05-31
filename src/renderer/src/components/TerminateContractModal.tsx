@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getInvoicesByRoom,
@@ -22,6 +22,34 @@ const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
   snap.note || snap.room_asset_id
 
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getMonthStart = (dateValue: string): string => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return dateValue
+  return toDateInputValue(new Date(date.getFullYear(), date.getMonth(), 1))
+}
+
+const getDaysInMonth = (dateValue: string): number => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return 30
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+}
+
+const getBillingDayCount = (startValue: string, endValue: string): number => {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1)
+}
+
+type FinalPeriodChargeMode = 'prorated' | 'full_month' | 'none'
+
 
 const BILLING_REASON_LABEL: Record<string, string> = {
   first_month: 'Tháng đầu tiên',
@@ -36,7 +64,7 @@ const BILLING_REASON_LABEL: Record<string, string> = {
 
 export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Props) {
   const queryClient = useQueryClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = toDateInputValue(new Date())
 
   const [endDate, setEndDate] = useState(today)
   const [finalElectric, setFinalElectric] = useState<number>(room.electric_new || 0)
@@ -45,6 +73,8 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   const [damageNote, setDamageNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
   const [selectedMergeIds, setSelectedMergeIds] = useState<Set<string>>(new Set())
+  const [includeFinalPeriodCharge, setIncludeFinalPeriodCharge] = useState(true)
+  const [finalPeriodChargeMode, setFinalPeriodChargeMode] = useState<FinalPeriodChargeMode>('prorated')
   const [confirmed, setConfirmed] = useState(false)
   const [done, setDone] = useState(false)
 
@@ -101,6 +131,41 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
     [activeContract?.tenant_id, invoices]
   )
 
+  const existingSettlementInvoice = useMemo(
+    () =>
+      invoices.find(
+        (i) =>
+          i.is_settlement &&
+          i.payment_status !== 'cancelled' &&
+          i.payment_status !== 'merged' &&
+          (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id)
+      ),
+    [activeContract?.tenant_id, invoices]
+  )
+
+  const finalPeriodStart = useMemo(() => getMonthStart(endDate), [endDate])
+  const finalPeriodEnd = endDate
+  const finalPeriodDays = useMemo(
+    () => getBillingDayCount(finalPeriodStart, finalPeriodEnd),
+    [finalPeriodEnd, finalPeriodStart]
+  )
+  const finalPeriodDaysInMonth = useMemo(() => getDaysInMonth(endDate), [endDate])
+  const endDateObj = useMemo(() => new Date(endDate), [endDate])
+  const finalPeriodInvoice = useMemo(
+    () =>
+      invoices.find((i) => {
+        if (i.payment_status === 'cancelled' || i.payment_status === 'merged' || i.is_settlement) return false
+        if (activeContract?.tenant_id && i.tenant_id !== activeContract.tenant_id) return false
+        if (Number(i.room_cost || 0) <= 0) return false
+        return i.month === endDateObj.getMonth() + 1 && i.year === endDateObj.getFullYear()
+      }),
+    [activeContract?.tenant_id, endDateObj, invoices]
+  )
+
+  useEffect(() => {
+    if (finalPeriodInvoice) setIncludeFinalPeriodCharge(false)
+  }, [finalPeriodInvoice])
+
   const toggleMerge = (id: string) => {
     setSelectedMergeIds(prev => {
       const next = new Set(prev)
@@ -124,6 +189,26 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   const electricCost = electricUsage * electricPrice
   const waterUsage = Math.max(0, finalWater - waterOld)
   const waterCost = waterUsage * waterPrice
+  const shouldChargeFinalPeriod = includeFinalPeriodCharge && !finalPeriodInvoice && finalPeriodChargeMode !== 'none'
+  const finalPeriodRatio = finalPeriodChargeMode === 'full_month'
+    ? 1
+    : finalPeriodDaysInMonth > 0
+      ? finalPeriodDays / finalPeriodDaysInMonth
+      : 0
+  const finalPeriodLabel = finalPeriodChargeMode === 'full_month'
+    ? 'Thu trọn tháng'
+    : finalPeriodChargeMode === 'none'
+      ? 'Không thu kỳ cuối'
+      : 'Tính theo ngày'
+  const finalRoomCost = shouldChargeFinalPeriod
+    ? Math.round(((activeContract?.base_rent ?? room.base_rent) || 0) * finalPeriodRatio)
+    : 0
+  const finalWifiCost = shouldChargeFinalPeriod
+    ? Math.round((zone?.internet_price || room.wifi_price || 0) * finalPeriodRatio)
+    : 0
+  const finalGarbageCost = shouldChargeFinalPeriod
+    ? Math.round((zone?.cleaning_price || room.garbage_price || 0) * finalPeriodRatio)
+    : 0
 
   const mergedDebt = useMemo(() => {
     return invoices
@@ -161,7 +246,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   })
 
   const depositHeld = activeContract?.deposit_amount || room.default_deposit || 0
-  const totalCharges = electricCost + waterCost + mergedDebt + damageAmount + assetDamageTotal + handoverDamageTotal
+  const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebt + damageAmount + assetDamageTotal + handoverDamageTotal
   const netDue = totalCharges - depositHeld
   const refundAmount = netDue < 0 ? Math.abs(netDue) : 0
 
@@ -177,6 +262,12 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
         damage_amount: damageAmount + assetDamageTotal + handoverDamageTotal,
         damage_note: damageNote,
         payment_method: paymentMethod,
+        final_room_cost: finalRoomCost,
+        final_wifi_cost: finalWifiCost,
+        final_garbage_cost: finalGarbageCost,
+        final_period_start: finalPeriodStart,
+        final_period_end: finalPeriodEnd,
+        final_prorata_days: shouldChargeFinalPeriod ? finalPeriodDays : undefined,
       })
       // Snapshot tài sản đã được lưu từ tab Tài sản rồi, không cần tạo lại
     },
@@ -201,9 +292,9 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-4xl mx-auto mb-4 shadow-lg shadow-blue-200">
               <i className="fa-solid fa-circle-check"></i>
             </div>
-            <h3 className="text-xl font-bold text-gray-800 mb-1">Tất toán thành công!</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-1">Đã tạo hóa đơn tất toán!</h3>
             <p className="text-sm text-gray-500 mb-4">
-              Phòng <span className="font-bold text-gray-700">{room.name}</span> đã được trả lại.
+              Phòng <span className="font-bold text-gray-700">{room.name}</span> sẽ xử lý tiếp theo trạng thái thanh toán của hóa đơn.
             </p>
             <div className="bg-gray-50 rounded-xl p-4 text-left text-sm space-y-2 mb-6 border border-gray-100">
               <div className="flex justify-between">
@@ -477,6 +568,73 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
           </div>
 
           {/* E. Nợ tồn đọng */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-xs font-bold flex items-center justify-center">D</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Tiền phòng kỳ cuối</span>
+            </div>
+            <div className={`rounded-xl border p-3 ${finalPeriodInvoice ? 'border-gray-200 bg-gray-50' : 'border-emerald-100 bg-emerald-50/60'}`}>
+              {finalPeriodInvoice ? (
+                <div className="flex items-start gap-3 text-sm">
+                  <i className="fa-solid fa-circle-check mt-0.5 text-emerald-500"></i>
+                  <div>
+                    <p className="font-bold text-gray-800">Kỳ trả phòng đã có hóa đơn tiền phòng.</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Hóa đơn tháng {finalPeriodInvoice.month}/{finalPeriodInvoice.year} sẽ không được cộng lại ở tất toán. Nếu hóa đơn còn nợ, chọn gộp trong mục nợ tồn đọng.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeFinalPeriodCharge}
+                    onChange={(e) => setIncludeFinalPeriodCharge(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-emerald-600"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-gray-800">Cộng tiền phòng/dịch vụ chưa lập hóa đơn</span>
+                      <span className="text-sm font-black text-emerald-700 tabular-nums">{formatVND(finalRoomCost + finalWifiCost + finalGarbageCost)} đ</span>
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <p className="text-xs text-gray-500">
+                        Từ {new Date(finalPeriodStart).toLocaleDateString('vi-VN')} đến {new Date(finalPeriodEnd).toLocaleDateString('vi-VN')} ({finalPeriodDays}/{finalPeriodDaysInMonth} ngày).
+                      </p>
+                      <select
+                        value={finalPeriodChargeMode}
+                        onChange={(e) => setFinalPeriodChargeMode(e.target.value as FinalPeriodChargeMode)}
+                        disabled={!includeFinalPeriodCharge}
+                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 disabled:opacity-60"
+                      >
+                        <option value="prorated">Tính theo ngày</option>
+                        <option value="full_month">Thu trọn tháng</option>
+                        <option value="none">Không thu kỳ cuối</option>
+                      </select>
+                    </div>
+                    {includeFinalPeriodCharge && (
+                      <div className="mt-2 space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between text-emerald-700">
+                          <span>Cách tính</span><span className="font-semibold">{finalPeriodLabel}</span>
+                        </div>
+                        {finalRoomCost > 0 && <div className="flex justify-between"><span>Tiền phòng</span><span className="font-semibold">{formatVND(finalRoomCost)} đ</span></div>}
+                        {finalWifiCost > 0 && <div className="flex justify-between"><span>Internet / Wifi</span><span className="font-semibold">{formatVND(finalWifiCost)} đ</span></div>}
+                        {finalGarbageCost > 0 && <div className="flex justify-between"><span>Rác / vệ sinh</span><span className="font-semibold">{formatVND(finalGarbageCost)} đ</span></div>}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+
+          {existingSettlementInvoice && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <i className="fa-solid fa-circle-exclamation mr-1.5"></i>
+              Phòng này đã có hóa đơn tất toán. Vui lòng xử lý hoặc hủy hóa đơn tất toán cũ trước khi tạo hóa đơn mới.
+            </div>
+          )}
+
           {unpaidInvoices.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -558,6 +716,18 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Tổng kết tất toán</div>
             <div className="space-y-2 text-sm">
+              {finalRoomCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-house text-emerald-500 mr-1.5 w-4 text-center"></i>Tiền phòng kỳ cuối</span>
+                  <span className="font-semibold">{formatVND(finalRoomCost)} đ</span>
+                </div>
+              )}
+              {(finalWifiCost + finalGarbageCost) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-wifi text-sky-500 mr-1.5 w-4 text-center"></i>Dịch vụ kỳ cuối</span>
+                  <span className="font-semibold">{formatVND(finalWifiCost + finalGarbageCost)} đ</span>
+                </div>
+              )}
               {electricCost > 0 && (
                 <div className="flex justify-between">
                   <span className="text-gray-600"><i className="fa-solid fa-bolt text-yellow-500 mr-1.5 w-4 text-center"></i>Tiền điện cuối</span>
@@ -637,7 +807,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
               className="w-4 h-4 mt-0.5 rounded accent-red-500"
             />
             <span className="text-sm text-red-800 font-medium">
-              Tôi xác nhận kết thúc hợp đồng. Phòng sẽ trở về trạng thái <strong>Trống</strong> và không thể hoàn tác.
+              Tôi xác nhận lập hóa đơn tất toán. Nếu khách còn phải thanh toán, phòng sẽ ở trạng thái sắp trả cho đến khi hóa đơn được thu đủ.
             </span>
           </label>
         </div>
@@ -654,12 +824,12 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
           <button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={!confirmed || !hasHandoverDone || !hasMoveOutDone || !activeContract || mutation.isPending || finalElectric < electricOld || finalWater < waterOld}
+            disabled={!confirmed || !!existingSettlementInvoice || !hasHandoverDone || !hasMoveOutDone || !activeContract || mutation.isPending || finalElectric < electricOld || finalWater < waterOld}
             className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-md shadow-red-200 transition disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {mutation.isPending
               ? <><i className="fa-solid fa-spinner animate-spin"></i> Đang xử lý...</>
-              : <><i className="fa-solid fa-door-closed"></i> Xác nhận tất toán</>
+              : <><i className="fa-solid fa-file-invoice-dollar"></i> Tạo hóa đơn tất toán</>
             }
           </button>
         </div>

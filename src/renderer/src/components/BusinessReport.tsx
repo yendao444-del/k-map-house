@@ -278,17 +278,33 @@ export function BusinessReport({
   }, [contracts, roomById])
 
   const pendingRefundRows = useMemo(() => {
-    return contracts
-      .filter((c: Contract) =>
-        (c.status === 'terminated' || c.status === 'expired') && (c.deposit_amount || 0) > 0
+    return invoices
+      .filter((invoice: Invoice) =>
+        invoice.is_settlement &&
+        invoice.payment_status !== 'cancelled' &&
+        invoice.payment_status !== 'merged' &&
+        Number(invoice.total_amount || 0) < 0 &&
+        Number(invoice.paid_amount || 0) > Number(invoice.total_amount || 0)
       )
-      .map((c: Contract) => ({ contract: c, room: roomById.get(c.room_id) }))
-  }, [contracts, roomById])
+      .map((invoice: Invoice) => {
+        const refundRemaining = Math.abs(Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0))
+        const contract = contracts.find((c: Contract) => c.room_id === invoice.room_id && c.status !== 'active')
+        return {
+          invoice,
+          contract,
+          room: roomById.get(invoice.room_id),
+          tenantName: tenantById.get(invoice.tenant_id)?.full_name || contract?.tenant_name || 'Không rõ',
+          endDate: contract?.end_date || invoice.invoice_date || getInvoiceDate(invoice),
+          refundRemaining,
+        }
+      })
+      .sort((a, b) => (a.room?.name || '').localeCompare(b.room?.name || '', 'vi'))
+  }, [contracts, invoices, roomById, tenantById])
 
   const depositSummary = useMemo(() => ({
     totalHeld: depositRows.reduce((s, r) => s + (r.contract.deposit_amount || 0), 0),
     activeCount: depositRows.length,
-    pendingRefund: pendingRefundRows.reduce((s, r) => s + (r.contract.deposit_amount || 0), 0),
+    pendingRefund: pendingRefundRows.reduce((s, r) => s + r.refundRemaining, 0),
     pendingCount: pendingRefundRows.length,
   }), [depositRows, pendingRefundRows])
 
@@ -432,12 +448,12 @@ export function BusinessReport({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pendingRefundRows.map(({ contract, room }) => (
-                    <tr key={contract.id} className="hover:bg-red-50/30">
+                  {pendingRefundRows.map(({ invoice, room, tenantName, endDate, refundRemaining }) => (
+                    <tr key={invoice.id} className="hover:bg-red-50/30">
                       <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
-                      <td className="px-5 py-3 text-slate-700">{contract.tenant_name}</td>
-                      <td className="px-5 py-3 text-slate-500">{contract.end_date ? new Date(contract.end_date).toLocaleDateString('vi-VN') : '—'}</td>
-                      <td className="px-5 py-3 text-right font-black tabular-nums text-red-600">{fmt(contract.deposit_amount)} đ</td>
+                      <td className="px-5 py-3 text-slate-700">{tenantName}</td>
+                      <td className="px-5 py-3 text-slate-500">{endDate ? new Date(endDate).toLocaleDateString('vi-VN') : '—'}</td>
+                      <td className="px-5 py-3 text-right font-black tabular-nums text-red-600">{fmt(refundRemaining)} đ</td>
                     </tr>
                   ))}
                 </tbody>

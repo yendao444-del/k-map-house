@@ -597,7 +597,8 @@ export const InvoicesTab: React.FC<{
   const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
 
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
-  const { data: appSettings = {} } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings });
+  const { data: appSettings = {}, isLoading: isSettingsLoading } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings });
+  const sepayApiToken = (appSettings?.sepay_api_token || '').trim();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
@@ -699,8 +700,14 @@ export const InvoicesTab: React.FC<{
     const result = monthInvoices.filter(inv => {
       // Hóa đơn đã hủy hợp đồng
       if (inv.payment_status === 'cancelled') return filters.cancelled;
-      // Hóa đơn tất toán: dùng filter riêng
-      if (inv.is_settlement) return filters.settlement;
+      // Hóa đơn tất toán đã xong chỉ hiện khi bật filter Tất toán.
+      // Nếu còn phải thu/hoàn thì vẫn hiện trong luồng Chưa thu mặc định.
+      if (inv.is_settlement) {
+        const total = Number(inv.total_amount || 0);
+        const paid = Number(inv.paid_amount || 0);
+        const hasPendingSettlementWork = total < 0 ? paid > total : total > paid;
+        return filters.settlement || (filters.unpaid && hasPendingSettlementWork);
+      }
       // Hóa đơn đã gộp (merged): luôn hiện nếu settlement bật
       if (inv.payment_status === 'merged') return filters.settlement;
       // Hóa đơn thường
@@ -796,7 +803,8 @@ export const InvoicesTab: React.FC<{
           <div className="flex gap-2">
             <button
               onClick={() => setShowSePaySync(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium text-sm transition"
+              disabled={isSettingsLoading}
+              className="flex items-center gap-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <i className="fa-solid fa-rotate"></i><span>Đồng bộ SePay</span>
             </button>
@@ -1281,9 +1289,9 @@ export const InvoicesTab: React.FC<{
         />
       )}
 
-      {showSePaySync && (
+      {showSePaySync && !isSettingsLoading && (
         <SePaySyncModal
-          apiToken={appSettings?.sepay_api_token ?? ''}
+          apiToken={sepayApiToken}
           invoices={invoices}
           rooms={rooms}
           onClose={() => setShowSePaySync(false)}

@@ -124,6 +124,7 @@ function buildVietQrPreviewUrl(bankId: string, accountNo: string, accountName: s
 }
 
 const GeneralSettingsSafe = (): React.JSX.Element => {
+  const queryClient = useQueryClient()
   const [settings, setSettings] = useState<AppSettings>({})
   const [initialSettings, setInitialSettings] = useState<AppSettings>({})
   const [loading, setLoading] = useState(true)
@@ -320,6 +321,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     const accountNo = (settings.account_no || '').replace(/\s+/g, '')
     const accountNameRaw = (settings.account_name || '').trim()
     const accountName = normalizeAccountHolderName(accountNameRaw)
+    const sepayApiToken = (settings.sepay_api_token || '').trim()
 
     if (bankId || accountNo || accountName) {
       if (!bankId) { setPaymentError('Vui lòng chọn ngân hàng'); return }
@@ -330,9 +332,15 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
 
     setSavingPayment(true)
     try {
-      await updateAppSettings({ ...paymentSettings, account_name: accountName })
-      setInitialSettings((prev) => ({ ...prev, ...paymentSettings, account_name: accountName }))
-      setSettings((prev) => ({ ...prev, account_name: accountName }))
+      const savedPaymentSettings = { ...paymentSettings, account_name: accountName, sepay_api_token: sepayApiToken }
+      await updateAppSettings(savedPaymentSettings)
+      queryClient.setQueryData<AppSettings>(['appSettings'], (current = {}) => ({
+        ...current,
+        ...savedPaymentSettings
+      }))
+      void queryClient.invalidateQueries({ queryKey: ['appSettings'] })
+      setInitialSettings((prev) => ({ ...prev, ...savedPaymentSettings }))
+      setSettings((prev) => ({ ...prev, account_name: accountName, sepay_api_token: sepayApiToken }))
       setSavedPayment(true)
       setTimeout(() => setSavedPayment(false), 2500)
       if (bankId && accountNo && accountName) {

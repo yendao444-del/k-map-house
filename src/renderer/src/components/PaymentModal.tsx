@@ -18,6 +18,7 @@ const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) 
   snap.note || snap.room_asset_id;
 
 function getInvoiceLabel(invoice: db.Invoice): string {
+  if (invoice.is_settlement || invoice.billing_reason === 'contract_end') return 'Hóa đơn tất toán';
   if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
   return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
 }
@@ -25,6 +26,8 @@ function getInvoiceLabel(invoice: db.Invoice): string {
 export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const queryClient = useQueryClient();
   const remaining = invoice.total_amount - invoice.paid_amount;
+  const isRefund = invoice.total_amount < 0 || remaining < 0;
+  const paymentTarget = Math.abs(remaining);
   const { data: moveInSnaps = [], isLoading: isMoveInLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'move_in'],
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'move_in') : Promise.resolve([]),
@@ -65,8 +68,8 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     [handoverSnaps, contractStartedAt]
   );
 
-  const [amount, setAmount] = useState<number>(remaining);
-  const [amountDisplay, setAmountDisplay] = useState<string>(formatVND(remaining));
+  const [amount, setAmount] = useState<number>(paymentTarget);
+  const [amountDisplay, setAmountDisplay] = useState<string>(formatVND(paymentTarget));
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>(
     invoice.payment_method || 'transfer'
   );
@@ -75,7 +78,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const mutation = useMutation({
     mutationFn: async () =>
       db.recordInvoicePayment(invoice.id, {
-        amount,
+        amount: isRefund ? -amount : amount,
         payment_method: paymentMethod,
         payment_date: new Date().toISOString().split('T')[0],
         note: note || undefined,
@@ -107,7 +110,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
       : !invoice.is_settlement && room?.status === 'ending' && (!hasMoveOutDone || !hasHandoverDone)
         ? 'Phòng đang báo trả. Cần hoàn tất Đối chiếu trả phòng trong tab Tài sản trước khi thu hóa đơn.'
         : '';
-  const isValid = amount > 0 && amount <= remaining && !workflowLoading && !paymentBlockReason;
+  const isValid = amount > 0 && amount <= paymentTarget && !workflowLoading && !paymentBlockReason;
 
   // Line items
   interface LineItem { label: string; detail?: string; amount: number; color?: string }
@@ -175,7 +178,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
             <i className="fa-solid fa-money-bill-wave"></i>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-gray-900 text-[16px]">Thu tiền</h2>
+            <h2 className="font-bold text-gray-900 text-[16px]">{isRefund ? 'Hoàn tiền' : 'Thu tiền'}</h2>
             <p className="text-xs text-gray-500">{room?.name || 'Phòng'} · {getInvoiceLabel(invoice)}</p>
           </div>
           <button
@@ -212,17 +215,25 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
             {/* Tổng */}
             <div className="flex justify-between items-center px-4 py-3 bg-gray-50 border-t border-gray-200">
               <span className="font-bold text-gray-700 text-sm">Tổng cộng</span>
-              <span className="font-black text-gray-900 text-base tabular-nums">{formatVND(invoice.total_amount)} đ</span>
+              <span className="font-black text-gray-900 text-base tabular-nums">
+                {invoice.total_amount < 0 ? '-' : ''}{formatVND(Math.abs(invoice.total_amount))} đ
+              </span>
             </div>
-            {invoice.paid_amount > 0 && (
+            {invoice.paid_amount !== 0 && (
               <div className="flex justify-between items-center px-4 py-2 bg-emerald-50 border-t border-emerald-100">
-                <span className="text-sm text-emerald-700">Đã thu</span>
-                <span className="font-semibold text-emerald-700 tabular-nums">{formatVND(invoice.paid_amount)} đ</span>
+                <span className="text-sm text-emerald-700">{isRefund ? 'Đã hoàn' : 'Đã thu'}</span>
+                <span className="font-semibold text-emerald-700 tabular-nums">
+                  {invoice.paid_amount < 0 ? '-' : ''}{formatVND(Math.abs(invoice.paid_amount))} đ
+                </span>
               </div>
             )}
-            <div className="flex justify-between items-center px-4 py-3 bg-red-50 border-t border-red-100">
-              <span className="font-bold text-red-700 text-sm">Còn lại cần thu</span>
-              <span className="font-black text-red-600 text-lg tabular-nums">{formatVND(remaining)} đ</span>
+            <div className={`flex justify-between items-center px-4 py-3 border-t ${isRefund ? 'bg-blue-50 border-blue-100' : 'bg-red-50 border-red-100'}`}>
+              <span className={`font-bold text-sm ${isRefund ? 'text-blue-700' : 'text-red-700'}`}>
+                {isRefund ? 'Còn lại cần hoàn' : 'Còn lại cần thu'}
+              </span>
+              <span className={`font-black text-lg tabular-nums ${isRefund ? 'text-blue-700' : 'text-red-600'}`}>
+                {remaining < 0 ? '-' : ''}{formatVND(Math.abs(remaining))} đ
+              </span>
             </div>
           </div>
 
@@ -236,7 +247,9 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
 
           {/* Số tiền thu */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold text-gray-600">Số tiền thu</label>
+            <label className="mb-1.5 block text-xs font-semibold text-gray-600">
+              {isRefund ? 'Số tiền hoàn' : 'Số tiền thu'}
+            </label>
             <input
               type="text"
               inputMode="numeric"
@@ -250,11 +263,13 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
               onFocus={() => setAmountDisplay(amount > 0 ? formatVND(amount) : '')}
               className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
             />
-            {amount > remaining && (
-              <p className="mt-1 text-xs text-red-500">Số tiền không được vượt quá số còn lại ({formatVND(remaining)} đ)</p>
+            {amount > paymentTarget && (
+              <p className="mt-1 text-xs text-red-500">Số tiền không được vượt quá số còn lại ({formatVND(paymentTarget)} đ)</p>
             )}
-            {amount > 0 && amount < remaining && (
-              <p className="mt-1 text-xs text-orange-500">Thu thiếu — còn nợ {formatVND(remaining - amount)} đ</p>
+            {amount > 0 && amount < paymentTarget && (
+              <p className="mt-1 text-xs text-orange-500">
+                {isRefund ? 'Hoàn thiếu — còn phải hoàn' : 'Thu thiếu — còn nợ'} {formatVND(paymentTarget - amount)} đ
+              </p>
             )}
           </div>
 
@@ -286,7 +301,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
               type="text"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="VD: Khách chuyển khoản lúc 9h sáng..."
+              placeholder={isRefund ? 'VD: Hoàn cọc qua chuyển khoản...' : 'VD: Khách chuyển khoản lúc 9h sáng...'}
               className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
             />
           </div>
@@ -305,7 +320,9 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
             disabled={!isValid || mutation.isPending}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {mutation.isPending ? 'Đang lưu...' : `Xác nhận thu ${formatVND(amount)} đ`}
+            {mutation.isPending
+              ? 'Đang lưu...'
+              : `${isRefund ? 'Xác nhận hoàn' : 'Xác nhận thu'} ${formatVND(amount)} đ`}
           </button>
         </div>
       </div>

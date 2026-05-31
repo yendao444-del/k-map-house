@@ -21,9 +21,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-where pnpm >nul 2>&1
+where npm >nul 2>&1
 if errorlevel 1 (
-    echo [X] Khong tim thay pnpm trong PATH.
+    echo [X] Khong tim thay npm trong PATH.
     pause
     exit /b 1
 )
@@ -62,7 +62,19 @@ taskkill /F /IM "DBY HOME.exe" >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
 taskkill /F /IM esbuild.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
-call pnpm run build
+call npm run typecheck:node
+if errorlevel 1 (
+    echo NODE TYPECHECK THAT BAI!
+    goto rollback_fail
+)
+
+call npm run typecheck:web
+if errorlevel 1 (
+    echo WEB TYPECHECK THAT BAI!
+    goto rollback_fail
+)
+
+call npx electron-vite build
 if errorlevel 1 (
     echo BUILD THAT BAI!
     goto rollback_fail
@@ -126,7 +138,7 @@ exit /b 0
 :rollback_fail
 echo.
 if "!VERSION_COMMITTED!"=="0" (
-    echo [!] Dang rollback version ve v!CURRENT_VERSION!...
+    echo [WARN] Dang rollback version ve v!CURRENT_VERSION!...
     node scripts\release-version.cjs set !CURRENT_VERSION! >nul 2>&1
 )
 if exist "_patch_temp" rmdir /S /Q "_patch_temp" 2>nul
@@ -135,7 +147,7 @@ exit /b 1
 
 :fail_after_commit
 echo.
-echo [!] Commit v!NEW_VERSION! da duoc tao. Khong rollback version de tranh lech lich su git.
+echo [WARN] Commit v!NEW_VERSION! da duoc tao. Khong rollback version de tranh lech lich su git.
 echo     Sua loi ben tren roi chay lai lenh push/release neu can.
 if exist "_patch_temp" rmdir /S /Q "_patch_temp" 2>nul
 pause
