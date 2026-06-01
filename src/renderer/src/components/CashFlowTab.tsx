@@ -19,6 +19,7 @@ import {
   type PaymentMethod,
   type AppUser,
 } from '../lib/db'
+import type { ReportPeriod } from './BusinessReport'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const todayIso = () => new Date().toISOString().split('T')[0]
@@ -363,10 +364,12 @@ export function CashFlowTab({
   embedded = false,
   currentUser,
   onNavigateToInvoices,
+  period,
 }: {
   embedded?: boolean
   currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
+  period?: ReportPeriod
 } = {}) {
   const queryClient = useQueryClient()
   const { data: transactions = [] } = useQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions })
@@ -378,8 +381,6 @@ export function CashFlowTab({
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | CashTransactionType>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | CashTransactionCategory>('all')
-  const [month, setMonth] = useState(new Date().getMonth() + 1)
-  const [year, setYear] = useState(new Date().getFullYear())
 
   const deleteMutation = useMutation({
     mutationFn: deleteCashTransaction,
@@ -389,14 +390,6 @@ export function CashFlowTab({
     },
   })
   const isAdmin = currentUser?.role === 'admin'
-
-  const monthOptions = useMemo(() => {
-    const now = new Date()
-    return Array.from({ length: 12 }, (_, index) => {
-      const date = new Date(now.getFullYear(), now.getMonth() - index, 1)
-      return { month: date.getMonth() + 1, year: date.getFullYear() }
-    })
-  }, [])
 
   const categoryOptions = useMemo(
     () => toCategoryOptions(DEFAULT_EXPENSE_CATEGORIES),
@@ -417,11 +410,12 @@ export function CashFlowTab({
 
   const filtered = useMemo(() => allRows.filter(item => {
     const date = new Date(item.transaction_date)
-    if (date.getMonth() + 1 !== month || date.getFullYear() !== year) return false
+    date.setHours(0, 0, 0, 0)
+    if (period?.start && period?.end && (date < period.start || date > period.end)) return false
     if (typeFilter !== 'all' && item.type !== typeFilter) return false
     if (categoryFilter !== 'all' && item.category !== categoryFilter) return false
     return true
-  }), [allRows, categoryFilter, month, typeFilter, year])
+  }), [allRows, categoryFilter, period, typeFilter])
 
   const totalIncome = filtered.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
   const totalExpense = filtered.filter(item => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0)
@@ -547,24 +541,11 @@ export function CashFlowTab({
           </button>
         </div>
 
-        <div className="px-4 pt-3 overflow-x-auto border-b border-gray-100">
-          <div className="flex gap-1.5 pb-0 min-w-max">
-            {monthOptions.map(opt => {
-              const active = month === opt.month && year === opt.year
-              return (
-                <button
-                  key={`${opt.month}-${opt.year}`}
-                  onClick={() => { setMonth(opt.month); setYear(opt.year) }}
-                  className={`px-4 py-2 rounded-t-lg font-medium text-sm transition-colors ${active ? 'bg-green-100 text-green-700 border-b-2 border-green-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  T.{opt.month} {opt.year}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
         <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
+            <i className="fa-regular fa-calendar mr-1 text-slate-400"></i>
+            {period?.label || 'Toàn thời gian'}
+          </div>
           <select value={typeFilter} onChange={event => setTypeFilter(event.target.value as typeof typeFilter)} className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 outline-none focus:border-green-400">
             <option value="all">Tất cả thu/chi</option>
             <option value="income">Chỉ thu</option>

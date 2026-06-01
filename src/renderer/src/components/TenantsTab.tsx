@@ -1,14 +1,82 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getMoveInReceiptsByTenant, type Tenant, type MoveInReceipt } from '../lib/db';
+import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getInvoices, getMoveInReceiptsByTenant, type Contract, type Invoice, type Tenant, type MoveInReceipt } from '../lib/db';
 import { ConfirmModal } from './ConfirmModal';
 import { LogoLoading } from './LogoLoading';
+
+const getContractSortTime = (contract: Contract) =>
+  new Date(contract.end_date || contract.created_at || contract.move_in_date).getTime();
+
+const getLatestContract = (contracts: Contract[], tenantId: string) =>
+  contracts
+    .filter(contract => contract.tenant_id === tenantId)
+    .sort((a, b) => getContractSortTime(b) - getContractSortTime(a))[0] || null;
+
+const formatDate = (date?: string) => {
+  if (!date) return '—';
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleDateString('vi-VN');
+};
+
+type DepositStatusTone = 'emerald' | 'amber' | 'sky' | 'slate' | 'red';
+
+const getDepositStatus = (contract: Contract | null | undefined, invoices: Invoice[]) => {
+  const deposit = Number(contract?.deposit_amount || 0);
+  if (!contract || deposit <= 0) {
+    return { label: 'Chưa có cọc', detail: '', tone: 'slate' as DepositStatusTone };
+  }
+
+  const relatedInvoices = invoices.filter(invoice =>
+    invoice.tenant_id === contract.tenant_id &&
+    invoice.room_id === contract.room_id &&
+    invoice.payment_status !== 'cancelled'
+  );
+  const latestDepositInvoice = relatedInvoices
+    .filter(invoice => invoice.is_settlement || invoice.billing_reason === 'contract_end' || invoice.billing_reason === 'deposit_refund')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  if (contract.status === 'active' && !latestDepositInvoice) {
+    return { label: 'Đang giữ cọc', detail: `${deposit.toLocaleString('vi-VN')}₫`, tone: 'emerald' as DepositStatusTone };
+  }
+
+  if (!latestDepositInvoice) {
+    return { label: 'Chưa tất toán cọc', detail: `${deposit.toLocaleString('vi-VN')}₫`, tone: 'amber' as DepositStatusTone };
+  }
+
+  const netDue = Number(latestDepositInvoice.total_amount || 0);
+  const depositApplied = Number(latestDepositInvoice.deposit_applied || 0);
+  const refundAmount = Math.max(0, -netDue);
+
+  if (refundAmount > 0) {
+    return latestDepositInvoice.payment_status === 'paid'
+      ? { label: 'Đã hoàn cọc', detail: `${refundAmount.toLocaleString('vi-VN')}₫`, tone: 'emerald' as DepositStatusTone }
+      : { label: 'Chờ hoàn cọc', detail: `${refundAmount.toLocaleString('vi-VN')}₫`, tone: 'red' as DepositStatusTone };
+  }
+
+  if (depositApplied > 0 || latestDepositInvoice.is_settlement || latestDepositInvoice.billing_reason === 'contract_end') {
+    if (netDue > 0) {
+      return { label: 'Đã đối trừ cọc', detail: `Còn thiếu ${netDue.toLocaleString('vi-VN')}₫`, tone: 'sky' as DepositStatusTone };
+    }
+    return { label: 'Đã đối trừ hết', detail: `${Math.min(deposit, depositApplied || deposit).toLocaleString('vi-VN')}₫`, tone: 'sky' as DepositStatusTone };
+  }
+
+  return { label: 'Đã xử lý cọc', detail: `${deposit.toLocaleString('vi-VN')}₫`, tone: 'slate' as DepositStatusTone };
+};
+
+const depositToneClass: Record<DepositStatusTone, string> = {
+  emerald: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  amber: 'bg-amber-50 text-amber-700 border-amber-200',
+  sky: 'bg-sky-50 text-sky-700 border-sky-200',
+  slate: 'bg-slate-50 text-slate-600 border-slate-200',
+  red: 'bg-red-50 text-red-700 border-red-200',
+};
 
 export const TenantsTab: React.FC = () => {
   const queryClient = useQueryClient();
   const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'left'>('all');
@@ -120,11 +188,26 @@ export const TenantsTab: React.FC = () => {
 
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        return (t.full_name?.toLowerCase().includes(q) || t.phone?.includes(q) || t.identity_card?.includes(q));
+        const tenantContracts = contracts.filter(c => c.tenant_id === t.id);
+        const roomNames = tenantContracts
+          .map(c => rooms.find(r => r.id === c.room_id)?.name || '')
+          .join(' ')
+          .toLowerCase();
+        const contractText = tenantContracts
+          .map(c => `${c.tenant_phone || ''} ${c.tenant_id_card || ''}`)
+          .join(' ')
+          .toLowerCase();
+        return (
+          t.full_name?.toLowerCase().includes(q) ||
+          t.phone?.includes(q) ||
+          t.identity_card?.includes(q) ||
+          roomNames.includes(q) ||
+          contractText.includes(q)
+        );
       }
       return true;
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [contracts, tenants, filterActive, searchQuery]);
+  }, [contracts, rooms, tenants, filterActive, searchQuery]);
 
   const filterCounts = useMemo(() => {
     let active = 0;
@@ -228,12 +311,18 @@ export const TenantsTab: React.FC = () => {
                 ];
                 const colorIdx = tenant.full_name?.length ? tenant.full_name.length % avatarColors.length : 0;
 
-                const activeContract = contracts.find(c => c.tenant_id === tenant.id && c.status === 'active');
-                const room = activeContract ? rooms.find(r => r.id === activeContract.room_id) : null;
+                const tenantContracts = contracts.filter(c => c.tenant_id === tenant.id);
+                const activeContract = tenantContracts.find(c => c.status === 'active');
+                const latestContract = activeContract || getLatestContract(contracts, tenant.id);
+                const room = latestContract ? rooms.find(r => r.id === latestContract.room_id) : null;
                 const isActuallyActive = !!activeContract;
-                const hasLeft = !isActuallyActive && (!!tenant.left_at || !!tenant.last_room_name || contracts.some(c => c.tenant_id === tenant.id && c.status !== 'active'));
+                const hasLeft = !isActuallyActive && (!!tenant.left_at || !!tenant.last_room_name || tenantContracts.some(c => c.status !== 'active'));
                 const roomLabel = room?.name || tenant.last_room_name || '—';
-                const leftDateLabel = tenant.left_at ? new Date(tenant.left_at).toLocaleDateString('vi-VN') : '—';
+                const contactPhone = tenant.phone || latestContract?.tenant_phone || '';
+                const identityCard = tenant.identity_card || latestContract?.tenant_id_card || '';
+                const depositStatus = getDepositStatus(latestContract, invoices);
+                const joinDateLabel = formatDate(latestContract?.move_in_date || tenant.created_at);
+                const leftDateLabel = formatDate(tenant.left_at || latestContract?.end_date);
 
                 return (
                   <tr key={tenant.id} className="hover:bg-slate-50/80 transition group relative">
@@ -250,13 +339,13 @@ export const TenantsTab: React.FC = () => {
 
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1.5 items-start">
-                        {tenant.phone ? (
+                        {contactPhone ? (
                           <div className="flex items-center gap-2">
                             <span className="text-[15px] font-medium text-slate-700 font-mono">
-                              {tenant.phone}
+                              {contactPhone}
                             </span>
                             <a
-                              href={`https://zalo.me/${tenant.phone.replace(/[^0-9]/g, '')}`}
+                              href={`https://zalo.me/${contactPhone.replace(/[^0-9]/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Nhắn Zalo"
@@ -309,12 +398,17 @@ export const TenantsTab: React.FC = () => {
                     </td>
 
                     <td className="px-6 py-4">
-                      {activeContract && activeContract.deposit_amount > 0 ? (
-                        <div className="flex flex-col gap-0.5">
+                      {latestContract && latestContract.deposit_amount > 0 ? (
+                        <div className="flex flex-col items-start gap-1">
                           <span className="font-bold text-base text-amber-600">
-                            {activeContract.deposit_amount.toLocaleString('vi-VN')}₫
+                            {latestContract.deposit_amount.toLocaleString('vi-VN')}₫
                           </span>
-                          <span className="text-xs text-slate-400 font-medium">Hợp đồng hiện tại</span>
+                          <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${depositToneClass[depositStatus.tone]}`}>
+                            {depositStatus.label}
+                          </span>
+                          {depositStatus.detail && (
+                            <span className="text-xs text-slate-400 font-medium">{depositStatus.detail}</span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[13px] text-slate-400 italic">—</span>
@@ -322,7 +416,7 @@ export const TenantsTab: React.FC = () => {
                     </td>
 
                     <td className="px-6 py-4">
-                      {tenant.identity_card ? (
+                      {identityCard ? (
                         <div
                           className="inline-block cursor-help"
                           onMouseEnter={(e) => {
@@ -348,7 +442,7 @@ export const TenantsTab: React.FC = () => {
                         >
                           <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-[13px] font-mono hover:bg-slate-200 transition">
                             <i className="fa-solid fa-address-card text-slate-400"></i>
-                            {tenant.identity_card}
+                            {identityCard}
                           </div>
                         </div>
                       ) : (
@@ -359,12 +453,12 @@ export const TenantsTab: React.FC = () => {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-slate-600 text-sm">
                         <i className="fa-solid fa-calendar-day text-slate-300"></i>
-                        <span className="font-medium">{new Date(tenant.created_at).toLocaleDateString('vi-VN')}</span>
+                        <span className="font-medium">{joinDateLabel}</span>
                       </div>
                     </td>
 
                     <td className="px-6 py-4">
-                      {tenant.left_at ? (
+                      {leftDateLabel !== '—' ? (
                         <div className="flex items-center gap-2 text-slate-600 text-sm">
                           <i className="fa-solid fa-person-walking text-slate-300"></i>
                           <span className="font-medium">{leftDateLabel}</span>
@@ -751,6 +845,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
   const queryClient = useQueryClient();
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
   const { data: depositReceipts = [] } = useQuery<MoveInReceipt[]>({
     queryKey: ['move_in_receipts', initialTenant.id],
     queryFn: () => getMoveInReceiptsByTenant(initialTenant.id),
@@ -763,11 +858,14 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
   const tenantContracts = useMemo(() => {
     return contracts
       .filter(c => c.tenant_id === tenant.id)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => getContractSortTime(b) - getContractSortTime(a));
   }, [contracts, tenant.id]);
 
   const displayedContracts = showAllHistory ? tenantContracts : tenantContracts.slice(0, 3);
   const hasActiveContract = tenantContracts.some(contract => contract.status === 'active');
+  const latestContract = tenantContracts[0] || null;
+  const latestRoom = latestContract ? rooms.find(room => room.id === latestContract.room_id) : null;
+  const hasLeft = !hasActiveContract && (!!tenant.left_at || !!tenant.last_room_name || tenantContracts.some(contract => contract.status !== 'active'));
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -944,6 +1042,20 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
               <span className="text-slate-400 font-medium w-20 shrink-0">Ngày tạo:</span>
               <span className="font-bold text-slate-700">{new Date(tenant.created_at).toLocaleDateString('vi-VN')}</span>
             </div>
+            {latestContract && (
+              <>
+                <div className="flex gap-4 items-center">
+                  <span className="text-slate-400 font-medium w-20 shrink-0">Phòng:</span>
+                  <span className="font-bold text-slate-700">{latestRoom?.name || tenant.last_room_name || 'Phòng không rõ'}</span>
+                </div>
+                <div className="flex gap-4 items-center">
+                  <span className="text-slate-400 font-medium w-20 shrink-0">Thời gian:</span>
+                  <span className="font-bold text-slate-700">
+                    {formatDate(latestContract.move_in_date)} - {latestContract.status === 'active' ? 'Đang ở' : formatDate(tenant.left_at || latestContract.end_date)}
+                  </span>
+                </div>
+              </>
+            )}
             {tenant.notes && (
               <div className="flex gap-4 border-t border-slate-100 pt-3 mt-1 items-start">
                 <span className="text-slate-400 font-medium w-20 shrink-0">Ghi chú:</span>
@@ -1014,11 +1126,28 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
               <div className="flex flex-col gap-3">
                 {displayedContracts.map(c => {
                   const room = rooms.find(r => r.id === c.room_id);
+                  const endedAt = c.status === 'active' ? null : c.end_date;
+                  const depositStatus = getDepositStatus(c, invoices);
                   return (
-                    <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex justify-between items-center group hover:border-emerald-300 transition">
+                    <div key={c.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex justify-between items-start gap-4 group hover:border-emerald-300 transition">
                       <div className="flex flex-col gap-1.5">
                         <span className="font-bold text-[15px] text-slate-800"><i className="fa-solid fa-door-open text-slate-400 mr-1.5"></i> {room?.name || 'Phòng không rõ'}</span>
-                        <span className="text-slate-500 text-[13px] font-medium tracking-wide"><i className="fa-regular fa-calendar mr-1.5"></i> {new Date(c.move_in_date).toLocaleDateString('vi-VN')} {c.expiration_date ? ` - ${new Date(c.expiration_date).toLocaleDateString('vi-VN')}` : ' - Không thời hạn'}</span>
+                        <span className="text-slate-500 text-[13px] font-medium tracking-wide">
+                          <i className="fa-regular fa-calendar mr-1.5"></i>
+                          {formatDate(c.move_in_date)} - {endedAt ? formatDate(endedAt) : c.expiration_date ? formatDate(c.expiration_date) : 'Không thời hạn'}
+                        </span>
+                        <span className="text-slate-500 text-[13px] font-medium">
+                          <i className="fa-solid fa-money-bill-wave text-slate-300 mr-1.5"></i>
+                          Giá thuê {c.base_rent.toLocaleString('vi-VN')}₫ · Cọc {c.deposit_amount.toLocaleString('vi-VN')}₫
+                        </span>
+                        {c.deposit_amount > 0 && (
+                          <span className={`w-fit rounded-md border px-2 py-0.5 text-[11px] font-bold ${depositToneClass[depositStatus.tone]}`}>
+                            {depositStatus.label}{depositStatus.detail ? ` · ${depositStatus.detail}` : ''}
+                          </span>
+                        )}
+                        {c.end_note && (
+                          <span className="text-slate-400 text-[12px] font-medium italic">{c.end_note}</span>
+                        )}
                       </div>
                       <div>
                         {c.status === 'active' ? (
@@ -1051,9 +1180,9 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
         </div>
 
         <div className="px-6 py-4 bg-white border-t border-slate-100 flex justify-between items-center rounded-b-2xl">
-          <div className={`px-4 py-2 rounded-xl text-[15px] font-bold border flex items-center gap-2 ${hasActiveContract ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
-            <i className={`fa-solid ${hasActiveContract ? 'fa-house-user' : 'fa-user-clock'}`}></i>
-            {hasActiveContract ? 'Đang ở theo hợp đồng' : 'Chưa ở'}
+          <div className={`px-4 py-2 rounded-xl text-[15px] font-bold border flex items-center gap-2 ${hasActiveContract ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : hasLeft ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
+            <i className={`fa-solid ${hasActiveContract ? 'fa-house-user' : hasLeft ? 'fa-person-walking' : 'fa-user-clock'}`}></i>
+            {hasActiveContract ? 'Đang ở theo hợp đồng' : hasLeft ? 'Đã rời đi' : 'Chưa ở'}
           </div>
 
           <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 rounded-xl text-[15px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all flex items-center gap-2">

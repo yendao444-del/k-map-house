@@ -141,12 +141,20 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     }
   }, [hasPaidFirstMonthInvoice, existingInvoices.length, hasTransfer, isMigratedContract, unpaidFirstMonthInvoice]);
   const [invoiceDate, setInvoiceDate] = useState(today);
-  const [depositAmount, setDepositAmount] = useState<number>(billingRoom.default_deposit || 0);
+  const defaultDepositAmount = activeContract?.deposit_amount ?? billingRoom.default_deposit ?? 0;
+  const [depositAmount, setDepositAmount] = useState<number>(defaultDepositAmount);
+  const [depositTouched, setDepositTouched] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [enterSubmitConfirmOpen, setEnterSubmitConfirmOpen] = useState(false);
   const waterInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!depositTouched) {
+      setDepositAmount(defaultDepositAmount);
+    }
+  }, [defaultDepositAmount, depositTouched]);
 
   // Monthly billing - meter readings
   const electricOld = billingRoom.electric_new || 0;
@@ -762,11 +770,14 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                 <div className="text-xs text-gray-500 italic">Tiền cọc đã được thu trước đó, không thu thêm.</div>
               ) : (
                 <>
-                  <div className="mb-2 text-xs text-gray-500">Mặc định lấy từ trang chủ, có thể chỉnh tay.</div>
+                  <div className="mb-2 text-xs text-gray-500">Mặc định lấy từ hợp đồng, có thể chỉnh tay.</div>
                   <input
                     type="number"
                     value={depositAmount || ''}
-                    onChange={(e) => setDepositAmount(Number(e.target.value) || 0)}
+                    onChange={(e) => {
+                      setDepositTouched(true);
+                      setDepositAmount(Number(e.target.value) || 0);
+                    }}
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                   />
                   <div className="mt-2 text-right text-sm font-bold text-orange-600">

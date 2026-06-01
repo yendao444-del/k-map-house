@@ -16,12 +16,6 @@ const CHART_COLORS = [
   '#ef4444', '#84cc16',
 ]
 
-const MONTH_NAMES = [
-  'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4',
-  'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8',
-  'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
-]
-
 const fmt = (v: number) => new Intl.NumberFormat('vi-VN').format(Math.round(v || 0))
 
 type ChartSegment = { label: string; value: number; color: string; pct: number }
@@ -30,22 +24,21 @@ function calcMetrics(
   invoices: Invoice[],
   cashTx: CashTransaction[],
   categories: ExpenseCategory[],
-  year: number,
-  month: number
+  start?: Date | null,
+  end?: Date | null
 ) {
-  const start = new Date(year, month - 1, 1)
-  const end = new Date(year, month, 0, 23, 59, 59)
-
   const invoiceRevenue = invoices
     .filter(inv => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged')
     .flatMap(inv => getInvoicePaymentRecords(inv))
     .filter(rec => {
+      if (!start || !end) return true
       const d = new Date(rec.payment_date || rec.created_at)
       return d >= start && d <= end
     })
     .reduce((s, rec) => s + rec.amount, 0)
 
   const cashInMonth = cashTx.filter(tx => {
+    if (!start || !end) return true
     const d = new Date(tx.transaction_date || tx.created_at)
     return d >= start && d <= end
   })
@@ -68,11 +61,6 @@ function calcMetrics(
   const savingsRate = totalRevenue > 0 ? (balance / totalRevenue) * 100 : 0
 
   return { totalRevenue, totalExpense, balance, savingsRate, expenseByCategory, invoiceRevenue, otherIncome }
-}
-
-function pctChange(current: number, prev: number) {
-  if (prev === 0) return null
-  return ((current - prev) / Math.abs(prev)) * 100
 }
 
 // SVG Donut chart
@@ -132,19 +120,17 @@ function DonutChart({ segments, total }: { segments: ChartSegment[]; total: numb
 
 // KPI Card
 function KpiCard({
-  title, value, prevValue, icon, bgColor, textColor, valColor, isPct
+  title, value, icon, bgColor, textColor, valColor, isPct, helperText
 }: {
   title: string
   value: number
-  prevValue: number
   icon: string
   bgColor: string
   textColor: string
   valColor: string
   isPct?: boolean
+  helperText: string
 }) {
-  const change = pctChange(value, prevValue)
-  const isUp = change !== null && change >= 0
   const displayValue = isPct
     ? value.toFixed(1).replace('.', ',') + '%'
     : fmt(value) + ' đ'
@@ -161,23 +147,17 @@ function KpiCard({
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-slate-50">
-        {change !== null ? (
-          <p className={`text-[11px] font-semibold flex items-center gap-1 ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-            <i className={`fa-solid ${isUp ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} text-[9px]`} />
-            {isUp ? '+' : ''}{change.toFixed(1).replace('.', ',')}% so với tháng trước
-          </p>
-        ) : (
-          <p className="text-[11px] text-slate-400">Chưa có dữ liệu tháng trước</p>
-        )}
+        <p className="text-[11px] text-slate-400">{helperText}</p>
       </div>
     </div>
   )
 }
 
-export function OverviewTab() {
-  const today = new Date()
-  const [year, setYear] = useState(today.getFullYear())
-  const [month, setMonth] = useState(today.getMonth() + 1)
+export function OverviewTab({
+  period,
+}: {
+  period: { start: Date | null; end: Date | null; label: string; emptyLabel: string }
+}) {
   const [barView, setBarView] = useState<'amount' | 'pct'>('amount')
 
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
@@ -188,16 +168,9 @@ export function OverviewTab() {
     []
   )
 
-  const prevYear = month === 1 ? year - 1 : year
-  const prevMonth = month === 1 ? 12 : month - 1
-
   const current = useMemo(
-    () => calcMetrics(invoices, cashTx, expenseCategories, year, month),
-    [invoices, cashTx, expenseCategories, year, month]
-  )
-  const prev = useMemo(
-    () => calcMetrics(invoices, cashTx, expenseCategories, prevYear, prevMonth),
-    [invoices, cashTx, expenseCategories, prevYear, prevMonth]
+    () => calcMetrics(invoices, cashTx, expenseCategories, period.start, period.end),
+    [invoices, cashTx, expenseCategories, period.end, period.start]
   )
 
   const chartData: ChartSegment[] = useMemo(() => {
@@ -216,15 +189,7 @@ export function OverviewTab() {
 
   const maxBarValue = chartData.length > 0 ? chartData[0].value : 1
 
-  const goToPrev = () => {
-    if (month === 1) { setMonth(12); setYear(y => y - 1) }
-    else setMonth(m => m - 1)
-  }
-  const goToNext = () => {
-    if (month === 12) { setMonth(1); setYear(y => y + 1) }
-    else setMonth(m => m + 1)
-  }
-  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1
+  const helperText = `Theo bộ lọc: ${period.label}`
 
   return (
     <div className="space-y-5">
@@ -238,25 +203,9 @@ export function OverviewTab() {
           <p className="text-sm text-slate-500 mt-1">Cập nhật tình hình tài chính tổng thể của bạn</p>
         </div>
         <div className="flex items-center gap-2.5">
-          {/* Month picker */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm">
-            <i className="fa-regular fa-calendar text-slate-400 text-xs mr-1" />
-            <button
-              onClick={goToPrev}
-              className="h-5 w-5 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-            >
-              <i className="fa-solid fa-chevron-left text-[10px]" />
-            </button>
-            <span className="text-sm font-bold text-slate-700 px-2 min-w-[108px] text-center">
-              {MONTH_NAMES[month - 1]}, {year}
-            </span>
-            <button
-              onClick={goToNext}
-              disabled={isCurrentMonth}
-              className="h-5 w-5 rounded flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <i className="fa-solid fa-chevron-right text-[10px]" />
-            </button>
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2 shadow-sm text-sm font-bold text-slate-700">
+            <i className="fa-regular fa-calendar text-slate-400 text-xs" />
+            {period.label}
           </div>
           <button className="flex items-center gap-2 bg-primary text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-primary-dark shadow-sm transition-all">
             <i className="fa-solid fa-download text-xs" />
@@ -270,7 +219,7 @@ export function OverviewTab() {
         <KpiCard
           title="Tổng tài sản"
           value={current.totalRevenue}
-          prevValue={prev.totalRevenue}
+          helperText={helperText}
           icon="fa-wallet"
           bgColor="bg-emerald-50"
           textColor="text-emerald-500"
@@ -279,7 +228,7 @@ export function OverviewTab() {
         <KpiCard
           title="Tổng chi phí"
           value={current.totalExpense}
-          prevValue={prev.totalExpense}
+          helperText={helperText}
           icon="fa-chart-pie"
           bgColor="bg-rose-50"
           textColor="text-rose-500"
@@ -288,7 +237,7 @@ export function OverviewTab() {
         <KpiCard
           title="Số dư hiện tại"
           value={current.balance}
-          prevValue={prev.balance}
+          helperText={helperText}
           icon="fa-money-bill-trend-up"
           bgColor="bg-blue-50"
           textColor="text-blue-500"
@@ -297,7 +246,7 @@ export function OverviewTab() {
         <KpiCard
           title="Tỷ lệ tiết kiệm"
           value={current.savingsRate}
-          prevValue={prev.savingsRate}
+          helperText={helperText}
           icon="fa-bullseye"
           bgColor="bg-purple-50"
           textColor="text-purple-500"
@@ -317,13 +266,13 @@ export function OverviewTab() {
                 Cơ cấu doanh thu
               </h2>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Phân bổ nguồn thu trong tháng</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Phân bổ nguồn thu theo bộ lọc</p>
           </div>
 
           {current.totalRevenue === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-slate-300">
               <i className="fa-solid fa-chart-pie text-5xl mb-3" />
-              <p className="text-sm font-semibold text-slate-400">Chưa có doanh thu tháng này</p>
+              <p className="text-sm font-semibold text-slate-400">Chưa có doanh thu {period.emptyLabel}</p>
             </div>
           ) : (() => {
             const revenueSegments: ChartSegment[] = [
@@ -387,7 +336,7 @@ export function OverviewTab() {
           {chartData.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-slate-300">
               <i className="fa-solid fa-chart-bar text-5xl mb-3" />
-              <p className="text-sm font-semibold text-slate-400">Chưa có chi phí tháng này</p>
+              <p className="text-sm font-semibold text-slate-400">Chưa có chi phí {period.emptyLabel}</p>
               <p className="text-[11px] text-slate-300 mt-1">Thêm chứng từ chi phí để xem biểu đồ</p>
             </div>
           ) : (

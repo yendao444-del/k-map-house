@@ -61,6 +61,17 @@ type InvoiceCashRow = {
   record: InvoicePaymentRecord
 }
 
+type ReportPeriodMode = 'all' | 'range' | 'daily'
+
+export type ReportPeriod = {
+  mode: ReportPeriodMode
+  start: Date | null
+  end: Date | null
+  days: number | null
+  label: string
+  emptyLabel: string
+}
+
 const fmt = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const iso = (date: Date) => date.toISOString().split('T')[0]
 
@@ -81,6 +92,13 @@ const toDate = (value: string) => {
   const date = new Date(value)
   date.setHours(0, 0, 0, 0)
   return date
+}
+
+const formatPeriodDate = (date: Date) => date.toLocaleDateString('vi-VN')
+
+const isDateInPeriod = (date: Date, period: ReportPeriod) => {
+  if (!period.start || !period.end) return true
+  return date >= period.start && date <= period.end
 }
 
 const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
@@ -141,7 +159,7 @@ export function BusinessReport({
   const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow'>('overview')
 
   const today = new Date()
-  const [viewMode, setViewMode] = useState<'range' | 'daily'>('range')
+  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('all')
   const [startDate, setStartDate] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
   const [endDate, setEndDate] = useState(iso(today))
   const [selectedDate, setSelectedDate] = useState(iso(today))
@@ -150,37 +168,58 @@ export function BusinessReport({
     () => new Set()
   )
 
-  const period = useMemo(() => {
-    const start = viewMode === 'daily' ? selectedDate : startDate
-    const end = viewMode === 'daily' ? selectedDate : endDate
+  const period = useMemo<ReportPeriod>(() => {
+    if (periodMode === 'all') {
+      return {
+        mode: 'all',
+        start: null,
+        end: null,
+        days: null,
+        label: 'Toàn thời gian',
+        emptyLabel: 'toàn thời gian',
+      }
+    }
+
+    const start = periodMode === 'daily' ? selectedDate : startDate
+    const end = periodMode === 'daily' ? selectedDate : endDate
     const startObj = toDate(start)
     const endObj = toDate(end)
     const safeStart = startObj <= endObj ? startObj : endObj
     const safeEnd = startObj <= endObj ? endObj : startObj
     const days = Math.max(1, Math.round((safeEnd.getTime() - safeStart.getTime()) / 86400000) + 1)
-    return { start: safeStart, end: safeEnd, days }
-  }, [endDate, selectedDate, startDate, viewMode])
+    const label = periodMode === 'daily'
+      ? formatPeriodDate(safeStart)
+      : `${formatPeriodDate(safeStart)} - ${formatPeriodDate(safeEnd)}`
+    return {
+      mode: periodMode,
+      start: safeStart,
+      end: safeEnd,
+      days,
+      label,
+      emptyLabel: periodMode === 'daily' ? 'ngày này' : 'khoảng thời gian này',
+    }
+  }, [endDate, periodMode, selectedDate, startDate])
 
   const filteredInvoices = useMemo(() => invoices.filter(invoice => {
     if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return false
     const date = toDate(getInvoiceDate(invoice))
-    return date >= period.start && date <= period.end
-  }), [invoices, period.end, period.start])
+    return isDateInPeriod(date, period)
+  }), [invoices, period])
 
   const filteredCash = useMemo(() => cashTransactions.filter(item => {
     const date = toDate(item.transaction_date || item.created_at)
-    return date >= period.start && date <= period.end
-  }), [cashTransactions, period.end, period.start])
+    return isDateInPeriod(date, period)
+  }), [cashTransactions, period])
 
   const invoiceCashRows = useMemo<InvoiceCashRow[]>(() => invoices.flatMap(invoice => {
     if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return []
     return getInvoicePaymentRecords(invoice)
       .filter(record => {
         const date = toDate(record.payment_date || record.created_at)
-        return date >= period.start && date <= period.end
+        return isDateInPeriod(date, period)
       })
       .map(record => ({ invoice, record }))
-  }), [invoices, period.end, period.start])
+  }), [invoices, period])
 
   const roomById = useMemo(() => new Map(rooms.map(room => [room.id, room])), [rooms])
   const tenantById = useMemo(() => new Map(tenants.map(tenant => [tenant.id, tenant])), [tenants])
@@ -320,11 +359,11 @@ export function BusinessReport({
   const quickRange = (kind: 'today' | 'week' | 'month') => {
     const now = new Date()
     if (kind === 'today') {
-      setViewMode('daily')
+      setPeriodMode('daily')
       setSelectedDate(iso(now))
       return
     }
-    setViewMode('range')
+    setPeriodMode('range')
     if (kind === 'month') {
       setStartDate(iso(new Date(now.getFullYear(), now.getMonth(), 1)))
       setEndDate(iso(now))
@@ -336,6 +375,10 @@ export function BusinessReport({
     }
   }
 
+  const periodSummary = period.mode === 'all'
+    ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
+    : `${period.days} ngày | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
+
   const openRowDrill = (row: PnlRow) => {
     if (row.invoiceType) setDrill({ mode: 'invoice', type: row.invoiceType, title: row.label })
     if (row.cashType) setDrill({ mode: 'cash', type: row.cashType, category: row.cashCategory, title: row.label })
@@ -343,42 +386,71 @@ export function BusinessReport({
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f5f6f8] p-5 space-y-4">
-      <div className="flex gap-2">
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <i className="fa-solid fa-chart-pie mr-2"></i>Tổng quát
-        </button>
-        <button
-          onClick={() => setActiveTab('pnl')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <i className="fa-solid fa-table-list mr-2"></i>Kết quả kinh doanh
-        </button>
-        <button
-          onClick={() => setActiveTab('deposit')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
-          {depositSummary.pendingCount > 0 && (
-            <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">{depositSummary.pendingCount}</span>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-chart-pie mr-2"></i>Tổng quát
+          </button>
+          <button
+            onClick={() => setActiveTab('pnl')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-table-list mr-2"></i>Kết quả kinh doanh
+          </button>
+          <button
+            onClick={() => setActiveTab('deposit')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
+            {depositSummary.pendingCount > 0 && (
+              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">{depositSummary.pendingCount}</span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('cashflow')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-wallet mr-2"></i>Thu / Chi
+          </button>
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="flex rounded-lg bg-slate-100 p-1">
+            <button onClick={() => setPeriodMode('all')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'all' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Toàn thời gian</button>
+            <button onClick={() => setPeriodMode('range')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'range' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo khoảng</button>
+            <button onClick={() => setPeriodMode('daily')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'daily' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo ngày</button>
+          </div>
+          {periodMode === 'range' && (
+            <>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
+              <span className="text-slate-400 text-xs">đến</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
+            </>
           )}
-        </button>
-        <button
-          onClick={() => setActiveTab('cashflow')}
-          className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-        >
-          <i className="fa-solid fa-wallet mr-2"></i>Thu / Chi
-        </button>
+          {periodMode === 'daily' && (
+            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
+          )}
+          <div className="flex gap-2">
+            <button onClick={() => quickRange('today')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Hôm nay</button>
+            <button onClick={() => quickRange('week')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">7 ngày</button>
+            <button onClick={() => quickRange('month')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Tháng này</button>
+          </div>
+          <div className="text-xs font-semibold text-slate-500">
+            <i className="fa-regular fa-calendar mr-1"></i>
+            {periodSummary}
+          </div>
+        </div>
       </div>
 
       {activeTab === 'overview' && (
-        <OverviewTab />
+        <OverviewTab period={period} />
       )}
 
       {activeTab === 'cashflow' && (
-        <CashFlowTab embedded currentUser={currentUser} onNavigateToInvoices={onNavigateToInvoices} />
+        <CashFlowTab embedded currentUser={currentUser} onNavigateToInvoices={onNavigateToInvoices} period={period} />
       )}
 
       {activeTab === 'deposit' && (
@@ -463,31 +535,7 @@ export function BusinessReport({
         </div>
       )}
 
-      {activeTab === 'pnl' && <><div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg bg-slate-100 p-1">
-          <button onClick={() => setViewMode('range')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${viewMode === 'range' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo khoảng</button>
-          <button onClick={() => setViewMode('daily')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${viewMode === 'daily' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo ngày</button>
-        </div>
-        {viewMode === 'range' ? (
-          <>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-            <span className="text-slate-400 text-xs">đến</span>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-          </>
-        ) : (
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-        )}
-        <div className="flex gap-2">
-          <button onClick={() => quickRange('today')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Hôm nay</button>
-          <button onClick={() => quickRange('week')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">7 ngày</button>
-          <button onClick={() => quickRange('month')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Tháng này</button>
-        </div>
-        <div className="ml-auto text-xs font-semibold text-slate-500">
-          <i className="fa-regular fa-calendar mr-1"></i>
-          {period.days} ngày | {pnl.invoiceCount} hóa đơn | {pnl.cashCount} chứng từ
-        </div>
-      </div>
-
+      {activeTab === 'pnl' && <>
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="font-black text-slate-900 flex items-center gap-2">
