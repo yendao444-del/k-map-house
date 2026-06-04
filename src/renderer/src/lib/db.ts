@@ -55,6 +55,34 @@ export const isDepositOnlyInvoice = (invoice: Pick<Invoice, 'billing_reason' | '
   return nonDepositTotal === 0 && Math.abs(Number(invoice.total_amount || 0)) === Math.abs(depositAmount)
 }
 
+export const getCollectedDepositAmount = (
+  contract: Pick<Contract, 'tenant_id' | 'room_id' | 'created_at' | 'move_in_date' | 'deposit_pre_collected' | 'deposit_amount'> | null | undefined,
+  invoices: Pick<Invoice, 'tenant_id' | 'room_id' | 'created_at' | 'payment_status' | 'paid_amount' | 'total_amount' | 'deposit_amount' | 'billing_reason' | 'is_first_month' | 'is_settlement' | 'room_cost' | 'wifi_cost' | 'garbage_cost' | 'old_debt' | 'electric_cost' | 'water_cost' | 'transfer_room_cost' | 'transfer_electric_cost' | 'transfer_water_cost' | 'transfer_service_cost' | 'new_room_cost' | 'new_room_service_cost'>[] = []
+): number => {
+  if (!contract) return 0
+  if (contract.deposit_pre_collected) return Math.max(0, Number(contract.deposit_amount || 0))
+
+  const contractStartedAt = contract.created_at || contract.move_in_date || ''
+  return invoices.reduce((sum, invoice) => {
+    const depositAmount = Math.max(0, Number(invoice.deposit_amount || 0))
+    if (depositAmount <= 0) return sum
+    if (invoice.is_settlement || invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return sum
+    if (contract.tenant_id && invoice.tenant_id !== contract.tenant_id) return sum
+    if (invoice.room_id !== contract.room_id) return sum
+    if (contractStartedAt && invoice.created_at && invoice.created_at < contractStartedAt) return sum
+
+    if (invoice.payment_status === 'paid' || Number(invoice.paid_amount || 0) >= Number(invoice.total_amount || 0)) {
+      return sum + depositAmount
+    }
+
+    if (isDepositOnlyInvoice(invoice)) {
+      return sum + Math.min(depositAmount, Math.max(0, Number(invoice.paid_amount || 0)))
+    }
+
+    return sum
+  }, 0)
+}
+
 // =========================================================
 // UTILS
 // =========================================================
@@ -629,7 +657,13 @@ export const terminateContract = async (data: {
   // Giá điện/nước tại thời điểm tất toán
   const electricPrice = (room as any).electric_price || zone?.electric_price || 0
   const waterPrice = (room as any).water_price || zone?.water_price || 0
-  const depositHeld = contract.deposit_amount || 0
+  const { data: contractInvoices } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .eq('tenant_id', contract.tenant_id || '')
+    .neq('payment_status', 'cancelled')
+  const depositHeld = getCollectedDepositAmount(contract as Contract, (contractInvoices || []) as Invoice[])
 
   // Tính điện/nước cuối kỳ
   const electricOld = (room as Room).electric_new || 0
@@ -778,7 +812,10 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
   }
 
   const shouldCheckReasonDuplicate =
-    !!invoiceData.billing_reason && !invoiceData.is_first_month && !invoiceData.allow_duplicate
+    !!invoiceData.billing_reason &&
+    invoiceData.billing_reason !== 'deposit_collect' &&
+    !invoiceData.is_first_month &&
+    !invoiceData.allow_duplicate
 
   const duplicateBase = () =>
     supabase
@@ -799,7 +836,7 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
     checks.push(Promise.resolve({ data: [] }))
   }
 
-  if (!invoiceData.is_first_month && !invoiceData.is_settlement) {
+  if (!invoiceData.is_first_month && !invoiceData.is_settlement && invoiceData.billing_reason !== 'deposit_collect') {
     checks.push(duplicateBase().eq('is_first_month', true).limit(1))
   } else {
     checks.push(Promise.resolve({ data: [] }))
@@ -987,23 +1024,6 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
           final_water: updated.water_new,
         } as any)
         .eq('id', activeContract.id)
-    }
-  }
-
-  // Khi thu tiền cọc bổ sung → cộng vào tổng cọc đang giữ của hợp đồng
-  if (inv.billing_reason === 'deposit_collect' && inv.room_id) {
-    const { data: activeContracts } = await supabase
-      .from('contracts')
-      .select('id, deposit_amount')
-      .eq('room_id', inv.room_id)
-      .eq('status', 'active')
-      .limit(1)
-    if (activeContracts && activeContracts.length > 0) {
-      const contract = activeContracts[0]
-      await supabase
-        .from('contracts')
-        .update({ deposit_amount: (contract.deposit_amount || 0) + data.amount })
-        .eq('id', contract.id)
     }
   }
 

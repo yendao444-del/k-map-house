@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createInvoice, getInvoicesByRoom, getRoom, getServiceZones, getContracts, type Invoice, type Room, type Tenant } from '../lib/db';
+import { createInvoice, getCollectedDepositAmount, getInvoicesByRoom, getRoom, getServiceZones, getContracts, type Invoice, type Room, type Tenant } from '../lib/db';
 import { playCreate } from '../lib/sound';
 import { PaymentModal } from './PaymentModal';
 
@@ -13,12 +13,40 @@ interface InvoiceModalProps {
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 
+const parseCurrency = (value: string) =>
+  parseInt(value.replace(/\./g, '').replace(/[^0-9]/g, ''), 10) || 0;
+
 const toDateInput = (date: Date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
+
+const parseDateInput = (value: string): Date => {
+  if (value.includes('/')) {
+    const [first, second, third] = value.split('/').map(Number);
+    if (!first || !second || !third) return new Date();
+    if (String(first).length === 4) return new Date(first, second - 1, third);
+    return new Date(third, second - 1, first);
+  }
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
+};
+
+const toDisplayDate = (value: string) => {
+  const date = parseDateInput(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}/${m}/${y}`;
+};
+
+const isCompleteDateValue = (value: string) =>
+  /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/.test(value.trim()) ||
+  /^\d{4}-\d{1,2}-\d{1,2}$/.test(value.trim());
 
 const reasonOptions = [
   { value: 'first_month', label: 'Thu tiền tháng đầu tiên' },
@@ -140,8 +168,21 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       return;
     }
   }, [hasPaidFirstMonthInvoice, existingInvoices.length, hasTransfer, isMigratedContract, unpaidFirstMonthInvoice]);
-  const [invoiceDate, setInvoiceDate] = useState(today);
-  const defaultDepositAmount = activeContract?.deposit_amount ?? billingRoom.default_deposit ?? 0;
+  const suggestedInvoiceDate = billingReason === 'first_month'
+    ? activeContract?.move_in_date || billingRoom.move_in_date || today
+    : today;
+  const [invoiceDate, setInvoiceDate] = useState(suggestedInvoiceDate);
+  const [invoiceDateText, setInvoiceDateText] = useState(() => toDisplayDate(suggestedInvoiceDate));
+  const [invoiceDateTouched, setInvoiceDateTouched] = useState(false);
+  const agreedDepositAmount = activeContract?.deposit_amount ?? billingRoom.default_deposit ?? 0;
+  const collectedDepositAmount = useMemo(
+    () => getCollectedDepositAmount(activeContract, existingInvoices),
+    [activeContract, existingInvoices]
+  );
+  const remainingDepositAmount = Math.max(0, agreedDepositAmount - collectedDepositAmount);
+  const defaultDepositAmount = billingReason === 'deposit_refund'
+    ? collectedDepositAmount
+    : remainingDepositAmount;
   const [depositAmount, setDepositAmount] = useState<number>(defaultDepositAmount);
   const [depositTouched, setDepositTouched] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
@@ -155,6 +196,17 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       setDepositAmount(defaultDepositAmount);
     }
   }, [defaultDepositAmount, depositTouched]);
+
+  useEffect(() => {
+    setDepositTouched(false);
+  }, [billingReason]);
+
+  useEffect(() => {
+    if (invoiceDateTouched) return;
+    const normalizedDate = toDateInput(parseDateInput(suggestedInvoiceDate));
+    setInvoiceDate(normalizedDate);
+    setInvoiceDateText(toDisplayDate(normalizedDate));
+  }, [invoiceDateTouched, suggestedInvoiceDate]);
 
   // Monthly billing - meter readings
   const electricOld = billingRoom.electric_new || 0;
@@ -172,18 +224,18 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
   // Monthly billing - period
   const defaultPeriodStart = useMemo(() => {
-    const d = new Date(today);
+    const d = parseDateInput(today);
     return toDateInput(new Date(d.getFullYear(), d.getMonth(), 1));
   }, [today]);
   const defaultPeriodEnd = useMemo(() => {
-    const d = new Date(today);
+    const d = parseDateInput(today);
     return toDateInput(new Date(d.getFullYear(), d.getMonth() + 1, 0));
   }, [today]);
   const [periodStart, setPeriodStart] = useState(defaultPeriodStart);
   const [periodEnd, setPeriodEnd] = useState(defaultPeriodEnd);
 
   const invoiceDateObj = useMemo(() => {
-    const parsedDate = new Date(invoiceDate);
+    const parsedDate = parseDateInput(invoiceDate);
     return Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
   }, [invoiceDate]);
   const billingMonth = invoiceDateObj.getMonth() + 1;
@@ -193,6 +245,22 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const remainingDays = daysInMonth - currentDay + 1;
   const prorataRatio = remainingDays / daysInMonth;
 
+  const handleInvoiceDateChange = (value: string) => {
+    setInvoiceDateTouched(true);
+    setInvoiceDateText(value);
+    if (isCompleteDateValue(value)) {
+      setInvoiceDate(toDateInput(parseDateInput(value)));
+    }
+  };
+
+  const handleInvoiceDateBlur = () => {
+    const normalizedDate = isCompleteDateValue(invoiceDateText)
+      ? toDateInput(parseDateInput(invoiceDateText))
+      : invoiceDate;
+    setInvoiceDate(normalizedDate);
+    setInvoiceDateText(toDisplayDate(normalizedDate));
+  };
+
   const internetMonthly = zone?.internet_price || billingRoom.wifi_price || 0;
   const cleaningMonthly = zone?.cleaning_price || billingRoom.garbage_price || 0;
 
@@ -201,16 +269,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const includesFixedServices = ['first_month', 'monthly', 'contract_end', 'room_cycle', 'service'].includes(billingReason);
   const includesDeposit = ['first_month', 'deposit_collect', 'deposit_refund'].includes(billingReason);
 
-  const depositAlreadyCollected = useMemo(() =>
-    activeContract?.deposit_pre_collected === true ||
-    existingInvoices.some(i =>
-      i.tenant_id === currentTenantId &&
-      i.payment_status !== 'cancelled' &&
-      i.paid_amount > 0 &&
-      (i.deposit_amount || 0) > 0
-    ),
-    [existingInvoices, currentTenantId, activeContract]
-  );
+  const depositAlreadyCollected = agreedDepositAmount > 0 && collectedDepositAmount >= agreedDepositAmount;
 
   // --- TÍNH TOÁN THEO LỊCH SỬ CHUYỂN PHÒNG ---
   const tDays = useMemo(() => {
@@ -282,6 +341,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const findDuplicateInvoice = (reason: BillingReason) => {
     if (!currentTenantId) return null;
     if (reason === 'first_month' && unpaidFirstMonthInvoice) return null;
+    if (reason === 'deposit_collect') return null;
     return existingInvoices.find((inv) =>
       inv.tenant_id === currentTenantId &&
       (inv.billing_reason || (inv.is_first_month ? 'first_month' : undefined)) === reason &&
@@ -318,7 +378,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
         year: billingYear,
         invoice_date: invoiceDate,
         billing_period_start: billingReason === 'monthly' ? periodStart : invoiceDate,
-        billing_period_end: billingReason === 'monthly' ? periodEnd : new Date(billingYear, billingMonth - 1, daysInMonth).toISOString().split('T')[0],
+        billing_period_end: billingReason === 'monthly' ? periodEnd : toDateInput(new Date(billingYear, billingMonth - 1, daysInMonth)),
         electric_old: billingReason === 'monthly' ? electricOld : (billingRoom.electric_new || 0),
         electric_new: billingReason === 'monthly' ? electricNew : (billingRoom.electric_new || 0),
         electric_usage: electricUsage,
@@ -340,7 +400,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
         is_first_month: billingReason === 'first_month',
         electric_price_snapshot: electricPrice,
         water_price_snapshot: waterPrice,
-        allow_duplicate: false,
+        allow_duplicate: billingReason === 'deposit_collect',
 
         has_transfer: hasTransfer,
         transfer_old_room_name: th?.old_room_name,
@@ -572,9 +632,12 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-600">Ngày vào ở</label>
               <input
-                type="date"
-                value={invoiceDate}
-                onChange={(e) => { setInvoiceDate(e.target.value); }}
+                type="text"
+                inputMode="numeric"
+                placeholder="dd/mm/yyyy"
+                value={invoiceDateText}
+                onChange={(e) => handleInvoiceDateChange(e.target.value)}
+                onBlur={handleInvoiceDateBlur}
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
               />
               {isProratedReason && (
@@ -770,13 +833,20 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                 <div className="text-xs text-gray-500 italic">Tiền cọc đã được thu trước đó, không thu thêm.</div>
               ) : (
                 <>
-                  <div className="mb-2 text-xs text-gray-500">Mặc định lấy từ hợp đồng, có thể chỉnh tay.</div>
+                  <div className="mb-2 rounded-lg border border-orange-100 bg-orange-50/60 px-3 py-2 text-xs leading-5 text-gray-600">
+                    Cọc thỏa thuận <span className="font-semibold text-gray-800">{formatVND(agreedDepositAmount)} đ</span>
+                    <span className="mx-1.5 text-orange-200">•</span>
+                    đã thu <span className="font-semibold text-emerald-700">{formatVND(collectedDepositAmount)} đ</span>
+                    <span className="mx-1.5 text-orange-200">•</span>
+                    còn thiếu <span className="font-bold text-orange-700">{formatVND(remainingDepositAmount)} đ</span>
+                  </div>
                   <input
-                    type="number"
-                    value={depositAmount || ''}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatVND(depositAmount)}
                     onChange={(e) => {
                       setDepositTouched(true);
-                      setDepositAmount(Number(e.target.value) || 0);
+                      setDepositAmount(parseCurrency(e.target.value));
                     }}
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
                   />

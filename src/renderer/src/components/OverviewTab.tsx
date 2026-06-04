@@ -20,6 +20,12 @@ const fmt = (v: number) => new Intl.NumberFormat('vi-VN').format(Math.round(v ||
 
 type ChartSegment = { label: string; value: number; color: string; pct: number }
 
+const toLocalDay = (value: string) => {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
 function calcMetrics(
   invoices: Invoice[],
   cashTx: CashTransaction[],
@@ -32,14 +38,24 @@ function calcMetrics(
     .flatMap(inv => getInvoicePaymentRecords(inv))
     .filter(rec => {
       if (!start || !end) return true
-      const d = new Date(rec.payment_date || rec.created_at)
+      const d = toLocalDay(rec.payment_date || rec.created_at)
       return d >= start && d <= end
     })
-    .reduce((s, rec) => s + rec.amount, 0)
+    .reduce((s, rec) => s + Math.max(0, rec.amount || 0), 0)
+
+  const invoiceRefund = invoices
+    .filter(inv => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged')
+    .flatMap(inv => getInvoicePaymentRecords(inv))
+    .filter(rec => {
+      if (!start || !end) return true
+      const d = toLocalDay(rec.payment_date || rec.created_at)
+      return d >= start && d <= end
+    })
+    .reduce((s, rec) => s + Math.abs(Math.min(0, rec.amount || 0)), 0)
 
   const cashInMonth = cashTx.filter(tx => {
     if (!start || !end) return true
-    const d = new Date(tx.transaction_date || tx.created_at)
+    const d = toLocalDay(tx.transaction_date || tx.created_at)
     return d >= start && d <= end
   })
 
@@ -56,11 +72,11 @@ function calcMetrics(
     expenseByCategory.set(tx.category, (expenseByCategory.get(tx.category) || 0) + tx.amount)
   }
 
-  const totalExpense = Array.from(expenseByCategory.values()).reduce((s, v) => s + v, 0)
+  const totalExpense = Array.from(expenseByCategory.values()).reduce((s, v) => s + v, 0) + invoiceRefund
   const balance = totalRevenue - totalExpense
   const savingsRate = totalRevenue > 0 ? (balance / totalRevenue) * 100 : 0
 
-  return { totalRevenue, totalExpense, balance, savingsRate, expenseByCategory, invoiceRevenue, otherIncome }
+  return { totalRevenue, totalExpense, balance, savingsRate, expenseByCategory, invoiceRevenue, otherIncome, invoiceRefund }
 }
 
 // SVG Donut chart
@@ -174,7 +190,7 @@ export function OverviewTab({
   )
 
   const chartData: ChartSegment[] = useMemo(() => {
-    return expenseCategories
+    const expenseData = expenseCategories
       .map((cat, i) => ({
         label: cat.name,
         value: current.expenseByCategory.get(cat.value) || 0,
@@ -185,6 +201,15 @@ export function OverviewTab({
       }))
       .filter(d => d.value > 0)
       .sort((a, b) => b.value - a.value)
+    if (current.invoiceRefund > 0) {
+      expenseData.push({
+        label: 'Hoàn cọc / hoàn tiền',
+        value: current.invoiceRefund,
+        color: '#ef4444',
+        pct: current.totalExpense > 0 ? (current.invoiceRefund / current.totalExpense) * 100 : 0,
+      })
+    }
+    return expenseData.sort((a, b) => b.value - a.value)
   }, [expenseCategories, current])
 
   const maxBarValue = chartData.length > 0 ? chartData[0].value : 1

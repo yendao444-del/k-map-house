@@ -25,6 +25,7 @@ import {
   getAssetSnapshotsByRoomIds,
   getAppSettings,
   getCurrentSessionUser,
+  getCollectedDepositAmount,
   isDepositOnlyInvoice,
   signOutUser,
   updateAppSettings,
@@ -3195,53 +3196,84 @@ const App: React.FC = () => {
                                 if (room.status === 'vacant') {
                                   return <span className="text-gray-300 text-xs">—</span>
                                 }
-                                const roomReceipts = moveInReceiptsByRoomId.get(room.id) || []
-                                const receipt = roomReceipts.find(
-                                  (r) =>
-                                    r.payment_status === 'paid' &&
-                                    (!activeContract?.move_in_date ||
-                                      r.move_in_date === activeContract.move_in_date)
-                                )
                                 const currentTenantInvoices = (invoicesByRoomId.get(room.id) || []).filter(
                                   (i) =>
                                     i.payment_status !== 'cancelled' &&
                                     (!activeContract?.tenant_id ||
                                       i.tenant_id === activeContract.tenant_id)
                                 )
-                                const depositInvoice = currentTenantInvoices.find(
-                                  (i) =>
-                                    (i.payment_status === 'paid' || i.payment_status === 'partial') &&
-                                    (i.deposit_amount || 0) > 0 &&
-                                    i.paid_amount > 0 &&
-                                    (!activeContract || i.created_at >= activeContract.created_at)
-                                )
-                                const depositCollected = Boolean(receipt) || Boolean(depositInvoice)
-                                const actualDepositAmount =
-                                  depositInvoice?.deposit_amount ||
-                                  activeContract?.deposit_amount ||
-                                  room.default_deposit ||
-                                  0
-                                if (depositCollected) {
-                                  return (
-                                    <div>
-                                      <div className="font-bold text-gray-800">
-                                        {formatVND(actualDepositAmount)}{' '}
-                                        đ
-                                      </div>
-                                      <div className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-emerald-600">
-                                        <i className="fa-solid fa-lock"></i> Đã thu
-                                      </div>
-                                    </div>
-                                  )
-                                }
                                 if (activeContract) {
+                                  const agreedDeposit = activeContract.deposit_amount || room.default_deposit || 0
+                                  const collectedDeposit = getCollectedDepositAmount(activeContract, currentTenantInvoices)
+                                  const missingDeposit = Math.max(0, agreedDeposit - collectedDeposit)
+                                  const isDepositComplete = agreedDeposit > 0 && missingDeposit <= 0
+
+                                  if (agreedDeposit === 0) {
+                                    return (
+                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-50 text-slate-400 border border-slate-200/60 select-none">
+                                        Không cọc
+                                      </span>
+                                    )
+                                  }
+
+                                  // Badge color & display amount configuration based on state
+                                  let valueDisplayAmount = 0
+                                  let badgeClass = ''
+                                  let badgeText = ''
+                                  let badgeIcon = ''
+
+                                  if (isDepositComplete) {
+                                    valueDisplayAmount = agreedDeposit
+                                    badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-200/50'
+                                    badgeText = 'Đã thu đủ'
+                                    badgeIcon = 'fa-circle-check'
+                                  } else if (collectedDeposit > 0) {
+                                    valueDisplayAmount = collectedDeposit
+                                    badgeClass = 'bg-amber-50 text-amber-600 border border-amber-200/50'
+                                    badgeText = 'Thu thiếu'
+                                    badgeIcon = 'fa-triangle-exclamation'
+                                  } else {
+                                    valueDisplayAmount = 0
+                                    badgeClass = 'bg-red-50 text-red-500 border border-red-200/50'
+                                    badgeText = 'Chưa thu cọc'
+                                    badgeIcon = 'fa-circle-exclamation'
+                                  }
+
                                   return (
-                                    <div>
-                                      <div className="font-bold text-gray-800">
-                                        {formatVND(activeContract.deposit_amount)} đ
+                                    <div className="relative group/tooltip inline-block cursor-help select-none">
+                                      <div>
+                                        <div className="font-bold text-slate-800 tabular-nums">
+                                          {formatVND(valueDisplayAmount)} đ
+                                        </div>
+                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold mt-1 uppercase tracking-wide border ${badgeClass}`}>
+                                          <i className={`fa-solid ${badgeIcon} text-[10px]`}></i>
+                                          {badgeText}
+                                        </span>
                                       </div>
-                                      <div className="text-[10px] text-red-500 mt-0.5 italic whitespace-nowrap">
-                                        Chưa thu tiền cọc
+                                      
+                                      {/* Tooltip Details on Hover */}
+                                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-48 bg-slate-900/95 text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50">
+                                        <div className="font-bold text-slate-300 mb-1.5 pb-1 border-b border-white/10 text-[10px] uppercase tracking-wider text-center">
+                                          Chi tiết tiền cọc
+                                        </div>
+                                        <div className="space-y-1.5 font-medium">
+                                          <div className="flex justify-between gap-4">
+                                            <span className="text-slate-400">Đã thu:</span>
+                                            <span className="font-bold tabular-nums text-emerald-400">{formatVND(collectedDeposit)} đ</span>
+                                          </div>
+                                          <div className="flex justify-between gap-4">
+                                            <span className="text-slate-400">Cần cọc:</span>
+                                            <span className="font-bold tabular-nums">{formatVND(agreedDeposit)} đ</span>
+                                          </div>
+                                          {!isDepositComplete && (
+                                            <div className="flex justify-between gap-4 pt-1.5 border-t border-white/5 text-amber-400 font-bold">
+                                              <span>Còn thiếu:</span>
+                                              <span className="tabular-nums">{formatVND(missingDeposit)} đ</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {/* Tooltip Arrow pointing up */}
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95"></div>
                                       </div>
                                     </div>
                                   )

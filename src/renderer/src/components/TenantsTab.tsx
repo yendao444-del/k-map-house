@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getInvoices, getMoveInReceiptsByTenant, type Contract, type Invoice, type Tenant, type MoveInReceipt } from '../lib/db';
+import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getInvoices, getCollectedDepositAmount, getMoveInReceiptsByTenant, type Contract, type Invoice, type Tenant, type MoveInReceipt } from '../lib/db';
 import { ConfirmModal } from './ConfirmModal';
 import { LogoLoading } from './LogoLoading';
 
@@ -25,6 +25,8 @@ const getDepositStatus = (contract: Contract | null | undefined, invoices: Invoi
   if (!contract || deposit <= 0) {
     return { label: 'Chưa có cọc', detail: '', tone: 'slate' as DepositStatusTone };
   }
+  const collected = getCollectedDepositAmount(contract, invoices);
+  const missing = Math.max(0, deposit - collected);
 
   const relatedInvoices = invoices.filter(invoice =>
     invoice.tenant_id === contract.tenant_id &&
@@ -36,7 +38,10 @@ const getDepositStatus = (contract: Contract | null | undefined, invoices: Invoi
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 
   if (contract.status === 'active' && !latestDepositInvoice) {
-    return { label: 'Đang giữ cọc', detail: `${deposit.toLocaleString('vi-VN')}₫`, tone: 'emerald' as DepositStatusTone };
+    if (missing > 0) {
+      return { label: collected > 0 ? 'Chưa thu đủ' : 'Chưa thu cọc', detail: `${collected.toLocaleString('vi-VN')} / ${deposit.toLocaleString('vi-VN')}₫`, tone: collected > 0 ? 'amber' as DepositStatusTone : 'red' as DepositStatusTone };
+    }
+    return { label: 'Đã thu đủ', detail: `${collected.toLocaleString('vi-VN')} / ${deposit.toLocaleString('vi-VN')}₫`, tone: 'emerald' as DepositStatusTone };
   }
 
   if (!latestDepositInvoice) {
@@ -321,6 +326,7 @@ export const TenantsTab: React.FC = () => {
                 const contactPhone = tenant.phone || latestContract?.tenant_phone || '';
                 const identityCard = tenant.identity_card || latestContract?.tenant_id_card || '';
                 const depositStatus = getDepositStatus(latestContract, invoices);
+                const collectedDeposit = getCollectedDepositAmount(latestContract, invoices);
                 const joinDateLabel = formatDate(latestContract?.move_in_date || tenant.created_at);
                 const leftDateLabel = formatDate(tenant.left_at || latestContract?.end_date);
 
@@ -401,7 +407,7 @@ export const TenantsTab: React.FC = () => {
                       {latestContract && latestContract.deposit_amount > 0 ? (
                         <div className="flex flex-col items-start gap-1">
                           <span className="font-bold text-base text-amber-600">
-                            {latestContract.deposit_amount.toLocaleString('vi-VN')}₫
+                            {collectedDeposit.toLocaleString('vi-VN')} / {latestContract.deposit_amount.toLocaleString('vi-VN')}₫
                           </span>
                           <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${depositToneClass[depositStatus.tone]}`}>
                             {depositStatus.label}

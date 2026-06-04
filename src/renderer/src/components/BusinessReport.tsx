@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
@@ -6,8 +6,10 @@ import {
   getContracts,
   getInvoices,
   getInvoicePaymentRecords,
+  getCollectedDepositAmount,
   getRooms,
   getTenants,
+  isDepositOnlyInvoice,
   type CashTransaction,
   type CashTransactionCategory,
   type Contract,
@@ -73,7 +75,12 @@ export type ReportPeriod = {
 }
 
 const fmt = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
-const iso = (date: Date) => date.toISOString().split('T')[0]
+const iso = (date: Date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
 
 type ExpenseCategoryOption = { value: CashTransactionCategory; label: string }
 
@@ -95,6 +102,12 @@ const toDate = (value: string) => {
 }
 
 const formatPeriodDate = (date: Date) => date.toLocaleDateString('vi-VN')
+const normalizeSearch = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
 
 const isDateInPeriod = (date: Date, period: ReportPeriod) => {
   if (!period.start || !period.end) return true
@@ -143,6 +156,19 @@ const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
   }
 }
 
+const isRoomUtilityDisplayInvoice = (invoice: Invoice) => {
+  if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return false
+  if (invoice.is_settlement || invoice.billing_reason === 'contract_end') return false
+  if (isDepositOnlyInvoice(invoice)) return false
+
+  return (
+    Number(invoice.electric_cost || 0) > 0 ||
+    Number(invoice.water_cost || 0) > 0 ||
+    Number(invoice.electric_usage || 0) > 0 ||
+    Number(invoice.water_usage || 0) > 0
+  )
+}
+
 export function BusinessReport({
   currentUser,
   onNavigateToInvoices,
@@ -156,7 +182,7 @@ export function BusinessReport({
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'>('overview')
 
   const today = new Date()
   const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('all')
@@ -164,6 +190,103 @@ export function BusinessReport({
   const [endDate, setEndDate] = useState(iso(today))
   const [selectedDate, setSelectedDate] = useState(iso(today))
   const [drill, setDrill] = useState<Drill | null>(null)
+  const [roomUtilitySearch, setRoomUtilitySearch] = useState('')
+
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Temp states for Shopee-style date selector
+  const [tempPeriodMode, setTempPeriodMode] = useState<ReportPeriodMode>('all')
+  const [tempStartDate, setTempStartDate] = useState(startDate)
+  const [tempEndDate, setTempEndDate] = useState(endDate)
+  const [tempSelectedDate, setTempSelectedDate] = useState(selectedDate)
+
+  // Sync temp state with real state when opened
+  const handleOpenToggle = () => {
+    if (!dropdownOpen) {
+      setTempPeriodMode(periodMode)
+      setTempStartDate(startDate)
+      setTempEndDate(endDate)
+      setTempSelectedDate(selectedDate)
+    }
+    setDropdownOpen(!dropdownOpen)
+  }
+
+  const handleApply = () => {
+    setPeriodMode(tempPeriodMode)
+    setStartDate(tempStartDate)
+    setEndDate(tempEndDate)
+    setSelectedDate(tempSelectedDate)
+    setDropdownOpen(false)
+  }
+
+  const handleCancel = () => {
+    setDropdownOpen(false)
+  }
+
+  const selectPreset = (mode: 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom_daily' | 'custom_range') => {
+    const now = new Date()
+    if (mode === 'all') {
+      setTempPeriodMode('all')
+    } else if (mode === 'today') {
+      setTempPeriodMode('daily')
+      setTempSelectedDate(iso(now))
+    } else if (mode === 'week') {
+      setTempPeriodMode('range')
+      const start = new Date(now)
+      start.setDate(now.getDate() - 6)
+      setTempStartDate(iso(start))
+      setTempEndDate(iso(now))
+    } else if (mode === 'month') {
+      setTempPeriodMode('range')
+      setTempStartDate(iso(new Date(now.getFullYear(), now.getMonth(), 1)))
+      setTempEndDate(iso(now))
+    } else if (mode === 'last_month') {
+      setTempPeriodMode('range')
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+      setTempStartDate(iso(start))
+      setTempEndDate(iso(end))
+    } else if (mode === 'custom_daily') {
+      setTempPeriodMode('daily')
+    } else if (mode === 'custom_range') {
+      setTempPeriodMode('range')
+    }
+  }
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  const activePresetLabel = useMemo(() => {
+    if (periodMode === 'all') return 'Toàn thời gian'
+    if (periodMode === 'daily') {
+      const todayStr = iso(new Date())
+      if (selectedDate === todayStr) return 'Hôm nay'
+      return 'Theo ngày'
+    }
+    if (periodMode === 'range') {
+      const todayStr = iso(new Date())
+      const sevenDaysAgo = iso(new Date(new Date().setDate(new Date().getDate() - 6)))
+      const firstOfMonth = iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+      const firstOfLastMonth = iso(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1))
+      const lastOfLastMonth = iso(new Date(new Date().getFullYear(), new Date().getMonth(), 0))
+
+      if (startDate === sevenDaysAgo && endDate === todayStr) return '7 ngày qua'
+      if (startDate === firstOfMonth && endDate === todayStr) return 'Tháng này'
+      if (startDate === firstOfLastMonth && endDate === lastOfLastMonth) return 'Tháng trước'
+      return 'Theo khoảng'
+    }
+    return 'Lọc thời gian'
+  }, [periodMode, selectedDate, startDate, endDate])
   const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(
     () => new Set()
   )
@@ -309,12 +432,17 @@ export function BusinessReport({
   const depositRows = useMemo(() => {
     return contracts
       .filter((c: Contract) => c.status === 'active' && (c.deposit_amount || 0) > 0)
-      .map((c: Contract) => ({
-        contract: c,
-        room: roomById.get(c.room_id),
-      }))
+      .map((c: Contract) => {
+        const collected = getCollectedDepositAmount(c, invoices)
+        return {
+          contract: c,
+          room: roomById.get(c.room_id),
+          collected,
+          missing: Math.max(0, Number(c.deposit_amount || 0) - collected),
+        }
+      })
       .sort((a, b) => (a.room?.name || '').localeCompare(b.room?.name || '', 'vi'))
-  }, [contracts, roomById])
+  }, [contracts, invoices, roomById])
 
   const pendingRefundRows = useMemo(() => {
     return invoices
@@ -341,11 +469,117 @@ export function BusinessReport({
   }, [contracts, invoices, roomById, tenantById])
 
   const depositSummary = useMemo(() => ({
-    totalHeld: depositRows.reduce((s, r) => s + (r.contract.deposit_amount || 0), 0),
+    totalHeld: depositRows.reduce((s, r) => s + r.collected, 0),
     activeCount: depositRows.length,
     pendingRefund: pendingRefundRows.reduce((s, r) => s + r.refundRemaining, 0),
     pendingCount: pendingRefundRows.length,
   }), [depositRows, pendingRefundRows])
+
+  // Computed values for utility reconciliation (Điện / Nước đối soát)
+  const utilityData = useMemo(() => {
+    let electricRevenue = 0
+    let waterRevenue = 0
+    let electricRevenueRoomsCount = 0
+    let waterRevenueRoomsCount = 0
+
+    // Room-by-room statistics
+    const roomStatsMap = new Map<string, {
+      roomId: string
+      roomName: string
+      tenantName: string
+      electricRev: number
+      waterRev: number
+      electricUsage: number
+      waterUsage: number
+    }>()
+
+    // Initialize map with all rooms so that we can show them
+    for (const room of rooms) {
+      roomStatsMap.set(room.id, {
+        roomId: room.id,
+        roomName: room.name,
+        tenantName: room.tenant_name || 'Không có khách',
+        electricRev: 0,
+        waterRev: 0,
+        electricUsage: 0,
+        waterUsage: 0,
+      })
+    }
+
+    const electricRevenueRoomIds = new Set<string>()
+    const waterRevenueRoomIds = new Set<string>()
+
+    // Process filtered invoices for revenue
+    for (const invoice of filteredInvoices) {
+      const elecCost = (invoice.electric_cost || 0) + (invoice.transfer_electric_cost || 0)
+      const watCost = (invoice.water_cost || 0) + (invoice.transfer_water_cost || 0)
+
+      electricRevenue += elecCost
+      waterRevenue += watCost
+
+      if (elecCost > 0) electricRevenueRoomIds.add(invoice.room_id)
+      if (watCost > 0) waterRevenueRoomIds.add(invoice.room_id)
+
+      const stats = roomStatsMap.get(invoice.room_id)
+      if (stats) {
+        if (isRoomUtilityDisplayInvoice(invoice)) {
+          stats.electricRev += invoice.electric_cost || 0
+          stats.waterRev += invoice.water_cost || 0
+          stats.electricUsage += invoice.electric_usage || 0
+          stats.waterUsage += invoice.water_usage || 0
+        }
+        if (invoice.tenant_id) {
+          const tenant = tenantById.get(invoice.tenant_id)
+          if (tenant) {
+            stats.tenantName = tenant.full_name
+          }
+        }
+      }
+    }
+
+    electricRevenueRoomsCount = electricRevenueRoomIds.size
+    waterRevenueRoomsCount = waterRevenueRoomIds.size
+
+    // Process filtered cash transactions for expenses (state utility bills paid)
+    let electricExpense = 0
+    let waterExpense = 0
+
+    for (const cash of filteredCash) {
+      if (cash.type === 'expense') {
+        if (cash.category === 'electric') {
+          electricExpense += cash.amount
+        } else if (cash.category === 'water') {
+          waterExpense += cash.amount
+        }
+      }
+    }
+
+    // Delta calculations
+    const electricDelta = electricRevenue - electricExpense
+    const waterDelta = waterRevenue - waterExpense
+
+    const electricPct = electricExpense > 0 ? (electricDelta / electricExpense) * 100 : 0
+    const waterPct = waterExpense > 0 ? (waterDelta / waterExpense) * 100 : 0
+
+    // Convert room stats map to sorted list
+    const roomList = Array.from(roomStatsMap.values())
+      .filter(item => item.electricRev > 0 || item.waterRev > 0 || item.electricUsage > 0 || item.waterUsage > 0)
+      .sort((a, b) => b.electricRev - a.electricRev)
+
+    return {
+      electricRevenue,
+      waterRevenue,
+      electricExpense,
+      waterExpense,
+      electricDelta,
+      waterDelta,
+      electricPct,
+      waterPct,
+      electricRevenueRoomsCount,
+      waterRevenueRoomsCount,
+      roomList,
+    }
+  }, [filteredInvoices, filteredCash, rooms, tenantById])
 
   const toggleSection = (section: PnlSection) => {
     setCollapsedSections(prev => {
@@ -356,24 +590,16 @@ export function BusinessReport({
     })
   }
 
-  const quickRange = (kind: 'today' | 'week' | 'month') => {
-    const now = new Date()
-    if (kind === 'today') {
-      setPeriodMode('daily')
-      setSelectedDate(iso(now))
-      return
-    }
-    setPeriodMode('range')
-    if (kind === 'month') {
-      setStartDate(iso(new Date(now.getFullYear(), now.getMonth(), 1)))
-      setEndDate(iso(now))
-    } else {
-      const start = new Date(now)
-      start.setDate(now.getDate() - 6)
-      setStartDate(iso(start))
-      setEndDate(iso(now))
-    }
-  }
+  const filteredUtilityRooms = useMemo(() => {
+    const keyword = normalizeSearch(roomUtilitySearch.trim())
+    if (!keyword) return utilityData.roomList
+
+    return utilityData.roomList.filter(item => {
+      const haystack = normalizeSearch(`${item.roomName} ${item.tenantName}`)
+      return haystack.includes(keyword)
+    })
+  }, [roomUtilitySearch, utilityData.roomList])
+
 
   const periodSummary = period.mode === 'all'
     ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
@@ -415,32 +641,170 @@ export function BusinessReport({
           >
             <i className="fa-solid fa-wallet mr-2"></i>Thu / Chi
           </button>
+          <button
+            onClick={() => setActiveTab('utility')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'utility' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-right-left mr-2"></i>Điện / Nước
+          </button>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
-          <div className="flex rounded-lg bg-slate-100 p-1">
-            <button onClick={() => setPeriodMode('all')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'all' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Toàn thời gian</button>
-            <button onClick={() => setPeriodMode('range')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'range' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo khoảng</button>
-            <button onClick={() => setPeriodMode('daily')} className={`px-3 py-1.5 rounded-md text-xs font-bold ${periodMode === 'daily' ? 'bg-white text-primary shadow-sm' : 'text-slate-500'}`}>Theo ngày</button>
+        <div ref={dropdownRef} className="ml-auto flex items-center gap-2">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={handleOpenToggle}
+              className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm rounded-xl px-3 py-2 text-xs font-bold text-slate-700 transition cursor-pointer select-none"
+            >
+              <i className="fa-regular fa-calendar text-primary text-sm"></i>
+              <span>{activePresetLabel}</span>
+              <i className="fa-solid fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
+            </button>
+
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-[460px] rounded-2xl border border-slate-100 bg-white shadow-2xl z-[99] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                    <i className="fa-solid fa-clock-rotate-left text-slate-400"></i>
+                    Bộ lọc thời gian báo cáo
+                  </span>
+                </div>
+
+                <div className="flex flex-1 min-h-[190px]">
+                  <div className="w-[160px] border-r border-slate-100 p-2 bg-slate-50/30 flex flex-col gap-1">
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('all')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'all' ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Toàn thời gian
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('month')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'range' && tempStartDate === iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) && tempEndDate === iso(new Date()) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Tháng này
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('last_month')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'range' && tempStartDate === iso(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1)) && tempEndDate === iso(new Date(new Date().getFullYear(), new Date().getMonth(), 0)) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Tháng trước
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('today')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'daily' && tempSelectedDate === iso(new Date()) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Hôm nay
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('week')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'range' && tempStartDate === iso(new Date(new Date().setDate(new Date().getDate() - 6))) && tempEndDate === iso(new Date()) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      7 ngày gần đây
+                    </button>
+
+                    <div className="h-px bg-slate-100 my-1"></div>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('custom_daily')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'daily' && tempSelectedDate !== iso(new Date()) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Tùy chỉnh ngày
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => selectPreset('custom_range')}
+                      className={`w-full text-left px-2.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${tempPeriodMode === 'range' && !(tempStartDate === iso(new Date(new Date().setDate(new Date().getDate() - 6))) && tempEndDate === iso(new Date())) && !(tempStartDate === iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1)) && tempEndDate === iso(new Date())) ? 'bg-primary/10 text-primary' : 'text-slate-600 hover:bg-slate-100/50'}`}
+                    >
+                      Tùy chỉnh khoảng
+                    </button>
+                  </div>
+
+                  <div className="flex-1 p-4 flex flex-col justify-center">
+                    {tempPeriodMode === 'all' && (
+                      <div className="text-center text-slate-400 py-6">
+                        <i className="fa-solid fa-globe text-3xl mb-2 opacity-40"></i>
+                        <p className="text-xs font-semibold">Lọc toàn bộ lịch sử dữ liệu</p>
+                        <p className="text-[10px] text-slate-300 mt-0.5">Không giới hạn thời gian báo cáo</p>
+                      </div>
+                    )}
+
+                    {tempPeriodMode === 'daily' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Chọn ngày báo cáo</label>
+                        <input
+                          type="date"
+                          value={tempSelectedDate}
+                          onChange={e => setTempSelectedDate(e.target.value)}
+                          onClick={e => e.currentTarget.showPicker()}
+                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
+                        />
+                      </div>
+                    )}
+
+                    {tempPeriodMode === 'range' && (
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Từ ngày</label>
+                          <input
+                            type="date"
+                            value={tempStartDate}
+                            onChange={e => setTempStartDate(e.target.value)}
+                            onClick={e => e.currentTarget.showPicker()}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đến ngày</label>
+                          <input
+                            type="date"
+                            value={tempEndDate}
+                            onChange={e => setTempEndDate(e.target.value)}
+                            onClick={e => e.currentTarget.showPicker()}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="px-4 py-3 border-t border-slate-100 bg-slate-50/40 flex justify-end items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApply}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-dark shadow-sm hover:shadow transition cursor-pointer"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          {periodMode === 'range' && (
-            <>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-              <span className="text-slate-400 text-xs">đến</span>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-            </>
-          )}
-          {periodMode === 'daily' && (
-            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="border border-slate-200 rounded-lg px-3 py-2 text-sm font-semibold" />
-          )}
-          <div className="flex gap-2">
-            <button onClick={() => quickRange('today')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Hôm nay</button>
-            <button onClick={() => quickRange('week')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">7 ngày</button>
-            <button onClick={() => quickRange('month')} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-600">Tháng này</button>
-          </div>
-          <div className="text-xs font-semibold text-slate-500">
-            <i className="fa-regular fa-calendar mr-1"></i>
-            {periodSummary}
+
+          <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 text-slate-500 font-semibold text-xs shrink-0 select-none">
+            <i className="fa-regular fa-calendar-check text-slate-400 text-sm"></i>
+            <span>{periodSummary}</span>
           </div>
         </div>
       </div>
@@ -481,16 +845,21 @@ export function BusinessReport({
                   <th className="text-left px-5 py-3">Phòng</th>
                   <th className="text-left px-5 py-3">Khách thuê</th>
                   <th className="text-left px-5 py-3">Ngày vào</th>
-                  <th className="text-right px-5 py-3">Tiền cọc</th>
+                  <th className="text-right px-5 py-3">Đã thu / thỏa thuận</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {depositRows.map(({ contract, room }) => (
+                {depositRows.map(({ contract, room, collected, missing }) => (
                   <tr key={contract.id} className="hover:bg-slate-50">
                     <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
                     <td className="px-5 py-3 text-slate-700">{contract.tenant_name}</td>
                     <td className="px-5 py-3 text-slate-500">{new Date(contract.move_in_date).toLocaleDateString('vi-VN')}</td>
-                    <td className="px-5 py-3 text-right font-black tabular-nums text-slate-800">{fmt(contract.deposit_amount)} đ</td>
+                    <td className="px-5 py-3 text-right">
+                      <div className="font-black tabular-nums text-slate-800">{fmt(collected)} / {fmt(contract.deposit_amount)} đ</div>
+                      <div className={`text-[11px] font-bold ${missing > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {missing > 0 ? `Còn thiếu ${fmt(missing)} đ` : 'Đã thu đủ'}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {depositRows.length === 0 && (
@@ -716,6 +1085,283 @@ export function BusinessReport({
         </div>
       )}
       </>}
+
+      {activeTab === 'utility' && (
+        <div className="space-y-6">
+          {/* SECTION TITLE */}
+          <div>
+            <h2 className="text-xl font-black font-outfit text-slate-900 flex items-center gap-2.5">
+              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 text-xs">
+                <i className="fa-solid fa-right-left"></i>
+              </div>
+              Đối soát chênh lệch Điện & Nước
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 font-medium">Đối chiếu giữa số tiền nộp hộ công ty dịch vụ (Chi phí) và số tiền thực tế thu về từ khách trọ (Doanh thu).</p>
+          </div>
+
+          {/* TWO HERO CARDS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* CARD 1: ELECTRICITY */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition hover:border-emerald-500/30">
+              <div className="flex items-start justify-between z-10">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center text-xl shadow-inner transition-transform duration-300">
+                    <i className="fa-solid fa-bolt"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black font-outfit text-slate-800">⚡ Tiền Điện dịch vụ</h3>
+                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">Đối chiếu doanh thu và hóa đơn chi</p>
+                  </div>
+                </div>
+                
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-rose-50 border border-rose-100 text-rose-600'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${utilityData.electricDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
+                  {utilityData.electricDelta >= 0 ? `Thặng dư: +${utilityData.electricPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.electricPct.toFixed(1)}%`}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-6 z-10">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Thu từ khách trọ</span>
+                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.electricRevenue)} đ</span>
+                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span> {utilityData.electricRevenueRoomsCount} phòng đóng nộp
+                  </span>
+                </div>
+                <div className="space-y-0.5 border-l border-slate-100 pl-5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Trả công ty điện</span>
+                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.electricExpense)} đ</span>
+                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-amber-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 my-4"></div>
+
+              <div className={`flex items-center justify-between text-xs p-3 rounded-2xl border shadow-inner z-10 ${utilityData.electricDelta >= 0 ? 'bg-emerald-500/[0.01] border-emerald-100/50' : 'bg-rose-500/[0.01] border-rose-100/50'}`}>
+                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.electricDelta >= 0 ? 'dư' : 'thiếu'}:</span>
+                <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
+                </span>
+              </div>
+            </div>
+
+            {/* CARD 2: WATER */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition hover:border-emerald-500/30">
+              <div className="flex items-start justify-between z-10">
+                <div className="flex items-center gap-3">
+                  <div className="h-11 w-11 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center text-xl shadow-inner transition-transform duration-300">
+                    <i className="fa-solid fa-droplet"></i>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black font-outfit text-slate-800">💧 Tiền Nước sinh hoạt</h3>
+                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">Đối chiếu doanh thu và hóa đơn chi</p>
+                  </div>
+                </div>
+                
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-rose-50 border border-rose-100 text-rose-600'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${utilityData.waterDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
+                  {utilityData.waterDelta >= 0 ? `Thặng dư: +${utilityData.waterPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.waterPct.toFixed(1)}%`}
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4 mt-6 z-10">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Thu từ khách trọ</span>
+                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.waterRevenue)} đ</span>
+                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span> {utilityData.waterRevenueRoomsCount} phòng đóng nộp
+                  </span>
+                </div>
+                <div className="space-y-0.5 border-l border-slate-100 pl-5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Trả công ty nước</span>
+                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.waterExpense)} đ</span>
+                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1 h-1 bg-sky-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                  </span>
+                </div>
+              </div>
+
+              <div className="h-px bg-slate-100 my-4"></div>
+
+              <div className={`flex items-center justify-between text-xs p-3 rounded-2xl border shadow-inner z-10 ${utilityData.waterDelta >= 0 ? 'bg-emerald-500/[0.01] border-emerald-100/50' : 'bg-rose-500/[0.01] border-rose-100/50'}`}>
+                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.waterDelta >= 0 ? 'dư' : 'thiếu'}:</span>
+                <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* BOTTOM SECTIONS */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* COMPARISON DATA TABLE */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden lg:col-span-2 flex flex-col justify-between">
+              <div>
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <h3 className="font-black font-outfit text-slate-900 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <i className="fa-solid fa-list-check text-emerald-500"></i>
+                    Bảng phân tích đối soát chi tiết
+                  </h3>
+                  <span className="text-[9px] text-slate-400 font-extrabold bg-white border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-widest">Cân đối thu - chi</span>
+                </div>
+                
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400 font-extrabold border-b border-slate-100">
+                    <tr>
+                      <th className="text-left px-6 py-3.5">Hạng Mục Lọc</th>
+                      <th className="text-right px-6 py-3.5">Khách Đóng (A)</th>
+                      <th className="text-right px-6 py-3.5">Chi N.Nước (B)</th>
+                      <th className="text-right px-6 py-3.5">Lời / Lỗ (A - B)</th>
+                      <th className="text-center px-6 py-3.5">Đánh giá</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
+                    <tr className="hover:bg-slate-50/40 transition duration-150">
+                      <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-amber-400 block shadow animate-pulse"></span>⚡ Tiền điện phòng trọ
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricExpense)} đ</td>
+                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                          {utilityData.electricDelta >= 0 ? `Lời ${utilityData.electricPct.toFixed(1)}%` : `Lỗ ${utilityData.electricPct.toFixed(1)}%`}
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/40 transition duration-150">
+                      <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-sky-400 block shadow animate-pulse"></span>💧 Tiền nước sinh hoạt
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterExpense)} đ</td>
+                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                          {utilityData.waterDelta >= 0 ? `Lời ${utilityData.waterPct.toFixed(1)}%` : `Lỗ ${utilityData.waterPct.toFixed(1)}%`}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between font-black font-outfit text-xs md:text-sm tracking-wide">
+                <span className="text-slate-800 text-[10px] uppercase tracking-widest font-extrabold">TỔNG HỢP LIÊN DỊCH VỤ</span>
+                <div className="flex items-center gap-5.5 tabular-nums">
+                  <span className="text-slate-500 text-xs font-semibold">Thu: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricRevenue + utilityData.waterRevenue)} đ</span></span>
+                  <span className="text-slate-500 text-xs font-semibold">Chi: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricExpense + utilityData.waterExpense)} đ</span></span>
+                  <span className="text-slate-600">Lời ròng: <span className={`font-black text-sm md:text-base ${(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricDelta + utilityData.waterDelta)} đ
+                  </span></span>
+                </div>
+              </div>
+            </div>
+
+            {/* ROOM BY ROOM ANALYSIS */}
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 space-y-3">
+                <div>
+                  <h3 className="font-black font-outfit text-slate-900 flex items-center gap-2 text-sm uppercase tracking-wide">
+                    <i className="fa-solid fa-server text-emerald-500"></i>
+                    Mức tiêu thụ các Phòng
+                  </h3>
+                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">Tiêu thụ điện nước chi tiết theo phòng</p>
+                </div>
+                <div className="relative">
+                  <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"></i>
+                  <input
+                    type="search"
+                    value={roomUtilitySearch}
+                    onChange={event => setRoomUtilitySearch(event.target.value)}
+                    placeholder="Tìm phòng hoặc khách thuê..."
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
+                  />
+                </div>
+              </div>
+              
+              <div className="divide-y divide-slate-100 overflow-y-auto max-h-[300px] flex-1">
+                {filteredUtilityRooms.map(item => {
+                  const isAnomaly = item.electricUsage > 300
+                  const absoluteRank = utilityData.roomList.findIndex(r => r.roomId === item.roomId) + 1
+
+                  // Premium badge configurations based on rank
+                  let rankBadge: React.ReactNode = null
+                  if (absoluteRank === 1) {
+                    rankBadge = (
+                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-white font-black text-[9px] tracking-wider shadow-sm shadow-amber-500/30 gap-0.5 uppercase shrink-0">
+                        <i className="fa-solid fa-crown text-[9px] animate-pulse"></i> Top 1
+                      </div>
+                    )
+                  } else if (absoluteRank === 2) {
+                    rankBadge = (
+                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-slate-400 via-slate-300 to-slate-200 text-white font-black text-[9px] tracking-wider shadow-sm shadow-slate-400/20 gap-0.5 uppercase shrink-0">
+                        <i className="fa-solid fa-medal text-[9px]"></i> Top 2
+                      </div>
+                    )
+                  } else if (absoluteRank === 3) {
+                    rankBadge = (
+                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-amber-800 via-amber-600 to-amber-700 text-white font-black text-[9px] tracking-wider shadow-sm shadow-amber-700/20 gap-0.5 uppercase shrink-0">
+                        <i className="fa-solid fa-award text-[9px]"></i> Top 3
+                      </div>
+                    )
+                  } else {
+                    rankBadge = (
+                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-50 border border-slate-200 text-slate-400 font-extrabold text-[9px] shrink-0">
+                        #{absoluteRank}
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div key={item.roomId} className={`px-6 py-4 flex items-center justify-between transition duration-150 ${isAnomaly ? 'bg-amber-500/[0.02] border-l-2 border-amber-500 hover:bg-amber-500/[0.04]' : 'hover:bg-slate-50/40'}`}>
+                      <div className="flex items-center gap-2.5">
+                        {rankBadge}
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-black font-outfit text-xs ${isAnomaly ? 'bg-amber-500/10 text-amber-600 animate-pulse' : 'bg-slate-100 text-slate-600 shrink-0'}`}>
+                          {item.roomName.replace('Phòng ', '')}
+                        </div>
+                        <div>
+                          <span className={`font-bold block text-xs ${isAnomaly ? 'text-amber-600 flex items-center gap-1.5' : 'text-slate-800'}`}>
+                            {item.tenantName}
+                            {isAnomaly && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>}
+                          </span>
+                          <span className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${isAnomaly ? 'text-amber-500/60' : 'text-slate-400'}`}>
+                            {isAnomaly ? '⚠️ ĐIỆN CAO BẤT THƯỜNG' : 'Khách thuê'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 ml-2">
+                        <span className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-slate-700'}`}>
+                          ⚡ {fmt(item.electricRev)} đ <span className="text-[9px] font-medium opacity-80">({item.electricUsage} kWh)</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
+                          💧 {fmt(item.waterRev)} đ <span className="text-[9px] font-medium opacity-80">({item.waterUsage} m³)</span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+                
+                {filteredUtilityRooms.length === 0 && (
+                  <div className="px-6 py-12 text-center text-slate-400 text-xs">
+                    {roomUtilitySearch.trim() ? 'Không tìm thấy phòng phù hợp.' : 'Không có dữ liệu tiêu thụ phòng nào trong kỳ báo cáo này.'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

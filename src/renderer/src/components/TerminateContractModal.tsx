@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getInvoicesByRoom,
+  getCollectedDepositAmount,
   getContracts,
   getServiceZones,
   getRoomAssets,
@@ -252,7 +253,9 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
     return s?.condition === 'ok' || (s?.condition === 'not_done' && (s.deduction || 0) > 0)
   })
 
-  const depositHeld = activeContract?.deposit_amount || room.default_deposit || 0
+  const agreedDeposit = activeContract?.deposit_amount || room.default_deposit || 0
+  const depositHeld = getCollectedDepositAmount(activeContract, invoices)
+  const missingDeposit = Math.max(0, agreedDeposit - depositHeld)
   const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebt + damageAmount + assetDamageTotal + handoverDamageTotal
   const netDue = totalCharges - depositHeld
   const refundAmount = netDue < 0 ? Math.abs(netDue) : 0
@@ -312,7 +315,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                 <span className="font-semibold">{formatVND(summary.totalCharges)} đ</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Tiền cọc đã trừ</span>
+                <span className="text-gray-500">Cọc đã thu thực tế</span>
                 <span className="font-semibold text-emerald-600">− {formatVND(summary.depositHeld)} đ</span>
               </div>
               <div className="border-t border-gray-200 pt-2 flex justify-between">
@@ -779,9 +782,15 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                 <span className="text-gray-900">{formatVND(totalCharges)} đ</span>
               </div>
               <div className="flex justify-between text-emerald-700">
-                <span><i className="fa-solid fa-shield-halved mr-1.5 w-4 text-center"></i>Tiền cọc đang giữ</span>
+                <span><i className="fa-solid fa-shield-halved mr-1.5 w-4 text-center"></i>Cọc đã thu thực tế</span>
                 <span className="font-semibold">− {formatVND(depositHeld)} đ</span>
               </div>
+              {missingDeposit > 0 && (
+                <div className="flex justify-between text-[11px] text-amber-600">
+                  <span>Cọc thỏa thuận {formatVND(agreedDeposit)} đ</span>
+                  <span>Còn thiếu {formatVND(missingDeposit)} đ</span>
+                </div>
+              )}
               <div className={`border-t-2 pt-2 flex justify-between items-center ${netDue > 0 ? 'border-red-200' : 'border-emerald-200'}`}>
                 <span className="font-bold text-base text-gray-800">
                   {netDue > 0 ? 'Khách còn thiếu' : netDue === 0 ? 'Hòa — không thu thêm' : 'Hoàn lại khách'}
