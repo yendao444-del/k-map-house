@@ -238,15 +238,15 @@ export const TenantsTab: React.FC = () => {
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-6 p-4">
       {/* Header Widget */}
-      <div className="flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200 pointer-events-auto">
+      <div className="flex flex-wrap items-center justify-between gap-3 pointer-events-none">
+        <div className="flex max-w-full flex-wrap items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200 pointer-events-auto">
           {(['all', 'active', 'inactive', 'left'] as const).map(f => {
             const label = f === 'all' ? 'Tất cả' : f === 'active' ? 'Đang ở' : f === 'inactive' ? 'Chưa ở' : 'Đã rời đi';
             return (
               <button
                 key={f}
                 onClick={() => setFilterActive(f)}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${filterActive === f ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 font-medium hover:bg-slate-50'}`}
+                className={`px-3 py-2 xl:px-4 rounded-lg text-sm font-bold transition-all duration-200 ${filterActive === f ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 font-medium hover:bg-slate-50'}`}
               >
                 {label} ({filterCounts[f]})
               </button>
@@ -254,8 +254,8 @@ export const TenantsTab: React.FC = () => {
           })}
         </div>
 
-        <div className="flex items-center gap-4 pointer-events-auto">
-          <div className="relative w-64">
+        <div className="flex flex-wrap items-center gap-3 pointer-events-auto">
+          <div className="relative w-56 xl:w-64">
             <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
               type="text"
@@ -265,7 +265,7 @@ export const TenantsTab: React.FC = () => {
               className="w-full bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none transition text-sm"
             />
           </div>
-          <button data-tour="add-tenant-btn" onClick={openAddModal} className="bg-primary text-white px-4 py-2.5 rounded-lg font-bold hover:bg-primary-dark transition shadow-sm flex items-center gap-2 text-sm">
+          <button data-tour="add-tenant-btn" onClick={openAddModal} className="bg-primary text-white px-3 py-2.5 xl:px-4 rounded-lg font-bold hover:bg-primary-dark transition shadow-sm flex items-center gap-2 text-sm whitespace-nowrap">
             <i className="fa-solid fa-plus"></i> Thêm khách mới
           </button>
         </div>
@@ -274,17 +274,17 @@ export const TenantsTab: React.FC = () => {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
           <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 bg-slate-50 text-[13px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
+            <thead className="sticky top-0 bg-slate-50 text-[11px] xl:text-[13px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
               <tr>
-                <th className="px-6 py-4">Khách hàng</th>
-                <th className="px-6 py-4">Liên hệ</th>
-                <th className="px-6 py-4 text-center">Phòng ở</th>
-                <th className="px-6 py-4 text-center">Trạng thái</th>
-                <th className="px-6 py-4">Tiền cọc</th>
-                <th className="px-6 py-4">Định danh (CCCD)</th>
-                <th className="px-6 py-4">Ngày tham gia</th>
-                <th className="px-6 py-4">Ngày rời đi</th>
-                <th className="px-6 py-4 text-center">Xem thêm</th>
+                <th className="px-4 py-4 xl:px-6">Khách hàng</th>
+                <th className="px-4 py-4 xl:px-6">Liên hệ</th>
+                <th className="px-4 py-4 text-center xl:px-6">Phòng ở</th>
+                <th className="px-4 py-4 text-center xl:px-6">Trạng thái</th>
+                <th className="px-4 py-4 xl:px-6">Tiền cọc</th>
+                <th className="hidden px-4 py-4 xl:table-cell xl:px-6">Định danh (CCCD)</th>
+                <th className="px-4 py-4 xl:px-6">Ngày tham gia</th>
+                <th className="hidden px-4 py-4 2xl:table-cell xl:px-6">Ngày rời đi</th>
+                <th className="px-4 py-4 text-center xl:px-6">Xem thêm</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-base">
@@ -332,7 +332,7 @@ export const TenantsTab: React.FC = () => {
 
                 return (
                   <tr key={tenant.id} className="hover:bg-slate-50/80 transition group relative">
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 xl:px-6">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-xl ${avatarColors[colorIdx]} flex items-center justify-center font-bold text-sm shrink-0`}>
                           {initials}
@@ -343,7 +343,7 @@ export const TenantsTab: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 xl:px-6">
                       <div className="flex flex-col gap-1.5 items-start">
                         {contactPhone ? (
                           <div className="flex items-center gap-2">
@@ -373,7 +373,7 @@ export const TenantsTab: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-4 text-center xl:px-6">
                       {roomLabel !== '—' ? (
                         <span className={`px-3 py-1 rounded-full font-bold text-[13px] border shadow-sm whitespace-nowrap ${isActuallyActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{roomLabel}</span>
                       ) : (
@@ -381,7 +381,7 @@ export const TenantsTab: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-4 text-center xl:px-6">
                       {isActuallyActive ? (
                         <div className="flex items-center gap-2 justify-center">
                           <span className="relative flex h-2 w-2">
@@ -403,25 +403,55 @@ export const TenantsTab: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="px-6 py-4">
-                      {latestContract && latestContract.deposit_amount > 0 ? (
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="font-bold text-base text-amber-600">
-                            {collectedDeposit.toLocaleString('vi-VN')} / {latestContract.deposit_amount.toLocaleString('vi-VN')}₫
-                          </span>
-                          <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${depositToneClass[depositStatus.tone]}`}>
-                            {depositStatus.label}
-                          </span>
-                          {depositStatus.detail && (
-                            <span className="text-xs text-slate-400 font-medium">{depositStatus.detail}</span>
-                          )}
-                        </div>
-                      ) : (
+                    <td className="px-4 py-4 xl:px-6">
+                      {latestContract && latestContract.deposit_amount > 0 ? (() => {
+                        const agreedDeposit = Number(latestContract.deposit_amount || 0);
+                        const missingDeposit = Math.max(0, agreedDeposit - collectedDeposit);
+                        const isDepositComplete = agreedDeposit > 0 && missingDeposit <= 0;
+                        const displayAmount = isDepositComplete ? agreedDeposit : collectedDeposit;
+
+                        return (
+                          <div className="relative inline-block min-w-[92px] cursor-help select-none group/deposit">
+                            <div className="text-left">
+                              <div className="whitespace-nowrap font-bold text-slate-800 tabular-nums">
+                                {displayAmount.toLocaleString('vi-VN')} đ
+                              </div>
+                              <span className={`mt-1 inline-flex max-w-[92px] items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide leading-tight ${depositToneClass[depositStatus.tone]}`}>
+                                <i className={`fa-solid ${isDepositComplete ? 'fa-circle-check' : collectedDeposit > 0 ? 'fa-triangle-exclamation' : 'fa-circle-exclamation'} text-[10px]`}></i>
+                                {depositStatus.label}
+                              </span>
+                            </div>
+
+                            <div className="invisible absolute left-0 top-full z-50 mt-2 w-48 rounded-lg bg-slate-900/95 p-3 text-xs text-white opacity-0 shadow-xl transition-all duration-200 group-hover/deposit:visible group-hover/deposit:opacity-100 xl:left-1/2 xl:-translate-x-1/2">
+                              <div className="mb-1.5 border-b border-white/10 pb-1 text-center text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                                Chi tiết tiền cọc
+                              </div>
+                              <div className="space-y-1.5 font-medium">
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-slate-400">Đã thu:</span>
+                                  <span className="font-bold tabular-nums text-emerald-400">{collectedDeposit.toLocaleString('vi-VN')} đ</span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-slate-400">Cần cọc:</span>
+                                  <span className="font-bold tabular-nums">{agreedDeposit.toLocaleString('vi-VN')} đ</span>
+                                </div>
+                                {!isDepositComplete && (
+                                  <div className="flex justify-between gap-4 border-t border-white/5 pt-1.5 font-bold text-amber-400">
+                                    <span>Còn thiếu:</span>
+                                    <span className="tabular-nums">{missingDeposit.toLocaleString('vi-VN')} đ</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="absolute bottom-full left-6 border-4 border-transparent border-b-slate-900/95 xl:left-1/2 xl:-translate-x-1/2"></div>
+                            </div>
+                          </div>
+                        );
+                      })() : (
                         <span className="text-[13px] text-slate-400 italic">—</span>
                       )}
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="hidden px-4 py-4 xl:table-cell xl:px-6">
                       {identityCard ? (
                         <div
                           className="inline-block cursor-help"
@@ -456,14 +486,14 @@ export const TenantsTab: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-4 xl:px-6">
                       <div className="flex items-center gap-2 text-slate-600 text-sm">
                         <i className="fa-solid fa-calendar-day text-slate-300"></i>
                         <span className="font-medium">{joinDateLabel}</span>
                       </div>
                     </td>
 
-                    <td className="px-6 py-4">
+                    <td className="hidden px-4 py-4 2xl:table-cell xl:px-6">
                       {leftDateLabel !== '—' ? (
                         <div className="flex items-center gap-2 text-slate-600 text-sm">
                           <i className="fa-solid fa-person-walking text-slate-300"></i>
@@ -474,7 +504,7 @@ export const TenantsTab: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="px-6 py-4 text-center" style={{ overflow: 'visible' }}>
+                    <td className="px-4 py-4 text-center xl:px-6" style={{ overflow: 'visible' }}>
                       <div className="relative inline-block text-left">
                         <button
                           onClick={(e) => {
