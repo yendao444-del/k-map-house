@@ -218,7 +218,6 @@ export function BusinessReport({
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
 
   const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'>('overview')
-  const [buildingActiveTab, setBuildingActiveTab] = useState<'electric' | 'water'>('electric')
 
   const today = new Date()
   const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('range')
@@ -1182,7 +1181,7 @@ export function BusinessReport({
           {/* SECTION TITLE */}
           <div>
             <h2 className="text-xl font-black font-outfit text-slate-900 flex items-center gap-2.5">
-              <div className="h-7 w-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 text-xs">
+              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white flex items-center justify-center text-[10px] shadow-sm shadow-emerald-500/20">
                 <i className="fa-solid fa-right-left"></i>
               </div>
               Đối soát chênh lệch Điện & Nước
@@ -1190,48 +1189,47 @@ export function BusinessReport({
             <p className="text-xs text-slate-500 mt-1 font-medium">Đối chiếu A Thu thực tế từ khách trọ với B Chi điện/nước theo kỳ sử dụng.</p>
           </div>
 
-          {/* TWO HERO CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
             {/* CARD 1: ELECTRICITY */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition hover:border-emerald-500/30">
+            <div className="bg-gradient-to-br from-white via-white to-amber-500/[0.04] rounded-3xl p-6 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition-all duration-300 hover:border-amber-400/60 hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1">
               <div className="flex items-start justify-between z-10">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center text-xl shadow-inner transition-transform duration-300">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 text-white flex items-center justify-center text-xl shadow-lg shadow-amber-500/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
                     <i className="fa-solid fa-bolt"></i>
                   </div>
                   <div>
-                    <h3 className="text-sm font-black font-outfit text-slate-800">⚡ Tiền Điện dịch vụ</h3>
+                    <h3 className="text-sm font-black font-outfit text-amber-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-amber-950">⚡ Tiền Điện dịch vụ</h3>
                     <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">A Thu thực tế - B Chi theo kỳ</p>
                   </div>
                 </div>
                 
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-rose-50 border border-rose-100 text-rose-600'}`}>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${utilityData.electricDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
                   {utilityData.electricDelta >= 0 ? `Thặng dư: +${utilityData.electricPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.electricPct.toFixed(1)}%`}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 mt-6 z-10">
+              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-2 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-amber-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">A Thu thực tế</span>
-                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.electricRevenue)} đ</span>
-                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span> {utilityData.electricRevenueRoomsCount} phòng đóng nộp
+                  <span className="text-[9px] font-bold text-amber-700/80 uppercase tracking-widest block">A Thu thực tế</span>
+                  <span className="text-lg font-black text-amber-950 tabular-nums">{fmt(utilityData.electricRevenue)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.electricRevenueRoomsCount} phòng đóng nộp
                   </span>
                 </div>
-                <div className="space-y-0.5 border-l border-slate-100 pl-5">
+                <div className="space-y-0.5 border-l border-slate-300/80 pl-5">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">B Chi</span>
-                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.electricExpense)} đ</span>
-                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-amber-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                  <span className="text-lg font-black text-slate-700 tabular-nums">{fmt(utilityData.electricExpense)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span> Hóa đơn nhà nước
                   </span>
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 my-4"></div>
+              <div className="h-px bg-slate-200/60 my-4"></div>
 
-              <div className={`flex items-center justify-between text-xs p-3 rounded-2xl border shadow-inner z-10 ${utilityData.electricDelta >= 0 ? 'bg-emerald-500/[0.01] border-emerald-100/50' : 'bg-rose-500/[0.01] border-rose-100/50'}`}>
+              <div className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.electricDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}>
                 <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.electricDelta >= 0 ? 'dư' : 'thiếu'}:</span>
                 <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
@@ -1240,178 +1238,172 @@ export function BusinessReport({
             </div>
 
             {/* CARD 2: WATER */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition hover:border-emerald-500/30">
+            <div className="bg-gradient-to-br from-white via-white to-sky-500/[0.04] rounded-3xl p-6 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition-all duration-300 hover:border-sky-400/60 hover:shadow-lg hover:shadow-sky-500/10 hover:-translate-y-1">
               <div className="flex items-start justify-between z-10">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 flex items-center justify-center text-xl shadow-inner transition-transform duration-300">
+                  <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-500 text-white flex items-center justify-center text-xl shadow-lg shadow-sky-500/30 transition-all duration-300 group-hover:scale-110 group-hover:-rotate-6">
                     <i className="fa-solid fa-droplet"></i>
                   </div>
                   <div>
-                    <h3 className="text-sm font-black font-outfit text-slate-800">💧 Tiền Nước sinh hoạt</h3>
+                    <h3 className="text-sm font-black font-outfit text-sky-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-sky-950">💧 Tiền Nước sinh hoạt</h3>
                     <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">A Thu thực tế - B Chi theo kỳ</p>
                   </div>
                 </div>
                 
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border border-emerald-100 text-emerald-600' : 'bg-rose-50 border border-rose-100 text-rose-600'}`}>
+                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${utilityData.waterDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
                   {utilityData.waterDelta >= 0 ? `Thặng dư: +${utilityData.waterPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.waterPct.toFixed(1)}%`}
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 mt-6 z-10">
+              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-2 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-sky-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">A Thu thực tế</span>
-                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.waterRevenue)} đ</span>
-                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-emerald-500 rounded-full inline-block"></span> {utilityData.waterRevenueRoomsCount} phòng đóng nộp
+                  <span className="text-[9px] font-bold text-sky-700 uppercase tracking-widest block">A Thu thực tế</span>
+                  <span className="text-lg font-black text-sky-950 tabular-nums">{fmt(utilityData.waterRevenue)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.waterRevenueRoomsCount} phòng đóng nộp
                   </span>
                 </div>
-                <div className="space-y-0.5 border-l border-slate-100 pl-5">
+                <div className="space-y-0.5 border-l border-slate-300 pl-5">
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">B Chi</span>
-                  <span className="text-lg font-black text-slate-800 tabular-nums">{fmt(utilityData.waterExpense)} đ</span>
-                  <span className="text-[9px] text-slate-400 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1 h-1 bg-sky-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                  <span className="text-lg font-black text-slate-700 tabular-nums">{fmt(utilityData.waterExpense)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full inline-block"></span> Hóa đơn nhà nước
                   </span>
                 </div>
               </div>
 
-              <div className="h-px bg-slate-100 my-4"></div>
+              <div className="h-px bg-slate-200/60 my-4"></div>
 
-              <div className={`flex items-center justify-between text-xs p-3 rounded-2xl border shadow-inner z-10 ${utilityData.waterDelta >= 0 ? 'bg-emerald-500/[0.01] border-emerald-100/50' : 'bg-rose-500/[0.01] border-rose-100/50'}`}>
+              <div className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.waterDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}>
                 <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.waterDelta >= 0 ? 'dư' : 'thiếu'}:</span>
                 <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
                 </span>
               </div>
             </div>
-
           </div>
 
-          {/* BUILDING RECONCILIATION */}
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h3 className="font-black font-outfit text-slate-900 flex items-center gap-2 text-sm uppercase tracking-wide">
-                  <i className="fa-solid fa-building text-emerald-500"></i>
-                  Lãi / lỗ theo từng tòa
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-1 font-semibold">
-                  A Thu lấy theo phòng trong tòa, B Chi lấy theo ghi chú chứng từ như "tòa 1", "tòa 2".
-                </p>
-              </div>
-
-              {/* Pill Switcher */}
-              <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200/50 self-start sm:self-center">
-                <button
-                  onClick={() => setBuildingActiveTab('electric')}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black transition duration-200 ${
-                    buildingActiveTab === 'electric'
-                      ? 'bg-white text-amber-500 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <i className="fa-solid fa-bolt text-[10px]"></i>
-                  Điện
-                </button>
-                <button
-                  onClick={() => setBuildingActiveTab('water')}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-black transition duration-200 ${
-                    buildingActiveTab === 'water'
-                      ? 'bg-white text-sky-500 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <i className="fa-solid fa-droplet text-[10px]"></i>
-                  Nước
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-[9px] uppercase tracking-widest text-slate-400 font-extrabold border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-3 py-2.5">Tòa</th>
-                      <th className="text-right px-3 py-2.5">
-                        {buildingActiveTab === 'electric' ? 'A Thu điện' : 'A Thu nước'}
-                      </th>
-                      <th className="text-right px-3 py-2.5">
-                        {buildingActiveTab === 'electric' ? 'B Chi điện' : 'B Chi nước'}
-                      </th>
-                      <th className="text-right px-3 py-2.5">
-                        {buildingActiveTab === 'electric' ? 'Lãi / Lỗ Điện' : 'Lãi / Lỗ Nước'}
-                      </th>
-                      <th className="text-center px-3 py-2.5">Đánh giá</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium text-slate-600 text-xs">
-                    {utilityData.buildingList.map(row => {
-                      const isElectric = buildingActiveTab === 'electric'
-                      const revenue = isElectric ? row.electricRevenue : row.waterRevenue
-                      const expense = isElectric ? row.electricExpense : row.waterExpense
-                      const delta = revenue - expense
-                      const pct = expense > 0 ? (delta / expense) * 100 : 0
-                      const paidRooms = isElectric ? row.electricRevenueRoomIds.size : row.waterRevenueRoomIds.size
-                      const totalRooms = isElectric ? row.electricUtilityRoomIds.size : row.waterUtilityRoomIds.size
-                      const pendingRooms = Math.max(0, totalRooms - paidRooms)
-
-                      return (
-                        <tr key={row.building} className="hover:bg-slate-50/40 transition">
-                          <td className="px-3 py-3 font-black text-slate-900">{row.building}</td>
-                          <td className="px-3 py-3 text-right">
-                            <div className="font-bold tabular-nums text-slate-700">{fmt(revenue)} đ</div>
-                            <div className={`mt-1 text-[10px] font-black ${pendingRooms > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                              {paidRooms}/{totalRooms} phòng đã thu
-                            </div>
-                          </td>
-                          <td className="px-3 py-3 text-right font-bold tabular-nums">{fmt(expense)} đ</td>
-                          <td className={`px-3 py-3 text-right font-black tabular-nums ${delta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {delta >= 0 ? '+' : ''}{fmt(delta)} đ
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span
-                              className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider ${
-                                delta >= 0
-                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/40'
-                                  : 'bg-rose-50 text-rose-600 border border-rose-100/40'
-                              }`}
-                            >
-                              {delta >= 0 ? `Lời ${pct.toFixed(1)}%` : `Lỗ ${Math.abs(pct).toFixed(1)}%`}
-                            </span>
+          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
+            <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-slate-100">
+              
+              <div className="flex flex-col">
+                <div className="px-6 py-3 bg-gradient-to-r from-amber-500/[0.04] to-amber-500/[0.01] border-b border-amber-100/40 flex items-center justify-between">
+                  <span className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>⚡ Phân tích Tiền Điện theo tòa
+                  </span>
+                  <span className="text-[9px] font-extrabold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">Điện dịch vụ</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-amber-500/[0.03] text-[10px] uppercase tracking-wider text-amber-700/80 font-black border-b border-amber-100/50">
+                      <tr>
+                        <th className="text-left px-6 py-3.5">Tòa</th>
+                        <th className="text-right px-4 py-3.5">A Thu Điện</th>
+                        <th className="text-right px-4 py-3.5">B Chi Điện</th>
+                        <th className="text-right px-4 py-3.5">Lãi / Lỗ</th>
+                        <th className="text-center px-6 py-3.5">Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100/30 font-medium text-slate-600">
+                      {utilityData.buildingList.map(row => {
+                        const electricDelta = row.electricRevenue - row.electricExpense
+                        const electricPct = row.electricExpense > 0 ? (electricDelta / row.electricExpense) * 100 : 0
+                        return (
+                          <tr key={row.building} className="hover:bg-amber-500/[0.02] transition duration-150">
+                            <td className="px-6 py-4 font-black text-amber-900">{row.building}</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
+                            <td className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                                {electricDelta >= 0 ? `Lời ${electricPct.toFixed(1)}%` : `Lỗ ${Math.abs(electricPct).toFixed(1)}%`}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {utilityData.buildingList.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-10 text-center text-xs font-semibold text-amber-700/60">
+                            Chưa có dữ liệu điện theo tòa.
                           </td>
                         </tr>
-                      )
-                    })}
-                    {utilityData.buildingList.length === 0 && (
-                      <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center text-xs font-semibold text-slate-400">
-                          Chưa có dữ liệu đối soát.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              <div className="flex flex-col">
+                <div className="px-6 py-3 bg-gradient-to-r from-sky-500/[0.04] to-sky-500/[0.01] border-b border-sky-100/40 flex items-center justify-between">
+                  <span className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>💧 Phân tích Tiền Nước theo tòa
+                  </span>
+                  <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">Nước sinh hoạt</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-sky-500/[0.03] text-[10px] uppercase tracking-wider text-sky-700/80 font-black border-b border-sky-100/50">
+                      <tr>
+                        <th className="text-left px-6 py-3.5">Tòa</th>
+                        <th className="text-right px-4 py-3.5">A Thu Nước</th>
+                        <th className="text-right px-4 py-3.5">B Chi Nước</th>
+                        <th className="text-right px-4 py-3.5">Lãi / Lỗ</th>
+                        <th className="text-center px-6 py-3.5">Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-sky-100/30 font-medium text-slate-600">
+                      {utilityData.buildingList.map(row => {
+                        const waterDelta = row.waterRevenue - row.waterExpense
+                        const waterPct = row.waterExpense > 0 ? (waterDelta / row.waterExpense) * 100 : 0
+                        return (
+                          <tr key={row.building} className="hover:bg-sky-500/[0.02] transition duration-150">
+                            <td className="px-6 py-4 font-black text-sky-900">{row.building}</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
+                            <td className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                                {waterDelta >= 0 ? `Lời ${waterPct.toFixed(1)}%` : `Lỗ ${Math.abs(waterPct).toFixed(1)}%`}
+                              </span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {utilityData.buildingList.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-10 text-center text-xs font-semibold text-sky-600/60">
+                            Chưa có dữ liệu nước theo tòa.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
             </div>
           </div>
 
-          {/* BOTTOM SECTIONS */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
-            {/* COMPARISON DATA TABLE */}
-            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden lg:col-span-2 flex flex-col justify-between">
+            <div className="bg-white rounded-3xl border border-slate-200/85 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden lg:col-span-2 flex flex-col justify-between">
               <div>
-                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <h3 className="font-black font-outfit text-slate-900 flex items-center gap-2 text-sm uppercase tracking-wide">
+                <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50/80 to-slate-100/40">
+                  <h3 className="font-bold font-outfit text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide">
                     <i className="fa-solid fa-list-check text-emerald-500"></i>
                     Bảng phân tích đối soát chi tiết
                   </h3>
-                  <span className="text-[9px] text-slate-400 font-extrabold bg-white border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-widest">Cân đối thu - chi</span>
+                  <span className="text-[9px] text-slate-500 font-extrabold bg-white border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-wider shadow-sm">Cân đối thu - chi</span>
                 </div>
                 
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-[10px] uppercase tracking-widest text-slate-400 font-extrabold border-b border-slate-100">
+                  <thead className="bg-slate-50/50 text-[10px] uppercase tracking-wider text-slate-400 font-black border-b border-slate-100/80">
                     <tr>
                       <th className="text-left px-6 py-3.5">Hạng Mục Lọc</th>
                       <th className="text-right px-6 py-3.5">A Thu</th>
@@ -1421,32 +1413,32 @@ export function BusinessReport({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
-                    <tr className="hover:bg-slate-50/40 transition duration-150">
-                      <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-amber-400 block shadow animate-pulse"></span>⚡ Tiền điện phòng trọ
+                    <tr className="hover:bg-amber-100/60 bg-amber-500/[0.003] hover:scale-[1.003] active:scale-[0.997] transition-all duration-200 cursor-pointer group/comp">
+                      <td className="px-6 py-4 font-bold text-amber-800 flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block shadow-md shadow-amber-500/60 animate-pulse"></span>⚡ Tiền điện phòng trọ
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-amber-800 transition-colors tabular-nums">{fmt(utilityData.electricRevenue)} đ</td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricExpense)} đ</td>
                       <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
                           {utilityData.electricDelta >= 0 ? `Lời ${utilityData.electricPct.toFixed(1)}%` : `Lỗ ${utilityData.electricPct.toFixed(1)}%`}
                         </span>
                       </td>
                     </tr>
-                    <tr className="hover:bg-slate-50/40 transition duration-150">
-                      <td className="px-6 py-4 font-bold text-slate-800 flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-sky-400 block shadow animate-pulse"></span>💧 Tiền nước sinh hoạt
+                    <tr className="hover:bg-sky-100/60 bg-sky-500/[0.003] hover:scale-[1.003] active:scale-[0.997] transition-all duration-200 cursor-pointer group/comp">
+                      <td className="px-6 py-4 font-bold text-sky-800 flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full bg-sky-500 block shadow-md shadow-sky-500/60 animate-pulse"></span>💧 Tiền nước sinh hoạt
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-sky-800 transition-colors tabular-nums">{fmt(utilityData.waterRevenue)} đ</td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterExpense)} đ</td>
                       <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
+                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
                           {utilityData.waterDelta >= 0 ? `Lời ${utilityData.waterPct.toFixed(1)}%` : `Lỗ ${utilityData.waterPct.toFixed(1)}%`}
                         </span>
                       </td>
@@ -1455,36 +1447,38 @@ export function BusinessReport({
                 </table>
               </div>
               
-              <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between font-black font-outfit text-xs md:text-sm tracking-wide">
+              <div className="px-6 py-5 bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-150 flex flex-wrap gap-4 items-center justify-between font-black font-outfit text-xs md:text-sm tracking-wide">
                 <span className="text-slate-800 text-[10px] uppercase tracking-widest font-extrabold">TỔNG HỢP LIÊN DỊCH VỤ</span>
                 <div className="flex items-center gap-5.5 tabular-nums">
                   <span className="text-slate-500 text-xs font-semibold">A Thu: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricRevenue + utilityData.waterRevenue)} đ</span></span>
                   <span className="text-slate-500 text-xs font-semibold">B Chi: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricExpense + utilityData.waterExpense)} đ</span></span>
-                  <span className="text-slate-600">Lời ròng: <span className={`font-black text-sm md:text-base ${(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricDelta + utilityData.waterDelta)} đ
-                  </span></span>
+                  <span className="text-slate-700 bg-white border border-slate-200/80 shadow-sm px-3.5 py-1.5 rounded-2xl flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lời ròng:</span>
+                    <span className={`font-black text-sm md:text-base ${(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricDelta + utilityData.waterDelta)} đ
+                    </span>
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* ROOM BY ROOM ANALYSIS */}
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-              <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/30 space-y-3">
+            <div className="bg-white rounded-3xl border border-slate-200/85 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col">
+              <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-slate-100/40 space-y-3">
                 <div>
-                  <h3 className="font-black font-outfit text-slate-900 flex items-center gap-2 text-sm uppercase tracking-wide">
+                  <h3 className="font-bold font-outfit text-slate-800 flex items-center gap-2 text-sm uppercase tracking-wide">
                     <i className="fa-solid fa-server text-emerald-500"></i>
                     Mức tiêu thụ các Phòng
                   </h3>
                   <p className="text-[10px] text-slate-400 mt-1 font-semibold">Tiêu thụ điện nước chi tiết theo phòng</p>
                 </div>
                 <div className="relative">
-                  <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"></i>
+                  <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"></i>
                   <input
                     type="search"
                     value={roomUtilitySearch}
                     onChange={event => setRoomUtilitySearch(event.target.value)}
                     placeholder="Tìm phòng hoặc khách thuê..."
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/10"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9.5 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 shadow-inner"
                   />
                 </div>
               </div>
@@ -1494,57 +1488,56 @@ export function BusinessReport({
                   const isAnomaly = item.electricUsage > 300
                   const absoluteRank = utilityData.roomList.findIndex(r => r.roomId === item.roomId) + 1
 
-                  // Premium badge configurations based on rank
                   let rankBadge: React.ReactNode = null
                   if (absoluteRank === 1) {
                     rankBadge = (
-                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-white font-black text-[9px] tracking-wider shadow-sm shadow-amber-500/30 gap-0.5 uppercase shrink-0">
-                        <i className="fa-solid fa-crown text-[9px] animate-pulse"></i> Top 1
+                      <div className="flex items-center justify-center h-6 px-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-white font-black text-[9px] tracking-wider shadow-md shadow-amber-500/25 border border-amber-300/35 gap-0.5 uppercase shrink-0 group-hover/room:scale-110 transition-transform duration-200">
+                        <i className="fa-solid fa-crown text-[8px] animate-bounce duration-1000"></i> Top 1
                       </div>
                     )
                   } else if (absoluteRank === 2) {
                     rankBadge = (
-                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-slate-400 via-slate-300 to-slate-200 text-white font-black text-[9px] tracking-wider shadow-sm shadow-slate-400/20 gap-0.5 uppercase shrink-0">
-                        <i className="fa-solid fa-medal text-[9px]"></i> Top 2
+                      <div className="flex items-center justify-center h-6 px-2.5 rounded-xl bg-gradient-to-r from-slate-400 via-slate-200 to-slate-500 text-white font-black text-[9px] tracking-wider shadow-md shadow-slate-400/20 border border-slate-300/35 gap-0.5 uppercase shrink-0 group-hover/room:scale-110 transition-transform duration-200">
+                        <i className="fa-solid fa-medal text-[8px]"></i> Top 2
                       </div>
                     )
                   } else if (absoluteRank === 3) {
                     rankBadge = (
-                      <div className="flex items-center justify-center h-6 px-2 rounded-full bg-gradient-to-r from-amber-800 via-amber-600 to-amber-700 text-white font-black text-[9px] tracking-wider shadow-sm shadow-amber-700/20 gap-0.5 uppercase shrink-0">
-                        <i className="fa-solid fa-award text-[9px]"></i> Top 3
+                      <div className="flex items-center justify-center h-6 px-2.5 rounded-xl bg-gradient-to-r from-amber-700 via-amber-600 to-amber-900 text-white font-black text-[9px] tracking-wider shadow-md shadow-amber-700/20 border border-amber-600/30 gap-0.5 uppercase shrink-0 group-hover/room:scale-110 transition-transform duration-200">
+                        <i className="fa-solid fa-award text-[8px]"></i> Top 3
                       </div>
                     )
                   } else {
                     rankBadge = (
-                      <div className="flex items-center justify-center h-5 w-5 rounded-full bg-slate-50 border border-slate-200 text-slate-400 font-extrabold text-[9px] shrink-0">
+                      <div className="flex items-center justify-center h-5 w-5 rounded-lg bg-slate-50 border border-slate-250 text-slate-400 font-black text-[9px] shrink-0 group-hover/room:scale-110 transition-transform duration-200">
                         #{absoluteRank}
                       </div>
                     )
                   }
 
                   return (
-                    <div key={item.roomId} className={`px-6 py-4 flex items-center justify-between transition duration-150 ${isAnomaly ? 'bg-amber-500/[0.02] border-l-2 border-amber-500 hover:bg-amber-500/[0.04]' : 'hover:bg-slate-50/40'}`}>
+                    <div key={item.roomId} className={`px-6 py-4 flex items-center justify-between transition-all duration-200 cursor-pointer group/room ${isAnomaly ? 'bg-gradient-to-r from-amber-500/[0.03] to-orange-500/[0.01] border-l-4 border-amber-500 hover:from-amber-500/[0.06] hover:to-orange-500/[0.02] hover:shadow-md hover:scale-[1.008]' : 'hover:bg-slate-50 hover:shadow-inner hover:scale-[1.005] hover:-translate-y-0.5'}`}>
                       <div className="flex items-center gap-2.5">
                         {rankBadge}
-                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center font-black font-outfit text-xs ${isAnomaly ? 'bg-amber-500/10 text-amber-600 animate-pulse' : 'bg-slate-100 text-slate-600 shrink-0'}`}>
+                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center font-black font-outfit text-xs border transition-transform duration-200 group-hover/room:scale-105 group-hover/room:rotate-3 ${isAnomaly ? 'bg-amber-500/10 border-amber-300/20 text-amber-600 animate-pulse' : 'bg-slate-50 border-slate-150 text-slate-600 shrink-0'}`}>
                           {item.roomName.replace('Phòng ', '')}
                         </div>
                         <div>
-                          <span className={`font-bold block text-xs ${isAnomaly ? 'text-amber-600 flex items-center gap-1.5' : 'text-slate-800'}`}>
+                          <span className={`font-bold block text-xs transition-colors duration-200 ${isAnomaly ? 'text-amber-600 flex items-center gap-1.5' : 'text-slate-800 group-hover/room:text-emerald-700'}`}>
                             {item.tenantName}
                             {isAnomaly && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>}
                           </span>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${isAnomaly ? 'text-amber-500/60' : 'text-slate-400'}`}>
+                          <span className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${isAnomaly ? 'text-amber-500/75' : 'text-slate-400'}`}>
                             {isAnomaly ? '⚠️ ĐIỆN CAO BẤT THƯỜNG' : 'Khách thuê'}
                           </span>
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-2">
-                        <span className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-slate-700'}`}>
-                          ⚡ {fmt(item.electricRev)} đ <span className="text-[9px] font-medium opacity-80">({item.electricUsage} kWh)</span>
+                        <span className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-amber-700 group-hover/room:text-amber-600'}`}>
+                          ⚡ {fmt(item.electricRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.electricUsage} kWh)</span>
                         </span>
-                        <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
-                          💧 {fmt(item.waterRev)} đ <span className="text-[9px] font-medium opacity-80">({item.waterUsage} m³)</span>
+                        <span className="text-[10px] text-sky-600 font-bold block mt-0.5 group-hover/room:text-sky-500">
+                          💧 {fmt(item.waterRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.waterUsage} m³)</span>
                         </span>
                       </div>
                     </div>
