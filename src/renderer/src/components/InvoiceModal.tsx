@@ -76,15 +76,21 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     queryFn: getServiceZones,
   });
 
-  const { data: existingInvoices = [] } = useQuery({
+  const { data: existingInvoices = [], isFetching: invoicesFetching } = useQuery({
     queryKey: ['invoices', room.id],
     queryFn: () => getInvoicesByRoom(room.id),
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
-  const { data: contracts = [] } = useQuery({
+  const { data: contracts = [], isFetching: contractsFetching } = useQuery({
     queryKey: ['contracts'],
     queryFn: getContracts,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
+
+  const depositDataRefreshing = invoicesFetching || contractsFetching;
 
   const activeContract = useMemo(() => contracts.find(c => c.room_id === room.id && c.status === 'active'), [contracts, room.id]);
   const isMigratedContract = activeContract?.is_migration === true;
@@ -308,11 +314,12 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   }, [includesFixedServices, cleaningMonthly, isProratedReason, prorataRatio, hasTransfer, newRoomDays, daysInMonth]);
 
   const normalizedDeposit = useMemo(() => {
+    if (depositDataRefreshing) return 0;
     if (!includesDeposit) return 0;
     if (billingReason === 'deposit_refund') return -Math.abs(depositAmount || 0);
     if (billingReason === 'first_month' && depositAlreadyCollected) return 0;
     return Math.abs(depositAmount || 0);
-  }, [billingReason, depositAmount, includesDeposit, depositAlreadyCollected]);
+  }, [billingReason, depositAmount, depositDataRefreshing, includesDeposit, depositAlreadyCollected]);
 
   const transferElectricUsage = transferHistory ? Math.max(0, transferHistory.old_electric_new - transferHistory.old_electric_old) : 0;
   const transferElectricCost = transferHistory ? transferElectricUsage * transferHistory.old_electric_price : 0;
@@ -433,6 +440,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       playCreate();
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
       onClose();
     },
     onError: (err: Error) => {
@@ -442,6 +450,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
 
   const invoiceSubmitBlocked =
     invoiceMutation.isPending ||
+    depositDataRefreshing ||
     !canCreateInvoice ||
     !!duplicateInvoice ||
     utilityValidationFailed ||
@@ -829,7 +838,12 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                   </span>
                 )}
               </div>
-              {depositAlreadyCollected && billingReason === 'first_month' ? (
+              {depositDataRefreshing ? (
+                <div className="rounded-lg border border-orange-100 bg-white/70 px-3 py-2 text-xs font-medium text-orange-700">
+                  <i className="fa-solid fa-rotate mr-1.5"></i>
+                  Đang cập nhật dữ liệu tiền cọc...
+                </div>
+              ) : depositAlreadyCollected && billingReason === 'first_month' ? (
                 <div className="text-xs text-gray-500 italic">Tiền cọc đã được thu trước đó, không thu thêm.</div>
               ) : (
                 <>

@@ -43,9 +43,11 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'handover') : Promise.resolve([]),
     enabled: !!room?.id,
   });
-  const { data: contracts = [] } = useQuery({
+  const { data: contracts = [], isFetching: contractsFetching } = useQuery({
     queryKey: ['contracts'],
     queryFn: db.getContracts,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const activeContract = useMemo(
@@ -88,11 +90,12 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
       queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['roomInvoices'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
       onClose();
     },
   });
 
-  const workflowLoading = isMoveInLoading || isMoveOutLoading || isHandoverLoading;
+  const workflowLoading = isMoveInLoading || isMoveOutLoading || isHandoverLoading || contractsFetching;
   const hasMoveInDone = moveInSnaps.length > 0;
   const hasMoveOutDone = currentMoveOutSnaps.length > 0;
   const hasHandoverDone =
