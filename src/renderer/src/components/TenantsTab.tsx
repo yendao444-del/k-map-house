@@ -78,10 +78,15 @@ const depositToneClass: Record<DepositStatusTone, string> = {
 
 export const TenantsTab: React.FC = () => {
   const queryClient = useQueryClient();
-  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
-  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
-  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
+  const queryRefreshOptions = {
+    staleTime: 0,
+    refetchOnMount: 'always' as const,
+    refetchOnWindowFocus: true,
+  };
+  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: getTenants, ...queryRefreshOptions });
+  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms, ...queryRefreshOptions });
+  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts, ...queryRefreshOptions });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices, ...queryRefreshOptions });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'left'>('all');
@@ -409,6 +414,12 @@ export const TenantsTab: React.FC = () => {
                         const missingDeposit = Math.max(0, agreedDeposit - collectedDeposit);
                         const isDepositComplete = agreedDeposit > 0 && missingDeposit <= 0;
                         const displayAmount = isDepositComplete ? agreedDeposit : collectedDeposit;
+                        const depositIcon =
+                          depositStatus.tone === 'emerald' || depositStatus.tone === 'sky'
+                            ? 'fa-circle-check'
+                            : depositStatus.tone === 'amber'
+                              ? 'fa-triangle-exclamation'
+                              : 'fa-circle-exclamation';
 
                         return (
                           <div className="relative inline-block min-w-[92px] cursor-help select-none group/deposit">
@@ -417,7 +428,7 @@ export const TenantsTab: React.FC = () => {
                                 {displayAmount.toLocaleString('vi-VN')} đ
                               </div>
                               <span className={`mt-1 inline-flex max-w-[92px] items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide leading-tight ${depositToneClass[depositStatus.tone]}`}>
-                                <i className={`fa-solid ${isDepositComplete ? 'fa-circle-check' : collectedDeposit > 0 ? 'fa-triangle-exclamation' : 'fa-circle-exclamation'} text-[10px]`}></i>
+                                <i className={`fa-solid ${depositIcon} text-[10px]`}></i>
                                 {depositStatus.label}
                               </span>
                             </div>

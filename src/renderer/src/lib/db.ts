@@ -664,6 +664,13 @@ export const terminateContract = async (data: {
     .eq('tenant_id', contract.tenant_id || '')
     .neq('payment_status', 'cancelled')
   const depositHeld = getCollectedDepositAmount(contract as Contract, (contractInvoices || []) as Invoice[])
+  const existingSettlement = (contractInvoices || []).find(
+    (invoice: Invoice) =>
+      invoice.is_settlement &&
+      invoice.payment_status !== 'cancelled' &&
+      invoice.payment_status !== 'merged'
+  )
+  if (existingSettlement) throw new Error('Hợp đồng này đã có hóa đơn tất toán.')
 
   // Tính điện/nước cuối kỳ
   const electricOld = (room as Room).electric_new || 0
@@ -695,21 +702,9 @@ export const terminateContract = async (data: {
     paymentStatus = 'unpaid'
   }
 
-  // Nếu còn khoản phải thu thì giữ phòng ở trạng thái sắp trả để hóa đơn tất toán đi qua luồng thanh toán/SePay.
-  if (netDue > 0) {
-    await supabase
-      .from('rooms')
-      .update({ status: 'ending', expected_end_date: data.end_date } as any)
-      .eq('id', data.room_id)
-  } else {
-    await supabase.from('rooms').update({ status: 'vacant', tenant_name: null, tenant_phone: null, move_in_date: null, expected_end_date: null, electric_old: data.final_electric, electric_new: data.final_electric, water_old: data.final_water, water_new: data.final_water, has_move_in_receipt: false } as any).eq('id', data.room_id)
-    await supabase.from('contracts').update({ status: 'terminated', end_date: data.end_date, end_note: data.damage_note, final_electric: data.final_electric, final_water: data.final_water }).eq('id', data.contract_id)
-  }
-  if (data.merge_invoice_ids.length > 0) { await supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids) }
-
-  // Tạo hóa đơn tất toán
+  // Tạo hóa đơn tất toán trước. Nếu bước này lỗi thì không được đổi trạng thái phòng/hợp đồng.
   const endDateObj = new Date(data.end_date)
-  await supabase.from('invoices').insert({
+  await safeQuery(() => supabase.from('invoices').insert({
     id: createEntityId('inv'),
     room_id: data.room_id,
     tenant_id: contract.tenant_id || '',
@@ -748,7 +743,53 @@ export const terminateContract = async (data: {
     merged_invoice_ids: data.merge_invoice_ids.length > 0 ? data.merge_invoice_ids : undefined,
     merged_debt_total: mergedDebtTotal > 0 ? mergedDebtTotal : undefined,
     created_at: new Date().toISOString(),
-  })
+  }))
+
+  if (data.merge_invoice_ids.length > 0) {
+    await safeQuery(() =>
+      supabase.from('invoices').update({ payment_status: 'merged' }).in('id', data.merge_invoice_ids)
+    )
+  }
+
+  // Nếu còn khoản phải thu thì giữ phòng ở trạng thái sắp trả để hóa đơn tất toán đi qua luồng thanh toán/SePay.
+  if (netDue > 0) {
+    await safeQuery(() =>
+      supabase
+        .from('rooms')
+        .update({ status: 'ending', expected_end_date: data.end_date } as any)
+        .eq('id', data.room_id)
+    )
+  } else {
+    await safeQuery(() =>
+      supabase
+        .from('rooms')
+        .update({
+          status: 'vacant',
+          tenant_name: null,
+          tenant_phone: null,
+          move_in_date: null,
+          expected_end_date: null,
+          electric_old: data.final_electric,
+          electric_new: data.final_electric,
+          water_old: data.final_water,
+          water_new: data.final_water,
+          has_move_in_receipt: false
+        } as any)
+        .eq('id', data.room_id)
+    )
+    await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .update({
+          status: 'terminated',
+          end_date: data.end_date,
+          end_note: data.damage_note,
+          final_electric: data.final_electric,
+          final_water: data.final_water
+        } as any)
+        .eq('id', data.contract_id)
+    )
+  }
 }
 
 export const changeRoom = async (data: { old_room_id: string; new_room_id: string; change_date: string; final_electric: number; final_water: number; new_base_rent: number; new_deposit: number; new_electric_init: number; new_water_init: number; }): Promise<void> => {
