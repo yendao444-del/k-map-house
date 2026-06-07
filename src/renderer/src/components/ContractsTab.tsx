@@ -64,6 +64,7 @@ const EditContractModal: React.FC<EditContractModalProps> = ({ contract, onClose
     const fd = new FormData(e.currentTarget)
     mutation.mutate({
       base_rent: parseInt((fd.get('base_rent') as string).replace(/\D/g, ''), 10) || 0,
+      deposit_amount: parseInt((fd.get('deposit_amount') as string).replace(/\D/g, ''), 10) || 0,
       move_in_date: fd.get('move_in_date') as string,
       expiration_date: (fd.get('expiration_date') as string) || undefined,
       invoice_day: parseInt(fd.get('invoice_day') as string, 10) || 5,
@@ -83,6 +84,11 @@ const EditContractModal: React.FC<EditContractModalProps> = ({ contract, onClose
               <label className="block text-xs font-bold text-gray-500 mb-1">Tiền thuê (tháng)</label>
               <input name="base_rent" defaultValue={formatVND(contract.base_rent)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 outline-none" />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1">Tiền cọc thỏa thuận</label>
+            <input name="deposit_amount" defaultValue={formatVND(contract.deposit_amount)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-bold text-orange-600 focus:ring-2 focus:ring-orange-100 outline-none" />
+            <p className="mt-1 text-[11px] font-medium text-gray-400">Dùng để tính còn thiếu/đã thu cọc khi lập hóa đơn.</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

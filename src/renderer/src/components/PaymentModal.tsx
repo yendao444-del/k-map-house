@@ -28,26 +28,38 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const remaining = invoice.total_amount - invoice.paid_amount;
   const isRefund = invoice.total_amount < 0 || remaining < 0;
   const paymentTarget = Math.abs(remaining);
+  const isDepositOnly = db.isDepositOnlyInvoice(invoice);
+  const shouldCheckAssetWorkflow = !isDepositOnly && (
+    invoice.is_first_month ||
+    invoice.is_settlement ||
+    invoice.billing_reason === 'contract_end' ||
+    Number(invoice.room_cost || 0) > 0 ||
+    Number(invoice.electric_cost || 0) > 0 ||
+    Number(invoice.water_cost || 0) > 0 ||
+    Number(invoice.wifi_cost || 0) > 0 ||
+    Number(invoice.garbage_cost || 0) > 0
+  );
   const { data: moveInSnaps = [], isLoading: isMoveInLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'move_in'],
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'move_in') : Promise.resolve([]),
-    enabled: !!room?.id,
+    enabled: shouldCheckAssetWorkflow && !!room?.id,
   });
   const { data: moveOutSnaps = [], isLoading: isMoveOutLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'move_out'],
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'move_out') : Promise.resolve([]),
-    enabled: !!room?.id,
+    enabled: shouldCheckAssetWorkflow && !!room?.id,
   });
   const { data: handoverSnaps = [], isLoading: isHandoverLoading } = useQuery({
     queryKey: ['asset_snapshots', room?.id, 'handover'],
     queryFn: () => room ? db.getAssetSnapshots(room.id, 'handover') : Promise.resolve([]),
-    enabled: !!room?.id,
+    enabled: shouldCheckAssetWorkflow && !!room?.id,
   });
   const { data: contracts = [], isFetching: contractsFetching } = useQuery({
     queryKey: ['contracts'],
     queryFn: db.getContracts,
     staleTime: 0,
     refetchOnMount: 'always',
+    enabled: shouldCheckAssetWorkflow,
   });
 
   const activeContract = useMemo(
@@ -91,11 +103,12 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
       queryClient.invalidateQueries({ queryKey: ['roomInvoices'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
       onClose();
     },
   });
 
-  const workflowLoading = isMoveInLoading || isMoveOutLoading || isHandoverLoading || contractsFetching;
+  const workflowLoading = shouldCheckAssetWorkflow && (isMoveInLoading || isMoveOutLoading || isHandoverLoading || contractsFetching);
   const hasMoveInDone = moveInSnaps.length > 0;
   const hasMoveOutDone = currentMoveOutSnaps.length > 0;
   const hasHandoverDone =
@@ -108,9 +121,9 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
       )
     );
   const paymentBlockReason =
-    !invoice.is_settlement && room?.status === 'occupied' && !hasMoveInDone
+    shouldCheckAssetWorkflow && !invoice.is_settlement && room?.status === 'occupied' && !hasMoveInDone
       ? 'Phòng đã có hợp đồng nhưng chưa chốt nhận phòng. Cần vào tab Tài sản để chốt nhận trước khi thu hóa đơn.'
-      : !invoice.is_settlement && room?.status === 'ending' && (!hasMoveOutDone || !hasHandoverDone)
+      : shouldCheckAssetWorkflow && !invoice.is_settlement && room?.status === 'ending' && (!hasMoveOutDone || !hasHandoverDone)
         ? 'Phòng đang báo trả. Cần hoàn tất Đối chiếu trả phòng trong tab Tài sản trước khi thu hóa đơn.'
         : '';
   const isValid = amount > 0 && amount <= paymentTarget && !workflowLoading && !paymentBlockReason;

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Room, ServiceZone, updateRoom, markTenantLeft, getInvoicesByRoom, getContracts, uploadRoomImage, deleteRoomImage, adjustRoomMeterReadings, type AppUser, type Contract, type Invoice } from '../lib/db';
+import { Room, ServiceZone, updateRoom, updateContract, markTenantLeft, getInvoicesByRoom, getContracts, uploadRoomImage, deleteRoomImage, adjustRoomMeterReadings, type AppUser, type Contract, type Invoice } from '../lib/db';
 import { playSuccess } from '../lib/sound';
 import { PaymentModal } from './PaymentModal';
 import { RoomAssetsTab } from './RoomAssetsTab';
@@ -8,6 +8,8 @@ import { RoomVehiclesTab } from './RoomVehiclesTab';
 import { LogoLoading } from './LogoLoading';
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
+const parseCurrency = (value: string) =>
+  parseInt(value.replace(/\./g, '').replace(/[^0-9]/g, ''), 10) || 0;
 
 interface RoomDetailsModalProps {
   room: Room;
@@ -82,6 +84,16 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   const [payInvoice, setPayInvoice] = useState<Invoice | null>(null);
   const [isEditingArea, setIsEditingArea] = useState(false);
   const [areaInput, setAreaInput] = useState(String(room.area || ''));
+  const [isEditingRent, setIsEditingRent] = useState(false);
+  const [rentInput, setRentInput] = useState(formatVND(room.base_rent || 0));
+  const [rentReason, setRentReason] = useState('');
+  const [rentError, setRentError] = useState<string | null>(null);
+  const [localRentOverride, setLocalRentOverride] = useState<number | null>(null);
+  const [isEditingDeposit, setIsEditingDeposit] = useState(false);
+  const [depositInput, setDepositInput] = useState(formatVND(room.default_deposit || 0));
+  const [depositReason, setDepositReason] = useState('');
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [localDepositOverride, setLocalDepositOverride] = useState<number | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [imageUrls, setImageUrls] = useState<string[]>(room.image_urls || []);
@@ -108,6 +120,110 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
   const activeContract = contracts.find(
     (c: Contract) => c.room_id === room.id && c.status === 'active'
   );
+  const currentRent = localRentOverride ?? activeContract?.base_rent ?? room.base_rent;
+  const currentAgreedDeposit = localDepositOverride ?? activeContract?.deposit_amount ?? room.default_deposit ?? 0;
+
+  useEffect(() => {
+    if (isEditingRent) return;
+    setRentInput(formatVND(currentRent || 0));
+  }, [currentRent, isEditingRent]);
+
+  useEffect(() => {
+    if (isEditingDeposit) return;
+    setDepositInput(formatVND(currentAgreedDeposit || 0));
+  }, [currentAgreedDeposit, isEditingDeposit]);
+
+  const rentUpdateMutation = useMutation({
+    mutationFn: async (nextRent: number) => {
+      const trimmedReason = rentReason.trim();
+      await updateRoom(room.id, {
+        base_rent: nextRent,
+        notes: [
+          room.notes || '',
+          `[RENT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentRent || 0)} -> ${formatVND(nextRent)} | ${trimmedReason || 'Điều chỉnh giá thuê'}`
+        ].filter(Boolean).join('\n'),
+      });
+      if (activeContract) {
+        await updateContract(activeContract.id, {
+          base_rent: nextRent,
+          notes: [
+            activeContract.notes || '',
+            `[RENT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentRent || 0)} -> ${formatVND(nextRent)} | ${trimmedReason || 'Điều chỉnh giá thuê'}`
+          ].filter(Boolean).join('\n'),
+        });
+      }
+    },
+    onSuccess: (_result, nextRent) => {
+      playSuccess();
+      setLocalRentOverride(nextRent);
+      setIsEditingRent(false);
+      setRentReason('');
+      setRentError(null);
+      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['room', room.id], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+    },
+    onError: (err: any) => {
+      setRentError(err?.message || 'Không thể cập nhật giá thuê.');
+    },
+  });
+
+  const handleSaveRent = () => {
+    const nextRent = parseCurrency(rentInput);
+    if (nextRent <= 0) {
+      setRentError('Giá thuê phải lớn hơn 0.');
+      return;
+    }
+    setRentError(null);
+    rentUpdateMutation.mutate(nextRent);
+  };
+
+  const depositUpdateMutation = useMutation({
+    mutationFn: async (nextDeposit: number) => {
+      const trimmedReason = depositReason.trim();
+      await updateRoom(room.id, {
+        default_deposit: nextDeposit,
+        notes: [
+          room.notes || '',
+          `[DEPOSIT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentAgreedDeposit || 0)} -> ${formatVND(nextDeposit)} | ${trimmedReason || 'Điều chỉnh cọc thỏa thuận'}`
+        ].filter(Boolean).join('\n'),
+      });
+      if (activeContract) {
+        await updateContract(activeContract.id, {
+          deposit_amount: nextDeposit,
+          notes: [
+            activeContract.notes || '',
+            `[DEPOSIT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentAgreedDeposit || 0)} -> ${formatVND(nextDeposit)} | ${trimmedReason || 'Điều chỉnh cọc thỏa thuận'}`
+          ].filter(Boolean).join('\n'),
+        });
+      }
+    },
+    onSuccess: (_result, nextDeposit) => {
+      playSuccess();
+      setLocalDepositOverride(nextDeposit);
+      setIsEditingDeposit(false);
+      setDepositReason('');
+      setDepositError(null);
+      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['room', room.id], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+    },
+    onError: (err: any) => {
+      setDepositError(err?.message || 'Không thể cập nhật tiền cọc.');
+    },
+  });
+
+  const handleSaveDeposit = () => {
+    const nextDeposit = parseCurrency(depositInput);
+    if (nextDeposit < 0) {
+      setDepositError('Tiền cọc không được âm.');
+      return;
+    }
+    setDepositError(null);
+    depositUpdateMutation.mutate(nextDeposit);
+  };
 
   const adjustMeterMutation = useMutation({
     mutationFn: () => adjustRoomMeterReadings({
@@ -127,6 +243,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
       queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['invoices', room.id], refetchType: 'all' });
       queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
     },
     onError: (err: any) => {
       setMeterError(err?.message || 'Không thể điều chỉnh chỉ số.')
@@ -138,6 +255,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       onClose();
     }
@@ -311,11 +429,145 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <div className="text-xs text-gray-500 mb-1">Giá Thuê Hiện Tại</div>
-                        <div className="font-bold text-green-600 tabular-nums">{formatVND(room.base_rent)} đ</div>
+                        {isEditingRent ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={rentInput}
+                              onChange={(event) => setRentInput(formatVND(parseCurrency(event.target.value)))}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') handleSaveRent();
+                                if (event.key === 'Escape') {
+                                  setRentInput(formatVND(currentRent || 0));
+                                  setRentReason('');
+                                  setRentError(null);
+                                  setIsEditingRent(false);
+                                }
+                              }}
+                              autoFocus
+                              className="w-full rounded-lg border border-green-300 px-2.5 py-1.5 text-sm font-bold text-green-700 outline-none focus:ring-2 focus:ring-green-100"
+                            />
+                            <input
+                              type="text"
+                              value={rentReason}
+                              onChange={(event) => setRentReason(event.target.value)}
+                              placeholder="Lý do: nhập sai giá, thỏa thuận mới..."
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-green-300 focus:ring-2 focus:ring-green-100"
+                            />
+                            {rentError && <div className="text-[11px] font-medium text-red-500">{rentError}</div>}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleSaveRent}
+                                disabled={rentUpdateMutation.isPending}
+                                className="text-[11px] font-bold text-green-600 disabled:opacity-50"
+                              >
+                                {rentUpdateMutation.isPending ? 'Đang lưu...' : 'Lưu giá'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRentInput(formatVND(currentRent || 0));
+                                  setRentReason('');
+                                  setRentError(null);
+                                  setIsEditingRent(false);
+                                }}
+                                className="text-[11px] text-gray-400"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRentInput(formatVND(currentRent || 0));
+                              setRentReason('');
+                              setRentError(null);
+                              setIsEditingRent(true);
+                            }}
+                            className="group flex items-center gap-1 text-left font-bold text-green-600 tabular-nums hover:text-green-700"
+                          >
+                            {formatVND(currentRent || 0)} đ
+                            <i className="fa-solid fa-pen text-[9px] text-gray-300 transition group-hover:text-green-500"></i>
+                          </button>
+                        )}
+                        {activeContract && !isEditingRent && (
+                          <div className="mt-1 text-[11px] font-medium text-gray-400">Áp dụng cho hóa đơn mới theo hợp đồng hiện tại</div>
+                        )}
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500 mb-1">Tiền Cọc Đang Giữ</div>
-                        <div className="font-bold text-blue-600 tabular-nums">{formatVND(room.default_deposit || 0)} đ</div>
+                        <div className="text-xs text-gray-500 mb-1">Cọc Thỏa Thuận</div>
+                        {isEditingDeposit ? (
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={depositInput}
+                              onChange={(event) => setDepositInput(formatVND(parseCurrency(event.target.value)))}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') handleSaveDeposit();
+                                if (event.key === 'Escape') {
+                                  setDepositInput(formatVND(currentAgreedDeposit || 0));
+                                  setDepositReason('');
+                                  setDepositError(null);
+                                  setIsEditingDeposit(false);
+                                }
+                              }}
+                              autoFocus
+                              className="w-full rounded-lg border border-blue-300 px-2.5 py-1.5 text-sm font-bold text-blue-700 outline-none focus:ring-2 focus:ring-blue-100"
+                            />
+                            <input
+                              type="text"
+                              value={depositReason}
+                              onChange={(event) => setDepositReason(event.target.value)}
+                              placeholder="Lý do: nhập sai cọc, thỏa thuận lại..."
+                              className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                            />
+                            {depositError && <div className="text-[11px] font-medium text-red-500">{depositError}</div>}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleSaveDeposit}
+                                disabled={depositUpdateMutation.isPending}
+                                className="text-[11px] font-bold text-blue-600 disabled:opacity-50"
+                              >
+                                {depositUpdateMutation.isPending ? 'Đang lưu...' : 'Lưu cọc'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDepositInput(formatVND(currentAgreedDeposit || 0));
+                                  setDepositReason('');
+                                  setDepositError(null);
+                                  setIsEditingDeposit(false);
+                                }}
+                                className="text-[11px] text-gray-400"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDepositInput(formatVND(currentAgreedDeposit || 0));
+                              setDepositReason('');
+                              setDepositError(null);
+                              setIsEditingDeposit(true);
+                            }}
+                            className="group flex items-center gap-1 text-left font-bold text-blue-600 tabular-nums hover:text-blue-700"
+                          >
+                            {formatVND(currentAgreedDeposit || 0)} đ
+                            <i className="fa-solid fa-pen text-[9px] text-gray-300 transition group-hover:text-blue-500"></i>
+                          </button>
+                        )}
+                        {activeContract && !isEditingDeposit && (
+                          <div className="mt-1 text-[11px] font-medium text-gray-400">Áp dụng cho hợp đồng hiện tại</div>
+                        )}
                       </div>
                     </div>
 

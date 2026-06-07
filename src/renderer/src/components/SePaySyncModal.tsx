@@ -299,7 +299,10 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
     onSuccess: (_, variables) => {
       playPayment()
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices', variables.match.invoice.room_id] })
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
       setSuccessCount((s) => s + 1)
       setMatches((prev) => prev.filter((m) => m.transaction.id !== variables.match.transaction.id))
     }

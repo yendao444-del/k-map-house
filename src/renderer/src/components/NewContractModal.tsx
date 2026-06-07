@@ -146,7 +146,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     occupant_count: 1,
     move_in_date: initialMoveInDate || today,
     base_rent: room.base_rent,
-    deposit_amount: room.base_rent || room.default_deposit || 0,
+    deposit_amount: room.default_deposit || room.base_rent || 0,
     invoice_day: room.invoice_day || 5,
     electric_init: hasReadingHistory ? initialElectricReading : '',
     water_init: hasReadingHistory ? initialWaterReading : '',
@@ -154,7 +154,7 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
     notes: '',
   })
 
-  const [depositLinked, setDepositLinked] = useState(true)
+  const [depositLinked, setDepositLinked] = useState(!(room.default_deposit && room.default_deposit > 0))
   const [electricTouched, setElectricTouched] = useState(false)
   const [waterTouched, setWaterTouched] = useState(false)
   const [allowReadingEdit, setAllowReadingEdit] = useState(false)

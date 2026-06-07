@@ -622,7 +622,7 @@ export const InvoicesTab: React.FC<{
 
   const deleteMutation = useMutation({
     mutationFn: deleteInvoice,
-    onSuccess: (_data, id) => {
+    onSuccess: (cancelledInvoice, id) => {
       queryClient.setQueryData<Invoice[]>(['invoices'], (prev = []) =>
         prev.map((invoice) =>
           invoice.id === id
@@ -635,6 +635,9 @@ export const InvoicesTab: React.FC<{
         )
       );
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      if (cancelledInvoice?.room_id) {
+        queryClient.invalidateQueries({ queryKey: ['invoices', cancelledInvoice.room_id] });
+      }
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });
       queryClient.invalidateQueries({ queryKey: ['activeContracts'] });

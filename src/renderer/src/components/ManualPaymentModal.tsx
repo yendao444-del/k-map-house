@@ -33,7 +33,10 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ invoice,
     });
 
     queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    queryClient.invalidateQueries({ queryKey: ['invoices', invoice.room_id] });
     queryClient.invalidateQueries({ queryKey: ['rooms'] });
+    queryClient.invalidateQueries({ queryKey: ['contracts'] });
+    queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
     playPayment();
 
     setSaving(false);
