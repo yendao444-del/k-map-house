@@ -10,7 +10,7 @@ export type UserRole = 'admin' | 'user'
 export type UserStatus = 'active' | 'inactive'
 
 export interface AppUser { id: string; username: string; email?: string; full_name: string; avatar_url?: string; password_hash?: string; role: UserRole; status: UserStatus; last_login_at?: string; created_at: string; }
-export interface InvoicePaymentRecord { id: string; amount: number; payment_method?: PaymentMethod; payment_date: string; note?: string; created_at: string; }
+export interface InvoicePaymentRecord { id: string; amount: number; payment_method?: PaymentMethod; payment_date: string; note?: string; created_at: string; external_ref?: string; external_id?: string; source?: string; }
 export interface ServiceZone { id: string; name: string; electric_price: number; water_price: number; internet_price: number; cleaning_price: number; created_at: string; }
 export interface Room { id: string; name: string; floor: number; base_rent: number; status: RoomStatus; created_at: string; service_zone_id?: string; area?: number; max_occupants?: number; default_deposit?: number; invoice_day?: number; billing_cycle?: string; notes?: string; move_in_date?: string; contract_expiration?: string; tenant_name?: string; tenant_phone?: string; tenant_email?: string; tenant_id_card?: string; electric_old?: number; electric_new?: number; water_old?: number; water_new?: number; old_debt?: number; max_vehicles?: number; has_move_in_receipt?: boolean; expected_end_date?: string; electric_price?: number; water_price?: number; wifi_price?: number; garbage_price?: number; image_urls?: string[]; }
 export interface Tenant { id: string; full_name: string; phone?: string; email?: string; identity_card?: string; id_card_issued_date?: string; id_card_issued_place?: string; address?: string; identity_image_url?: string; notes?: string; is_active: boolean; last_room_name?: string; left_at?: string; created_at: string; updated_at: string; }
@@ -97,6 +97,22 @@ const formatRoomName = (name: string) => {
 
 const createEntityId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+const normalizePaymentKey = (value?: string): string =>
+  (value || '').trim().toLowerCase()
+
+const extractPaymentRefFromNote = (note?: string): string => {
+  const value = note || ''
+  return value.match(/\(Ref:\s*([^)]+)\)/i)?.[1]?.trim() || ''
+}
+
+const getPaymentRecordDedupeKeys = (record: InvoicePaymentRecord): string[] =>
+  [record.external_ref, record.external_id, extractPaymentRefFromNote(record.note)]
+    .map(normalizePaymentKey)
+    .filter(Boolean)
+
+const hasDuplicatePaymentRecord = (records: InvoicePaymentRecord[] = [], keys: string[]): boolean =>
+  keys.length > 0 && records.some((record) => getPaymentRecordDedupeKeys(record).some((key) => keys.includes(key)))
 
 const normalizeRemoteErrorMessage = (message: string): string => {
   if (/failed to fetch|fetch failed|enotfound|networkerror/i.test(message)) {
@@ -999,21 +1015,72 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
   return cancelled
 }
 
-export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string }): Promise<Invoice> => {
+export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string; external_ref?: string; external_id?: string; source?: string }): Promise<Invoice> => {
+  const amount = Number(data.amount || 0)
+  if (!Number.isFinite(amount) || amount === 0) throw new Error('Số tiền thu không hợp lệ.')
+
+  const incomingKeys = [data.external_ref, data.external_id, extractPaymentRefFromNote(data.note)]
+    .map(normalizePaymentKey)
+    .filter(Boolean)
+
   const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
   if (error) throw new Error(error.message)
   if (!inv) throw new Error('Không tìm thấy hóa đơn.')
-  const newPaidAmount = (inv.paid_amount || 0) + data.amount
-  const record = { id: createEntityId('pay'), amount: data.amount, payment_method: data.payment_method, payment_date: data.payment_date, note: data.note, created_at: new Date().toISOString() }
+
+  const existingRecords = (inv.payment_records || []) as InvoicePaymentRecord[]
+  if (hasDuplicatePaymentRecord(existingRecords, incomingKeys)) {
+    return inv as Invoice
+  }
+
+  const currentPaidAmount = Number(inv.paid_amount || 0)
+  const totalAmount = Number(inv.total_amount || 0)
+  if (inv.payment_status === 'paid') {
+    return inv as Invoice
+  }
+
+  const newPaidAmount = currentPaidAmount + amount
+  const record = {
+    id: createEntityId('pay'),
+    amount,
+    payment_method: data.payment_method,
+    payment_date: data.payment_date,
+    note: data.note,
+    external_ref: data.external_ref || extractPaymentRefFromNote(data.note) || undefined,
+    external_id: data.external_id || undefined,
+    source: data.source || undefined,
+    created_at: new Date().toISOString()
+  }
   const nextStatus: PaymentStatus =
-    Number(inv.total_amount || 0) < 0
-      ? newPaidAmount <= inv.total_amount
+    totalAmount < 0
+      ? newPaidAmount <= totalAmount
         ? 'paid'
         : 'partial'
-      : newPaidAmount >= inv.total_amount
+      : newPaidAmount >= totalAmount
         ? 'paid'
         : 'partial'
-  const result = await safeQuery(() => supabase.from('invoices').update({ paid_amount: newPaidAmount, payment_status: nextStatus, payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...(inv.payment_records || []), record] } as any).eq('id', id).select().single())
+
+  const { data: updatedRow, error: updateError } = await supabase
+    .from('invoices')
+    .update({ paid_amount: newPaidAmount, payment_status: nextStatus, payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...existingRecords, record] } as any)
+    .eq('id', id)
+    .eq('paid_amount', currentPaidAmount)
+    .eq('payment_status', inv.payment_status)
+    .select()
+    .maybeSingle()
+
+  if (updateError) throw new Error(updateError.message)
+
+  if (!updatedRow) {
+    const { data: latest, error: latestError } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
+    if (latestError) throw new Error(latestError.message)
+    if (!latest) throw new Error('Không tìm thấy hóa đơn.')
+    if (hasDuplicatePaymentRecord((latest.payment_records || []) as InvoicePaymentRecord[], incomingKeys) || latest.payment_status === 'paid') {
+      return latest as Invoice
+    }
+    throw new Error('Hóa đơn vừa được cập nhật bởi thao tác khác. Vui lòng tải lại rồi thử lại.')
+  }
+
+  const result = updatedRow
   const updated = result as any as Invoice
 
   if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && !updated.is_settlement) {

@@ -2710,14 +2710,13 @@ const App: React.FC = () => {
                           )
                         const canDeleteRoom =
                           roomInvoices.length === 0 && roomMoveInReceipts.length === 0
-                        // Khach migration khong lap hoa don thang dau, nhung van la khach dang o.
-                        // Mot so phong duoc thu thang dau bang hoa don hang thang/thu coc rieng,
-                        // nen chi can co hoa don da ghi nhan doanh thu sau khi lap hop dong la da bat dau o.
+                        // Hóa đơn tháng đầu đã được tạo là đủ để phòng thoát trạng thái "Chờ lập HĐ".
+                        // Các hóa đơn thường khác chỉ đánh dấu bắt đầu khi đã ghi nhận thanh toán.
                         const hasStartedInvoice = checkInvoices.some((i) => {
                           if (i.payment_status === 'cancelled' || i.payment_status === 'merged') return false
                           if (i.is_settlement || i.billing_reason === 'contract_end') return false
-                          if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0) return false
                           if (i.is_first_month) return true
+                          if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0) return false
                           return (
                             Number(i.room_cost || 0) > 0 ||
                             Number(i.electric_cost || 0) > 0 ||

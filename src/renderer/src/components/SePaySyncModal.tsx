@@ -74,6 +74,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
   const [matches, setMatches] = useState<MatchResult[]>([])
   const [successCount, setSuccessCount] = useState(0)
   const [rawTxs, setRawTxs] = useState<SepayTransaction[]>([])
+  const [processingTxKeys, setProcessingTxKeys] = useState<string[]>([])
 
   const roomNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -234,6 +235,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
       const txs = data.transactions || []
       const foundMatches: MatchResult[] = []
       const codeToInvoice = new Map<string, Invoice>()
+      const seenTxKeys = new Set<string>()
 
       pendingInvoices.forEach((inv) => {
         const roomName = roomNameById.get(inv.room_id) || ''
@@ -241,6 +243,10 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
       })
 
       txs.forEach((tx) => {
+        const txKey = tx.reference_number || tx.id
+        if (txKey && seenTxKeys.has(txKey)) return
+        if (txKey) seenTxKeys.add(txKey)
+
         const normalizedContent = normalizeTransferText(tx.transaction_content || '')
         const amount = Number(tx.amount_in)
         const matchedInvoices = [...codeToInvoice.entries()]
@@ -293,8 +299,16 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
         amount: txAmount,
         payment_method: 'transfer',
         payment_date: new Date().toISOString(),
-        note: `Thu qua SePay: ${tx.transaction_content} (Ref: ${tx.reference_number})`
+        note: `Thu qua SePay: ${tx.transaction_content} (Ref: ${tx.reference_number})`,
+        external_ref: tx.reference_number || undefined,
+        external_id: tx.id || undefined,
+        source: 'sepay'
       })
+    },
+    onMutate: ({ match }) => {
+      const txKey = match.transaction.reference_number || match.transaction.id
+      if (!txKey) return
+      setProcessingTxKeys((prev) => (prev.includes(txKey) ? prev : [...prev, txKey]))
     },
     onSuccess: (_, variables) => {
       playPayment()
@@ -305,6 +319,11 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
       queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
       setSuccessCount((s) => s + 1)
       setMatches((prev) => prev.filter((m) => m.transaction.id !== variables.match.transaction.id))
+    },
+    onSettled: (_, __, variables) => {
+      const txKey = variables?.match.transaction.reference_number || variables?.match.transaction.id
+      if (!txKey) return
+      setProcessingTxKeys((prev) => prev.filter((key) => key !== txKey))
     }
   })
 
@@ -508,6 +527,8 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
                 const periodText = invoice.billing_period_start && invoice.billing_period_end
                   ? `${fmtDate(invoice.billing_period_start)} - ${fmtDate(invoice.billing_period_end)}`
                   : `T.${String(invoice.month).padStart(2, '0')}/${invoice.year}`
+                const txKey = match.transaction.reference_number || match.transaction.id
+                const isProcessing = Boolean(txKey && processingTxKeys.includes(txKey))
                 return (
                   <div
                     key={match.transaction.id}
@@ -553,7 +574,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
                       <div className="flex flex-col gap-2 shrink-0 justify-center">
                         <button
                           onClick={() => updateMutation.mutate({ match })}
-                          disabled={updateMutation.isPending}
+                          disabled={updateMutation.isPending || isProcessing}
                           className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-xs font-bold transition shadow-sm border border-emerald-600 disabled:opacity-50"
                         >
                           Duyệt: Chốt phiếu

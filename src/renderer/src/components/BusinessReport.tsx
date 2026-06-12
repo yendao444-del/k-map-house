@@ -1350,7 +1350,22 @@ export function BusinessReport({
                             className="hover:bg-amber-500/[0.02] transition duration-150 cursor-pointer"
                             onClick={() => openBuildingDrill(row.building, 'electric')}
                           >
-                            <td className="px-6 py-4 font-black text-amber-900">{row.building}</td>
+                            <td className="px-6 py-4 font-black text-amber-900">
+                              <div className="flex items-center gap-2">
+                                <span>{row.building}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openBuildingDrill(row.building, 'electric')
+                                  }}
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-100 bg-white text-amber-700 shadow-sm transition hover:bg-amber-50"
+                                  title="Xem chi tiết tiền điện của tòa này"
+                                >
+                                  <i className="fa-regular fa-eye text-[10px]"></i>
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
                             <td className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -1404,7 +1419,22 @@ export function BusinessReport({
                             className="hover:bg-sky-500/[0.02] transition duration-150 cursor-pointer"
                             onClick={() => openBuildingDrill(row.building, 'water')}
                           >
-                            <td className="px-6 py-4 font-black text-sky-900">{row.building}</td>
+                            <td className="px-6 py-4 font-black text-sky-900">
+                              <div className="flex items-center gap-2">
+                                <span>{row.building}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openBuildingDrill(row.building, 'water')
+                                  }}
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-100 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
+                                  title="Xem chi tiết tiền nước của tòa này"
+                                >
+                                  <i className="fa-regular fa-eye text-[10px]"></i>
+                                </button>
+                              </div>
+                            </td>
                             <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
                             <td className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
