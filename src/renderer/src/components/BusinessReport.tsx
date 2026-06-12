@@ -48,6 +48,27 @@ type UtilityBuildingDrill = {
   title: string
 }
 
+type UtilityInvoiceRow = {
+  invoiceId: string
+  building: string
+  roomId: string
+  roomName: string
+  tenantName: string
+  electricOld: number
+  electricNew: number
+  electricUsage: number
+  electricUnitPrice: number
+  electricTotal: number
+  electricCollected: number
+  electricPending: number
+  waterOld: number
+  waterNew: number
+  waterUsage: number
+  waterTotal: number
+  waterCollected: number
+  waterPending: number
+}
+
 type PnlSection = 'revenue' | 'opex' | 'result'
 
 type PnlRow = {
@@ -118,6 +139,8 @@ const getBuildingKeyFromRoomName = (roomName?: string) => {
 }
 
 const getBuildingKeyFromCash = (item: CashTransaction) => {
+  const tokenMatch = (item.room_id || '').match(/^building:(\d+)$/i)?.[1]
+  if (tokenMatch) return `Tòa ${tokenMatch}`
   const text = normalizeSearch(`${item.note || ''} ${item.room_id || ''}`)
   const explicit = text.match(/toa\s*(\d+)/)?.[1]
   if (explicit) return `Tòa ${explicit}`
@@ -127,11 +150,15 @@ const getBuildingKeyFromCash = (item: CashTransaction) => {
 type UtilityBuildingRow = {
   building: string
   electricRevenue: number
+  electricPending: number
   waterRevenue: number
+  waterPending: number
   electricExpense: number
   waterExpense: number
   electricRevenueRoomIds: Set<string>
   waterRevenueRoomIds: Set<string>
+  electricPendingRoomIds: Set<string>
+  waterPendingRoomIds: Set<string>
   electricUtilityRoomIds: Set<string>
   waterUtilityRoomIds: Set<string>
 }
@@ -233,6 +260,8 @@ export function BusinessReport({
   const [drill, setDrill] = useState<Drill | null>(null)
   const [roomUtilitySearch, setRoomUtilitySearch] = useState('')
   const [buildingDrill, setBuildingDrill] = useState<UtilityBuildingDrill | null>(null)
+  const [expandedElectricBuilding, setExpandedElectricBuilding] = useState<string | null>(null)
+  const [expandedWaterBuilding, setExpandedWaterBuilding] = useState<string | null>(null)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -527,8 +556,12 @@ export function BusinessReport({
   const utilityData = useMemo(() => {
     let electricRevenue = 0
     let waterRevenue = 0
+    let electricPending = 0
+    let waterPending = 0
     let electricRevenueRoomsCount = 0
     let waterRevenueRoomsCount = 0
+    let electricPendingRoomsCount = 0
+    let waterPendingRoomsCount = 0
 
     // Room-by-room statistics
     const roomStatsMap = new Map<string, {
@@ -536,7 +569,9 @@ export function BusinessReport({
       roomName: string
       tenantName: string
       electricRev: number
+      electricPending: number
       waterRev: number
+      waterPending: number
       electricUsage: number
       waterUsage: number
     }>()
@@ -548,7 +583,9 @@ export function BusinessReport({
         roomName: room.name,
         tenantName: room.tenant_name || 'Không có khách',
         electricRev: 0,
+        electricPending: 0,
         waterRev: 0,
+        waterPending: 0,
         electricUsage: 0,
         waterUsage: 0,
       })
@@ -556,17 +593,23 @@ export function BusinessReport({
 
     const electricRevenueRoomIds = new Set<string>()
     const waterRevenueRoomIds = new Set<string>()
+    const electricPendingRoomIds = new Set<string>()
+    const waterPendingRoomIds = new Set<string>()
     const buildingStatsMap = new Map<string, UtilityBuildingRow>()
     const ensureBuilding = (building: string) => {
       if (!buildingStatsMap.has(building)) {
         buildingStatsMap.set(building, {
           building,
           electricRevenue: 0,
+          electricPending: 0,
           waterRevenue: 0,
+          waterPending: 0,
           electricExpense: 0,
           waterExpense: 0,
           electricRevenueRoomIds: new Set<string>(),
           waterRevenueRoomIds: new Set<string>(),
+          electricPendingRoomIds: new Set<string>(),
+          waterPendingRoomIds: new Set<string>(),
           electricUtilityRoomIds: new Set<string>(),
           waterUtilityRoomIds: new Set<string>(),
         })
@@ -591,29 +634,45 @@ export function BusinessReport({
         : 0
       const hasElectricInScope = electricInScope && invoiceElectricCost > 0
       const hasWaterInScope = waterInScope && invoiceWaterCost > 0
+      const elecPendingCost = hasElectricInScope
+        ? Math.max(0, invoiceElectricCost - elecCost)
+        : 0
+      const watPendingCost = hasWaterInScope
+        ? Math.max(0, invoiceWaterCost - watCost)
+        : 0
       if (!hasElectricInScope && !hasWaterInScope) continue
 
       const room = roomById.get(invoice.room_id)
       const buildingStats = ensureBuilding(getBuildingKeyFromRoomName(room?.name))
       if (hasElectricInScope) buildingStats.electricUtilityRoomIds.add(invoice.room_id)
       if (hasWaterInScope) buildingStats.waterUtilityRoomIds.add(invoice.room_id)
-      if (elecCost === 0 && watCost === 0) continue
+      if (elecCost === 0 && watCost === 0 && elecPendingCost === 0 && watPendingCost === 0) continue
 
       electricRevenue += elecCost
       waterRevenue += watCost
+      electricPending += elecPendingCost
+      waterPending += watPendingCost
 
       if (elecCost > 0) electricRevenueRoomIds.add(invoice.room_id)
       if (watCost > 0) waterRevenueRoomIds.add(invoice.room_id)
+      if (elecPendingCost > 0) electricPendingRoomIds.add(invoice.room_id)
+      if (watPendingCost > 0) waterPendingRoomIds.add(invoice.room_id)
       buildingStats.electricRevenue += elecCost
       buildingStats.waterRevenue += watCost
+      buildingStats.electricPending += elecPendingCost
+      buildingStats.waterPending += watPendingCost
       if (elecCost > 0) buildingStats.electricRevenueRoomIds.add(invoice.room_id)
       if (watCost > 0) buildingStats.waterRevenueRoomIds.add(invoice.room_id)
+      if (elecPendingCost > 0) buildingStats.electricPendingRoomIds.add(invoice.room_id)
+      if (watPendingCost > 0) buildingStats.waterPendingRoomIds.add(invoice.room_id)
 
       const stats = roomStatsMap.get(invoice.room_id)
       if (stats) {
         if (isRoomUtilityDisplayInvoice(invoice)) {
-          stats.electricRev += electricInScope ? (invoice.electric_cost || 0) * collectionRatio : 0
-          stats.waterRev += waterInScope ? (invoice.water_cost || 0) * collectionRatio : 0
+          stats.electricRev += electricInScope ? invoiceElectricCost * collectionRatio : 0
+          stats.waterRev += waterInScope ? invoiceWaterCost * collectionRatio : 0
+          stats.electricPending += elecPendingCost
+          stats.waterPending += watPendingCost
           stats.electricUsage += electricInScope ? invoice.electric_usage || 0 : 0
           stats.waterUsage += waterInScope ? invoice.water_usage || 0 : 0
         }
@@ -628,6 +687,8 @@ export function BusinessReport({
 
     electricRevenueRoomsCount = electricRevenueRoomIds.size
     waterRevenueRoomsCount = waterRevenueRoomIds.size
+    electricPendingRoomsCount = electricPendingRoomIds.size
+    waterPendingRoomsCount = waterPendingRoomIds.size
 
     // Process utility expenses by payment date in the selected report period
     let electricExpense = 0
@@ -650,29 +711,41 @@ export function BusinessReport({
     // Delta calculations
     const electricDelta = electricRevenue - electricExpense
     const waterDelta = waterRevenue - waterExpense
+    const electricProjectedDelta = electricRevenue + electricPending - electricExpense
+    const waterProjectedDelta = waterRevenue + waterPending - waterExpense
 
     const electricPct = electricExpense > 0 ? (electricDelta / electricExpense) * 100 : 0
     const waterPct = waterExpense > 0 ? (waterDelta / waterExpense) * 100 : 0
+    const electricProjectedPct = electricExpense > 0 ? (electricProjectedDelta / electricExpense) * 100 : 0
+    const waterProjectedPct = waterExpense > 0 ? (waterProjectedDelta / waterExpense) * 100 : 0
 
     // Convert room stats map to sorted list
     const roomList = Array.from(roomStatsMap.values())
-      .filter(item => item.electricRev > 0 || item.waterRev > 0 || item.electricUsage > 0 || item.waterUsage > 0)
+      .filter(item => item.electricRev > 0 || item.electricPending > 0 || item.waterRev > 0 || item.waterPending > 0 || item.electricUsage > 0 || item.waterUsage > 0)
       .sort((a, b) => b.electricRev - a.electricRev)
     const buildingList = Array.from(buildingStatsMap.values())
-      .filter(item => item.electricRevenue > 0 || item.waterRevenue > 0 || item.electricExpense > 0 || item.waterExpense > 0)
+      .filter(item => item.electricRevenue > 0 || item.electricPending > 0 || item.waterRevenue > 0 || item.waterPending > 0 || item.electricExpense > 0 || item.waterExpense > 0)
       .sort((a, b) => a.building.localeCompare(b.building, 'vi-VN', { numeric: true }))
 
     return {
       electricRevenue,
+      electricPending,
       waterRevenue,
+      waterPending,
       electricExpense,
       waterExpense,
       electricDelta,
       waterDelta,
+      electricProjectedDelta,
+      waterProjectedDelta,
       electricPct,
       waterPct,
+      electricProjectedPct,
+      waterProjectedPct,
       electricRevenueRoomsCount,
       waterRevenueRoomsCount,
+      electricPendingRoomsCount,
+      waterPendingRoomsCount,
       roomList,
       buildingList,
     }
@@ -697,6 +770,53 @@ export function BusinessReport({
     })
   }, [roomUtilitySearch, utilityData.roomList])
 
+  const utilityInvoiceRows = useMemo<UtilityInvoiceRow[]>(() => {
+    return invoices
+      .filter((invoice) => {
+        if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return false
+        const invoicePeriodDate = getInvoicePeriodDate(invoice)
+        if (!isDateInPeriod(invoicePeriodDate, period)) return false
+        return isRoomUtilityDisplayInvoice(invoice)
+      })
+      .map((invoice) => {
+        const room = roomById.get(invoice.room_id)
+        const tenant = invoice.tenant_id ? tenantById.get(invoice.tenant_id) : null
+        const collectionRatio = getUtilityCollectionRatio(invoice)
+        const electricTotal = (invoice.electric_cost || 0) + (invoice.transfer_electric_cost || 0)
+        const waterTotal = (invoice.water_cost || 0) + (invoice.transfer_water_cost || 0)
+        const electricCollected = electricTotal * collectionRatio
+        const waterCollected = waterTotal * collectionRatio
+        const electricUsage = Number(invoice.electric_usage || 0)
+        const electricUnitPrice =
+          Number(invoice.electric_price_snapshot || 0) > 0
+            ? Number(invoice.electric_price_snapshot || 0)
+            : electricUsage > 0
+              ? electricTotal / electricUsage
+              : 0
+        return {
+          invoiceId: invoice.id,
+          building: getBuildingKeyFromRoomName(room?.name),
+          roomId: invoice.room_id,
+          roomName: room?.name || 'Không rõ',
+          tenantName: tenant?.full_name || room?.tenant_name || 'Không rõ',
+          electricOld: Number(invoice.electric_old || 0),
+          electricNew: Number(invoice.electric_new || 0),
+          electricUsage,
+          electricUnitPrice,
+          electricTotal,
+          electricCollected,
+          electricPending: Math.max(0, electricTotal - electricCollected),
+          waterOld: Number(invoice.water_old || 0),
+          waterNew: Number(invoice.water_new || 0),
+          waterUsage: Number(invoice.water_usage || 0),
+          waterTotal,
+          waterCollected,
+          waterPending: Math.max(0, waterTotal - waterCollected),
+        }
+      })
+      .sort((a, b) => a.roomName.localeCompare(b.roomName, 'vi-VN', { numeric: true }))
+  }, [invoices, period, roomById, tenantById])
+
   const buildingUtilityRows = useMemo(() => {
     if (!buildingDrill) return []
     const buildingKey = normalizeSearch(buildingDrill.building)
@@ -712,6 +832,12 @@ export function BusinessReport({
       )
   }, [buildingDrill, rooms, utilityData.roomList])
 
+  const getUtilityInvoiceRowsByBuilding = (building: string, utility: 'electric' | 'water') =>
+    utilityInvoiceRows.filter((item) => {
+      if (normalizeSearch(item.building) !== normalizeSearch(building)) return false
+      return utility === 'electric' ? item.electricTotal > 0 : item.waterTotal > 0
+    })
+
 
   const periodSummary = period.mode === 'all'
     ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
@@ -721,18 +847,6 @@ export function BusinessReport({
     setBuildingDrill(null)
     if (row.invoiceType) setDrill({ mode: 'invoice', type: row.invoiceType, title: row.label })
     if (row.cashType) setDrill({ mode: 'cash', type: row.cashType, category: row.cashCategory, title: row.label })
-  }
-
-  const openBuildingDrill = (building: string, utility: 'electric' | 'water') => {
-    setDrill(null)
-    setBuildingDrill({
-      building,
-      utility,
-      title:
-        utility === 'electric'
-          ? `Chi tiết thu tiền điện - ${building}`
-          : `Chi tiết thu tiền nước - ${building}`
-    })
   }
 
   return (
@@ -1245,12 +1359,19 @@ export function BusinessReport({
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-2 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-amber-200/50 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-3 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-amber-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
                   <span className="text-[9px] font-bold text-amber-700/80 uppercase tracking-widest block">A Thu thực tế</span>
                   <span className="text-lg font-black text-amber-950 tabular-nums">{fmt(utilityData.electricRevenue)} đ</span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.electricRevenueRoomsCount} phòng đóng nộp
+                  </span>
+                </div>
+                <div className="space-y-0.5 border-l border-slate-300/80 pl-5">
+                  <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block">C Chưa thu</span>
+                  <span className="text-lg font-black text-amber-700 tabular-nums">{fmt(utilityData.electricPending)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block"></span> {utilityData.electricPendingRoomsCount} phòng còn nợ
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300/80 pl-5">
@@ -1291,12 +1412,19 @@ export function BusinessReport({
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-2 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-sky-200/50 transition-colors duration-300">
+              <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-3 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-sky-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
                   <span className="text-[9px] font-bold text-sky-700 uppercase tracking-widest block">A Thu thực tế</span>
                   <span className="text-lg font-black text-sky-950 tabular-nums">{fmt(utilityData.waterRevenue)} đ</span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.waterRevenueRoomsCount} phòng đóng nộp
+                  </span>
+                </div>
+                <div className="space-y-0.5 border-l border-slate-300 pl-5">
+                  <span className="text-[9px] font-bold text-sky-500 uppercase tracking-widest block">C Chưa thu</span>
+                  <span className="text-lg font-black text-sky-700 tabular-nums">{fmt(utilityData.waterPending)} đ</span>
+                  <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-sky-400 rounded-full inline-block"></span> {utilityData.waterPendingRoomsCount} phòng còn nợ
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300 pl-5">
@@ -1319,9 +1447,8 @@ export function BusinessReport({
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
-            <div className="grid grid-cols-1 xl:grid-cols-2 divide-y xl:divide-y-0 xl:divide-x divide-slate-100">
-              
+          <div className="space-y-6">
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
               <div className="flex flex-col">
                 <div className="px-6 py-3 bg-gradient-to-r from-amber-500/[0.04] to-amber-500/[0.01] border-b border-amber-100/40 flex items-center justify-between">
                   <span className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -1335,6 +1462,7 @@ export function BusinessReport({
                       <tr>
                         <th className="text-left px-6 py-3.5">Tòa</th>
                         <th className="text-right px-4 py-3.5">A Thu Điện</th>
+                        <th className="text-right px-4 py-3.5">C Chưa thu</th>
                         <th className="text-right px-4 py-3.5">B Chi Điện</th>
                         <th className="text-right px-4 py-3.5">Lãi / Lỗ</th>
                         <th className="text-center px-6 py-3.5">Đánh giá</th>
@@ -1342,46 +1470,88 @@ export function BusinessReport({
                     </thead>
                     <tbody className="divide-y divide-amber-100/30 font-medium text-slate-600">
                       {utilityData.buildingList.map(row => {
-                        const electricDelta = row.electricRevenue - row.electricExpense
+                        const electricDelta = row.electricRevenue + row.electricPending - row.electricExpense
                         const electricPct = row.electricExpense > 0 ? (electricDelta / row.electricExpense) * 100 : 0
+                        const isExpanded = expandedElectricBuilding === row.building
+                        const detailRows = getUtilityInvoiceRowsByBuilding(row.building, 'electric')
                         return (
-                          <tr
-                            key={row.building}
-                            className="hover:bg-amber-500/[0.02] transition duration-150 cursor-pointer"
-                            onClick={() => openBuildingDrill(row.building, 'electric')}
-                          >
-                            <td className="px-6 py-4 font-black text-amber-900">
-                              <div className="flex items-center gap-2">
-                                <span>{row.building}</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openBuildingDrill(row.building, 'electric')
-                                  }}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-100 bg-white text-amber-700 shadow-sm transition hover:bg-amber-50"
-                                  title="Xem chi tiết tiền điện của tòa này"
-                                >
-                                  <i className="fa-regular fa-eye text-[10px]"></i>
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
-                            <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
-                            <td className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                                {electricDelta >= 0 ? `Lời ${electricPct.toFixed(1)}%` : `Lỗ ${Math.abs(electricPct).toFixed(1)}%`}
-                              </span>
-                            </td>
-                          </tr>
+                          <>
+                            <tr
+                              key={row.building}
+                              className="hover:bg-amber-500/[0.02] transition duration-150 cursor-pointer"
+                              onClick={() => setExpandedElectricBuilding((prev) => (prev === row.building ? null : row.building))}
+                            >
+                              <td className="px-6 py-4 font-black text-amber-900">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-100 bg-white text-amber-700 shadow-sm transition hover:bg-amber-50"
+                                    title={isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
+                                  >
+                                    <i className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}></i>
+                                  </button>
+                                  <span>{row.building}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
+                              <td className="px-4 py-4 text-right font-bold text-amber-700 tabular-nums">{fmt(row.electricPending)} đ</td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
+                              <td className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                                  {electricDelta >= 0 ? `Lời ${electricPct.toFixed(1)}%` : `Lỗ ${Math.abs(electricPct).toFixed(1)}%`}
+                                </span>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-amber-50/40">
+                                <td colSpan={6} className="px-4 py-4">
+                                  <div className="overflow-x-auto rounded-2xl border border-amber-100 bg-white">
+                                    <table className="w-full text-xs">
+                                      <thead className="bg-amber-50/80 text-[10px] uppercase tracking-wider text-amber-700/80 font-black border-b border-amber-100/60">
+                                        <tr>
+                                          <th className="text-left px-4 py-3">Phòng</th>
+                                          <th className="text-left px-4 py-3">Khách thuê</th>
+                                          <th className="text-right px-3 py-3">Số điện (cũ)</th>
+                                          <th className="text-right px-3 py-3">Số điện (mới)</th>
+                                          <th className="text-right px-3 py-3">Tiêu thụ</th>
+                                          <th className="text-right px-3 py-3">Đơn giá</th>
+                                          <th className="text-right px-3 py-3">Tổng số tiền</th>
+                                          <th className="text-right px-3 py-3">Đã thu</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-amber-100/40">
+                                        {detailRows.map((item) => (
+                                          <tr key={item.invoiceId} className="hover:bg-amber-50/40">
+                                            <td className="px-4 py-3 font-bold text-slate-800">{item.roomName}</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.electricOld)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.electricNew)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">{fmt(item.electricUsage)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700">{fmt(item.electricUnitPrice)} đ</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">{fmt(item.electricTotal)} đ</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">{fmt(item.electricCollected)} đ</td>
+                                          </tr>
+                                        ))}
+                                        {detailRows.length === 0 && (
+                                          <tr>
+                                            <td colSpan={8} className="px-4 py-8 text-center text-slate-400">Không có phòng nào trong tòa này.</td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </>
                         )
                       })}
                       {utilityData.buildingList.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-10 text-center text-xs font-semibold text-amber-700/60">
+                          <td colSpan={6} className="px-6 py-10 text-center text-xs font-semibold text-amber-700/60">
                             Chưa có dữ liệu điện theo tòa.
                           </td>
                         </tr>
@@ -1390,7 +1560,9 @@ export function BusinessReport({
                   </table>
                 </div>
               </div>
+            </div>
 
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md">
               <div className="flex flex-col">
                 <div className="px-6 py-3 bg-gradient-to-r from-sky-500/[0.04] to-sky-500/[0.01] border-b border-sky-100/40 flex items-center justify-between">
                   <span className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -1404,6 +1576,7 @@ export function BusinessReport({
                       <tr>
                         <th className="text-left px-6 py-3.5">Tòa</th>
                         <th className="text-right px-4 py-3.5">A Thu Nước</th>
+                        <th className="text-right px-4 py-3.5">C Chưa thu</th>
                         <th className="text-right px-4 py-3.5">B Chi Nước</th>
                         <th className="text-right px-4 py-3.5">Lãi / Lỗ</th>
                         <th className="text-center px-6 py-3.5">Đánh giá</th>
@@ -1411,46 +1584,86 @@ export function BusinessReport({
                     </thead>
                     <tbody className="divide-y divide-sky-100/30 font-medium text-slate-600">
                       {utilityData.buildingList.map(row => {
-                        const waterDelta = row.waterRevenue - row.waterExpense
+                        const waterDelta = row.waterRevenue + row.waterPending - row.waterExpense
                         const waterPct = row.waterExpense > 0 ? (waterDelta / row.waterExpense) * 100 : 0
+                        const isExpanded = expandedWaterBuilding === row.building
+                        const detailRows = getUtilityInvoiceRowsByBuilding(row.building, 'water')
                         return (
-                          <tr
-                            key={row.building}
-                            className="hover:bg-sky-500/[0.02] transition duration-150 cursor-pointer"
-                            onClick={() => openBuildingDrill(row.building, 'water')}
-                          >
-                            <td className="px-6 py-4 font-black text-sky-900">
-                              <div className="flex items-center gap-2">
-                                <span>{row.building}</span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    openBuildingDrill(row.building, 'water')
-                                  }}
-                                  className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-100 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
-                                  title="Xem chi tiết tiền nước của tòa này"
-                                >
-                                  <i className="fa-regular fa-eye text-[10px]"></i>
-                                </button>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
-                            <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
-                            <td className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                                {waterDelta >= 0 ? `Lời ${waterPct.toFixed(1)}%` : `Lỗ ${Math.abs(waterPct).toFixed(1)}%`}
-                              </span>
-                            </td>
-                          </tr>
+                          <>
+                            <tr
+                              key={row.building}
+                              className="hover:bg-sky-500/[0.02] transition duration-150 cursor-pointer"
+                              onClick={() => setExpandedWaterBuilding((prev) => (prev === row.building ? null : row.building))}
+                            >
+                              <td className="px-6 py-4 font-black text-sky-900">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-100 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
+                                    title={isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
+                                  >
+                                    <i className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}></i>
+                                  </button>
+                                  <span>{row.building}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
+                              <td className="px-4 py-4 text-right font-bold text-sky-700 tabular-nums">{fmt(row.waterPending)} đ</td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
+                              <td className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
+                              </td>
+                              <td className="px-6 py-4 text-center">
+                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                                  {waterDelta >= 0 ? `Lời ${waterPct.toFixed(1)}%` : `Lỗ ${Math.abs(waterPct).toFixed(1)}%`}
+                                </span>
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr className="bg-sky-50/40">
+                                <td colSpan={6} className="px-4 py-4">
+                                  <div className="overflow-x-auto rounded-2xl border border-sky-100 bg-white">
+                                    <table className="w-full text-xs">
+                                      <thead className="bg-sky-50/80 text-[10px] uppercase tracking-wider text-sky-700/80 font-black border-b border-sky-100/60">
+                                        <tr>
+                                          <th className="text-left px-4 py-3">Phòng</th>
+                                          <th className="text-left px-4 py-3">Khách thuê</th>
+                                          <th className="text-right px-3 py-3">CS cũ</th>
+                                          <th className="text-right px-3 py-3">CS mới</th>
+                                          <th className="text-right px-3 py-3">Tiêu thụ</th>
+                                          <th className="text-right px-3 py-3">Tổng số tiền</th>
+                                          <th className="text-right px-3 py-3">Đã thu</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-sky-100/40">
+                                        {detailRows.map((item) => (
+                                          <tr key={item.invoiceId} className="hover:bg-sky-50/40">
+                                            <td className="px-4 py-3 font-bold text-slate-800">{item.roomName}</td>
+                                            <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.waterOld)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.waterNew)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">{fmt(item.waterUsage)}</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">{fmt(item.waterTotal)} đ</td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">{fmt(item.waterCollected)} đ</td>
+                                          </tr>
+                                        ))}
+                                        {detailRows.length === 0 && (
+                                          <tr>
+                                            <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Không có phòng nào trong tòa này.</td>
+                                          </tr>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </>
                         )
                       })}
                       {utilityData.buildingList.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="px-6 py-10 text-center text-xs font-semibold text-sky-600/60">
+                          <td colSpan={6} className="px-6 py-10 text-center text-xs font-semibold text-sky-600/60">
                             Chưa có dữ liệu nước theo tòa.
                           </td>
                         </tr>
@@ -1459,7 +1672,6 @@ export function BusinessReport({
                   </table>
                 </div>
               </div>
-
             </div>
           </div>
 
@@ -1480,8 +1692,9 @@ export function BusinessReport({
                     <tr>
                       <th className="text-left px-6 py-3.5">Hạng Mục Lọc</th>
                       <th className="text-right px-6 py-3.5">A Thu</th>
+                      <th className="text-right px-6 py-3.5">C Chưa thu</th>
                       <th className="text-right px-6 py-3.5">B Chi</th>
-                      <th className="text-right px-6 py-3.5">Chênh lệch (A - B)</th>
+                      <th className="text-right px-6 py-3.5">Chênh lệch ((A + C) - B)</th>
                       <th className="text-center px-6 py-3.5">Đánh giá</th>
                     </tr>
                   </thead>
@@ -1491,13 +1704,14 @@ export function BusinessReport({
                         <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block shadow-md shadow-amber-500/60 animate-pulse"></span>⚡ Tiền điện phòng trọ
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-amber-800 transition-colors tabular-nums">{fmt(utilityData.electricRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-amber-700 tabular-nums">{fmt(utilityData.electricPending)} đ</td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricExpense)} đ</td>
-                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
+                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {utilityData.electricProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                          {utilityData.electricDelta >= 0 ? `Lời ${utilityData.electricPct.toFixed(1)}%` : `Lỗ ${utilityData.electricPct.toFixed(1)}%`}
+                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.electricProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                          {utilityData.electricProjectedDelta >= 0 ? `Lời ${utilityData.electricProjectedPct.toFixed(1)}%` : `Lỗ ${utilityData.electricProjectedPct.toFixed(1)}%`}
                         </span>
                       </td>
                     </tr>
@@ -1506,13 +1720,14 @@ export function BusinessReport({
                         <span className="h-2.5 w-2.5 rounded-full bg-sky-500 block shadow-md shadow-sky-500/60 animate-pulse"></span>💧 Tiền nước sinh hoạt
                       </td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-sky-800 transition-colors tabular-nums">{fmt(utilityData.waterRevenue)} đ</td>
+                      <td className="px-6 py-4 text-right font-bold text-sky-700 tabular-nums">{fmt(utilityData.waterPending)} đ</td>
                       <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterExpense)} đ</td>
-                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
+                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {utilityData.waterProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.waterProjectedDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                          {utilityData.waterDelta >= 0 ? `Lời ${utilityData.waterPct.toFixed(1)}%` : `Lỗ ${utilityData.waterPct.toFixed(1)}%`}
+                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.waterProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
+                          {utilityData.waterProjectedDelta >= 0 ? `Lời ${utilityData.waterProjectedPct.toFixed(1)}%` : `Lỗ ${utilityData.waterProjectedPct.toFixed(1)}%`}
                         </span>
                       </td>
                     </tr>
@@ -1524,11 +1739,12 @@ export function BusinessReport({
                 <span className="text-slate-800 text-[10px] uppercase tracking-widest font-extrabold">TỔNG HỢP LIÊN DỊCH VỤ</span>
                 <div className="flex items-center gap-5.5 tabular-nums">
                   <span className="text-slate-500 text-xs font-semibold">A Thu: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricRevenue + utilityData.waterRevenue)} đ</span></span>
+                  <span className="text-slate-500 text-xs font-semibold">C Chưa thu: <span className="font-black text-sm text-amber-700">{fmt(utilityData.electricPending + utilityData.waterPending)} đ</span></span>
                   <span className="text-slate-500 text-xs font-semibold">B Chi: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricExpense + utilityData.waterExpense)} đ</span></span>
                   <span className="text-slate-700 bg-white border border-slate-200/80 shadow-sm px-3.5 py-1.5 rounded-2xl flex items-center gap-2">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lời ròng:</span>
-                    <span className={`font-black text-sm md:text-base ${(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {(utilityData.electricDelta + utilityData.waterDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricDelta + utilityData.waterDelta)} đ
+                    <span className={`font-black text-sm md:text-base ${(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta)} đ
                     </span>
                   </span>
                 </div>
@@ -1609,9 +1825,19 @@ export function BusinessReport({
                         <span className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-amber-700 group-hover/room:text-amber-600'}`}>
                           ⚡ {fmt(item.electricRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.electricUsage} kWh)</span>
                         </span>
+                        {item.electricPending > 0 && (
+                          <span className="text-[10px] text-amber-500 font-bold block mt-0.5">
+                            Còn nợ điện: {fmt(item.electricPending)} đ
+                          </span>
+                        )}
                         <span className="text-[10px] text-sky-600 font-bold block mt-0.5 group-hover/room:text-sky-500">
                           💧 {fmt(item.waterRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.waterUsage} m³)</span>
                         </span>
+                        {item.waterPending > 0 && (
+                          <span className="text-[10px] text-sky-500 font-bold block mt-0.5">
+                            Còn nợ nước: {fmt(item.waterPending)} đ
+                          </span>
+                        )}
                       </div>
                     </div>
                   )
@@ -1635,9 +1861,9 @@ export function BusinessReport({
                 <p className="text-xs text-slate-500">
                   {buildingUtilityRows.length} phòng ·
                   {' '}
-                  Tổng điện {fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricRev, 0))} đ ·
-                  {' '}
-                  Tổng nước {fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterRev, 0))} đ
+                  {buildingDrill.utility === 'electric'
+                    ? `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricPending, 0))} đ`
+                    : `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterPending, 0))} đ`}
                 </p>
               </div>
               <button onClick={() => setBuildingDrill(null)} className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition">
@@ -1650,31 +1876,38 @@ export function BusinessReport({
                   <tr>
                     <th className="text-left px-5 py-3">Phòng</th>
                     <th className="text-left px-5 py-3">Khách thuê</th>
-                    <th className="text-right px-5 py-3">Thu điện</th>
-                    <th className="text-right px-5 py-3">Thu nước</th>
-                    <th className="text-right px-5 py-3">Tổng thu</th>
+                    <th className="text-right px-5 py-3">
+                      {buildingDrill.utility === 'electric' ? 'Đã thu điện' : 'Đã thu nước'}
+                    </th>
+                    <th className="text-right px-5 py-3">
+                      {buildingDrill.utility === 'electric' ? 'Điện chưa thu' : 'Nước chưa thu'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {buildingUtilityRows.map((item) => {
-                    const total = item.electricRev + item.waterRev
+                    const amount = buildingDrill.utility === 'electric' ? item.electricRev : item.waterRev
+                    const pendingAmount = buildingDrill.utility === 'electric' ? item.electricPending : item.waterPending
                     const isTop =
                       buildingDrill.utility === 'electric'
-                        ? item.electricRev > 0
-                        : item.waterRev > 0
+                        ? item.electricRev > 0 || item.electricPending > 0
+                        : item.waterRev > 0 || item.waterPending > 0
                     return (
                       <tr key={item.roomId} className={`hover:bg-slate-50 ${isTop ? '' : 'opacity-70'}`}>
                         <td className="px-5 py-3 font-bold text-slate-800">{item.roomName}</td>
                         <td className="px-5 py-3 text-slate-600">{item.tenantName}</td>
-                        <td className="px-5 py-3 text-right font-bold tabular-nums text-amber-700">{fmt(item.electricRev)} đ</td>
-                        <td className="px-5 py-3 text-right font-bold tabular-nums text-sky-700">{fmt(item.waterRev)} đ</td>
-                        <td className="px-5 py-3 text-right font-black tabular-nums text-slate-900">{fmt(total)} đ</td>
+                        <td className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-700' : 'text-sky-700'}`}>
+                          {fmt(amount)} đ
+                        </td>
+                        <td className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-500' : 'text-sky-500'}`}>
+                          {fmt(pendingAmount)} đ
+                        </td>
                       </tr>
                     )
                   })}
                   {buildingUtilityRows.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-slate-400">
+                      <td colSpan={4} className="px-5 py-12 text-center text-slate-400">
                         Không có dữ liệu phòng trong tòa này ở kỳ báo cáo.
                       </td>
                     </tr>

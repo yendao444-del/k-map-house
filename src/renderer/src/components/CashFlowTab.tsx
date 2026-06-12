@@ -26,11 +26,32 @@ const todayIso = () => new Date().toISOString().split('T')[0]
 
 type CategoryOption = { value: CashTransactionCategory; label: string; type: CashTransactionType }
 
+type BuildingOption = { value: string; label: string }
+
 const toCategoryOptions = (categories: ExpenseCategory[]): CategoryOption[] =>
   categories.map(item => ({ value: item.value, label: item.name, type: item.type }))
 
 const categoryLabel = (category: CashTransactionCategory, options: CategoryOption[]) =>
   options.find(item => item.value === category)?.label || 'Khác'
+
+const isUtilityBuildingCategory = (category?: string) => category === 'electric' || category === 'water'
+
+const getBuildingLabelFromToken = (value?: string) => {
+  const match = (value || '').match(/^building:(\d+)$/i)
+  return match ? `Tòa ${match[1]}` : ''
+}
+
+const getBuildingNumberFromRoomName = (roomName?: string) => roomName?.match(/\d+/)?.[0]?.[0] || ''
+
+const getCashTargetLabel = (
+  item: Pick<CashTransaction, 'room_id' | 'category'>,
+  roomById: Map<string, { name: string }>
+) => {
+  const buildingLabel = getBuildingLabelFromToken(item.room_id)
+  if (buildingLabel) return buildingLabel
+  if (item.room_id) return roomById.get(item.room_id)?.name || 'Không rõ'
+  return isUtilityBuildingCategory(item.category) ? 'Không gắn tòa' : 'Không gắn phòng'
+}
 
 type CashFlowRow =
   | (CashTransaction & { source: 'manual' })
@@ -148,6 +169,9 @@ function CashTransactionModal({
   const queryClient = useQueryClient()
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const [type, setType] = useState<CashTransactionType>(transaction?.type || 'expense')
+  const [category, setCategory] = useState<CashTransactionCategory>(
+    transaction?.category || categoryOptions.find(item => item.type === (transaction?.type || 'expense'))?.value || 'other_expense'
+  )
   const [amountDisplay, setAmountDisplay] = useState(transaction ? formatVND(transaction.amount) : '')
   const [error, setError] = useState('')
 
@@ -164,6 +188,31 @@ function CashTransactionModal({
   })
 
   const categories = categoryOptions.filter(item => item.type === type)
+  const buildingOptions = useMemo<BuildingOption[]>(() => {
+    const seen = new Set<string>()
+    return rooms
+      .map((room) => getBuildingNumberFromRoomName(room.name))
+      .filter(Boolean)
+      .sort()
+      .filter((buildingNo) => {
+        if (seen.has(buildingNo)) return false
+        seen.add(buildingNo)
+        return true
+      })
+      .map((buildingNo) => ({
+        value: `building:${buildingNo}`,
+        label: `Tòa ${buildingNo}`,
+      }))
+  }, [rooms])
+
+  const isBuildingTarget = isExpense && isUtilityBuildingCategory(category)
+
+  React.useEffect(() => {
+    const nextCategory = categories.find(item => item.value === category)?.value || categories[0]?.value
+    if (nextCategory && nextCategory !== category) {
+      setCategory(nextCategory)
+    }
+  }, [categories, category])
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value.replace(/\D/g, '')
@@ -181,10 +230,10 @@ function CashTransactionModal({
     setError('')
     mutation.mutate({
       type,
-      category: form.get('category') as CashTransactionCategory,
+      category,
       transaction_date: String(form.get('transaction_date') || todayIso()),
       amount,
-      room_id: String(form.get('room_id') || '') || undefined,
+      room_id: String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '') || undefined,
       payment_method: (String(form.get('payment_method') || '') || undefined) as PaymentMethod | undefined,
       note: String(form.get('note') || ''),
     })
@@ -266,7 +315,8 @@ function CashTransactionModal({
                 <select
                   key={type}
                   name="category"
-                  defaultValue={transaction?.category || categories[0]?.value}
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value as CashTransactionCategory)}
                   className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                 >
                   {categories.map(item => (
@@ -299,17 +349,32 @@ function CashTransactionModal({
                 </select>
               </div>
               <div className="p-4 space-y-1 border-l border-slate-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Gắn phòng</p>
-                <select
-                  name="room_id"
-                  defaultValue={transaction?.room_id || ''}
-                  className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
-                >
-                  <option value="">Không gắn phòng</option>
-                  {rooms.map(room => (
-                    <option key={room.id} value={room.id}>{room.name}</option>
-                  ))}
-                </select>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  {isBuildingTarget ? 'Gắn tòa' : 'Gắn phòng'}
+                </p>
+                {isBuildingTarget ? (
+                  <select
+                    name="building_id"
+                    defaultValue={getBuildingLabelFromToken(transaction?.room_id) ? transaction?.room_id || '' : ''}
+                    className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
+                  >
+                    <option value="">Không gắn tòa</option>
+                    {buildingOptions.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    name="room_id"
+                    defaultValue={transaction?.room_id || ''}
+                    className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
+                  >
+                    <option value="">Không gắn phòng</option>
+                    {rooms.map(room => (
+                      <option key={room.id} value={room.id}>{room.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -573,7 +638,7 @@ export function CashFlowTab({
                 <th className="px-4 py-3">Ngày</th>
                 <th className="px-4 py-3">Loại</th>
                 <th className="px-4 py-3">Nhóm</th>
-                <th className="px-4 py-3">Phòng</th>
+                <th className="px-4 py-3">Phòng / Tòa</th>
                 <th className="px-4 py-3 text-right">Số tiền</th>
                 <th className="px-4 py-3">Phương thức</th>
                 {hasOpeningBalance && <th className="px-4 py-3 text-right">Số dư</th>}
@@ -609,7 +674,7 @@ export function CashFlowTab({
                     </div>
                   </td>
                   <td className="px-4 py-3 font-bold text-gray-800">{categoryLabel(item.category, categoryOptions)}</td>
-                  <td className="px-4 py-3 text-gray-600">{item.room_id ? roomById.get(item.room_id)?.name || 'Không rõ' : 'Không gắn phòng'}</td>
+                  <td className="px-4 py-3 text-gray-600">{getCashTargetLabel(item, roomById as Map<string, { name: string }>)}</td>
                   <td className={`px-4 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}>
                     {item.type === 'expense' ? '-' : ''}{formatVND(item.amount)} đ
                   </td>
