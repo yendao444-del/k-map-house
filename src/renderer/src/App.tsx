@@ -2711,8 +2711,22 @@ const App: React.FC = () => {
                         const canDeleteRoom =
                           roomInvoices.length === 0 && roomMoveInReceipts.length === 0
                         // Khach migration khong lap hoa don thang dau, nhung van la khach dang o.
-                        const hasFirstInvoice = checkInvoices.some((i) => i.is_first_month)
-                        const hasStartedBilling = hasFirstInvoice || activeContract?.is_migration === true
+                        // Mot so phong duoc thu thang dau bang hoa don hang thang/thu coc rieng,
+                        // nen chi can co hoa don da ghi nhan doanh thu sau khi lap hop dong la da bat dau o.
+                        const hasStartedInvoice = checkInvoices.some((i) => {
+                          if (i.payment_status === 'cancelled' || i.payment_status === 'merged') return false
+                          if (i.is_settlement || i.billing_reason === 'contract_end') return false
+                          if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0) return false
+                          if (i.is_first_month) return true
+                          return (
+                            Number(i.room_cost || 0) > 0 ||
+                            Number(i.electric_cost || 0) > 0 ||
+                            Number(i.water_cost || 0) > 0 ||
+                            Number(i.wifi_cost || 0) > 0 ||
+                            Number(i.garbage_cost || 0) > 0
+                          )
+                        })
+                        const hasStartedBilling = hasStartedInvoice || activeContract?.is_migration === true
 
                         const menuItemClass =
                           'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'

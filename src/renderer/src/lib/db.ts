@@ -1029,42 +1029,54 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
   }
 
   if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && updated.is_settlement) {
-    await supabase
-      .from('rooms')
-      .update({
-        status: 'vacant',
-        tenant_name: null,
-        tenant_phone: null,
-        move_in_date: null,
-        expected_end_date: null,
-        electric_old: updated.electric_new,
-        electric_new: updated.electric_new,
-        water_old: updated.water_new,
-        water_new: updated.water_new,
-        has_move_in_receipt: false,
-      } as any)
-      .eq('id', updated.room_id)
-
-    const { data: activeContract } = await supabase
-      .from('contracts')
-      .select('id')
-      .eq('room_id', updated.room_id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    if (activeContract?.id) {
-      await supabase
+    const [{ data: room }, { data: activeContract }] = await Promise.all([
+      supabase.from('rooms').select('id,status').eq('id', updated.room_id).maybeSingle(),
+      supabase
         .from('contracts')
-        .update({
-          status: 'terminated',
-          end_date: updated.invoice_date || data.payment_date,
-          end_note: updated.damage_note || updated.adjustment_note || undefined,
-          final_electric: updated.electric_new,
-          final_water: updated.water_new,
-        } as any)
-        .eq('id', activeContract.id)
+        .select('id,tenant_id')
+        .eq('room_id', updated.room_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ])
+
+    const canFinalizeMoveOut =
+      room?.status === 'ending' &&
+      activeContract?.id &&
+      (!activeContract.tenant_id || activeContract.tenant_id === updated.tenant_id)
+
+    if (canFinalizeMoveOut) {
+      await safeQuery(() =>
+        supabase
+          .from('rooms')
+          .update({
+            status: 'vacant',
+            tenant_name: null,
+            tenant_phone: null,
+            move_in_date: null,
+            expected_end_date: null,
+            electric_old: updated.electric_new,
+            electric_new: updated.electric_new,
+            water_old: updated.water_new,
+            water_new: updated.water_new,
+            has_move_in_receipt: false,
+          } as any)
+          .eq('id', updated.room_id)
+      )
+
+      await safeQuery(() =>
+        supabase
+          .from('contracts')
+          .update({
+            status: 'terminated',
+            end_date: updated.invoice_date || data.payment_date,
+            end_note: updated.damage_note || updated.adjustment_note || undefined,
+            final_electric: updated.electric_new,
+            final_water: updated.water_new,
+          } as any)
+          .eq('id', activeContract.id)
+      )
     }
   }
 
