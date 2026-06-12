@@ -42,6 +42,12 @@ type Drill =
   | { mode: 'invoice'; type: InvoiceDrillType; title: string }
   | { mode: 'cash'; type: 'income' | 'expense'; category?: CashTransactionCategory; title: string }
 
+type UtilityBuildingDrill = {
+  building: string
+  utility: 'electric' | 'water'
+  title: string
+}
+
 type PnlSection = 'revenue' | 'opex' | 'result'
 
 type PnlRow = {
@@ -226,6 +232,7 @@ export function BusinessReport({
   const [selectedDate, setSelectedDate] = useState(iso(today))
   const [drill, setDrill] = useState<Drill | null>(null)
   const [roomUtilitySearch, setRoomUtilitySearch] = useState('')
+  const [buildingDrill, setBuildingDrill] = useState<UtilityBuildingDrill | null>(null)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -690,14 +697,42 @@ export function BusinessReport({
     })
   }, [roomUtilitySearch, utilityData.roomList])
 
+  const buildingUtilityRows = useMemo(() => {
+    if (!buildingDrill) return []
+    const buildingKey = normalizeSearch(buildingDrill.building)
+    return utilityData.roomList
+      .filter((item) => {
+        const room = rooms.find((r) => r.id === item.roomId)
+        return normalizeSearch(getBuildingKeyFromRoomName(room?.name || item.roomName)) === buildingKey
+      })
+      .sort((a, b) =>
+        buildingDrill.utility === 'electric'
+          ? b.electricRev - a.electricRev
+          : b.waterRev - a.waterRev
+      )
+  }, [buildingDrill, rooms, utilityData.roomList])
+
 
   const periodSummary = period.mode === 'all'
     ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
     : `${period.days} ngày | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
 
   const openRowDrill = (row: PnlRow) => {
+    setBuildingDrill(null)
     if (row.invoiceType) setDrill({ mode: 'invoice', type: row.invoiceType, title: row.label })
     if (row.cashType) setDrill({ mode: 'cash', type: row.cashType, category: row.cashCategory, title: row.label })
+  }
+
+  const openBuildingDrill = (building: string, utility: 'electric' | 'water') => {
+    setDrill(null)
+    setBuildingDrill({
+      building,
+      utility,
+      title:
+        utility === 'electric'
+          ? `Chi tiết thu tiền điện - ${building}`
+          : `Chi tiết thu tiền nước - ${building}`
+    })
   }
 
   return (
@@ -1310,7 +1345,11 @@ export function BusinessReport({
                         const electricDelta = row.electricRevenue - row.electricExpense
                         const electricPct = row.electricExpense > 0 ? (electricDelta / row.electricExpense) * 100 : 0
                         return (
-                          <tr key={row.building} className="hover:bg-amber-500/[0.02] transition duration-150">
+                          <tr
+                            key={row.building}
+                            className="hover:bg-amber-500/[0.02] transition duration-150 cursor-pointer"
+                            onClick={() => openBuildingDrill(row.building, 'electric')}
+                          >
                             <td className="px-6 py-4 font-black text-amber-900">{row.building}</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
@@ -1360,7 +1399,11 @@ export function BusinessReport({
                         const waterDelta = row.waterRevenue - row.waterExpense
                         const waterPct = row.waterExpense > 0 ? (waterDelta / row.waterExpense) * 100 : 0
                         return (
-                          <tr key={row.building} className="hover:bg-sky-500/[0.02] transition duration-150">
+                          <tr
+                            key={row.building}
+                            className="hover:bg-sky-500/[0.02] transition duration-150 cursor-pointer"
+                            onClick={() => openBuildingDrill(row.building, 'water')}
+                          >
                             <td className="px-6 py-4 font-black text-sky-900">{row.building}</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
                             <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
@@ -1553,7 +1596,67 @@ export function BusinessReport({
             </div>
 
           </div>
+      {buildingDrill && (
+        <div className="fixed inset-0 z-[91] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setBuildingDrill(null)}>
+          <div className="w-full max-w-5xl max-h-[86vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">{buildingDrill.title}</h3>
+                <p className="text-xs text-slate-500">
+                  {buildingUtilityRows.length} phòng ·
+                  {' '}
+                  Tổng điện {fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricRev, 0))} đ ·
+                  {' '}
+                  Tổng nước {fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterRev, 0))} đ
+                </p>
+              </div>
+              <button onClick={() => setBuildingDrill(null)} className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                  <tr>
+                    <th className="text-left px-5 py-3">Phòng</th>
+                    <th className="text-left px-5 py-3">Khách thuê</th>
+                    <th className="text-right px-5 py-3">Thu điện</th>
+                    <th className="text-right px-5 py-3">Thu nước</th>
+                    <th className="text-right px-5 py-3">Tổng thu</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {buildingUtilityRows.map((item) => {
+                    const total = item.electricRev + item.waterRev
+                    const isTop =
+                      buildingDrill.utility === 'electric'
+                        ? item.electricRev > 0
+                        : item.waterRev > 0
+                    return (
+                      <tr key={item.roomId} className={`hover:bg-slate-50 ${isTop ? '' : 'opacity-70'}`}>
+                        <td className="px-5 py-3 font-bold text-slate-800">{item.roomName}</td>
+                        <td className="px-5 py-3 text-slate-600">{item.tenantName}</td>
+                        <td className="px-5 py-3 text-right font-bold tabular-nums text-amber-700">{fmt(item.electricRev)} đ</td>
+                        <td className="px-5 py-3 text-right font-bold tabular-nums text-sky-700">{fmt(item.waterRev)} đ</td>
+                        <td className="px-5 py-3 text-right font-black tabular-nums text-slate-900">{fmt(total)} đ</td>
+                      </tr>
+                    )
+                  })}
+                  {buildingUtilityRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-5 py-12 text-center text-slate-400">
+                        Không có dữ liệu phòng trong tòa này ở kỳ báo cáo.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
+      )}
+
+          </div>
       )}
     </div>
   )
