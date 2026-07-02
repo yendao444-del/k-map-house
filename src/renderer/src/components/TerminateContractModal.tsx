@@ -19,6 +19,7 @@ interface Props {
 }
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+const parseCurrencyInput = (value: string) => Number(value.replace(/\D/g, '')) || 0
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
   snap.note || snap.room_asset_id
@@ -78,6 +79,8 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   const [finalWater, setFinalWater] = useState<number>(room.water_new || 0)
   const [damageAmount, setDamageAmount] = useState(0)
   const [damageNote, setDamageNote] = useState('')
+  const [depositPenaltyAmount, setDepositPenaltyAmount] = useState(0)
+  const [depositPenaltyNote, setDepositPenaltyNote] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
   const [selectedMergeIds, setSelectedMergeIds] = useState<Set<string>>(new Set())
   const [includeFinalPeriodCharge, setIncludeFinalPeriodCharge] = useState(true)
@@ -256,9 +259,17 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   const agreedDeposit = activeContract?.deposit_amount || room.default_deposit || 0
   const depositHeld = getCollectedDepositAmount(activeContract, invoices)
   const missingDeposit = Math.max(0, agreedDeposit - depositHeld)
-  const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebt + damageAmount + assetDamageTotal + handoverDamageTotal
+  const normalizedDepositPenalty = Math.min(depositPenaltyAmount, depositHeld)
+  const settlementDeductionAmount = damageAmount + assetDamageTotal + handoverDamageTotal + normalizedDepositPenalty
+  const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebt + settlementDeductionAmount
   const netDue = totalCharges - depositHeld
   const refundAmount = netDue < 0 ? Math.abs(netDue) : 0
+  const settlementDeductionNote = [
+    damageNote.trim(),
+    normalizedDepositPenalty > 0
+      ? `Khấu trừ cọc: ${depositPenaltyNote.trim() || 'Khách báo trả phòng gấp / vi phạm điều kiện báo trước'}`
+      : '',
+  ].filter(Boolean).join(' | ')
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -271,8 +282,8 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
         final_electric: finalElectric,
         final_water: finalWater,
         merge_invoice_ids: Array.from(selectedMergeIds),
-        damage_amount: damageAmount + assetDamageTotal + handoverDamageTotal,
-        damage_note: damageNote,
+        damage_amount: settlementDeductionAmount,
+        damage_note: settlementDeductionNote,
         payment_method: paymentMethod,
         final_room_cost: finalRoomCost,
         final_wifi_cost: finalWifiCost,
@@ -699,6 +710,68 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
             </div>
           )}
 
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs font-bold flex items-center justify-center">F</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Khấu trừ cọc</span>
+              <span className="text-xs text-gray-400 font-normal">(khi khách báo gấp / mất cọc)</span>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-amber-800">
+                  Cọc đã thu thực tế: <span className="font-black">{formatVND(depositHeld)} đ</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(0)}
+                    className="rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100"
+                  >
+                    Không giữ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(Math.round(depositHeld / 2))}
+                    disabled={depositHeld <= 0}
+                    className="rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    Giữ 1 phần
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(depositHeld)}
+                    disabled={depositHeld <= 0}
+                    className="rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                  >
+                    Giữ toàn bộ
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={normalizedDepositPenalty ? formatVND(normalizedDepositPenalty) : ''}
+                  onChange={e => setDepositPenaltyAmount(Math.min(parseCurrencyInput(e.target.value), depositHeld))}
+                  placeholder="Số tiền giữ lại"
+                  className={inputCls + ' font-bold text-amber-700 tabular-nums'}
+                />
+                <input
+                  type="text"
+                  value={depositPenaltyNote}
+                  onChange={e => setDepositPenaltyNote(e.target.value)}
+                  placeholder="Lý do: báo gấp, mất cọc một phần..."
+                  className={inputCls}
+                />
+              </div>
+              {normalizedDepositPenalty > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-white/80 px-3 py-2 text-xs text-amber-800">
+                  Số tiền này chỉ làm giảm phần hoàn cọc, không sửa lịch sử cọc đã thu.
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* E. Đền bù hỏng hóc bổ sung */}
           <div>
             <div className="flex items-center gap-2 mb-2">
@@ -775,6 +848,12 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
                 <div className="flex justify-between">
                   <span className="text-gray-600"><i className="fa-solid fa-screwdriver-wrench text-purple-500 mr-1.5 w-4 text-center"></i>Hỏng hóc bổ sung</span>
                   <span className="font-semibold">{formatVND(damageAmount)} đ</span>
+                </div>
+              )}
+              {normalizedDepositPenalty > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-hand-holding-dollar text-amber-500 mr-1.5 w-4 text-center"></i>Khấu trừ cọc</span>
+                  <span className="font-semibold">{formatVND(normalizedDepositPenalty)} đ</span>
                 </div>
               )}
               <div className="border-t border-gray-200 pt-2 flex justify-between font-bold">

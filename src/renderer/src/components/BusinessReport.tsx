@@ -16,9 +16,9 @@ import {
   type ExpenseCategory,
   type Invoice,
   type InvoicePaymentRecord,
-  type AppUser,
+  type AppUser
 } from '../lib/db'
-import { CashFlowTab } from './CashFlowTab'
+import { CashFlowTab, SegmentedDateInput } from './CashFlowTab'
 import { OverviewTab } from './OverviewTab'
 
 type InvoiceDrillType =
@@ -113,14 +113,18 @@ type ExpenseCategoryOption = { value: CashTransactionCategory; label: string }
 
 const toExpenseOptions = (categories: ExpenseCategory[]): ExpenseCategoryOption[] =>
   categories
-    .filter(item => item.type === 'expense')
-    .map(item => ({ value: item.value, label: item.name }))
+    .filter((item) => item.type === 'expense')
+    .map((item) => ({ value: item.value, label: item.name }))
 
 const categoryLabel = (category: CashTransactionCategory, options: ExpenseCategoryOption[]) =>
-  options.find(item => item.value === category)?.label || (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
+  options.find((item) => item.value === category)?.label ||
+  (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
 
 const getInvoiceDate = (invoice: Invoice) =>
-  invoice.invoice_date || invoice.payment_date || invoice.created_at?.split('T')[0] || `${invoice.year}-${String(invoice.month).padStart(2, '0')}-01`
+  invoice.invoice_date ||
+  invoice.payment_date ||
+  invoice.created_at?.split('T')[0] ||
+  `${invoice.year}-${String(invoice.month).padStart(2, '0')}-01`
 
 const getInvoicePeriodDate = (invoice: Invoice) =>
   toDate(`${invoice.year}-${String(invoice.month).padStart(2, '0')}-01`)
@@ -169,7 +173,17 @@ const toDate = (value: string) => {
   return date
 }
 
-const formatPeriodDate = (date: Date) => date.toLocaleDateString('vi-VN')
+const formatDateToDDMMYYYY = (date: Date | string | number) => {
+  if (!date) return ''
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  const day = String(d.getDate()).padStart(2, '0')
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const year = d.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+const formatPeriodDate = (date: Date) => formatDateToDDMMYYYY(date)
 const normalizeSearch = (value: string) =>
   value
     .toLowerCase()
@@ -185,7 +199,7 @@ const isDateInPeriod = (date: Date, period: ReportPeriod) => {
 const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
   switch (type) {
     case 'roomMonthly':
-      return invoice.is_first_month ? 0 : (invoice.room_cost || 0)
+      return invoice.is_first_month ? 0 : invoice.room_cost || 0
     case 'roomFirstMonth':
       return invoice.is_first_month ? (invoice.room_cost || 0) + (invoice.new_room_cost || 0) : 0
     case 'roomTransfer':
@@ -203,7 +217,7 @@ const getInvoiceDrillAmount = (invoice: Invoice, type: InvoiceDrillType) => {
     case 'adjustment':
       // Hóa đơn tất toán: adjustment_amount = tiền đền bù, đã được phản ánh trong damage_amount
       // Nếu cả 2 cùng tồn tại, chỉ tính 1 lần qua damage
-      return invoice.is_settlement ? 0 : (invoice.adjustment_amount || 0)
+      return invoice.is_settlement ? 0 : invoice.adjustment_amount || 0
     case 'damage':
       return invoice.damage_amount || 0
     case 'oldDebt':
@@ -239,22 +253,29 @@ const isRoomUtilityDisplayInvoice = (invoice: Invoice) => {
 
 export function BusinessReport({
   currentUser,
-  onNavigateToInvoices,
+  onNavigateToInvoices
 }: {
   currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
 } = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
-  const { data: cashTransactions = [] } = useQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions })
+  const { data: cashTransactions = [] } = useQuery({
+    queryKey: ['cashTransactions'],
+    queryFn: getCashTransactions
+  })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'>('overview')
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'
+  >('overview')
 
   const today = new Date()
   const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('range')
-  const [startDate, setStartDate] = useState(iso(new Date(today.getFullYear(), today.getMonth(), 1)))
+  const [startDate, setStartDate] = useState(
+    iso(new Date(today.getFullYear(), today.getMonth(), 1))
+  )
   const [endDate, setEndDate] = useState(iso(today))
   const [selectedDate, setSelectedDate] = useState(iso(today))
   const [drill, setDrill] = useState<Drill | null>(null)
@@ -295,7 +316,9 @@ export function BusinessReport({
     setDropdownOpen(false)
   }
 
-  const selectPreset = (mode: 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom_daily' | 'custom_range') => {
+  const selectPreset = (
+    mode: 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom_daily' | 'custom_range'
+  ) => {
     const now = new Date()
     if (mode === 'all') {
       setTempPeriodMode('all')
@@ -358,9 +381,7 @@ export function BusinessReport({
     }
     return 'Lọc thời gian'
   }, [periodMode, selectedDate, startDate, endDate])
-  const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(
-    () => new Set()
-  )
+  const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(() => new Set())
 
   const period = useMemo<ReportPeriod>(() => {
     if (periodMode === 'all') {
@@ -370,7 +391,7 @@ export function BusinessReport({
         end: null,
         days: null,
         label: 'Toàn thời gian',
-        emptyLabel: 'toàn thời gian',
+        emptyLabel: 'toàn thời gian'
       }
     }
 
@@ -381,52 +402,67 @@ export function BusinessReport({
     const safeStart = startObj <= endObj ? startObj : endObj
     const safeEnd = startObj <= endObj ? endObj : startObj
     const days = Math.max(1, Math.round((safeEnd.getTime() - safeStart.getTime()) / 86400000) + 1)
-    const label = periodMode === 'daily'
-      ? formatPeriodDate(safeStart)
-      : `${formatPeriodDate(safeStart)} - ${formatPeriodDate(safeEnd)}`
+    const label =
+      periodMode === 'daily'
+        ? formatPeriodDate(safeStart)
+        : `${formatPeriodDate(safeStart)} - ${formatPeriodDate(safeEnd)}`
     return {
       mode: periodMode,
       start: safeStart,
       end: safeEnd,
       days,
       label,
-      emptyLabel: periodMode === 'daily' ? 'ngày này' : 'khoảng thời gian này',
+      emptyLabel: periodMode === 'daily' ? 'ngày này' : 'khoảng thời gian này'
     }
   }, [endDate, periodMode, selectedDate, startDate])
 
-  const filteredInvoices = useMemo(() => invoices.filter(invoice => {
-    if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return false
-    const date = toDate(getInvoiceDate(invoice))
-    return isDateInPeriod(date, period)
-  }), [invoices, period])
-
-  const filteredCash = useMemo(() => cashTransactions.filter(item => {
-    const date = toDate(item.transaction_date || item.created_at)
-    return isDateInPeriod(date, period)
-  }), [cashTransactions, period])
-
-  const utilityCashInPaymentPeriod = useMemo(() => filteredCash.filter(item => {
-    if (item.type !== 'expense') return false
-    if (item.category !== 'electric' && item.category !== 'water') return false
-    return true
-  }), [filteredCash])
-
-  const invoiceCashRows = useMemo<InvoiceCashRow[]>(() => invoices.flatMap(invoice => {
-    if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return []
-    return getInvoicePaymentRecords(invoice)
-      .filter(record => {
-        const date = toDate(record.payment_date || record.created_at)
+  const filteredInvoices = useMemo(
+    () =>
+      invoices.filter((invoice) => {
+        if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged')
+          return false
+        const date = toDate(getInvoiceDate(invoice))
         return isDateInPeriod(date, period)
-      })
-      .map(record => ({ invoice, record }))
-  }), [invoices, period])
-
-  const roomById = useMemo(() => new Map(rooms.map(room => [room.id, room])), [rooms])
-  const tenantById = useMemo(() => new Map(tenants.map(tenant => [tenant.id, tenant])), [tenants])
-  const expenseCategories = useMemo(
-    () => toExpenseOptions(DEFAULT_EXPENSE_CATEGORIES),
-    []
+      }),
+    [invoices, period]
   )
+
+  const filteredCash = useMemo(
+    () =>
+      cashTransactions.filter((item) => {
+        const date = toDate(item.transaction_date || item.created_at)
+        return isDateInPeriod(date, period)
+      }),
+    [cashTransactions, period]
+  )
+
+  const utilityCashInPaymentPeriod = useMemo(
+    () =>
+      filteredCash.filter((item) => {
+        if (item.type !== 'expense') return false
+        if (item.category !== 'electric' && item.category !== 'water') return false
+        return true
+      }),
+    [filteredCash]
+  )
+
+  const invoiceCashRows = useMemo<InvoiceCashRow[]>(
+    () =>
+      invoices.flatMap((invoice) => {
+        if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return []
+        return getInvoicePaymentRecords(invoice)
+          .filter((record) => {
+            const date = toDate(record.payment_date || record.created_at)
+            return isDateInPeriod(date, period)
+          })
+          .map((record) => ({ invoice, record }))
+      }),
+    [invoices, period]
+  )
+
+  const roomById = useMemo(() => new Map(rooms.map((room) => [room.id, room])), [rooms])
+  const tenantById = useMemo(() => new Map(tenants.map((tenant) => [tenant.id, tenant])), [tenants])
+  const expenseCategories = useMemo(() => toExpenseOptions(DEFAULT_EXPENSE_CATEGORIES), [])
 
   const expenseByCategory = useMemo(() => {
     const map = new Map<CashTransactionCategory, number>()
@@ -439,8 +475,13 @@ export function BusinessReport({
   }, [expenseCategories, filteredCash])
 
   const pnl = useMemo(() => {
-    const sumExpense = expenseCategories.reduce((sum, item) => sum + (expenseByCategory.get(item.value) || 0), 0)
-    const cashIncome = filteredCash.filter(item => item.type === 'income').reduce((sum, item) => sum + item.amount, 0)
+    const sumExpense = expenseCategories.reduce(
+      (sum, item) => sum + (expenseByCategory.get(item.value) || 0),
+      0
+    )
+    const cashIncome = filteredCash
+      .filter((item) => item.type === 'income')
+      .reduce((sum, item) => sum + item.amount, 0)
 
     const cashCollected = invoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
     const operatingRevenue = cashCollected + cashIncome
@@ -456,35 +497,72 @@ export function BusinessReport({
       netProfit,
       margin,
       invoiceCount: filteredInvoices.length,
-      cashCount: filteredCash.length + invoiceCashRows.length,
+      cashCount: filteredCash.length + invoiceCashRows.length
     }
   }, [expenseByCategory, expenseCategories, filteredCash, filteredInvoices, invoiceCashRows])
 
-  const expenseRows: PnlRow[] = expenseCategories.map(item => ({
+  const expenseRows: PnlRow[] = expenseCategories.map((item) => ({
     key: `expense-${item.value}`,
     label: item.label,
     amount: -(expenseByCategory.get(item.value) || 0),
     section: 'opex',
     cashType: 'expense',
     cashCategory: item.value,
-    indent: true,
+    indent: true
   }))
 
   const rows: PnlRow[] = [
-    { key: 'rev', label: 'A. Doanh thu thực thu', amount: pnl.operatingRevenue, section: 'revenue', group: true, color: 'text-emerald-700' },
-    { key: 'invoiceCash', label: 'Thu từ hóa đơn (đã nhận)', amount: pnl.cashCollected, section: 'revenue', invoiceType: 'cash', indent: true },
-    { key: 'cashIncome', label: 'Thu khác (chứng từ)', amount: pnl.cashIncome, section: 'revenue', cashType: 'income', indent: true },
-    { key: 'cost', label: 'B. Chi phí vận hành thực tế', amount: -pnl.operatingCost, section: 'opex', group: true, color: 'text-red-700' },
+    {
+      key: 'rev',
+      label: 'A. Doanh thu thực thu',
+      amount: pnl.operatingRevenue,
+      section: 'revenue',
+      group: true,
+      color: 'text-emerald-700'
+    },
+    {
+      key: 'invoiceCash',
+      label: 'Thu từ hóa đơn (đã nhận)',
+      amount: pnl.cashCollected,
+      section: 'revenue',
+      invoiceType: 'cash',
+      indent: true
+    },
+    {
+      key: 'cashIncome',
+      label: 'Thu khác (chứng từ)',
+      amount: pnl.cashIncome,
+      section: 'revenue',
+      cashType: 'income',
+      indent: true
+    },
+    {
+      key: 'cost',
+      label: 'B. Chi phí vận hành thực tế',
+      amount: -pnl.operatingCost,
+      section: 'opex',
+      group: true,
+      color: 'text-red-700'
+    },
     ...expenseRows,
-    { key: 'net', label: 'C. Lợi nhuận thực (A − B)', amount: pnl.netProfit, section: 'result', total: true, color: pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700' },
+    {
+      key: 'net',
+      label: 'C. Lợi nhuận thực (A − B)',
+      amount: pnl.netProfit,
+      section: 'result',
+      total: true,
+      color: pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'
+    }
   ]
 
-  const visibleRows = rows.filter(row => row.group || row.total || !collapsedSections.has(row.section))
+  const visibleRows = rows.filter(
+    (row) => row.group || row.total || !collapsedSections.has(row.section)
+  )
 
   const drillInvoices = useMemo(() => {
     if (!drill || drill.mode !== 'invoice') return []
     if (drill.type === 'cash') return []
-    return filteredInvoices.filter(invoice => getInvoiceDrillAmount(invoice, drill.type) !== 0)
+    return filteredInvoices.filter((invoice) => getInvoiceDrillAmount(invoice, drill.type) !== 0)
   }, [drill, filteredInvoices])
 
   const drillInvoiceCashRows = useMemo(() => {
@@ -494,17 +572,20 @@ export function BusinessReport({
 
   const drillCash = useMemo(() => {
     if (!drill || drill.mode !== 'cash') return []
-    return filteredCash.filter(item =>
-      item.type === drill.type &&
-      (!drill.category || item.category === drill.category)
+    return filteredCash.filter(
+      (item) => item.type === drill.type && (!drill.category || item.category === drill.category)
     )
   }, [drill, filteredCash])
 
-  const drillTotal = drill?.mode === 'invoice'
-    ? (drill.type === 'cash'
-      ? drillInvoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
-      : drillInvoices.reduce((sum, invoice) => sum + getInvoiceDrillAmount(invoice, drill.type), 0))
-    : drillCash.reduce((sum, item) => sum + item.amount, 0)
+  const drillTotal =
+    drill?.mode === 'invoice'
+      ? drill.type === 'cash'
+        ? drillInvoiceCashRows.reduce((sum, item) => sum + item.record.amount, 0)
+        : drillInvoices.reduce(
+            (sum, invoice) => sum + getInvoiceDrillAmount(invoice, drill.type),
+            0
+          )
+      : drillCash.reduce((sum, item) => sum + item.amount, 0)
 
   const depositRows = useMemo(() => {
     return contracts
@@ -515,7 +596,7 @@ export function BusinessReport({
           contract: c,
           room: roomById.get(c.room_id),
           collected,
-          missing: Math.max(0, Number(c.deposit_amount || 0) - collected),
+          missing: Math.max(0, Number(c.deposit_amount || 0) - collected)
         }
       })
       .sort((a, b) => (a.room?.name || '').localeCompare(b.room?.name || '', 'vi'))
@@ -523,34 +604,43 @@ export function BusinessReport({
 
   const pendingRefundRows = useMemo(() => {
     return invoices
-      .filter((invoice: Invoice) =>
-        invoice.is_settlement &&
-        invoice.payment_status !== 'cancelled' &&
-        invoice.payment_status !== 'merged' &&
-        Number(invoice.total_amount || 0) < 0 &&
-        Number(invoice.paid_amount || 0) > Number(invoice.total_amount || 0)
+      .filter(
+        (invoice: Invoice) =>
+          invoice.is_settlement &&
+          invoice.payment_status !== 'cancelled' &&
+          invoice.payment_status !== 'merged' &&
+          Number(invoice.total_amount || 0) < 0 &&
+          Number(invoice.paid_amount || 0) > Number(invoice.total_amount || 0)
       )
       .map((invoice: Invoice) => {
-        const refundRemaining = Math.abs(Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0))
-        const contract = contracts.find((c: Contract) => c.room_id === invoice.room_id && c.status !== 'active')
+        const refundRemaining = Math.abs(
+          Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0)
+        )
+        const contract = contracts.find(
+          (c: Contract) => c.room_id === invoice.room_id && c.status !== 'active'
+        )
         return {
           invoice,
           contract,
           room: roomById.get(invoice.room_id),
-          tenantName: tenantById.get(invoice.tenant_id)?.full_name || contract?.tenant_name || 'Không rõ',
+          tenantName:
+            tenantById.get(invoice.tenant_id)?.full_name || contract?.tenant_name || 'Không rõ',
           endDate: contract?.end_date || invoice.invoice_date || getInvoiceDate(invoice),
-          refundRemaining,
+          refundRemaining
         }
       })
       .sort((a, b) => (a.room?.name || '').localeCompare(b.room?.name || '', 'vi'))
   }, [contracts, invoices, roomById, tenantById])
 
-  const depositSummary = useMemo(() => ({
-    totalHeld: depositRows.reduce((s, r) => s + r.collected, 0),
-    activeCount: depositRows.length,
-    pendingRefund: pendingRefundRows.reduce((s, r) => s + r.refundRemaining, 0),
-    pendingCount: pendingRefundRows.length,
-  }), [depositRows, pendingRefundRows])
+  const depositSummary = useMemo(
+    () => ({
+      totalHeld: depositRows.reduce((s, r) => s + r.collected, 0),
+      activeCount: depositRows.length,
+      pendingRefund: pendingRefundRows.reduce((s, r) => s + r.refundRemaining, 0),
+      pendingCount: pendingRefundRows.length
+    }),
+    [depositRows, pendingRefundRows]
+  )
 
   // Computed values for utility reconciliation (Điện / Nước đối soát)
   const utilityData = useMemo(() => {
@@ -564,17 +654,20 @@ export function BusinessReport({
     let waterPendingRoomsCount = 0
 
     // Room-by-room statistics
-    const roomStatsMap = new Map<string, {
-      roomId: string
-      roomName: string
-      tenantName: string
-      electricRev: number
-      electricPending: number
-      waterRev: number
-      waterPending: number
-      electricUsage: number
-      waterUsage: number
-    }>()
+    const roomStatsMap = new Map<
+      string,
+      {
+        roomId: string
+        roomName: string
+        tenantName: string
+        electricRev: number
+        electricPending: number
+        waterRev: number
+        waterPending: number
+        electricUsage: number
+        waterUsage: number
+      }
+    >()
 
     // Initialize map with all rooms so that we can show them
     for (const room of rooms) {
@@ -587,7 +680,7 @@ export function BusinessReport({
         waterRev: 0,
         waterPending: 0,
         electricUsage: 0,
-        waterUsage: 0,
+        waterUsage: 0
       })
     }
 
@@ -611,7 +704,7 @@ export function BusinessReport({
           electricPendingRoomIds: new Set<string>(),
           waterPendingRoomIds: new Set<string>(),
           electricUtilityRoomIds: new Set<string>(),
-          waterUtilityRoomIds: new Set<string>(),
+          waterUtilityRoomIds: new Set<string>()
         })
       }
       return buildingStatsMap.get(building)!
@@ -624,22 +717,15 @@ export function BusinessReport({
       const invoicePeriodDate = getInvoicePeriodDate(invoice)
       const electricInScope = isDateInPeriod(invoicePeriodDate, period)
       const waterInScope = isDateInPeriod(invoicePeriodDate, period)
-      const invoiceElectricCost = (invoice.electric_cost || 0) + (invoice.transfer_electric_cost || 0)
+      const invoiceElectricCost =
+        (invoice.electric_cost || 0) + (invoice.transfer_electric_cost || 0)
       const invoiceWaterCost = (invoice.water_cost || 0) + (invoice.transfer_water_cost || 0)
-      const elecCost = electricInScope
-        ? invoiceElectricCost * collectionRatio
-        : 0
-      const watCost = waterInScope
-        ? invoiceWaterCost * collectionRatio
-        : 0
+      const elecCost = electricInScope ? invoiceElectricCost * collectionRatio : 0
+      const watCost = waterInScope ? invoiceWaterCost * collectionRatio : 0
       const hasElectricInScope = electricInScope && invoiceElectricCost > 0
       const hasWaterInScope = waterInScope && invoiceWaterCost > 0
-      const elecPendingCost = hasElectricInScope
-        ? Math.max(0, invoiceElectricCost - elecCost)
-        : 0
-      const watPendingCost = hasWaterInScope
-        ? Math.max(0, invoiceWaterCost - watCost)
-        : 0
+      const elecPendingCost = hasElectricInScope ? Math.max(0, invoiceElectricCost - elecCost) : 0
+      const watPendingCost = hasWaterInScope ? Math.max(0, invoiceWaterCost - watCost) : 0
       if (!hasElectricInScope && !hasWaterInScope) continue
 
       const room = roomById.get(invoice.room_id)
@@ -697,7 +783,9 @@ export function BusinessReport({
     for (const cash of utilityCashInPaymentPeriod) {
       if (cash.type === 'expense') {
         const cashRoom = cash.room_id ? roomById.get(cash.room_id) : null
-        const buildingStats = ensureBuilding(cashRoom ? getBuildingKeyFromRoomName(cashRoom.name) : getBuildingKeyFromCash(cash))
+        const buildingStats = ensureBuilding(
+          cashRoom ? getBuildingKeyFromRoomName(cashRoom.name) : getBuildingKeyFromCash(cash)
+        )
         if (cash.category === 'electric') {
           electricExpense += cash.amount
           buildingStats.electricExpense += cash.amount
@@ -716,15 +804,32 @@ export function BusinessReport({
 
     const electricPct = electricExpense > 0 ? (electricDelta / electricExpense) * 100 : 0
     const waterPct = waterExpense > 0 ? (waterDelta / waterExpense) * 100 : 0
-    const electricProjectedPct = electricExpense > 0 ? (electricProjectedDelta / electricExpense) * 100 : 0
+    const electricProjectedPct =
+      electricExpense > 0 ? (electricProjectedDelta / electricExpense) * 100 : 0
     const waterProjectedPct = waterExpense > 0 ? (waterProjectedDelta / waterExpense) * 100 : 0
 
     // Convert room stats map to sorted list
     const roomList = Array.from(roomStatsMap.values())
-      .filter(item => item.electricRev > 0 || item.electricPending > 0 || item.waterRev > 0 || item.waterPending > 0 || item.electricUsage > 0 || item.waterUsage > 0)
+      .filter(
+        (item) =>
+          item.electricRev > 0 ||
+          item.electricPending > 0 ||
+          item.waterRev > 0 ||
+          item.waterPending > 0 ||
+          item.electricUsage > 0 ||
+          item.waterUsage > 0
+      )
       .sort((a, b) => b.electricRev - a.electricRev)
     const buildingList = Array.from(buildingStatsMap.values())
-      .filter(item => item.electricRevenue > 0 || item.electricPending > 0 || item.waterRevenue > 0 || item.waterPending > 0 || item.electricExpense > 0 || item.waterExpense > 0)
+      .filter(
+        (item) =>
+          item.electricRevenue > 0 ||
+          item.electricPending > 0 ||
+          item.waterRevenue > 0 ||
+          item.waterPending > 0 ||
+          item.electricExpense > 0 ||
+          item.waterExpense > 0
+      )
       .sort((a, b) => a.building.localeCompare(b.building, 'vi-VN', { numeric: true }))
 
     return {
@@ -747,12 +852,12 @@ export function BusinessReport({
       electricPendingRoomsCount,
       waterPendingRoomsCount,
       roomList,
-      buildingList,
+      buildingList
     }
   }, [invoices, period, roomById, rooms, tenantById, utilityCashInPaymentPeriod])
 
   const toggleSection = (section: PnlSection) => {
-    setCollapsedSections(prev => {
+    setCollapsedSections((prev) => {
       const next = new Set(prev)
       if (next.has(section)) next.delete(section)
       else next.add(section)
@@ -764,7 +869,7 @@ export function BusinessReport({
     const keyword = normalizeSearch(roomUtilitySearch.trim())
     if (!keyword) return utilityData.roomList
 
-    return utilityData.roomList.filter(item => {
+    return utilityData.roomList.filter((item) => {
       const haystack = normalizeSearch(`${item.roomName} ${item.tenantName}`)
       return haystack.includes(keyword)
     })
@@ -773,7 +878,8 @@ export function BusinessReport({
   const utilityInvoiceRows = useMemo<UtilityInvoiceRow[]>(() => {
     return invoices
       .filter((invoice) => {
-        if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return false
+        if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged')
+          return false
         const invoicePeriodDate = getInvoicePeriodDate(invoice)
         if (!isDateInPeriod(invoicePeriodDate, period)) return false
         return isRoomUtilityDisplayInvoice(invoice)
@@ -811,7 +917,7 @@ export function BusinessReport({
           waterUsage: Number(invoice.water_usage || 0),
           waterTotal,
           waterCollected,
-          waterPending: Math.max(0, waterTotal - waterCollected),
+          waterPending: Math.max(0, waterTotal - waterCollected)
         }
       })
       .sort((a, b) => a.roomName.localeCompare(b.roomName, 'vi-VN', { numeric: true }))
@@ -823,7 +929,9 @@ export function BusinessReport({
     return utilityData.roomList
       .filter((item) => {
         const room = rooms.find((r) => r.id === item.roomId)
-        return normalizeSearch(getBuildingKeyFromRoomName(room?.name || item.roomName)) === buildingKey
+        return (
+          normalizeSearch(getBuildingKeyFromRoomName(room?.name || item.roomName)) === buildingKey
+        )
       })
       .sort((a, b) =>
         buildingDrill.utility === 'electric'
@@ -838,15 +946,16 @@ export function BusinessReport({
       return utility === 'electric' ? item.electricTotal > 0 : item.waterTotal > 0
     })
 
-
-  const periodSummary = period.mode === 'all'
-    ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
-    : `${period.days} ngày | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
+  const periodSummary =
+    period.mode === 'all'
+      ? `${period.label} | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
+      : `${period.days} ngày | ${pnl.invoiceCount} hóa đơn | ${pnl.cashCount} chứng từ`
 
   const openRowDrill = (row: PnlRow) => {
     setBuildingDrill(null)
     if (row.invoiceType) setDrill({ mode: 'invoice', type: row.invoiceType, title: row.label })
-    if (row.cashType) setDrill({ mode: 'cash', type: row.cashType, category: row.cashCategory, title: row.label })
+    if (row.cashType)
+      setDrill({ mode: 'cash', type: row.cashType, category: row.cashCategory, title: row.label })
   }
 
   return (
@@ -871,7 +980,9 @@ export function BusinessReport({
           >
             <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
             {depositSummary.pendingCount > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">{depositSummary.pendingCount}</span>
+              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">
+                {depositSummary.pendingCount}
+              </span>
             )}
           </button>
           <button
@@ -975,44 +1086,43 @@ export function BusinessReport({
                       <div className="text-center text-slate-400 py-6">
                         <i className="fa-solid fa-globe text-3xl mb-2 opacity-40"></i>
                         <p className="text-xs font-semibold">Lọc toàn bộ lịch sử dữ liệu</p>
-                        <p className="text-[10px] text-slate-300 mt-0.5">Không giới hạn thời gian báo cáo</p>
+                        <p className="text-[10px] text-slate-300 mt-0.5">
+                          Không giới hạn thời gian báo cáo
+                        </p>
                       </div>
                     )}
 
                     {tempPeriodMode === 'daily' && (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Chọn ngày báo cáo</label>
-                        <input
-                          type="date"
-                          value={tempSelectedDate}
-                          onChange={e => setTempSelectedDate(e.target.value)}
-                          onClick={e => e.currentTarget.showPicker()}
-                          className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
-                        />
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                          Chọn ngày báo cáo
+                        </label>
+                        <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
+                          <SegmentedDateInput
+                            value={tempSelectedDate}
+                            onChange={setTempSelectedDate}
+                          />
+                        </div>
                       </div>
                     )}
 
                     {tempPeriodMode === 'range' && (
                       <div className="space-y-3">
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Từ ngày</label>
-                          <input
-                            type="date"
-                            value={tempStartDate}
-                            onChange={e => setTempStartDate(e.target.value)}
-                            onClick={e => e.currentTarget.showPicker()}
-                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
-                          />
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Từ ngày
+                          </label>
+                          <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
+                            <SegmentedDateInput value={tempStartDate} onChange={setTempStartDate} />
+                          </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Đến ngày</label>
-                          <input
-                            type="date"
-                            value={tempEndDate}
-                            onChange={e => setTempEndDate(e.target.value)}
-                            onClick={e => e.currentTarget.showPicker()}
-                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-1 focus:ring-primary focus:border-primary transition bg-slate-50/50 focus:bg-white cursor-pointer"
-                          />
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            Đến ngày
+                          </label>
+                          <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
+                            <SegmentedDateInput value={tempEndDate} onChange={setTempEndDate} />
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1048,26 +1158,45 @@ export function BusinessReport({
         </div>
       </div>
 
-      {activeTab === 'overview' && (
-        <OverviewTab period={period} />
-      )}
+      {activeTab === 'overview' && <OverviewTab period={period} />}
 
       {activeTab === 'cashflow' && (
-        <CashFlowTab embedded currentUser={currentUser} onNavigateToInvoices={onNavigateToInvoices} period={period} />
+        <CashFlowTab
+          embedded
+          currentUser={currentUser}
+          onNavigateToInvoices={onNavigateToInvoices}
+          period={period}
+        />
       )}
 
       {activeTab === 'deposit' && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Đang giữ cọc</p>
-              <p className="text-2xl font-black text-emerald-700">{fmt(depositSummary.totalHeld)} đ</p>
-              <p className="text-xs text-slate-400 mt-1">{depositSummary.activeCount} phòng đang thuê</p>
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                Đang giữ cọc
+              </p>
+              <p className="text-2xl font-black text-emerald-700">
+                {fmt(depositSummary.totalHeld)} đ
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {depositSummary.activeCount} phòng đang thuê
+              </p>
             </div>
-            <div className={`bg-white rounded-xl border shadow-sm p-5 ${depositSummary.pendingCount > 0 ? 'border-red-200' : 'border-slate-200'}`}>
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">Chờ hoàn cọc</p>
-              <p className={`text-2xl font-black ${depositSummary.pendingCount > 0 ? 'text-red-600' : 'text-slate-400'}`}>{fmt(depositSummary.pendingRefund)} đ</p>
-              <p className="text-xs text-slate-400 mt-1">{depositSummary.pendingCount} hợp đồng đã kết thúc</p>
+            <div
+              className={`bg-white rounded-xl border shadow-sm p-5 ${depositSummary.pendingCount > 0 ? 'border-red-200' : 'border-slate-200'}`}
+            >
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">
+                Chờ hoàn cọc
+              </p>
+              <p
+                className={`text-2xl font-black ${depositSummary.pendingCount > 0 ? 'text-red-600' : 'text-slate-400'}`}
+              >
+                {fmt(depositSummary.pendingRefund)} đ
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                {depositSummary.pendingCount} hợp đồng đã kết thúc
+              </p>
             </div>
           </div>
 
@@ -1090,12 +1219,20 @@ export function BusinessReport({
               <tbody className="divide-y divide-slate-100">
                 {depositRows.map(({ contract, room, collected, missing }) => (
                   <tr key={contract.id} className="hover:bg-slate-50">
-                    <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
+                    <td className="px-5 py-3 font-bold text-slate-800">
+                      {room?.name || 'Không rõ'}
+                    </td>
                     <td className="px-5 py-3 text-slate-700">{contract.tenant_name}</td>
-                    <td className="px-5 py-3 text-slate-500">{new Date(contract.move_in_date).toLocaleDateString('vi-VN')}</td>
+                    <td className="px-5 py-3 text-slate-500">
+                      {formatDateToDDMMYYYY(contract.move_in_date)}
+                    </td>
                     <td className="px-5 py-3 text-right">
-                      <div className="font-black tabular-nums text-slate-800">{fmt(collected)} / {fmt(contract.deposit_amount)} đ</div>
-                      <div className={`text-[11px] font-bold ${missing > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      <div className="font-black tabular-nums text-slate-800">
+                        {fmt(collected)} / {fmt(contract.deposit_amount)} đ
+                      </div>
+                      <div
+                        className={`text-[11px] font-bold ${missing > 0 ? 'text-amber-600' : 'text-emerald-600'}`}
+                      >
                         {missing > 0 ? `Còn thiếu ${fmt(missing)} đ` : 'Đã thu đủ'}
                       </div>
                     </td>
@@ -1103,7 +1240,9 @@ export function BusinessReport({
                 ))}
                 {depositRows.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-12 text-center text-slate-400">Không có phòng nào đang giữ cọc.</td>
+                    <td colSpan={4} className="px-5 py-12 text-center text-slate-400">
+                      Không có phòng nào đang giữ cọc.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -1128,14 +1267,22 @@ export function BusinessReport({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {pendingRefundRows.map(({ invoice, room, tenantName, endDate, refundRemaining }) => (
-                    <tr key={invoice.id} className="hover:bg-red-50/30">
-                      <td className="px-5 py-3 font-bold text-slate-800">{room?.name || 'Không rõ'}</td>
-                      <td className="px-5 py-3 text-slate-700">{tenantName}</td>
-                      <td className="px-5 py-3 text-slate-500">{endDate ? new Date(endDate).toLocaleDateString('vi-VN') : '—'}</td>
-                      <td className="px-5 py-3 text-right font-black tabular-nums text-red-600">{fmt(refundRemaining)} đ</td>
-                    </tr>
-                  ))}
+                  {pendingRefundRows.map(
+                    ({ invoice, room, tenantName, endDate, refundRemaining }) => (
+                      <tr key={invoice.id} className="hover:bg-red-50/30">
+                        <td className="px-5 py-3 font-bold text-slate-800">
+                          {room?.name || 'Không rõ'}
+                        </td>
+                        <td className="px-5 py-3 text-slate-700">{tenantName}</td>
+                        <td className="px-5 py-3 text-slate-500">
+                          {endDate ? formatDateToDDMMYYYY(endDate) : '—'}
+                        </td>
+                        <td className="px-5 py-3 text-right font-black tabular-nums text-red-600">
+                          {fmt(refundRemaining)} đ
+                        </td>
+                      </tr>
+                    )
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1143,187 +1290,288 @@ export function BusinessReport({
         </div>
       )}
 
-      {activeTab === 'pnl' && <>
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-black text-slate-900 flex items-center gap-2">
-            <i className="fa-solid fa-table-list text-primary"></i>
-            Bảng Kết quả Kinh doanh (P&L)
-          </h2>
-          <span className="text-xs text-slate-400">Click số tiền để xem chi tiết</span>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-            <tr>
-              <th className="text-left px-5 py-3">Hạng mục</th>
-              <th className="text-right px-5 py-3">Số tiền</th>
-              <th className="text-center px-5 py-3">% DT</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.map(row => {
-              const pct = pnl.operatingRevenue ? Math.abs(row.amount) / pnl.operatingRevenue * 100 : 0
-              const isCollapsed = collapsedSections.has(row.section)
-              const canDrill = !!row.invoiceType || !!row.cashType
-              return (
-                <tr key={row.key} className={`${row.group || row.total ? 'bg-slate-50 font-bold' : 'border-t border-slate-100'} ${row.total ? 'text-base' : ''}`}>
-                  <td className={`px-5 py-3 ${row.group || row.total ? row.color : 'text-slate-700'} ${row.indent ? 'pl-10' : ''}`}>
-                    {row.group ? (
-                      <button onClick={() => toggleSection(row.section)} className={`flex items-center gap-2 font-black ${row.color}`}>
-                        <i className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'} text-[10px]`}></i>
-                        {row.label}
-                      </button>
-                    ) : row.label}
-                  </td>
-                  <td className="px-5 py-3 text-right tabular-nums">
-                    {canDrill ? (
-                      <button onClick={() => openRowDrill(row)} className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-bold border-b border-dashed border-slate-300 hover:border-primary`}>
-                        {row.amount < 0 ? '-' : ''}{fmt(Math.abs(row.amount))} đ <i className="fa-regular fa-eye text-[10px] opacity-50 ml-1"></i>
-                      </button>
-                    ) : (
-                      <span className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-black`}>
-                        {row.amount < 0 ? '-' : ''}{fmt(Math.abs(row.amount))} đ
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-center">
-                    {row.key === 'rev' ? (
-                      <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">100%</span>
-                    ) : (
-                      <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 font-bold">{pct.toFixed(1)}%</span>
-                    )}
-                  </td>
+      {activeTab === 'pnl' && (
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="font-black text-slate-900 flex items-center gap-2">
+                <i className="fa-solid fa-table-list text-primary"></i>
+                Bảng Kết quả Kinh doanh (P&L)
+              </h2>
+              <span className="text-xs text-slate-400">Click số tiền để xem chi tiết</span>
+            </div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="text-left px-5 py-3">Hạng mục</th>
+                  <th className="text-right px-5 py-3">Số tiền</th>
+                  <th className="text-center px-5 py-3">% DT</th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {drill && (
-        <div className="fixed inset-0 z-[90] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDrill(null)}>
-          <div className="w-full max-w-6xl max-h-[86vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">{drill.title}</h3>
-                <p className="text-xs text-slate-500">Tổng hạng mục: {fmt(drillTotal)} đ</p>
-              </div>
-              <button onClick={() => setDrill(null)} className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition">
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-            <div className="overflow-auto">
-              {drill.mode === 'invoice' && drill.type !== 'cash' ? (
-                <table className="w-full text-sm">
-                  <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-5 py-3">Ngày</th>
-                      <th className="text-left px-5 py-3">Phòng</th>
-                      <th className="text-left px-5 py-3">Khách thuê</th>
-                      <th className="text-left px-5 py-3">Loại phiếu</th>
-                      <th className="text-right px-5 py-3">Giá trị hạng mục</th>
-                      <th className="text-right px-5 py-3">Tổng phiếu</th>
-                      <th className="text-right px-5 py-3">Đã thu</th>
-                      <th className="text-center px-5 py-3">Trạng thái</th>
+              </thead>
+              <tbody>
+                {visibleRows.map((row) => {
+                  const pct = pnl.operatingRevenue
+                    ? (Math.abs(row.amount) / pnl.operatingRevenue) * 100
+                    : 0
+                  const isCollapsed = collapsedSections.has(row.section)
+                  const canDrill = !!row.invoiceType || !!row.cashType
+                  return (
+                    <tr
+                      key={row.key}
+                      className={`${row.group || row.total ? 'bg-slate-50 font-bold' : 'border-t border-slate-100'} ${row.total ? 'text-base' : ''}`}
+                    >
+                      <td
+                        className={`px-5 py-3 ${row.group || row.total ? row.color : 'text-slate-700'} ${row.indent ? 'pl-10' : ''}`}
+                      >
+                        {row.group ? (
+                          <button
+                            onClick={() => toggleSection(row.section)}
+                            className={`flex items-center gap-2 font-black ${row.color}`}
+                          >
+                            <i
+                              className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'} text-[10px]`}
+                            ></i>
+                            {row.label}
+                          </button>
+                        ) : (
+                          row.label
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums">
+                        {canDrill ? (
+                          <button
+                            onClick={() => openRowDrill(row)}
+                            className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-bold border-b border-dashed border-slate-300 hover:border-primary`}
+                          >
+                            {row.amount < 0 ? '-' : ''}
+                            {fmt(Math.abs(row.amount))} đ{' '}
+                            <i className="fa-regular fa-eye text-[10px] opacity-50 ml-1"></i>
+                          </button>
+                        ) : (
+                          <span
+                            className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-black`}
+                          >
+                            {row.amount < 0 ? '-' : ''}
+                            {fmt(Math.abs(row.amount))} đ
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {row.key === 'rev' ? (
+                          <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">
+                            100%
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 font-bold">
+                            {pct.toFixed(1)}%
+                          </span>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {drillInvoices.map(invoice => {
-                      const amount = getInvoiceDrillAmount(invoice, drill.type)
-                      return (
-                        <tr key={invoice.id} className="hover:bg-slate-50">
-                          <td className="px-5 py-3 font-semibold text-slate-600">{new Date(getInvoiceDate(invoice)).toLocaleDateString('vi-VN')}</td>
-                          <td className="px-5 py-3 font-bold text-slate-800">{roomById.get(invoice.room_id)?.name || 'Không rõ'}</td>
-                          <td className="px-5 py-3 text-slate-600">{tenantById.get(invoice.tenant_id)?.full_name || 'Không rõ'}</td>
-                          <td className="px-5 py-3 text-slate-600">{invoice.is_settlement ? 'Tất toán' : invoice.is_first_month ? 'Tháng đầu' : invoice.billing_reason || 'Hàng tháng'}</td>
-                          <td className={`px-5 py-3 text-right font-black tabular-nums ${amount < 0 ? 'text-red-600' : 'text-primary'}`}>{amount < 0 ? '-' : ''}{fmt(Math.abs(amount))} đ</td>
-                          <td className="px-5 py-3 text-right font-black tabular-nums">{fmt(invoice.total_amount)} đ</td>
-                          <td className="px-5 py-3 text-right font-bold text-emerald-700 tabular-nums">{fmt(invoice.paid_amount)} đ</td>
-                          <td className="px-5 py-3 text-center">
-                            <span className={`px-2 py-1 rounded text-[11px] font-black ${invoice.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : invoice.payment_status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}>
-                              {invoice.payment_status === 'paid' ? 'Đã thu' : invoice.payment_status === 'partial' ? 'Thu một phần' : 'Chưa thu'}
-                            </span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                    {drillInvoices.length === 0 && (
-                      <tr>
-                        <td colSpan={8} className="px-5 py-12 text-center text-slate-400">Không có dữ liệu chi tiết trong kỳ này.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : drill.mode === 'invoice' ? (
-                <table className="w-full text-sm">
-                  <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-5 py-3">Ngày thu</th>
-                      <th className="text-left px-5 py-3">Phòng</th>
-                      <th className="text-left px-5 py-3">Khách thuê</th>
-                      <th className="text-left px-5 py-3">Kỳ hóa đơn</th>
-                      <th className="text-left px-5 py-3">Phương thức</th>
-                      <th className="text-right px-5 py-3">Số tiền thu</th>
-                      <th className="text-left px-5 py-3">Ghi chú</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {drillInvoiceCashRows.map(({ invoice, record }) => (
-                      <tr key={record.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-semibold text-slate-600">{new Date(record.payment_date).toLocaleDateString('vi-VN')}</td>
-                        <td className="px-5 py-3 font-bold text-slate-800">{roomById.get(invoice.room_id)?.name || 'Không rõ'}</td>
-                        <td className="px-5 py-3 text-slate-600">{tenantById.get(invoice.tenant_id)?.full_name || 'Không rõ'}</td>
-                        <td className="px-5 py-3 text-slate-600">T{String(invoice.month).padStart(2, '0')}/{invoice.year}</td>
-                        <td className="px-5 py-3 text-slate-600">{record.payment_method === 'cash' ? 'Tiền mặt' : record.payment_method === 'transfer' ? 'Chuyển khoản' : '—'}</td>
-                        <td className="px-5 py-3 text-right font-bold text-emerald-700 tabular-nums">{fmt(record.amount)} đ</td>
-                        <td className="px-5 py-3 text-slate-500">{record.note || invoice.note || '—'}</td>
-                      </tr>
-                    ))}
-                    {drillInvoiceCashRows.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-5 py-12 text-center text-slate-400">Không có dữ liệu thu tiền trong kỳ này.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                    <tr>
-                      <th className="text-left px-5 py-3">Ngày</th>
-                      <th className="text-left px-5 py-3">Loại</th>
-                      <th className="text-left px-5 py-3">Nhóm</th>
-                      <th className="text-left px-5 py-3">Phòng</th>
-                      <th className="text-right px-5 py-3">Số tiền</th>
-                      <th className="text-left px-5 py-3">Ghi chú</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {drillCash.map((item: CashTransaction) => (
-                      <tr key={item.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-semibold text-slate-600">{new Date(item.transaction_date).toLocaleDateString('vi-VN')}</td>
-                        <td className="px-5 py-3 font-bold">{item.type === 'income' ? 'Thu' : 'Chi'}</td>
-                        <td className="px-5 py-3 text-slate-700">{categoryLabel(item.category, expenseCategories)}</td>
-                        <td className="px-5 py-3 text-slate-600">{item.room_id ? roomById.get(item.room_id)?.name || 'Không rõ' : 'Không gắn phòng'}</td>
-                        <td className={`px-5 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}>
-                          {item.type === 'expense' ? '-' : ''}{fmt(item.amount)} đ
-                        </td>
-                        <td className="px-5 py-3 text-slate-500">{item.note || '—'}</td>
-                      </tr>
-                    ))}
-                    {drillCash.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-5 py-12 text-center text-slate-400">Không có chứng từ trong kỳ này.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        </div>
+
+          {drill && (
+            <div
+              className="fixed inset-0 z-[90] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setDrill(null)}
+            >
+              <div
+                className="w-full max-w-6xl max-h-[86vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">{drill.title}</h3>
+                    <p className="text-xs text-slate-500">Tổng hạng mục: {fmt(drillTotal)} đ</p>
+                  </div>
+                  <button
+                    onClick={() => setDrill(null)}
+                    className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <div className="overflow-auto">
+                  {drill.mode === 'invoice' && drill.type !== 'cash' ? (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-5 py-3">Ngày</th>
+                          <th className="text-left px-5 py-3">Phòng</th>
+                          <th className="text-left px-5 py-3">Khách thuê</th>
+                          <th className="text-left px-5 py-3">Loại phiếu</th>
+                          <th className="text-right px-5 py-3">Giá trị hạng mục</th>
+                          <th className="text-right px-5 py-3">Tổng phiếu</th>
+                          <th className="text-right px-5 py-3">Đã thu</th>
+                          <th className="text-center px-5 py-3">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {drillInvoices.map((invoice) => {
+                          const amount = getInvoiceDrillAmount(invoice, drill.type)
+                          return (
+                            <tr key={invoice.id} className="hover:bg-slate-50">
+                              <td className="px-5 py-3 font-semibold text-slate-600">
+                                {formatDateToDDMMYYYY(getInvoiceDate(invoice))}
+                              </td>
+                              <td className="px-5 py-3 font-bold text-slate-800">
+                                {roomById.get(invoice.room_id)?.name || 'Không rõ'}
+                              </td>
+                              <td className="px-5 py-3 text-slate-600">
+                                {tenantById.get(invoice.tenant_id)?.full_name || 'Không rõ'}
+                              </td>
+                              <td className="px-5 py-3 text-slate-600">
+                                {invoice.is_settlement
+                                  ? 'Tất toán'
+                                  : invoice.is_first_month
+                                    ? 'Tháng đầu'
+                                    : invoice.billing_reason || 'Hàng tháng'}
+                              </td>
+                              <td
+                                className={`px-5 py-3 text-right font-black tabular-nums ${amount < 0 ? 'text-red-600' : 'text-primary'}`}
+                              >
+                                {amount < 0 ? '-' : ''}
+                                {fmt(Math.abs(amount))} đ
+                              </td>
+                              <td className="px-5 py-3 text-right font-black tabular-nums">
+                                {fmt(invoice.total_amount)} đ
+                              </td>
+                              <td className="px-5 py-3 text-right font-bold text-emerald-700 tabular-nums">
+                                {fmt(invoice.paid_amount)} đ
+                              </td>
+                              <td className="px-5 py-3 text-center">
+                                <span
+                                  className={`px-2 py-1 rounded text-[11px] font-black ${invoice.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : invoice.payment_status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}`}
+                                >
+                                  {invoice.payment_status === 'paid'
+                                    ? 'Đã thu'
+                                    : invoice.payment_status === 'partial'
+                                      ? 'Thu một phần'
+                                      : 'Chưa thu'}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        {drillInvoices.length === 0 && (
+                          <tr>
+                            <td colSpan={8} className="px-5 py-12 text-center text-slate-400">
+                              Không có dữ liệu chi tiết trong kỳ này.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  ) : drill.mode === 'invoice' ? (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-5 py-3">Ngày thu</th>
+                          <th className="text-left px-5 py-3">Phòng</th>
+                          <th className="text-left px-5 py-3">Khách thuê</th>
+                          <th className="text-left px-5 py-3">Kỳ hóa đơn</th>
+                          <th className="text-left px-5 py-3">Phương thức</th>
+                          <th className="text-right px-5 py-3">Số tiền thu</th>
+                          <th className="text-left px-5 py-3">Ghi chú</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {drillInvoiceCashRows.map(({ invoice, record }) => (
+                          <tr key={record.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-3 font-semibold text-slate-600">
+                              {formatDateToDDMMYYYY(record.payment_date)}
+                            </td>
+                            <td className="px-5 py-3 font-bold text-slate-800">
+                              {roomById.get(invoice.room_id)?.name || 'Không rõ'}
+                            </td>
+                            <td className="px-5 py-3 text-slate-600">
+                              {tenantById.get(invoice.tenant_id)?.full_name || 'Không rõ'}
+                            </td>
+                            <td className="px-5 py-3 text-slate-600">
+                              T{String(invoice.month).padStart(2, '0')}/{invoice.year}
+                            </td>
+                            <td className="px-5 py-3 text-slate-600">
+                              {record.payment_method === 'cash'
+                                ? 'Tiền mặt'
+                                : record.payment_method === 'transfer'
+                                  ? 'Chuyển khoản'
+                                  : '—'}
+                            </td>
+                            <td className="px-5 py-3 text-right font-bold text-emerald-700 tabular-nums">
+                              {fmt(record.amount)} đ
+                            </td>
+                            <td className="px-5 py-3 text-slate-500">
+                              {record.note || invoice.note || '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        {drillInvoiceCashRows.length === 0 && (
+                          <tr>
+                            <td colSpan={7} className="px-5 py-12 text-center text-slate-400">
+                              Không có dữ liệu thu tiền trong kỳ này.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                        <tr>
+                          <th className="text-left px-5 py-3">Ngày</th>
+                          <th className="text-left px-5 py-3">Loại</th>
+                          <th className="text-left px-5 py-3">Nhóm</th>
+                          <th className="text-left px-5 py-3">Phòng</th>
+                          <th className="text-right px-5 py-3">Số tiền</th>
+                          <th className="text-left px-5 py-3">Ghi chú</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {drillCash.map((item: CashTransaction) => (
+                          <tr key={item.id} className="hover:bg-slate-50">
+                            <td className="px-5 py-3 font-semibold text-slate-600">
+                              {formatDateToDDMMYYYY(item.transaction_date)}
+                            </td>
+                            <td className="px-5 py-3 font-bold">
+                              {item.type === 'income' ? 'Thu' : 'Chi'}
+                            </td>
+                            <td className="px-5 py-3 text-slate-700">
+                              {categoryLabel(item.category, expenseCategories)}
+                            </td>
+                            <td className="px-5 py-3 text-slate-600">
+                              {item.room_id
+                                ? roomById.get(item.room_id)?.name || 'Không rõ'
+                                : 'Không gắn phòng'}
+                            </td>
+                            <td
+                              className={`px-5 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}
+                            >
+                              {item.type === 'expense' ? '-' : ''}
+                              {fmt(item.amount)} đ
+                            </td>
+                            <td className="px-5 py-3 text-slate-500">{item.note || '—'}</td>
+                          </tr>
+                        ))}
+                        {drillCash.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
+                              Không có chứng từ trong kỳ này.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
-      </>}
 
       {activeTab === 'utility' && (
         <div className="space-y-6">
@@ -1335,11 +1583,12 @@ export function BusinessReport({
               </div>
               Đối soát chênh lệch Điện & Nước
             </h2>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Đối chiếu A Thu thực tế từ khách trọ với B Chi điện/nước theo kỳ sử dụng.</p>
+            <p className="text-xs text-slate-500 mt-1 font-medium">
+              Đối chiếu A Thu thực tế từ khách trọ với B Chi điện/nước theo kỳ sử dụng.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
             {/* CARD 1: ELECTRICITY */}
             <div className="bg-gradient-to-br from-white via-white to-amber-500/[0.04] rounded-3xl p-6 border border-slate-200/80 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[190px] group transition-all duration-300 hover:border-amber-400/60 hover:shadow-lg hover:shadow-amber-500/10 hover:-translate-y-1">
               <div className="flex items-start justify-between z-10">
@@ -1348,47 +1597,79 @@ export function BusinessReport({
                     <i className="fa-solid fa-bolt"></i>
                   </div>
                   <div>
-                    <h3 className="text-sm font-black font-outfit text-amber-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-amber-950">⚡ Tiền Điện dịch vụ</h3>
-                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">A Thu thực tế - B Chi theo kỳ</p>
+                    <h3 className="text-sm font-black font-outfit text-amber-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-amber-950">
+                      ⚡ Tiền Điện dịch vụ
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">
+                      A Thu thực tế - B Chi theo kỳ
+                    </p>
                   </div>
                 </div>
-                
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${utilityData.electricDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
-                  {utilityData.electricDelta >= 0 ? `Thặng dư: +${utilityData.electricPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.electricPct.toFixed(1)}%`}
+
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.electricDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${utilityData.electricDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}
+                  ></span>
+                  {utilityData.electricDelta >= 0
+                    ? `Thặng dư: +${utilityData.electricPct.toFixed(1)}%`
+                    : `Cần bù lỗ: ${utilityData.electricPct.toFixed(1)}%`}
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-3 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-amber-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-bold text-amber-700/80 uppercase tracking-widest block">A Thu thực tế</span>
-                  <span className="text-lg font-black text-amber-950 tabular-nums">{fmt(utilityData.electricRevenue)} đ</span>
+                  <span className="text-[9px] font-bold text-amber-700/80 uppercase tracking-widest block">
+                    A Thu thực tế
+                  </span>
+                  <span className="text-lg font-black text-amber-950 tabular-nums">
+                    {fmt(utilityData.electricRevenue)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.electricRevenueRoomsCount} phòng đóng nộp
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>{' '}
+                    {utilityData.electricRevenueRoomsCount} phòng đóng nộp
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300/80 pl-5">
-                  <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block">C Chưa thu</span>
-                  <span className="text-lg font-black text-amber-700 tabular-nums">{fmt(utilityData.electricPending)} đ</span>
+                  <span className="text-[9px] font-bold text-amber-500 uppercase tracking-widest block">
+                    C Chưa thu
+                  </span>
+                  <span className="text-lg font-black text-amber-700 tabular-nums">
+                    {fmt(utilityData.electricPending)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block"></span> {utilityData.electricPendingRoomsCount} phòng còn nợ
+                    <span className="w-1.5 h-1.5 bg-amber-400 rounded-full inline-block"></span>{' '}
+                    {utilityData.electricPendingRoomsCount} phòng còn nợ
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300/80 pl-5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">B Chi</span>
-                  <span className="text-lg font-black text-slate-700 tabular-nums">{fmt(utilityData.electricExpense)} đ</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+                    B Chi
+                  </span>
+                  <span className="text-lg font-black text-slate-700 tabular-nums">
+                    {fmt(utilityData.electricExpense)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full inline-block"></span> Hóa
+                    đơn nhà nước
                   </span>
                 </div>
               </div>
 
               <div className="h-px bg-slate-200/60 my-4"></div>
 
-              <div className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.electricDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}>
-                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.electricDelta >= 0 ? 'dư' : 'thiếu'}:</span>
-                <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {utilityData.electricDelta >= 0 ? '+' : ''}{fmt(utilityData.electricDelta)} đ
+              <div
+                className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.electricDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}
+              >
+                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">
+                  Mức chênh lệch {utilityData.electricDelta >= 0 ? 'dư' : 'thiếu'}:
+                </span>
+                <span
+                  className={`font-black text-sm font-outfit tabular-nums ${utilityData.electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                >
+                  {utilityData.electricDelta >= 0 ? '+' : ''}
+                  {fmt(utilityData.electricDelta)} đ
                 </span>
               </div>
             </div>
@@ -1401,47 +1682,79 @@ export function BusinessReport({
                     <i className="fa-solid fa-droplet"></i>
                   </div>
                   <div>
-                    <h3 className="text-sm font-black font-outfit text-sky-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-sky-950">💧 Tiền Nước sinh hoạt</h3>
-                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">A Thu thực tế - B Chi theo kỳ</p>
+                    <h3 className="text-sm font-black font-outfit text-sky-800 flex items-center gap-1.5 transition-colors duration-300 group-hover:text-sky-950">
+                      💧 Tiền Nước sinh hoạt
+                    </h3>
+                    <p className="text-[9px] text-slate-400 font-extrabold mt-0.5 tracking-wider uppercase">
+                      A Thu thực tế - B Chi theo kỳ
+                    </p>
                   </div>
                 </div>
-                
-                <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${utilityData.waterDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}></span>
-                  {utilityData.waterDelta >= 0 ? `Thặng dư: +${utilityData.waterPct.toFixed(1)}%` : `Cần bù lỗ: ${utilityData.waterPct.toFixed(1)}%`}
+
+                <div
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black tracking-wide border shadow-md transition-all duration-300 ${utilityData.waterDelta >= 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600 shadow-emerald-500/[0.08]' : 'bg-rose-50 border-rose-200 text-rose-600 shadow-rose-500/[0.08]'}`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${utilityData.waterDelta >= 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500 animate-pulse'}`}
+                  ></span>
+                  {utilityData.waterDelta >= 0
+                    ? `Thặng dư: +${utilityData.waterPct.toFixed(1)}%`
+                    : `Cần bù lỗ: ${utilityData.waterPct.toFixed(1)}%`}
                 </div>
               </div>
-              
+
               <div className="bg-gradient-to-br from-slate-50/90 to-slate-100/40 rounded-2xl p-4 grid grid-cols-3 gap-4 mt-5 border border-slate-200/50 shadow-inner z-10 group-hover:border-sky-200/50 transition-colors duration-300">
                 <div className="space-y-0.5">
-                  <span className="text-[9px] font-bold text-sky-700 uppercase tracking-widest block">A Thu thực tế</span>
-                  <span className="text-lg font-black text-sky-950 tabular-nums">{fmt(utilityData.waterRevenue)} đ</span>
+                  <span className="text-[9px] font-bold text-sky-700 uppercase tracking-widest block">
+                    A Thu thực tế
+                  </span>
+                  <span className="text-lg font-black text-sky-950 tabular-nums">
+                    {fmt(utilityData.waterRevenue)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span> {utilityData.waterRevenueRoomsCount} phòng đóng nộp
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>{' '}
+                    {utilityData.waterRevenueRoomsCount} phòng đóng nộp
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300 pl-5">
-                  <span className="text-[9px] font-bold text-sky-500 uppercase tracking-widest block">C Chưa thu</span>
-                  <span className="text-lg font-black text-sky-700 tabular-nums">{fmt(utilityData.waterPending)} đ</span>
+                  <span className="text-[9px] font-bold text-sky-500 uppercase tracking-widest block">
+                    C Chưa thu
+                  </span>
+                  <span className="text-lg font-black text-sky-700 tabular-nums">
+                    {fmt(utilityData.waterPending)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-sky-400 rounded-full inline-block"></span> {utilityData.waterPendingRoomsCount} phòng còn nợ
+                    <span className="w-1.5 h-1.5 bg-sky-400 rounded-full inline-block"></span>{' '}
+                    {utilityData.waterPendingRoomsCount} phòng còn nợ
                   </span>
                 </div>
                 <div className="space-y-0.5 border-l border-slate-300 pl-5">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">B Chi</span>
-                  <span className="text-lg font-black text-slate-700 tabular-nums">{fmt(utilityData.waterExpense)} đ</span>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">
+                    B Chi
+                  </span>
+                  <span className="text-lg font-black text-slate-700 tabular-nums">
+                    {fmt(utilityData.waterExpense)} đ
+                  </span>
                   <span className="text-[9px] text-slate-500 block font-semibold mt-0.5 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full inline-block"></span> Hóa đơn nhà nước
+                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full inline-block"></span> Hóa
+                    đơn nhà nước
                   </span>
                 </div>
               </div>
 
               <div className="h-px bg-slate-200/60 my-4"></div>
 
-              <div className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.waterDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}>
-                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">Mức chênh lệch {utilityData.waterDelta >= 0 ? 'dư' : 'thiếu'}:</span>
-                <span className={`font-black text-sm font-outfit tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {utilityData.waterDelta >= 0 ? '+' : ''}{fmt(utilityData.waterDelta)} đ
+              <div
+                className={`flex items-center justify-between text-xs p-3.5 rounded-2xl border transition-all duration-300 z-10 ${utilityData.waterDelta >= 0 ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/30 border-emerald-200 shadow-sm' : 'bg-gradient-to-r from-rose-50 to-rose-100/30 border-rose-200 shadow-sm'}`}
+              >
+                <span className="font-bold text-slate-500 text-[10px] uppercase tracking-wider">
+                  Mức chênh lệch {utilityData.waterDelta >= 0 ? 'dư' : 'thiếu'}:
+                </span>
+                <span
+                  className={`font-black text-sm font-outfit tabular-nums ${utilityData.waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                >
+                  {utilityData.waterDelta >= 0 ? '+' : ''}
+                  {fmt(utilityData.waterDelta)} đ
                 </span>
               </div>
             </div>
@@ -1452,9 +1765,12 @@ export function BusinessReport({
               <div className="flex flex-col">
                 <div className="px-6 py-3 bg-gradient-to-r from-amber-500/[0.04] to-amber-500/[0.01] border-b border-amber-100/40 flex items-center justify-between">
                   <span className="text-xs font-black text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>⚡ Phân tích Tiền Điện theo tòa
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>⚡
+                    Phân tích Tiền Điện theo tòa
                   </span>
-                  <span className="text-[9px] font-extrabold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">Điện dịch vụ</span>
+                  <span className="text-[9px] font-extrabold text-amber-600 bg-amber-50 border border-amber-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">
+                    Điện dịch vụ
+                  </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1469,9 +1785,11 @@ export function BusinessReport({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-amber-100/30 font-medium text-slate-600">
-                      {utilityData.buildingList.map(row => {
-                        const electricDelta = row.electricRevenue + row.electricPending - row.electricExpense
-                        const electricPct = row.electricExpense > 0 ? (electricDelta / row.electricExpense) * 100 : 0
+                      {utilityData.buildingList.map((row) => {
+                        const electricDelta =
+                          row.electricRevenue + row.electricPending - row.electricExpense
+                        const electricPct =
+                          row.electricExpense > 0 ? (electricDelta / row.electricExpense) * 100 : 0
                         const isExpanded = expandedElectricBuilding === row.building
                         const detailRows = getUtilityInvoiceRowsByBuilding(row.building, 'electric')
                         return (
@@ -1479,7 +1797,11 @@ export function BusinessReport({
                             <tr
                               key={row.building}
                               className="hover:bg-amber-500/[0.02] transition duration-150 cursor-pointer"
-                              onClick={() => setExpandedElectricBuilding((prev) => (prev === row.building ? null : row.building))}
+                              onClick={() =>
+                                setExpandedElectricBuilding((prev) =>
+                                  prev === row.building ? null : row.building
+                                )
+                              }
                             >
                               <td className="px-6 py-4 font-black text-amber-900">
                                 <div className="flex items-center gap-2">
@@ -1488,20 +1810,35 @@ export function BusinessReport({
                                     className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-amber-100 bg-white text-amber-700 shadow-sm transition hover:bg-amber-50"
                                     title={isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
                                   >
-                                    <i className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}></i>
+                                    <i
+                                      className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}
+                                    ></i>
                                   </button>
                                   <span>{row.building}</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.electricRevenue)} đ</td>
-                              <td className="px-4 py-4 text-right font-bold text-amber-700 tabular-nums">{fmt(row.electricPending)} đ</td>
-                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.electricExpense)} đ</td>
-                              <td className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
+                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">
+                                {fmt(row.electricRevenue)} đ
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-amber-700 tabular-nums">
+                                {fmt(row.electricPending)} đ
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">
+                                {fmt(row.electricExpense)} đ
+                              </td>
+                              <td
+                                className={`px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                              >
+                                {electricDelta >= 0 ? '+' : ''}
+                                {fmt(electricDelta)} đ
                               </td>
                               <td className="px-6 py-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                                  {electricDelta >= 0 ? `Lời ${electricPct.toFixed(1)}%` : `Lỗ ${Math.abs(electricPct).toFixed(1)}%`}
+                                <span
+                                  className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${electricDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}
+                                >
+                                  {electricDelta >= 0
+                                    ? `Lời ${electricPct.toFixed(1)}%`
+                                    : `Lỗ ${Math.abs(electricPct).toFixed(1)}%`}
                                 </span>
                               </td>
                             </tr>
@@ -1525,19 +1862,40 @@ export function BusinessReport({
                                       <tbody className="divide-y divide-amber-100/40">
                                         {detailRows.map((item) => (
                                           <tr key={item.invoiceId} className="hover:bg-amber-50/40">
-                                            <td className="px-4 py-3 font-bold text-slate-800">{item.roomName}</td>
-                                            <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.electricOld)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.electricNew)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">{fmt(item.electricUsage)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700">{fmt(item.electricUnitPrice)} đ</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">{fmt(item.electricTotal)} đ</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">{fmt(item.electricCollected)} đ</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">
+                                              {item.roomName}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-600">
+                                              {item.tenantName}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">
+                                              {fmt(item.electricOld)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">
+                                              {fmt(item.electricNew)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">
+                                              {fmt(item.electricUsage)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700">
+                                              {fmt(item.electricUnitPrice)} đ
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">
+                                              {fmt(item.electricTotal)} đ
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">
+                                              {fmt(item.electricCollected)} đ
+                                            </td>
                                           </tr>
                                         ))}
                                         {detailRows.length === 0 && (
                                           <tr>
-                                            <td colSpan={8} className="px-4 py-8 text-center text-slate-400">Không có phòng nào trong tòa này.</td>
+                                            <td
+                                              colSpan={8}
+                                              className="px-4 py-8 text-center text-slate-400"
+                                            >
+                                              Không có phòng nào trong tòa này.
+                                            </td>
                                           </tr>
                                         )}
                                       </tbody>
@@ -1551,7 +1909,10 @@ export function BusinessReport({
                       })}
                       {utilityData.buildingList.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-6 py-10 text-center text-xs font-semibold text-amber-700/60">
+                          <td
+                            colSpan={6}
+                            className="px-6 py-10 text-center text-xs font-semibold text-amber-700/60"
+                          >
                             Chưa có dữ liệu điện theo tòa.
                           </td>
                         </tr>
@@ -1566,9 +1927,12 @@ export function BusinessReport({
               <div className="flex flex-col">
                 <div className="px-6 py-3 bg-gradient-to-r from-sky-500/[0.04] to-sky-500/[0.01] border-b border-sky-100/40 flex items-center justify-between">
                   <span className="text-xs font-black text-sky-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>💧 Phân tích Tiền Nước theo tòa
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse"></span>💧
+                    Phân tích Tiền Nước theo tòa
                   </span>
-                  <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">Nước sinh hoạt</span>
+                  <span className="text-[9px] font-extrabold text-sky-600 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-lg uppercase tracking-wider shadow-sm">
+                    Nước sinh hoạt
+                  </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -1583,9 +1947,10 @@ export function BusinessReport({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-sky-100/30 font-medium text-slate-600">
-                      {utilityData.buildingList.map(row => {
+                      {utilityData.buildingList.map((row) => {
                         const waterDelta = row.waterRevenue + row.waterPending - row.waterExpense
-                        const waterPct = row.waterExpense > 0 ? (waterDelta / row.waterExpense) * 100 : 0
+                        const waterPct =
+                          row.waterExpense > 0 ? (waterDelta / row.waterExpense) * 100 : 0
                         const isExpanded = expandedWaterBuilding === row.building
                         const detailRows = getUtilityInvoiceRowsByBuilding(row.building, 'water')
                         return (
@@ -1593,7 +1958,11 @@ export function BusinessReport({
                             <tr
                               key={row.building}
                               className="hover:bg-sky-500/[0.02] transition duration-150 cursor-pointer"
-                              onClick={() => setExpandedWaterBuilding((prev) => (prev === row.building ? null : row.building))}
+                              onClick={() =>
+                                setExpandedWaterBuilding((prev) =>
+                                  prev === row.building ? null : row.building
+                                )
+                              }
                             >
                               <td className="px-6 py-4 font-black text-sky-900">
                                 <div className="flex items-center gap-2">
@@ -1602,20 +1971,35 @@ export function BusinessReport({
                                     className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-sky-100 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
                                     title={isExpanded ? 'Thu gọn' : 'Xem chi tiết'}
                                   >
-                                    <i className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}></i>
+                                    <i
+                                      className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]`}
+                                    ></i>
                                   </button>
                                   <span>{row.building}</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">{fmt(row.waterRevenue)} đ</td>
-                              <td className="px-4 py-4 text-right font-bold text-sky-700 tabular-nums">{fmt(row.waterPending)} đ</td>
-                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">{fmt(row.waterExpense)} đ</td>
-                              <td className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
+                              <td className="px-4 py-4 text-right font-bold text-slate-800 tabular-nums">
+                                {fmt(row.waterRevenue)} đ
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-sky-700 tabular-nums">
+                                {fmt(row.waterPending)} đ
+                              </td>
+                              <td className="px-4 py-4 text-right font-bold text-slate-500 tabular-nums">
+                                {fmt(row.waterExpense)} đ
+                              </td>
+                              <td
+                                className={`px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                              >
+                                {waterDelta >= 0 ? '+' : ''}
+                                {fmt(waterDelta)} đ
                               </td>
                               <td className="px-6 py-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                                  {waterDelta >= 0 ? `Lời ${waterPct.toFixed(1)}%` : `Lỗ ${Math.abs(waterPct).toFixed(1)}%`}
+                                <span
+                                  className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${waterDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}
+                                >
+                                  {waterDelta >= 0
+                                    ? `Lời ${waterPct.toFixed(1)}%`
+                                    : `Lỗ ${Math.abs(waterPct).toFixed(1)}%`}
                                 </span>
                               </td>
                             </tr>
@@ -1638,18 +2022,37 @@ export function BusinessReport({
                                       <tbody className="divide-y divide-sky-100/40">
                                         {detailRows.map((item) => (
                                           <tr key={item.invoiceId} className="hover:bg-sky-50/40">
-                                            <td className="px-4 py-3 font-bold text-slate-800">{item.roomName}</td>
-                                            <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.waterOld)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">{fmt(item.waterNew)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">{fmt(item.waterUsage)}</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">{fmt(item.waterTotal)} đ</td>
-                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">{fmt(item.waterCollected)} đ</td>
+                                            <td className="px-4 py-3 font-bold text-slate-800">
+                                              {item.roomName}
+                                            </td>
+                                            <td className="px-4 py-3 text-slate-600">
+                                              {item.tenantName}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">
+                                              {fmt(item.waterOld)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-600">
+                                              {fmt(item.waterNew)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-700 font-semibold">
+                                              {fmt(item.waterUsage)}
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-slate-900 font-bold">
+                                              {fmt(item.waterTotal)} đ
+                                            </td>
+                                            <td className="px-3 py-3 text-right tabular-nums text-emerald-700 font-bold">
+                                              {fmt(item.waterCollected)} đ
+                                            </td>
                                           </tr>
                                         ))}
                                         {detailRows.length === 0 && (
                                           <tr>
-                                            <td colSpan={7} className="px-4 py-8 text-center text-slate-400">Không có phòng nào trong tòa này.</td>
+                                            <td
+                                              colSpan={7}
+                                              className="px-4 py-8 text-center text-slate-400"
+                                            >
+                                              Không có phòng nào trong tòa này.
+                                            </td>
                                           </tr>
                                         )}
                                       </tbody>
@@ -1663,7 +2066,10 @@ export function BusinessReport({
                       })}
                       {utilityData.buildingList.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-6 py-10 text-center text-xs font-semibold text-sky-600/60">
+                          <td
+                            colSpan={6}
+                            className="px-6 py-10 text-center text-xs font-semibold text-sky-600/60"
+                          >
                             Chưa có dữ liệu nước theo tòa.
                           </td>
                         </tr>
@@ -1676,7 +2082,6 @@ export function BusinessReport({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
             <div className="bg-white rounded-3xl border border-slate-200/85 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden lg:col-span-2 flex flex-col justify-between">
               <div>
                 <div className="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50/80 to-slate-100/40">
@@ -1684,9 +2089,11 @@ export function BusinessReport({
                     <i className="fa-solid fa-list-check text-emerald-500"></i>
                     Bảng phân tích đối soát chi tiết
                   </h3>
-                  <span className="text-[9px] text-slate-500 font-extrabold bg-white border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-wider shadow-sm">Cân đối thu - chi</span>
+                  <span className="text-[9px] text-slate-500 font-extrabold bg-white border border-slate-200 px-3 py-1.5 rounded-xl uppercase tracking-wider shadow-sm">
+                    Cân đối thu - chi
+                  </span>
                 </div>
-                
+
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50/50 text-[10px] uppercase tracking-wider text-slate-400 font-black border-b border-slate-100/80">
                     <tr>
@@ -1701,50 +2108,102 @@ export function BusinessReport({
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-600">
                     <tr className="hover:bg-amber-100/60 bg-amber-500/[0.003] hover:scale-[1.003] active:scale-[0.997] transition-all duration-200 cursor-pointer group/comp">
                       <td className="px-6 py-4 font-bold text-amber-800 flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block shadow-md shadow-amber-500/60 animate-pulse"></span>⚡ Tiền điện phòng trọ
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500 block shadow-md shadow-amber-500/60 animate-pulse"></span>
+                        ⚡ Tiền điện phòng trọ
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-amber-800 transition-colors tabular-nums">{fmt(utilityData.electricRevenue)} đ</td>
-                      <td className="px-6 py-4 text-right font-bold text-amber-700 tabular-nums">{fmt(utilityData.electricPending)} đ</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.electricExpense)} đ</td>
-                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {utilityData.electricProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta)} đ
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-amber-800 transition-colors tabular-nums">
+                        {fmt(utilityData.electricRevenue)} đ
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-amber-700 tabular-nums">
+                        {fmt(utilityData.electricPending)} đ
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">
+                        {fmt(utilityData.electricExpense)} đ
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                      >
+                        {utilityData.electricProjectedDelta >= 0 ? '+' : ''}
+                        {fmt(utilityData.electricProjectedDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.electricProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                          {utilityData.electricProjectedDelta >= 0 ? `Lời ${utilityData.electricProjectedPct.toFixed(1)}%` : `Lỗ ${utilityData.electricProjectedPct.toFixed(1)}%`}
+                        <span
+                          className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.electricProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}
+                        >
+                          {utilityData.electricProjectedDelta >= 0
+                            ? `Lời ${utilityData.electricProjectedPct.toFixed(1)}%`
+                            : `Lỗ ${utilityData.electricProjectedPct.toFixed(1)}%`}
                         </span>
                       </td>
                     </tr>
                     <tr className="hover:bg-sky-100/60 bg-sky-500/[0.003] hover:scale-[1.003] active:scale-[0.997] transition-all duration-200 cursor-pointer group/comp">
                       <td className="px-6 py-4 font-bold text-sky-800 flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full bg-sky-500 block shadow-md shadow-sky-500/60 animate-pulse"></span>💧 Tiền nước sinh hoạt
+                        <span className="h-2.5 w-2.5 rounded-full bg-sky-500 block shadow-md shadow-sky-500/60 animate-pulse"></span>
+                        💧 Tiền nước sinh hoạt
                       </td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-sky-800 transition-colors tabular-nums">{fmt(utilityData.waterRevenue)} đ</td>
-                      <td className="px-6 py-4 text-right font-bold text-sky-700 tabular-nums">{fmt(utilityData.waterPending)} đ</td>
-                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">{fmt(utilityData.waterExpense)} đ</td>
-                      <td className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {utilityData.waterProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.waterProjectedDelta)} đ
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 group-hover/comp:text-sky-800 transition-colors tabular-nums">
+                        {fmt(utilityData.waterRevenue)} đ
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-sky-700 tabular-nums">
+                        {fmt(utilityData.waterPending)} đ
+                      </td>
+                      <td className="px-6 py-4 text-right font-bold text-slate-900 tabular-nums">
+                        {fmt(utilityData.waterExpense)} đ
+                      </td>
+                      <td
+                        className={`px-6 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                      >
+                        {utilityData.waterProjectedDelta >= 0 ? '+' : ''}
+                        {fmt(utilityData.waterProjectedDelta)} đ
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.waterProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}>
-                          {utilityData.waterProjectedDelta >= 0 ? `Lời ${utilityData.waterProjectedPct.toFixed(1)}%` : `Lỗ ${utilityData.waterProjectedPct.toFixed(1)}%`}
+                        <span
+                          className={`px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-wider border inline-block ${utilityData.waterProjectedDelta >= 0 ? 'bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm shadow-emerald-500/[0.02]' : 'bg-rose-50 border-rose-100 text-rose-600 shadow-sm shadow-rose-500/[0.02]'}`}
+                        >
+                          {utilityData.waterProjectedDelta >= 0
+                            ? `Lời ${utilityData.waterProjectedPct.toFixed(1)}%`
+                            : `Lỗ ${utilityData.waterProjectedPct.toFixed(1)}%`}
                         </span>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
-              
+
               <div className="px-6 py-5 bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-150 flex flex-wrap gap-4 items-center justify-between font-black font-outfit text-xs md:text-sm tracking-wide">
-                <span className="text-slate-800 text-[10px] uppercase tracking-widest font-extrabold">TỔNG HỢP LIÊN DỊCH VỤ</span>
+                <span className="text-slate-800 text-[10px] uppercase tracking-widest font-extrabold">
+                  TỔNG HỢP LIÊN DỊCH VỤ
+                </span>
                 <div className="flex items-center gap-5.5 tabular-nums">
-                  <span className="text-slate-500 text-xs font-semibold">A Thu: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricRevenue + utilityData.waterRevenue)} đ</span></span>
-                  <span className="text-slate-500 text-xs font-semibold">C Chưa thu: <span className="font-black text-sm text-amber-700">{fmt(utilityData.electricPending + utilityData.waterPending)} đ</span></span>
-                  <span className="text-slate-500 text-xs font-semibold">B Chi: <span className="text-slate-950 font-black text-sm">{fmt(utilityData.electricExpense + utilityData.waterExpense)} đ</span></span>
+                  <span className="text-slate-500 text-xs font-semibold">
+                    A Thu:{' '}
+                    <span className="text-slate-950 font-black text-sm">
+                      {fmt(utilityData.electricRevenue + utilityData.waterRevenue)} đ
+                    </span>
+                  </span>
+                  <span className="text-slate-500 text-xs font-semibold">
+                    C Chưa thu:{' '}
+                    <span className="font-black text-sm text-amber-700">
+                      {fmt(utilityData.electricPending + utilityData.waterPending)} đ
+                    </span>
+                  </span>
+                  <span className="text-slate-500 text-xs font-semibold">
+                    B Chi:{' '}
+                    <span className="text-slate-950 font-black text-sm">
+                      {fmt(utilityData.electricExpense + utilityData.waterExpense)} đ
+                    </span>
+                  </span>
                   <span className="text-slate-700 bg-white border border-slate-200/80 shadow-sm px-3.5 py-1.5 rounded-2xl flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lời ròng:</span>
-                    <span className={`font-black text-sm md:text-base ${(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta) >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta)} đ
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Lời ròng:
+                    </span>
+                    <span
+                      className={`font-black text-sm md:text-base ${utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
+                      {utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0
+                        ? '+'
+                        : ''}
+                      {fmt(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta)} đ
                     </span>
                   </span>
                 </div>
@@ -1758,30 +2217,34 @@ export function BusinessReport({
                     <i className="fa-solid fa-server text-emerald-500"></i>
                     Mức tiêu thụ các Phòng
                   </h3>
-                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">Tiêu thụ điện nước chi tiết theo phòng</p>
+                  <p className="text-[10px] text-slate-400 mt-1 font-semibold">
+                    Tiêu thụ điện nước chi tiết theo phòng
+                  </p>
                 </div>
                 <div className="relative">
                   <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-400"></i>
                   <input
                     type="search"
                     value={roomUtilitySearch}
-                    onChange={event => setRoomUtilitySearch(event.target.value)}
+                    onChange={(event) => setRoomUtilitySearch(event.target.value)}
                     placeholder="Tìm phòng hoặc khách thuê..."
                     className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9.5 pr-3 text-xs font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-emerald-400 focus:ring-4 focus:ring-emerald-500/10 shadow-inner"
                   />
                 </div>
               </div>
-              
+
               <div className="divide-y divide-slate-100 overflow-y-auto max-h-[300px] flex-1">
-                {filteredUtilityRooms.map(item => {
+                {filteredUtilityRooms.map((item) => {
                   const isAnomaly = item.electricUsage > 300
-                  const absoluteRank = utilityData.roomList.findIndex(r => r.roomId === item.roomId) + 1
+                  const absoluteRank =
+                    utilityData.roomList.findIndex((r) => r.roomId === item.roomId) + 1
 
                   let rankBadge: React.ReactNode = null
                   if (absoluteRank === 1) {
                     rankBadge = (
                       <div className="flex items-center justify-center h-6 px-2.5 rounded-xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 text-white font-black text-[9px] tracking-wider shadow-md shadow-amber-500/25 border border-amber-300/35 gap-0.5 uppercase shrink-0 group-hover/room:scale-110 transition-transform duration-200">
-                        <i className="fa-solid fa-crown text-[8px] animate-bounce duration-1000"></i> Top 1
+                        <i className="fa-solid fa-crown text-[8px] animate-bounce duration-1000"></i>{' '}
+                        Top 1
                       </div>
                     )
                   } else if (absoluteRank === 2) {
@@ -1805,25 +2268,41 @@ export function BusinessReport({
                   }
 
                   return (
-                    <div key={item.roomId} className={`px-6 py-4 flex items-center justify-between transition-all duration-200 cursor-pointer group/room ${isAnomaly ? 'bg-gradient-to-r from-amber-500/[0.03] to-orange-500/[0.01] border-l-4 border-amber-500 hover:from-amber-500/[0.06] hover:to-orange-500/[0.02] hover:shadow-md hover:scale-[1.008]' : 'hover:bg-slate-50 hover:shadow-inner hover:scale-[1.005] hover:-translate-y-0.5'}`}>
+                    <div
+                      key={item.roomId}
+                      className={`px-6 py-4 flex items-center justify-between transition-all duration-200 cursor-pointer group/room ${isAnomaly ? 'bg-gradient-to-r from-amber-500/[0.03] to-orange-500/[0.01] border-l-4 border-amber-500 hover:from-amber-500/[0.06] hover:to-orange-500/[0.02] hover:shadow-md hover:scale-[1.008]' : 'hover:bg-slate-50 hover:shadow-inner hover:scale-[1.005] hover:-translate-y-0.5'}`}
+                    >
                       <div className="flex items-center gap-2.5">
                         {rankBadge}
-                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center font-black font-outfit text-xs border transition-transform duration-200 group-hover/room:scale-105 group-hover/room:rotate-3 ${isAnomaly ? 'bg-amber-500/10 border-amber-300/20 text-amber-600 animate-pulse' : 'bg-slate-50 border-slate-150 text-slate-600 shrink-0'}`}>
+                        <div
+                          className={`h-9 w-9 rounded-xl flex items-center justify-center font-black font-outfit text-xs border transition-transform duration-200 group-hover/room:scale-105 group-hover/room:rotate-3 ${isAnomaly ? 'bg-amber-500/10 border-amber-300/20 text-amber-600 animate-pulse' : 'bg-slate-50 border-slate-150 text-slate-600 shrink-0'}`}
+                        >
                           {item.roomName.replace('Phòng ', '')}
                         </div>
                         <div>
-                          <span className={`font-bold block text-xs transition-colors duration-200 ${isAnomaly ? 'text-amber-600 flex items-center gap-1.5' : 'text-slate-800 group-hover/room:text-emerald-700'}`}>
+                          <span
+                            className={`font-bold block text-xs transition-colors duration-200 ${isAnomaly ? 'text-amber-600 flex items-center gap-1.5' : 'text-slate-800 group-hover/room:text-emerald-700'}`}
+                          >
                             {item.tenantName}
-                            {isAnomaly && <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>}
+                            {isAnomaly && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                            )}
                           </span>
-                          <span className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${isAnomaly ? 'text-amber-500/75' : 'text-slate-400'}`}>
+                          <span
+                            className={`text-[9px] font-bold uppercase tracking-wider block mt-0.5 ${isAnomaly ? 'text-amber-500/75' : 'text-slate-400'}`}
+                          >
                             {isAnomaly ? '⚠️ ĐIỆN CAO BẤT THƯỜNG' : 'Khách thuê'}
                           </span>
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-2">
-                        <span className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-amber-700 group-hover/room:text-amber-600'}`}>
-                          ⚡ {fmt(item.electricRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.electricUsage} kWh)</span>
+                        <span
+                          className={`text-xs font-bold block ${isAnomaly ? 'text-amber-600' : 'text-amber-700 group-hover/room:text-amber-600'}`}
+                        >
+                          ⚡ {fmt(item.electricRev)} đ{' '}
+                          <span className="text-[9px] font-medium text-slate-400">
+                            ({item.electricUsage} kWh)
+                          </span>
                         </span>
                         {item.electricPending > 0 && (
                           <span className="text-[10px] text-amber-500 font-bold block mt-0.5">
@@ -1831,7 +2310,10 @@ export function BusinessReport({
                           </span>
                         )}
                         <span className="text-[10px] text-sky-600 font-bold block mt-0.5 group-hover/room:text-sky-500">
-                          💧 {fmt(item.waterRev)} đ <span className="text-[9px] font-medium text-slate-400">({item.waterUsage} m³)</span>
+                          💧 {fmt(item.waterRev)} đ{' '}
+                          <span className="text-[9px] font-medium text-slate-400">
+                            ({item.waterUsage} m³)
+                          </span>
                         </span>
                         {item.waterPending > 0 && (
                           <span className="text-[10px] text-sky-500 font-bold block mt-0.5">
@@ -1842,86 +2324,104 @@ export function BusinessReport({
                     </div>
                   )
                 })}
-                
+
                 {filteredUtilityRooms.length === 0 && (
                   <div className="px-6 py-12 text-center text-slate-400 text-xs">
-                    {roomUtilitySearch.trim() ? 'Không tìm thấy phòng phù hợp.' : 'Không có dữ liệu tiêu thụ phòng nào trong kỳ báo cáo này.'}
+                    {roomUtilitySearch.trim()
+                      ? 'Không tìm thấy phòng phù hợp.'
+                      : 'Không có dữ liệu tiêu thụ phòng nào trong kỳ báo cáo này.'}
                   </div>
                 )}
               </div>
             </div>
-
           </div>
-      {buildingDrill && (
-        <div className="fixed inset-0 z-[91] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setBuildingDrill(null)}>
-          <div className="w-full max-w-5xl max-h-[86vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">{buildingDrill.title}</h3>
-                <p className="text-xs text-slate-500">
-                  {buildingUtilityRows.length} phòng ·
-                  {' '}
-                  {buildingDrill.utility === 'electric'
-                    ? `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricPending, 0))} đ`
-                    : `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterPending, 0))} đ`}
-                </p>
-              </div>
-              <button onClick={() => setBuildingDrill(null)} className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition">
-                <i className="fa-solid fa-xmark"></i>
-              </button>
-            </div>
-            <div className="overflow-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
-                  <tr>
-                    <th className="text-left px-5 py-3">Phòng</th>
-                    <th className="text-left px-5 py-3">Khách thuê</th>
-                    <th className="text-right px-5 py-3">
-                      {buildingDrill.utility === 'electric' ? 'Đã thu điện' : 'Đã thu nước'}
-                    </th>
-                    <th className="text-right px-5 py-3">
-                      {buildingDrill.utility === 'electric' ? 'Điện chưa thu' : 'Nước chưa thu'}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {buildingUtilityRows.map((item) => {
-                    const amount = buildingDrill.utility === 'electric' ? item.electricRev : item.waterRev
-                    const pendingAmount = buildingDrill.utility === 'electric' ? item.electricPending : item.waterPending
-                    const isTop =
-                      buildingDrill.utility === 'electric'
-                        ? item.electricRev > 0 || item.electricPending > 0
-                        : item.waterRev > 0 || item.waterPending > 0
-                    return (
-                      <tr key={item.roomId} className={`hover:bg-slate-50 ${isTop ? '' : 'opacity-70'}`}>
-                        <td className="px-5 py-3 font-bold text-slate-800">{item.roomName}</td>
-                        <td className="px-5 py-3 text-slate-600">{item.tenantName}</td>
-                        <td className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-700' : 'text-sky-700'}`}>
-                          {fmt(amount)} đ
-                        </td>
-                        <td className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-500' : 'text-sky-500'}`}>
-                          {fmt(pendingAmount)} đ
-                        </td>
+          {buildingDrill && (
+            <div
+              className="fixed inset-0 z-[91] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4"
+              onClick={() => setBuildingDrill(null)}
+            >
+              <div
+                className="w-full max-w-5xl max-h-[86vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">{buildingDrill.title}</h3>
+                    <p className="text-xs text-slate-500">
+                      {buildingUtilityRows.length} phòng ·{' '}
+                      {buildingDrill.utility === 'electric'
+                        ? `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.electricPending, 0))} đ`
+                        : `Đã thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterRev, 0))} đ · Chưa thu ${fmt(buildingUtilityRows.reduce((sum, item) => sum + item.waterPending, 0))} đ`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setBuildingDrill(null)}
+                    className="w-9 h-9 rounded-full hover:bg-slate-200 text-slate-500 transition"
+                  >
+                    <i className="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                <div className="overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                      <tr>
+                        <th className="text-left px-5 py-3">Phòng</th>
+                        <th className="text-left px-5 py-3">Khách thuê</th>
+                        <th className="text-right px-5 py-3">
+                          {buildingDrill.utility === 'electric' ? 'Đã thu điện' : 'Đã thu nước'}
+                        </th>
+                        <th className="text-right px-5 py-3">
+                          {buildingDrill.utility === 'electric' ? 'Điện chưa thu' : 'Nước chưa thu'}
+                        </th>
                       </tr>
-                    )
-                  })}
-                  {buildingUtilityRows.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="px-5 py-12 text-center text-slate-400">
-                        Không có dữ liệu phòng trong tòa này ở kỳ báo cáo.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {buildingUtilityRows.map((item) => {
+                        const amount =
+                          buildingDrill.utility === 'electric' ? item.electricRev : item.waterRev
+                        const pendingAmount =
+                          buildingDrill.utility === 'electric'
+                            ? item.electricPending
+                            : item.waterPending
+                        const isTop =
+                          buildingDrill.utility === 'electric'
+                            ? item.electricRev > 0 || item.electricPending > 0
+                            : item.waterRev > 0 || item.waterPending > 0
+                        return (
+                          <tr
+                            key={item.roomId}
+                            className={`hover:bg-slate-50 ${isTop ? '' : 'opacity-70'}`}
+                          >
+                            <td className="px-5 py-3 font-bold text-slate-800">{item.roomName}</td>
+                            <td className="px-5 py-3 text-slate-600">{item.tenantName}</td>
+                            <td
+                              className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-700' : 'text-sky-700'}`}
+                            >
+                              {fmt(amount)} đ
+                            </td>
+                            <td
+                              className={`px-5 py-3 text-right font-bold tabular-nums ${buildingDrill.utility === 'electric' ? 'text-amber-500' : 'text-sky-500'}`}
+                            >
+                              {fmt(pendingAmount)} đ
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {buildingUtilityRows.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-12 text-center text-slate-400">
+                            Không có dữ liệu phòng trong tòa này ở kỳ báo cáo.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
-
-          </div>
       )}
     </div>
   )
 }
-
