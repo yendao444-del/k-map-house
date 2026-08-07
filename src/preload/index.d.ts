@@ -1,5 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
-
 type UserRole = 'admin' | 'user'
 type UserStatus = 'active' | 'inactive'
 
@@ -29,16 +27,6 @@ interface ZaloSendPayload {
 
 interface ZaloAPI {
   send: (payload: ZaloSendPayload) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
-}
-
-interface BankLookupResponse {
-  code: string
-  desc?: string
-  data?: { accountName?: string }
-}
-
-interface BankAPI {
-  lookup: (bin: string, accountNumber: string) => Promise<{ ok: boolean; error?: string; data?: BankLookupResponse }>
 }
 
 interface UpdateCheckResult {
@@ -81,9 +69,6 @@ interface UpdateReleaseHistoryItem {
 interface UpdateAPI {
   check: () => Promise<{ success: boolean; data?: UpdateCheckResult; error?: string }>
   getHistory: () => Promise<{ success: boolean; data?: UpdateReleaseHistoryItem[]; error?: string }>
-  download: (
-    url: string
-  ) => Promise<{ success: boolean; data?: { version: string }; error?: string }>
   installLatest: () => Promise<{
     success: boolean
     data?: { version: string; latestVersion: string; applied: boolean }
@@ -100,19 +85,17 @@ interface InvoiceAPI {
   saveImageToDownloads: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string }>
 }
 
-interface SepayAPI {
-  fetchTransactions: (token: string) => Promise<{ ok: boolean, error?: string, data?: unknown }>
-}
-
 declare global {
   interface Window {
-    electron: ElectronAPI
+    electron: {
+      process: {
+        versions: NodeJS.ProcessVersions
+      }
+    }
     api: {
       db: DbAPI
       zalo: ZaloAPI
-      bank: BankAPI
       invoice: InvoiceAPI
-      sepay: SepayAPI
       update: UpdateAPI
     }
   }

@@ -1,5 +1,9 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
+const electronAPI = {
+  process: {
+    versions: process.versions
+  }
+}
 
 // Custom APIs for renderer - Database IPC
 const api = {
@@ -17,10 +21,6 @@ const api = {
     }): Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }> =>
       ipcRenderer.invoke('zalo:send', payload)
   },
-  bank: {
-    lookup: (bin: string, accountNumber: string): Promise<{ ok: boolean; error?: string; data?: unknown }> =>
-      ipcRenderer.invoke('bank:lookup', bin, accountNumber)
-  },
   invoice: {
     saveImage: (payload: { html: string, fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
       ipcRenderer.invoke('invoice:saveImage', payload),
@@ -31,27 +31,9 @@ const api = {
     savePDF: (payload: { html: string; fileName: string }): Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }> =>
       ipcRenderer.invoke('contract:savePDF', payload)
   },
-  sepay: {
-    fetchTransactions: (token: string): Promise<{ ok: boolean, error?: string, data?: unknown }> =>
-      ipcRenderer.invoke('sepay:fetchTransactions', token)
-  },
-  supabase: {
-    admin: {
-      createUser: (data: {
-        email: string; password: string; full_name: string; username?: string
-      }): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-        ipcRenderer.invoke('supabase:admin:createUser', data),
-      resetPassword: (userId: string, newPassword: string): Promise<{ ok: boolean; error?: string }> =>
-        ipcRenderer.invoke('supabase:admin:resetPassword', userId, newPassword),
-      deleteUser: (userId: string): Promise<{ ok: boolean; error?: string }> =>
-        ipcRenderer.invoke('supabase:admin:deleteUser', userId),
-      updateUser: (userId: string, updates: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
-        ipcRenderer.invoke('supabase:admin:updateUser', userId, updates)
-    }
-  },  update: {
+  update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),
-    download: (url: string): Promise<unknown> => ipcRenderer.invoke('update:download', url),
     installLatest: (): Promise<unknown> => ipcRenderer.invoke('update:installLatest'),
     getCurrentVersion: (): Promise<unknown> => ipcRenderer.invoke('update:getCurrentVersion'),
     onAvailable: (callback: (data: unknown) => void): (() => void) => {

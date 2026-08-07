@@ -18,7 +18,7 @@ import {
   type InvoicePaymentRecord,
   type AppUser
 } from '../lib/db'
-import { CashFlowTab, SegmentedDateInput } from './CashFlowTab'
+import { CashFlowTab } from './CashFlowTab'
 import { OverviewTab } from './OverviewTab'
 
 type InvoiceDrillType =
@@ -91,6 +91,7 @@ type InvoiceCashRow = {
 }
 
 type ReportPeriodMode = 'all' | 'range' | 'daily'
+type DatePickerKey = 'single' | 'start' | 'end'
 
 export type ReportPeriod = {
   mode: ReportPeriodMode
@@ -109,6 +110,23 @@ const iso = (date: Date) => {
   return `${y}-${m}-${d}`
 }
 
+const parseIsoDate = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number)
+  if (!year || !month || !day) return new Date()
+  return new Date(year, month - 1, day)
+}
+
+const addMonths = (date: Date, amount: number) =>
+  new Date(date.getFullYear(), date.getMonth() + amount, 1)
+
+const sameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate()
+
+const monthLabel = (date: Date) =>
+  `Tháng ${date.getMonth() + 1}, ${date.getFullYear()}`
+
 type ExpenseCategoryOption = { value: CashTransactionCategory; label: string }
 
 const toExpenseOptions = (categories: ExpenseCategory[]): ExpenseCategoryOption[] =>
@@ -119,6 +137,142 @@ const toExpenseOptions = (categories: ExpenseCategory[]): ExpenseCategoryOption[
 const categoryLabel = (category: CashTransactionCategory, options: ExpenseCategoryOption[]) =>
   options.find((item) => item.value === category)?.label ||
   (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
+
+
+function ReportDatePicker({
+  label,
+  value,
+  pickerKey,
+  activePicker,
+  onOpen,
+  onChange
+}: {
+  label: string
+  value: string
+  pickerKey: DatePickerKey
+  activePicker: DatePickerKey | null
+  onOpen: (key: DatePickerKey | null) => void
+  onChange: (value: string) => void
+}) {
+  const selectedDate = parseIsoDate(value)
+  const [visibleMonth, setVisibleMonth] = useState(
+    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1)
+  )
+  const open = activePicker === pickerKey
+  const today = new Date()
+  const weekDays = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+  const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1)
+  const startOffset = (firstDay.getDay() + 6) % 7
+  const gridStart = new Date(firstDay)
+  gridStart.setDate(firstDay.getDate() - startOffset)
+  const days = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart)
+    date.setDate(gridStart.getDate() + index)
+    return date
+  })
+
+  useEffect(() => {
+    if (open) {
+      setVisibleMonth(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1))
+    }
+  }, [open, selectedDate.getFullYear(), selectedDate.getMonth()])
+
+  return (
+    <div className="relative">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">
+        {label}
+      </label>
+      <button
+        type="button"
+        onClick={() => onOpen(open ? null : pickerKey)}
+        className={`w-full flex items-center justify-between rounded-xl border px-3 py-2.5 text-left text-sm font-bold tabular-nums transition ${
+          open
+            ? 'border-primary bg-white text-slate-900 ring-2 ring-primary/10'
+            : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-primary/40 hover:bg-white'
+        }`}
+      >
+        <span>{formatDateToDDMMYYYY(selectedDate)}</span>
+        <i className="fa-regular fa-calendar-days text-primary"></i>
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-[120] mt-2 w-[288px] rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl">
+          <div className="mb-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            >
+              <i className="fa-solid fa-chevron-left text-xs"></i>
+            </button>
+            <div className="text-sm font-black text-slate-800">{monthLabel(visibleMonth)}</div>
+            <button
+              type="button"
+              onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            >
+              <i className="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center">
+            {weekDays.map(day => (
+              <div key={day} className="py-1 text-[10px] font-black text-slate-400">
+                {day}
+              </div>
+            ))}
+            {days.map(date => {
+              const isCurrentMonth = date.getMonth() === visibleMonth.getMonth()
+              const isSelected = sameDay(date, selectedDate)
+              const isToday = sameDay(date, today)
+              return (
+                <button
+                  key={iso(date)}
+                  type="button"
+                  onClick={() => {
+                    onChange(iso(date))
+                    onOpen(null)
+                  }}
+                  className={`h-8 rounded-lg text-xs font-bold tabular-nums transition ${
+                    isSelected
+                      ? 'bg-primary text-white shadow-sm'
+                      : isToday
+                        ? 'bg-primary/10 text-primary'
+                        : isCurrentMonth
+                          ? 'text-slate-700 hover:bg-slate-100'
+                          : 'text-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {date.getDate()}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
+            <button
+              type="button"
+              onClick={() => {
+                onChange(iso(today))
+                onOpen(null)
+              }}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10"
+            >
+              Hôm nay
+            </button>
+            <button
+              type="button"
+              onClick={() => onOpen(null)}
+              className="rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 const getInvoiceDate = (invoice: Invoice) =>
   invoice.invoice_date ||
@@ -285,6 +439,7 @@ export function BusinessReport({
   const [expandedWaterBuilding, setExpandedWaterBuilding] = useState<string | null>(null)
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [activeDatePicker, setActiveDatePicker] = useState<DatePickerKey | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Temp states for Shopee-style date selector
@@ -302,6 +457,7 @@ export function BusinessReport({
       setTempSelectedDate(selectedDate)
     }
     setDropdownOpen(!dropdownOpen)
+    if (dropdownOpen) setActiveDatePicker(null)
   }
 
   const handleApply = () => {
@@ -310,16 +466,19 @@ export function BusinessReport({
     setEndDate(tempEndDate)
     setSelectedDate(tempSelectedDate)
     setDropdownOpen(false)
+    setActiveDatePicker(null)
   }
 
   const handleCancel = () => {
     setDropdownOpen(false)
+    setActiveDatePicker(null)
   }
 
   const selectPreset = (
     mode: 'all' | 'today' | 'week' | 'month' | 'last_month' | 'custom_daily' | 'custom_range'
   ) => {
     const now = new Date()
+    setActiveDatePicker(null)
     if (mode === 'all') {
       setTempPeriodMode('all')
     } else if (mode === 'today') {
@@ -343,8 +502,10 @@ export function BusinessReport({
       setTempEndDate(iso(end))
     } else if (mode === 'custom_daily') {
       setTempPeriodMode('daily')
+      setActiveDatePicker('single')
     } else if (mode === 'custom_range') {
       setTempPeriodMode('range')
+      setActiveDatePicker('start')
     }
   }
 
@@ -352,6 +513,7 @@ export function BusinessReport({
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false)
+        setActiveDatePicker(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -1012,7 +1174,7 @@ export function BusinessReport({
             </button>
 
             {dropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[460px] rounded-2xl border border-slate-100 bg-white shadow-2xl z-[99] flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-[460px] rounded-2xl border border-slate-100 bg-white shadow-2xl z-[99] flex flex-col overflow-visible animate-in fade-in slide-in-from-top-1 duration-150">
                 <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
                   <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
                     <i className="fa-solid fa-clock-rotate-left text-slate-400"></i>
@@ -1093,37 +1255,34 @@ export function BusinessReport({
                     )}
 
                     {tempPeriodMode === 'daily' && (
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                          Chọn ngày báo cáo
-                        </label>
-                        <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
-                          <SegmentedDateInput
-                            value={tempSelectedDate}
-                            onChange={setTempSelectedDate}
-                          />
-                        </div>
-                      </div>
+                      <ReportDatePicker
+                        label="Chọn ngày báo cáo"
+                        value={tempSelectedDate}
+                        pickerKey="single"
+                        activePicker={activeDatePicker}
+                        onOpen={setActiveDatePicker}
+                        onChange={setTempSelectedDate}
+                      />
                     )}
 
                     {tempPeriodMode === 'range' && (
                       <div className="space-y-3">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Từ ngày
-                          </label>
-                          <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
-                            <SegmentedDateInput value={tempStartDate} onChange={setTempStartDate} />
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                            Đến ngày
-                          </label>
-                          <div className="w-full border border-slate-200 rounded-xl px-3 py-2 bg-slate-50/50 focus-within:bg-white focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition">
-                            <SegmentedDateInput value={tempEndDate} onChange={setTempEndDate} />
-                          </div>
-                        </div>
+                        <ReportDatePicker
+                          label="Từ ngày"
+                          value={tempStartDate}
+                          pickerKey="start"
+                          activePicker={activeDatePicker}
+                          onOpen={setActiveDatePicker}
+                          onChange={setTempStartDate}
+                        />
+                        <ReportDatePicker
+                          label="Đến ngày"
+                          value={tempEndDate}
+                          pickerKey="end"
+                          activePicker={activeDatePicker}
+                          onOpen={setActiveDatePicker}
+                          onChange={setTempEndDate}
+                        />
                       </div>
                     )}
                   </div>

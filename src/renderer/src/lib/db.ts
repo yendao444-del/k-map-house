@@ -1359,17 +1359,23 @@ export const deleteMoveInReceipt = async (id: string): Promise<void> => {
 // SETTINGS & USERS
 // =========================================================
 export const getAppSettings = async (): Promise<AppSettings> => {
-  const { data } = await supabase.from('app_settings').select('*').limit(1).maybeSingle()
-  return (data as any as AppSettings) || {}
+  const data = await safeQuery<any[]>(() => supabase
+    .from('app_settings')
+    .select('id,bank_id,account_no,account_name,property_name,property_address,property_owner_name,property_owner_phone,property_owner_id_card,notification_read_ids,contract_template,opening_balance_cash,opening_balance_bank,opening_balance_date')
+    .limit(1))
+  return (data?.[0] as AppSettings) || {}
 }
 
 export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
-  const { data: existing } = await supabase.from('app_settings').select('id').limit(1).maybeSingle()
-  if (existing) {
-    const result = await safeQuery(() => supabase.from('app_settings').update(updates).eq('id', (existing as any).id).select().single())
+  const safeUpdates = { ...updates }
+  delete safeUpdates.sepay_api_token
+  const existingRows = await safeQuery<any[]>(() => supabase.from('app_settings').select('id').limit(1))
+  const existing = existingRows?.[0]
+  if (existing?.id) {
+    const result = await safeQuery(() => supabase.from('app_settings').update(safeUpdates).eq('id', existing.id).select().single())
     return result as any as AppSettings
   } else {
-    const result = await safeQuery(() => supabase.from('app_settings').insert({ ...updates, id: 'settings' }).select().single())
+    const result = await safeQuery(() => supabase.from('app_settings').upsert({ ...safeUpdates, id: 'settings' }, { onConflict: 'id' }).select().single())
     return result as any as AppSettings
   }
 }
@@ -1392,9 +1398,9 @@ export const createUserViaAdmin = async (data: {
   username?: string
   role?: UserRole
 }): Promise<AppUser> => {
-  const ipcAdmin = (window as any).api?.supabase?.admin
-  if (!ipcAdmin) throw new Error('Chuc nang tao tai khoan yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
-  const res = await ipcAdmin.createUser({ email: data.email.trim(), password: data.password, full_name: data.full_name.trim(), username: data.username })
+  const res = await invokeAdminBridge('admin_create', {
+    data: { email: data.email.trim(), password: data.password, full_name: data.full_name.trim(), username: data.username }
+  })
   if (!res.ok) throw new Error(res.error || 'Khong the tao tai khoan.')
   const authUser = (res.data as any)?.user ?? (res.data as any)
   const userId = authUser?.id
@@ -1432,9 +1438,7 @@ export const updateUserRole = async (userId: string, role: UserRole): Promise<Ap
 export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => { return updateUser(userId, { status }) }
 export const updateUserProfile = async (userId: string, data: { full_name: string }): Promise<AppUser> => { return updateUser(userId, data) }
 export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
-  const ipcAdminPwd = (window as any).api?.supabase?.admin
-  if (!ipcAdminPwd) throw new Error('Chuc nang doi mat khau yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
-  const result = await ipcAdminPwd.resetPassword(userId, newPassword)
+  const result = await invokeAdminBridge('admin_reset_password', { userId, password: newPassword })
   if (!result?.ok) throw new Error(result?.error || 'Khong the doi mat khau')
 }
 
@@ -1444,9 +1448,7 @@ export const changeOwnPassword = async (newPassword: string): Promise<void> => {
 }
 
 export const deleteUser = async (id: string): Promise<void> => {
-  const ipcAdminDel = (window as any).api?.supabase?.admin
-  if (!ipcAdminDel) throw new Error('Chuc nang xoa tai khoan yeu cau Electron voi SUPABASE_SERVICE_ROLE_KEY')
-  const result = await ipcAdminDel.deleteUser(id)
+  const result = await invokeAdminBridge('admin_delete', { userId: id })
   if (!result?.ok) throw new Error(result?.error || 'Khong the xoa tai khoan')
 }
 
@@ -1513,6 +1515,26 @@ export const signOutUser = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut()
   if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 }
+
+export const getCurrentAccessToken = async (): Promise<string> => {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.access_token || ''
+}
+
+type AdminBridgeResponse = { ok: boolean; data?: unknown; error?: string; configured?: boolean; maskedToken?: string }
+
+export const invokeAdminBridge = async (action: string, payload: Record<string, unknown> = {}): Promise<AdminBridgeResponse> => {
+  const { data, error } = await supabase.functions.invoke<AdminBridgeResponse>('admin-sepay-bridge', {
+    body: { action, ...payload },
+    headers: { Authorization: `Bearer ${await getCurrentAccessToken()}` }
+  })
+  if (error) return { ok: false, error: error.message }
+  return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ.' }
+}
+
+export const getSepayTokenStatus = (): Promise<AdminBridgeResponse> => invokeAdminBridge('sepay_status')
+export const setSepayToken = (token: string): Promise<AdminBridgeResponse> => invokeAdminBridge('sepay_set', { token })
+export const fetchSepayTransactions = (): Promise<AdminBridgeResponse> => invokeAdminBridge('sepay_fetch')
 
 // =========================================================
 // COMPATIBILITY (LEGACY)

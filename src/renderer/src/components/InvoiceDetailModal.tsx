@@ -373,9 +373,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
     try {
       const fileName = `HOA-DON-${room?.name || 'PHONG'}-T${String(invoice.month).padStart(2, '0')}-${invoice.year}.jpg`;
-      const saveImageFn =
-        window.api?.invoice?.saveImage ||
-        ((payload: { html: string; fileName: string }) => window.electron?.ipcRenderer?.invoke('invoice:saveImage', payload));
+      const saveImageFn = window.api?.invoice?.saveImage
 
       if (!saveImageFn) throw new Error('Không tìm thấy chức năng lưu ảnh. Vui lòng khởi động lại ứng dụng.');
       const result = await saveImageFn({ html, fileName });
@@ -543,7 +541,7 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
               <div className="relative z-10 mx-7 mb-5 grid grid-cols-[170px_1fr] gap-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
                 <div className="flex items-center justify-center rounded border border-slate-200 bg-white p-2">
                   <img
-                    src={`https://qr.sepay.vn/img?bank=${settings.bank_id}&acc=${settings.account_no}&amount=${remaining}&des=${transferDescription}`}
+                    src={`https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id)}&acc=${encodeURIComponent(settings.account_no)}&amount=${encodeURIComponent(String(remaining))}&des=${encodeURIComponent(transferDescription)}`}
                     alt="VietQR"
                     className="h-[150px] w-[150px] object-contain"
                     crossOrigin="anonymous"
@@ -555,8 +553,9 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                     <span className="text-slate-500">Ngân hàng:</span><b>{settings.bank_id}</b>
                     <span className="text-slate-500">Số tài khoản:</span><b className="tracking-wide text-blue-700">{settings.account_no}</b>
                     <span className="text-slate-500">Chủ tài khoản:</span><b className="uppercase">{settings.account_name || ownerFullName}</b>
-                    <span className="font-bold text-slate-500">Số tiền:</span><b className="text-[24px] text-red-600">{formatVND(remaining)} VND</b>
+                    <span className="font-bold text-slate-500">Còn cần thu:</span><b className="text-[24px] text-red-600">{formatVND(remaining)} VND</b>
                   </div>
+                  <p className="mt-3 text-[11px] font-medium text-slate-500">Khách có thể tự nhập số tiền chuyển, giữ nguyên nội dung chuyển khoản.</p>
                   <div className="mt-4 rounded border border-dashed border-slate-300 bg-white p-2 font-mono text-[10px] text-slate-700">
                     Nội dung: <b className="text-[#002855]">{transferDescription}</b>
                   </div>

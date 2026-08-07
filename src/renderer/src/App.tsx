@@ -24,9 +24,12 @@ import {
   getRoomMoveInReceipts,
   getAssetSnapshotsByRoomIds,
   getAppSettings,
+  getSepayTokenStatus,
+  fetchSepayTransactions,
   getCurrentSessionUser,
   getCollectedDepositAmount,
   isDepositOnlyInvoice,
+  recordInvoicePayment,
   signOutUser,
   updateAppSettings,
   type Room,
@@ -34,7 +37,7 @@ import {
   type Invoice,
   type AppUser
 } from './lib/db'
-import { playSuccess, playCreate, playDelete, playClick, playNotification } from './lib/sound'
+import { playSuccess, playCreate, playDelete, playClick, playNotification, playPayment } from './lib/sound'
 import { EditableCell } from './components/EditableCell'
 import { LogoLoading } from './components/LogoLoading'
 
@@ -99,6 +102,8 @@ type SepayBackgroundMatch = {
   amount: number
   transactionId: string
   referenceNumber: string
+  transactionDate?: string
+  matchType: 'exact' | 'partial'
 }
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
@@ -1355,6 +1360,7 @@ const App: React.FC = () => {
   const [changeTargetRoom, setChangeTargetRoom] = useState<Room | null>(null)
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [sepaySyncOpenSignal, setSepaySyncOpenSignal] = useState(0)
+  const sepayAutoPaymentKeysRef = React.useRef(new Set<string>())
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
@@ -1702,16 +1708,20 @@ const App: React.FC = () => {
         .join('|'),
     [sepayPendingInvoices]
   )
-  const sepayApiToken = (appSettings.sepay_api_token || '').trim()
+  const { data: sepayTokenStatus } = useQuery({
+    queryKey: ['sepayTokenStatus'],
+    queryFn: getSepayTokenStatus,
+    staleTime: 60_000
+  })
 
   const { data: sepayBackgroundMatches = [] } = useQuery<SepayBackgroundMatch[]>({
-    queryKey: ['sepayBackgroundMatches', sepayApiToken, sepayPendingInvoicesKey],
-    enabled: Boolean(currentUser && sepayApiToken && sepayPendingInvoices.length > 0),
+    queryKey: ['sepayBackgroundMatches', Boolean(sepayTokenStatus?.configured), sepayPendingInvoicesKey],
+    enabled: Boolean(currentUser && sepayTokenStatus?.configured && sepayPendingInvoices.length > 0),
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     staleTime: 30_000,
     queryFn: async () => {
-      const res = (await window.api.sepay.fetchTransactions(sepayApiToken)) as SepayBackgroundFetchResult
+      const res = (await fetchSepayTransactions()) as SepayBackgroundFetchResult
       if (!res.ok || res.data?.status !== 200) return []
 
       const txs = res.data.transactions || []
@@ -1732,7 +1742,9 @@ const App: React.FC = () => {
 
         const invoice = matchedInvoices[0]
         const remaining = Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0))
-        if (Math.abs(amount - remaining) >= 1) continue
+        // CÃ¹ng má»™t mÃ£ chuyá»ƒn khoáº£n chá»‰ Ä‘á»‘i chiáº¿u má»™t hÃ³a Ä‘Æ¡n.
+        // Chuyá»ƒn thiáº¿u Ä‘Æ°á»£c ghi nháº­n lÃ  thu má»™t pháº§n; chuyá»ƒn dÆ° cáº§n duyá»‡t thá»§ cÃ´ng.
+        if (amount > remaining) continue
 
         const room = roomById.get(invoice.room_id)
         matches.push({
@@ -1741,13 +1753,62 @@ const App: React.FC = () => {
           tenantName: room?.tenant_name || '',
           amount,
           transactionId: tx.id,
-          referenceNumber: tx.reference_number || ''
+          referenceNumber: tx.reference_number || '',
+          transactionDate: tx.transaction_date,
+          matchType: Math.abs(amount - remaining) < 1 ? 'exact' : 'partial'
         })
       }
 
       return matches.slice(0, 9)
     }
   })
+
+  useEffect(() => {
+    if (sepayBackgroundMatches.length === 0) return
+
+    let disposed = false
+    const syncMatchedPayments = async () => {
+      let didSync = false
+
+      for (const match of sepayBackgroundMatches) {
+        const transactionKey = match.referenceNumber || match.transactionId
+        if (!transactionKey || sepayAutoPaymentKeysRef.current.has(transactionKey)) continue
+
+        sepayAutoPaymentKeysRef.current.add(transactionKey)
+        try {
+          const date = new Date(match.transactionDate || Date.now())
+          await recordInvoicePayment(match.invoice.id, {
+            amount: match.amount,
+            payment_method: 'transfer',
+            payment_date: Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10) : date.toISOString().slice(0, 10),
+            note: `Tự động thu qua SePay (${match.matchType === 'partial' ? 'thu một phần' : 'đủ tiền'}). Ref: ${transactionKey}`,
+            external_ref: match.referenceNumber || undefined,
+            external_id: match.transactionId || undefined,
+            source: 'sepay'
+          })
+          didSync = true
+        } catch (error) {
+          // A retry is allowed on the next SePay refresh; the DB-level idempotency
+          // check still prevents a transaction from being recorded twice.
+          sepayAutoPaymentKeysRef.current.delete(transactionKey)
+          console.error('Không thể tự động ghi nhận giao dịch SePay:', error)
+        }
+      }
+
+      if (!disposed && didSync) {
+        playPayment()
+        queryClient.invalidateQueries({ queryKey: ['invoices'] })
+        queryClient.invalidateQueries({ queryKey: ['rooms'] })
+        queryClient.invalidateQueries({ queryKey: ['contracts'] })
+        queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
+      }
+    }
+
+    void syncMatchedPayments()
+    return () => {
+      disposed = true
+    }
+  }, [queryClient, sepayBackgroundMatches])
 
   const serviceZoneById = useMemo(() => {
     const map = new Map<string, ServiceZone>()

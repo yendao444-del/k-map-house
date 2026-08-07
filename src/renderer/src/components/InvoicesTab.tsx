@@ -412,6 +412,7 @@ const buildInvoiceDetailExportHtml = (
     .qr-title { font-size: 15px; font-weight: 900; text-transform: uppercase; color: #002855; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
     .qr-grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 0; }
     .qr-money { color: #dc2626; font-size: 24px; font-weight: 900; }
+    .qr-hint { margin-top: 10px; color: #64748b; font-size: 11px; line-height: 1.45; }
     .qr-des { margin-top: 16px; display: block; background: #fff; border: 1px dashed #cbd5e1; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 10px; }
     .footer { position: relative; z-index: 1; margin: 0 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; border-top: 2px solid #002855; background: #fff; padding: 16px; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(0, 40, 85, .7); }
   </style>
@@ -519,15 +520,16 @@ const buildInvoiceDetailExportHtml = (
         ${note ? `<div class="section note"><span class="bold">Ghi chú:</span> ${escapeHtml(note)}</div>` : ''}
         ${transferDes ? `
           <div class="qr">
-            <div class="qr-box"><img src="https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id || '')}&acc=${encodeURIComponent(settings.account_no || '')}&amount=${remaining}&des=${encodeURIComponent(transferDes)}" alt="VietQR" /></div>
+            <div class="qr-box"><img src="https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id || '')}&acc=${encodeURIComponent(settings.account_no || '')}&amount=${encodeURIComponent(String(remaining))}&des=${encodeURIComponent(transferDes)}" alt="VietQR" /></div>
             <div class="qr-info">
               <div class="qr-title">Quét mã để thanh toán</div>
               <div class="qr-grid">
                 <span>Ngân hàng:</span><span class="bold">${escapeHtml(settings.bank_id)}</span>
                 <span>Số tài khoản:</span><span class="bold">${escapeHtml(settings.account_no)}</span>
                 <span>Chủ tài khoản:</span><span class="bold">${escapeHtml((settings.account_name || ownerFullName).toUpperCase())}</span>
-                <span>Số tiền:</span><span class="qr-money">${formatVND(remaining)} VNĐ</span>
+                <span>Còn cần thu:</span><span class="qr-money">${formatVND(remaining)} VNĐ</span>
               </div>
+              <div class="qr-hint">Khách có thể tự nhập số tiền chuyển, giữ nguyên nội dung chuyển khoản.</div>
               <div class="qr-des">Nội dung: <span class="bold">${escapeHtml(transferDes)}</span></div>
             </div>
           </div>` : ''}
@@ -598,7 +600,6 @@ export const InvoicesTab: React.FC<{
 
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
   const { data: appSettings = {}, isLoading: isSettingsLoading } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings });
-  const sepayApiToken = (appSettings?.sepay_api_token || '').trim();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
@@ -1295,7 +1296,6 @@ export const InvoicesTab: React.FC<{
 
       {showSePaySync && !isSettingsLoading && (
         <SePaySyncModal
-          apiToken={sepayApiToken}
           invoices={invoices}
           rooms={rooms}
           onClose={() => setShowSePaySync(false)}

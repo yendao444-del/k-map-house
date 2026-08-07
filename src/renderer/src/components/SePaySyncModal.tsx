@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { recordInvoicePayment, type Invoice, type Room } from '../lib/db'
+import { fetchSepayTransactions, recordInvoicePayment, type Invoice, type Room } from '../lib/db'
 import { buildInvoiceTransferDescription, normalizeTransferText } from '../lib/invoiceTransfer'
 import { playPayment } from '../lib/sound'
 import { LogoLoading } from './LogoLoading'
 
 interface SePaySyncModalProps {
-  apiToken: string
   invoices: Invoice[]
   rooms: Room[]
   onClose: () => void
@@ -25,7 +24,7 @@ interface SepayTransaction {
 }
 
 interface SepayResponse {
-  status: number
+  status?: number | string
   error?: string
   transactions?: SepayTransaction[]
 }
@@ -66,9 +65,8 @@ const getInvoiceTitle = (invoice: Invoice): string => {
   return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`
 }
 
-export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoices, rooms, onClose }) => {
+export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms, onClose }) => {
   const queryClient = useQueryClient()
-  const normalizedApiToken = apiToken.trim()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [matches, setMatches] = useState<MatchResult[]>([])
@@ -226,11 +224,13 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
     setError('')
 
     try {
-      const res = (await window.api.sepay.fetchTransactions(normalizedApiToken)) as SepayFetchResult
+      const res = (await fetchSepayTransactions()) as SepayFetchResult
       if (!res.ok) throw new Error(res.error || 'Lỗi kết nối API SePay')
 
       const data = res.data
-      if (data.status !== 200) throw new Error(data.error || 'Lỗi từ API SePay')
+      if (data.status !== undefined && Number(data.status) !== 200) {
+        throw new Error(data.error || `SePay trả mã trạng thái ${data.status}`)
+      }
 
       const txs = data.transactions || []
       const foundMatches: MatchResult[] = []
@@ -261,12 +261,14 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
         const needToPay = inv.total_amount - inv.paid_amount
 
         // Strict: chỉ cho phép sync khi số tiền đúng bằng số còn nợ.
-        if (Math.abs(amount - needToPay) >= 1) return
+        // A unique transfer code can safely receive a partial payment. Payments
+        // above the outstanding balance stay out of automatic reconciliation.
+        if (!Number.isFinite(amount) || amount <= 0 || amount > needToPay) return
 
         foundMatches.push({
           invoice: inv,
           transaction: tx,
-          matchType: 'exact'
+          matchType: Math.abs(amount - needToPay) < 1 ? 'exact' : 'partial'
         })
       })
 
@@ -281,13 +283,8 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
   }
 
   useEffect(() => {
-    if (!normalizedApiToken) {
-      setError('Vui lòng thiết lập API Token của SePay trong tab Cài đặt trước.')
-      setLoading(false)
-      return
-    }
     fetchTransactions()
-  }, [normalizedApiToken, invoices, rooms])
+  }, [invoices, rooms])
 
   const updateMutation = useMutation({
     mutationFn: async ({ match }: { match: MatchResult }) => {
@@ -514,7 +511,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-sm font-semibold text-gray-600 mb-2">Phát hiện {matches.length} giao dịch khớp tuyệt đối:</div>
+              <div className="text-sm font-semibold text-gray-600 mb-2">Phát hiện {matches.length} giao dịch khớp mã hóa đơn:</div>
               {matches.map((match) => {
                 const actual = Number(match.transaction.amount_in)
                 const invoice = match.invoice
@@ -568,7 +565,11 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
                         <div className="mt-2 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 border border-slate-100">
                           {match.transaction.transaction_content || 'Không có nội dung chuyển khoản'}
                         </div>
-                        <div className="mt-2 text-xs text-green-600 font-bold">Khớp mã + khớp đúng số tiền. Có thể duyệt chốt phiếu.</div>
+                        <div className={`mt-2 text-xs font-bold ${match.matchType === 'exact' ? 'text-green-600' : 'text-amber-600'}`}>
+                          {match.matchType === 'exact'
+                            ? 'Khớp mã và đúng số tiền. Có thể chốt phiếu.'
+                            : `Khớp mã, thu một phần. Còn thu ${formatVND(Math.max(0, remaining - actual))} đ sau giao dịch này.`}
+                        </div>
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0 justify-center">
@@ -577,7 +578,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ apiToken, invoic
                           disabled={updateMutation.isPending || isProcessing}
                           className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-xs font-bold transition shadow-sm border border-emerald-600 disabled:opacity-50"
                         >
-                          Duyệt: Chốt phiếu
+                          {match.matchType === 'exact' ? 'Duyệt: Chốt phiếu' : `Duyệt: Thu ${formatVND(actual)} đ`}
                         </button>
                       </div>
                     </div>

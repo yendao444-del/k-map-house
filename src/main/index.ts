@@ -1,6 +1,5 @@
 ﻿import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
 import 'dotenv/config'
-import * as https from 'https'
 import { extname, join } from 'path'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -136,7 +135,7 @@ function setupZaloHandlers(): void {
         height: 1180,
         show: false,
         frame: false,
-        webPreferences: { sandbox: false }
+        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
       })
 
       const htmlWithTailwind = payload.html.replace(
@@ -181,7 +180,7 @@ function setupInvoiceHandlers(): void {
       height: 1180,
       show: false,
       frame: false,
-      webPreferences: { sandbox: false }
+      webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
     })
 
     writeFileSync(htmlPath, rawHtml, 'utf-8')
@@ -313,7 +312,7 @@ function setupInvoiceHandlers(): void {
         height: 1180,
         show: false,
         frame: false,
-        webPreferences: { sandbox: false }
+        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
       })
 
       const htmlWithTailwind = rawHtml.replace(
@@ -444,7 +443,7 @@ function setupContractHandlers(): void {
         height: 1123,
         show: false,
         frame: false,
-        webPreferences: { sandbox: false }
+        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
       })
 
       try {
@@ -471,9 +470,44 @@ function setupContractHandlers(): void {
 }
 
 
+/* Legacy privileged IPC handlers. Replaced by the authenticated Supabase Edge Function.
+function verifyAdminAccessToken(accessToken: unknown): Promise<{ ok: boolean; error?: string }> {
+  const token = typeof accessToken === 'string' ? accessToken.trim() : ''
+  const supabaseUrl = process.env.SUPABASE_URL || ''
+  const serviceRoleKey = ''
+  if (!token || !supabaseUrl || !serviceRoleKey) return Promise.resolve({ ok: false, error: 'Phiên đăng nhập không hợp lệ.' })
 
+  const request = (path: string): Promise<{ status: number; data: any }> => new Promise((resolve, reject) => {
+    const urlObj = new URL(supabaseUrl)
+    const req = https.request({
+      hostname: urlObj.hostname,
+      path,
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}`, apikey: serviceRoleKey, Accept: 'application/json' }
+    }, (res) => {
+      let body = ''
+      res.on('data', (chunk: Buffer) => { body += chunk.toString() })
+      res.on('end', () => {
+        try { resolve({ status: res.statusCode || 500, data: body ? JSON.parse(body) : null }) }
+        catch { resolve({ status: res.statusCode || 500, data: null }) }
+      })
+    })
+    req.on('error', reject)
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Yêu cầu xác thực quá thời gian chờ.')) })
+    req.end()
+  })
 
-
+  return request('/auth/v1/user').then(async (authResult) => {
+    const userId = authResult.status === 200 ? authResult.data?.id : ''
+    if (!userId) return { ok: false, error: 'Phiên đăng nhập đã hết hạn.' }
+    const profileResult = await request(`/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=role,status`)
+    const profile = Array.isArray(profileResult.data) ? profileResult.data[0] : null
+    if (profileResult.status !== 200 || profile?.role !== 'admin' || profile?.status !== 'active') {
+      return { ok: false, error: 'Bạn không có quyền quản trị.' }
+    }
+    return { ok: true }
+  }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Không thể xác thực phiên.' }))
+}
 
 function setupSupabaseAdminHandlers(): void {
   ipcMain.removeHandler('supabase:admin:createUser')
@@ -482,7 +516,7 @@ function setupSupabaseAdminHandlers(): void {
   ipcMain.removeHandler('supabase:admin:updateUser')
 
   const supabaseUrl = process.env.SUPABASE_URL || ''
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  const serviceRoleKey = ''
 
   function supabaseAdminRequest(
     method: string,
@@ -529,7 +563,9 @@ function setupSupabaseAdminHandlers(): void {
 
   ipcMain.handle('supabase:admin:createUser', async (_event, data: {
     email: string; password: string; full_name: string; username?: string
-  }) => {
+  }, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
     return supabaseAdminRequest('POST', '/auth/v1/admin/users', {
       email: data.email,
       password: data.password,
@@ -538,15 +574,21 @@ function setupSupabaseAdminHandlers(): void {
     })
   })
 
-  ipcMain.handle('supabase:admin:resetPassword', async (_event, userId: string, newPassword: string) => {
+  ipcMain.handle('supabase:admin:resetPassword', async (_event, userId: string, newPassword: string, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
     return supabaseAdminRequest('PUT', `/auth/v1/admin/users/${userId}`, { password: newPassword })
   })
 
-  ipcMain.handle('supabase:admin:deleteUser', async (_event, userId: string) => {
+  ipcMain.handle('supabase:admin:deleteUser', async (_event, userId: string, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
     return supabaseAdminRequest('DELETE', `/auth/v1/admin/users/${userId}`)
   })
 
-  ipcMain.handle('supabase:admin:updateUser', async (_event, userId: string, updates: Record<string, unknown>) => {
+  ipcMain.handle('supabase:admin:updateUser', async (_event, userId: string, updates: Record<string, unknown>, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
     return supabaseAdminRequest('PUT', `/auth/v1/admin/users/${userId}`, updates)
   })
 }
@@ -596,9 +638,88 @@ function setupBankLookupHandlers(): void {
 }
 
 function setupSepayHandlers(): void {
+  const supabaseUrl = process.env.SUPABASE_URL || ''
+  const serviceRoleKey = ''
+
+  const requestSecret = (method: string, path: string, body?: unknown): Promise<{ ok: boolean; data?: unknown; error?: string }> =>
+    new Promise((resolve) => {
+      if (!supabaseUrl || !serviceRoleKey) {
+        resolve({ ok: false, error: 'Chưa cấu hình Supabase service role.' })
+        return
+      }
+      const urlObj = new URL(supabaseUrl)
+      const bodyStr = body === undefined ? undefined : JSON.stringify(body)
+      const req = https.request({
+        hostname: urlObj.hostname,
+        path,
+        method,
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: serviceRoleKey,
+          'Content-Type': 'application/json',
+          Prefer: 'return=representation,resolution=merge-duplicates',
+          ...(bodyStr ? { 'Content-Length': Buffer.byteLength(bodyStr) } : {})
+        }
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk: Buffer) => { data += chunk.toString() })
+        res.on('end', () => {
+          try {
+            const parsed = data ? JSON.parse(data) : null
+            const ok = (res.statusCode || 500) < 300
+            resolve(ok ? { ok: true, data: parsed } : { ok: false, error: parsed?.message || `HTTP ${res.statusCode}` })
+          } catch {
+            resolve({ ok: false, error: 'Phản hồi không hợp lệ từ Supabase.' })
+          }
+        })
+      })
+      req.on('error', (err: Error) => resolve({ ok: false, error: err.message }))
+      req.setTimeout(10000, () => { req.destroy(); resolve({ ok: false, error: 'Yêu cầu quá thời gian chờ.' }) })
+      if (bodyStr) req.write(bodyStr)
+      req.end()
+    })
+
+  const readSepayToken = async (): Promise<string> => {
+    const result = await requestSecret('GET', '/rest/v1/app_secrets?id=eq.default&select=sepay_api_token')
+    if (!result.ok) throw new Error(result.error || 'Không đọc được cấu hình SePay.')
+    const row = Array.isArray(result.data) ? result.data[0] : null
+    return typeof row?.sepay_api_token === 'string' ? row.sepay_api_token.trim() : ''
+  }
+
+  ipcMain.removeHandler('sepay:getTokenStatus')
+  ipcMain.removeHandler('sepay:setToken')
   ipcMain.removeHandler('sepay:fetchTransactions')
 
-  ipcMain.handle('sepay:fetchTransactions', (_event, token: string) => {
+  ipcMain.handle('sepay:getTokenStatus', async (_event, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return { ...auth, configured: false }
+    try {
+      const token = await readSepayToken()
+      return { ok: true, configured: Boolean(token), maskedToken: token ? `••••••••${token.slice(-4)}` : '' }
+    } catch (error) {
+      return { ok: false, configured: false, error: error instanceof Error ? error.message : 'Không đọc được cấu hình SePay.' }
+    }
+  })
+
+  ipcMain.handle('sepay:setToken', async (_event, rawToken: string, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
+    const token = typeof rawToken === 'string' ? rawToken.trim() : ''
+    if (token && token.length < 12) return { ok: false, error: 'API Token SePay không hợp lệ.' }
+    const result = await requestSecret('POST', '/rest/v1/app_secrets', { id: 'default', sepay_api_token: token || null })
+    return result.ok ? { ok: true } : { ok: false, error: result.error }
+  })
+
+  ipcMain.handle('sepay:fetchTransactions', async (_event, accessToken: string) => {
+    const auth = await verifyAdminAccessToken(accessToken)
+    if (!auth.ok) return auth
+    let token = ''
+    try {
+      token = await readSepayToken()
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'Không đọc được cấu hình SePay.' }
+    }
+    if (!token) return { ok: false, error: 'Vui lòng thiết lập API Token SePay trong Cài đặt.' }
     return new Promise((resolve) => {
       const options = {
         hostname: 'my.sepay.vn',
@@ -606,7 +727,9 @@ function setupSepayHandlers(): void {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'AN-KHANG-HOME/1.0'
         }
       }
       const req = https.request(options, (res) => {
@@ -615,10 +738,18 @@ function setupSepayHandlers(): void {
           data += chunk.toString()
         })
         res.on('end', () => {
+          const statusCode = res.statusCode || 0
           try {
-            resolve({ ok: true, data: JSON.parse(data) })
+            const parsed = JSON.parse(data)
+            if (statusCode >= 400) {
+              const detail = parsed?.error || parsed?.message || `HTTP ${statusCode}`
+              resolve({ ok: false, error: `SePay từ chối yêu cầu (${statusCode}): ${detail}` })
+              return
+            }
+            resolve({ ok: true, data: parsed })
           } catch {
-            resolve({ ok: false, error: 'Phản hồi không hợp lệ từ SePay.' })
+            const detail = data.trim().replace(/\s+/g, ' ').slice(0, 180)
+            resolve({ ok: false, error: `SePay trả phản hồi không phải JSON (HTTP ${statusCode})${detail ? `: ${detail}` : '.'}` })
           }
         })
       })
@@ -633,6 +764,8 @@ function setupSepayHandlers(): void {
     })
   })
 }
+
+*/
 
 /* function setupAuthHandlers(): void {
   ipcMain.handle('auth:ensureAdmin', async () => {
@@ -740,7 +873,9 @@ function createWindow(): void {
       : {}),
     webPreferences: {
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: true,
+      nodeIntegration: false,
+      contextIsolation: true
     }
   })
 
@@ -774,7 +909,13 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    try {
+      const url = new URL(details.url)
+      if (url.protocol !== 'https:') return { action: 'deny' }
+      void shell.openExternal(url.toString())
+    } catch {
+      return { action: 'deny' }
+    }
     return { action: 'deny' }
   })
 
@@ -805,9 +946,7 @@ app.whenReady().then(() => {
   setupZaloHandlers()
   setupInvoiceHandlers()
   setupContractHandlers()
-  setupSupabaseAdminHandlers()
-  setupBankLookupHandlers()
-  setupSepayHandlers()
+  // Privileged Supabase and SePay operations run through the authenticated Edge Function.
   registerUpdateHandlers()
   createWindow()
 

@@ -17,6 +17,8 @@ import {
   deleteServiceZone,
   deleteUser,
   getAppSettings,
+  getSepayTokenStatus,
+  setSepayToken,
   getContracts,
   getRooms,
   getServiceZones,
@@ -140,7 +142,6 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   const [showBankDropdown, setShowBankDropdown] = useState(false)
   const [qrPreviewUrl, setQrPreviewUrl] = useState('')
   const [qrPreviewError, setQrPreviewError] = useState('')
-  const [isLookingUp, setIsLookingUp] = useState(false)
   const propertyNameInputRef = useRef<HTMLInputElement | null>(null)
   const bankDropdownRef = useRef<HTMLDivElement | null>(null)
 
@@ -239,8 +240,12 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const value = await getAppSettings()
+        const [value, tokenStatus] = await Promise.all([
+          getAppSettings(),
+          getSepayTokenStatus()
+        ])
         const normalized = { ...(value || {}) }
+        if (tokenStatus.ok) normalized.sepay_api_token = tokenStatus.maskedToken || ''
         setSettings(normalized)
         setInitialSettings({ ...normalized })
         const normalizedName = normalizeAccountHolderName(normalized.account_name || '')
@@ -264,45 +269,16 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     return () => window.clearTimeout(timer)
   }, [loading])
 
-  const doLookup = async () => {
-    const bankId = settings.bank_id
-    const accountNo = settings.account_no?.replace(/\s+/g, '')
-    if (!bankId || !accountNo || accountNo.length < 5) return
-
-    const bin = bankOptions.find(b => b.id === bankId)?.bin
-    if (!bin) return
-
-    setIsLookingUp(true)
-    try {
-      const res = await window.api.bank.lookup(bin, accountNo)
-      if (res.ok && res.data && (res.data as any).data && typeof (res.data as any).data.accountName === 'string') {
-        const fetchedName = normalizeAccountHolderName((res.data as any).data.accountName)
-        setSettings(prev => ({ ...prev, account_name: fetchedName }))
-      }
-    } catch (err) {
-      console.error('Auto lookup bank name failed:', err)
-    } finally {
-      setIsLookingUp(false)
-    }
-  }
-
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      // Auto lookup using the same logic function after 1.5s
-      if (settings.bank_id && settings.account_no && settings.account_no.length >= 5 && !settings.account_name) {
-        doLookup()
-      }
-    }, 1500)
-
-    return () => clearTimeout(timeoutId)
-  }, [settings.bank_id, settings.account_no, settings.account_name])
-
   const handleSaveInfo = async () => {
     setInfoError('')
     setSavingInfo(true)
     try {
-      await updateAppSettings(infoSettings)
-      setInitialSettings((prev) => ({ ...prev, ...infoSettings }))
+      const saved = await updateAppSettings(infoSettings)
+      const merged = { ...infoSettings, ...saved }
+      queryClient.setQueryData<AppSettings>(['appSettings'], (current = {}) => ({ ...current, ...merged }))
+      void queryClient.invalidateQueries({ queryKey: ['appSettings'] })
+      setSettings((prev) => ({ ...prev, ...merged }))
+      setInitialSettings((prev) => ({ ...prev, ...merged }))
       setSavedInfo(true)
       setTimeout(() => setSavedInfo(false), 2500)
     } catch (error) {
@@ -322,6 +298,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     const accountNameRaw = (settings.account_name || '').trim()
     const accountName = normalizeAccountHolderName(accountNameRaw)
     const sepayApiToken = (settings.sepay_api_token || '').trim()
+    const initialSepayApiToken = (initialSettings.sepay_api_token || '').trim()
 
     if (bankId || accountNo || accountName) {
       if (!bankId) { setPaymentError('Vui lòng chọn ngân hàng'); return }
@@ -332,15 +309,21 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
 
     setSavingPayment(true)
     try {
-      const savedPaymentSettings = { ...paymentSettings, account_name: accountName, sepay_api_token: sepayApiToken }
+      const savedPaymentSettings = { ...paymentSettings, account_name: accountName }
       await updateAppSettings(savedPaymentSettings)
+      if (sepayApiToken !== initialSepayApiToken) {
+        const tokenResult = await setSepayToken(sepayApiToken.startsWith('••') ? '' : sepayApiToken)
+        if (!tokenResult.ok) throw new Error(tokenResult.error || 'Không thể lưu API Token SePay.')
+      }
+      const tokenStatus = await getSepayTokenStatus()
+      const maskedToken = tokenStatus.ok ? (tokenStatus.maskedToken || '') : ''
       queryClient.setQueryData<AppSettings>(['appSettings'], (current = {}) => ({
         ...current,
         ...savedPaymentSettings
       }))
       void queryClient.invalidateQueries({ queryKey: ['appSettings'] })
-      setInitialSettings((prev) => ({ ...prev, ...savedPaymentSettings }))
-      setSettings((prev) => ({ ...prev, account_name: accountName, sepay_api_token: sepayApiToken }))
+      setInitialSettings((prev) => ({ ...prev, ...savedPaymentSettings, sepay_api_token: maskedToken }))
+      setSettings((prev) => ({ ...prev, account_name: accountName, sepay_api_token: maskedToken }))
       setSavedPayment(true)
       setTimeout(() => setSavedPayment(false), 2500)
       if (bankId && accountNo && accountName) {
@@ -528,13 +511,13 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
             <div className="flex flex-col gap-1.5">
               <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
                 <i className="fa-solid fa-hashtag text-gray-300" style={{ fontSize: 10 }} />
-                Số tài khoản
+                Số VA SePay
               </label>
               <input
                 type="text"
                 value={settings.account_no || ''}
-                onChange={(e) => setSettings((prev) => ({ ...prev, account_no: e.target.value, account_name: '' }))}
-                placeholder="0123456789"
+                onChange={(e) => setSettings((prev) => ({ ...prev, account_no: e.target.value }))}
+                placeholder="VD: 96247Q3PE9"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
               />
             </div>
@@ -544,11 +527,6 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
             <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
               <i className="fa-solid fa-id-card text-gray-300" style={{ fontSize: 10 }} />
               Chủ tài khoản
-              {isLookingUp && (
-                <span className="ml-2 text-violet-500 flex items-center gap-1 animate-pulse">
-                  <i className="fa-solid fa-circle-notch fa-spin"></i> Tra cứu...
-                </span>
-              )}
             </label>
             <div className="relative">
               <input
@@ -556,20 +534,11 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
                 value={settings.account_name || ''}
                 onChange={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value, false) }))}
                 onBlur={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value) }))}
-                placeholder="Nhập tên hoặc Vui lòng bấm [Lấy tên]..."
+                placeholder="Nhập đúng tên chủ tài khoản"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] uppercase text-gray-800 placeholder-gray-300 outline-none transition-all focus:border-violet-400 focus:bg-white focus:ring-3 focus:ring-violet-100"
               />
-              <button
-                type="button"
-                onClick={doLookup}
-                disabled={isLookingUp || !settings.bank_id || !settings.account_no}
-                className="absolute right-1.5 top-1.5 rounded-lg bg-violet-100 px-3 py-1 text-[11px] font-bold text-violet-600 hover:bg-violet-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                title="Lấy tên chủ tài khoản"
-              >
-                Lấy tên
-              </button>
             </div>
-            <p className="text-[11px] text-gray-400">Được tra cứu tự động từ Số tài khoản. Bạn có thể bấm [Lấy tên] nếu không cập nhật.</p>
+            <p className="text-[11px] text-gray-400">Nhập đúng tên người nhận. Số VA lấy từ trang quản trị SePay, không dùng STK ngân hàng gốc.</p>
           </div>
 
           <div className="flex flex-col gap-1.5 mt-2">
@@ -578,10 +547,10 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
               SePay API Token (Dùng để đồng bộ hóa đơn tự động)
             </label>
             <input
-              type="text"
+              type="password"
               value={settings.sepay_api_token || ''}
               onChange={(e) => setSettings((prev) => ({ ...prev, sepay_api_token: e.target.value }))}
-              placeholder="VD: 1N2UJKPXD9DAFHHQZHY0H..."
+              placeholder="Để trống nếu không muốn thay đổi token"
               className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
             />
             <p className="text-[11px] text-gray-400">Khóa API lấy từ trang Quản trị SePay để kết nối phần mềm.</p>

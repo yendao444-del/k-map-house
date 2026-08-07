@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import AdmZip from 'adm-zip'
 import { spawn } from 'child_process'
+import { createHash } from 'crypto'
 import {
   copyFileSync,
   createWriteStream,
@@ -22,6 +23,7 @@ interface ReleaseAsset {
   name: string
   size: number
   browser_download_url: string
+  digest?: string | null
 }
 
 interface GithubRelease {
@@ -35,6 +37,7 @@ interface LatestYmlInfo {
   version: string
   path: string
   size: number
+  sha512?: string
   releaseDate: string
 }
 
@@ -48,6 +51,7 @@ interface UpdateCheckResult {
   downloadSize: number
   artifactType: 'installer' | 'zip' | 'none'
   fileName: string | null
+  checksum: string | null
 }
 
 let releaseCache: GithubRelease | null = null
@@ -101,12 +105,49 @@ function resolveReleaseAssetUrl(pathOrUrl: string): string {
   return `${GENERIC_RELEASE_BASE_URL}${encodeURIComponent(pathOrUrl)}`
 }
 
+function assertAllowedUpdateUrl(rawUrl: string): void {
+  let url: URL
+  try {
+    url = new URL(rawUrl)
+  } catch {
+    throw new Error('Đường dẫn cập nhật không hợp lệ.')
+  }
+
+  const allowedHosts = new Set([
+    'github.com',
+    'objects.githubusercontent.com',
+    'release-assets.githubusercontent.com'
+  ])
+  if (url.protocol !== 'https:' || !allowedHosts.has(url.hostname.toLowerCase())) {
+    throw new Error('Bản cập nhật phải được tải từ GitHub chính thức.')
+  }
+}
+
+async function verifyFileChecksum(filePath: string, expected: string | null | undefined): Promise<void> {
+  if (!expected) throw new Error('Bản cập nhật không có checksum để xác minh.')
+
+  const separator = expected.includes(':') ? ':' : '-'
+  const [algorithm, expectedValue] = expected.split(separator, 2)
+  if (!algorithm || !expectedValue || !['sha256', 'sha512'].includes(algorithm.toLowerCase())) {
+    throw new Error('Checksum bản cập nhật không hợp lệ.')
+  }
+
+  const hash = createHash(algorithm.toLowerCase())
+  hash.update(readFileSync(filePath))
+  const actualHex = hash.digest('hex')
+  const actualBase64 = Buffer.from(actualHex, 'hex').toString('base64')
+  if (expectedValue !== actualHex && expectedValue !== actualBase64) {
+    throw new Error('Checksum bản cập nhật không khớp.')
+  }
+}
+
 function parseLatestYml(raw: string): LatestYmlInfo | null {
   const version = raw.match(/^version:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
   const path =
     raw.match(/^path:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim() ||
     raw.match(/^\s*-\s*url:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
   const sizeValue = raw.match(/^\s*size:\s*(\d+)/m)?.[1]
+  const sha512 = raw.match(/^sha512:\s*([^\r\n]+)$/m)?.[1]?.trim()
   const releaseDate = raw.match(/^releaseDate:\s*["']?([^"'\r\n]+)["']?/m)?.[1]?.trim()
 
   if (!version || !path) return null
@@ -115,6 +156,7 @@ function parseLatestYml(raw: string): LatestYmlInfo | null {
     version,
     path,
     size: sizeValue ? Number(sizeValue) : 0,
+    sha512,
     releaseDate: releaseDate || new Date().toISOString()
   }
 }
@@ -173,6 +215,12 @@ function downloadFile(
   onProgress?: (downloaded: number, total: number, percent: number) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
+    try {
+      assertAllowedUpdateUrl(url)
+    } catch (error) {
+      reject(error)
+      return
+    }
     const requestFn = url.startsWith('https:') ? httpsGet : get
     const request = requestFn(url, { headers: { 'User-Agent': 'DBY-HOME-Desktop' } }, (response) => {
       if (
@@ -180,6 +228,12 @@ function downloadFile(
         [301, 302, 307, 308].includes(response.statusCode) &&
         response.headers.location
       ) {
+        try {
+          assertAllowedUpdateUrl(response.headers.location)
+        } catch (error) {
+          reject(error)
+          return
+        }
         downloadFile(response.headers.location, destinationPath, onProgress).then(resolve).catch(reject)
         return
       }
@@ -357,7 +411,8 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
         downloadUrl: selectedAsset?.browser_download_url || null,
         downloadSize: selectedAsset?.size || 0,
         artifactType: isInstallerAsset(selectedAsset) ? 'installer' : selectedAsset ? 'zip' : 'none',
-        fileName: selectedAsset?.name || null
+        fileName: selectedAsset?.name || null,
+        checksum: selectedAsset?.digest || null
       }
     } catch {
       // Fallback to electron-builder latest.yml below.
@@ -378,20 +433,22 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
     downloadUrl: resolveReleaseAssetUrl(latestYml.path),
     downloadSize: latestYml.size,
     artifactType: latestYml.path.toLowerCase().endsWith('.exe') ? 'installer' : 'zip',
-    fileName: latestYml.path
+    fileName: latestYml.path,
+    checksum: latestYml.sha512 || null
   }
 }
 
-async function installUpdate(downloadUrl: string): Promise<{ version: string }> {
+async function installUpdate(downloadUrl: string, checksum: string | null): Promise<{ version: string }> {
   if (updateInProgress) {
     throw new Error('Đang có bản cập nhật chạy.')
   }
 
   updateInProgress = true
   try {
+    assertAllowedUpdateUrl(downloadUrl)
     return downloadUrl.toLowerCase().endsWith('.exe')
-      ? await installWithSetup(downloadUrl)
-      : await installWithZip(downloadUrl)
+      ? await installWithSetup(downloadUrl, checksum)
+      : await installWithZip(downloadUrl, checksum)
   } finally {
     updateInProgress = false
   }
@@ -408,19 +465,19 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
     return { version: update.currentVersion, latestVersion: update.latestVersion, applied: false }
   }
 
-  if (!update.downloadUrl) {
+  if (!update.downloadUrl || !update.checksum) {
     throw new Error('Bản phát hành không có tệp cập nhật phù hợp.')
   }
 
   sendToRenderer('update:available', update)
-  const result = await installUpdate(update.downloadUrl)
+  const result = await installUpdate(update.downloadUrl, update.checksum)
   return { ...result, latestVersion: update.latestVersion, applied: true }
 }
 
 function forceInstallUpdate(update: UpdateCheckResult): void {
   if (!app.isPackaged || !update.hasUpdate || forcedInstallQueued || updateInProgress) return
 
-  if (!update.downloadUrl) {
+  if (!update.downloadUrl || !update.checksum) {
     sendToRenderer('update:status', {
       status: 'error',
       message: 'Bản phát hành không có tệp cập nhật phù hợp.',
@@ -437,7 +494,7 @@ function forceInstallUpdate(update: UpdateCheckResult): void {
   })
 
   setTimeout(() => {
-    void installUpdate(update.downloadUrl as string)
+    void installUpdate(update.downloadUrl as string, update.checksum)
       .catch((error) => {
         sendToRenderer('update:status', {
           status: 'error',
@@ -477,7 +534,7 @@ async function runAutoUpdateCheck(): Promise<void> {
   }
 }
 
-async function installWithSetup(downloadUrl: string): Promise<{ version: string }> {
+async function installWithSetup(downloadUrl: string, checksum: string | null): Promise<{ version: string }> {
   const tempDir = join(app.getPath('temp'), `kmaphouse-installer-${Date.now()}`)
   const installerPath = join(tempDir, downloadUrl.split('/').pop() || 'DBYHOME-update-setup.exe')
   mkdirSync(tempDir, { recursive: true })
@@ -486,6 +543,7 @@ async function installWithSetup(downloadUrl: string): Promise<{ version: string 
   await downloadFile(downloadUrl, installerPath, (downloaded, total, percent) => {
     sendToRenderer('update:progress', { downloaded, total, percent })
   })
+  await verifyFileChecksum(installerPath, checksum)
 
   sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
   createSilentInstallerRunner(tempDir, installerPath)
@@ -498,7 +556,7 @@ async function installWithSetup(downloadUrl: string): Promise<{ version: string 
   return { version: 'installer' }
 }
 
-async function installWithZip(downloadUrl: string): Promise<{ version: string }> {
+async function installWithZip(downloadUrl: string, checksum: string | null): Promise<{ version: string }> {
   const tempDir = join(app.getPath('temp'), `kmaphouse-update-${Date.now()}-${cpus().length}`)
   const zipPath = join(tempDir, 'update.zip')
   const extractDir = join(tempDir, 'extracted')
@@ -509,6 +567,7 @@ async function installWithZip(downloadUrl: string): Promise<{ version: string }>
   await downloadFile(downloadUrl, zipPath, (downloaded, total, percent) => {
     sendToRenderer('update:progress', { downloaded, total, percent })
   })
+  await verifyFileChecksum(zipPath, checksum)
 
   sendToRenderer('update:status', { status: 'extracting', message: 'Đang giải nén...' })
   new AdmZip(zipPath).extractAllTo(extractDir, true)
@@ -628,26 +687,6 @@ export function registerUpdateHandlers(): void {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Kiểm tra cập nhật thất bại.'
-      }
-    }
-  })
-
-  ipcMain.handle('update:download', async (_event, downloadUrl: string) => {
-    try {
-      if (!downloadUrl) {
-        return { success: false, error: 'Thiếu đường dẫn tải cập nhật.' }
-      }
-
-      const data = await installUpdate(downloadUrl)
-      return { success: true, data }
-    } catch (error) {
-      sendToRenderer('update:status', {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Cập nhật thất bại.'
-      })
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Tải cập nhật thất bại.'
       }
     }
   })

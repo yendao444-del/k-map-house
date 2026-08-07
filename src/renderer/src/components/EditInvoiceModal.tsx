@@ -10,22 +10,54 @@ interface EditInvoiceModalProps {
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
 
-function MoneyInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  const [display, setDisplay] = useState(formatVND(value));
+function MoneyInput({
+  label,
+  value,
+  onChange,
+  allowNegative = false,
+  placeholder,
+}: {
+  label?: string;
+  value: number;
+  onChange: (v: number) => void;
+  allowNegative?: boolean;
+  placeholder?: string;
+}) {
+  const [display, setDisplay] = useState(value !== 0 ? formatVND(value) : '');
+
+  const parseMoney = (input: string) => {
+    const isNegative = allowNegative && input.trim().startsWith('-');
+    const digits = input.replace(/\D/g, '');
+    const amount = Number(digits) || 0;
+    return isNegative ? -amount : amount;
+  };
+
+  const formatMoneyInput = (amount: number) => {
+    if (amount === 0) return '';
+    return amount < 0 ? `-${formatVND(Math.abs(amount))}` : formatVND(amount);
+  };
+
   return (
     <div>
-      <label className="mb-1 block text-xs font-semibold text-gray-600">{label}</label>
+      {label && <label className="mb-1 block text-xs font-semibold text-gray-600">{label}</label>}
       <input
         type="text"
-        inputMode="numeric"
+        inputMode={allowNegative ? 'text' : 'numeric'}
         value={display}
         onChange={(e) => {
-          const raw = e.target.value.replace(/\./g, '').replace(/\D/g, '');
-          const num = Number(raw) || 0;
+          const input = e.target.value;
+          if (allowNegative && input.trim() === '-') {
+            setDisplay('-');
+            onChange(0);
+            return;
+          }
+
+          const num = parseMoney(input);
           onChange(num);
-          setDisplay(num > 0 ? formatVND(num) : '');
+          setDisplay(formatMoneyInput(num));
         }}
-        onBlur={() => setDisplay(value > 0 ? formatVND(value) : '0')}
+        onBlur={() => setDisplay(formatMoneyInput(value))}
+        placeholder={placeholder}
         className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
       />
     </div>
@@ -200,12 +232,11 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-gray-600">Cộng thêm / Giảm trừ</label>
-            <input
-              type="number"
+            <MoneyInput
               value={adjustment}
-              onChange={(e) => setAdjustment(Number(e.target.value))}
-              placeholder="VD: -50000 để giảm, 50000 để cộng thêm"
-              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-green-400 focus:ring-2 focus:ring-green-100"
+              onChange={setAdjustment}
+              allowNegative
+              placeholder="VD: -100.000 để giảm, 100.000 để cộng thêm"
             />
             {adjustment !== 0 && (
               <input
