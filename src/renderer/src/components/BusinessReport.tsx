@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { Fragment, useMemo, useState, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
@@ -85,6 +85,13 @@ type PnlRow = {
   color?: string
 }
 
+type PnlTrendPoint = {
+  key: string
+  label: string
+  revenue: number
+  expense: number
+}
+
 type InvoiceCashRow = {
   invoice: Invoice
   record: InvoicePaymentRecord
@@ -124,8 +131,7 @@ const sameDay = (a: Date, b: Date) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate()
 
-const monthLabel = (date: Date) =>
-  `Tháng ${date.getMonth() + 1}, ${date.getFullYear()}`
+const monthLabel = (date: Date) => `Tháng ${date.getMonth() + 1}, ${date.getFullYear()}`
 
 type ExpenseCategoryOption = { value: CashTransactionCategory; label: string }
 
@@ -138,6 +144,115 @@ const categoryLabel = (category: CashTransactionCategory, options: ExpenseCatego
   options.find((item) => item.value === category)?.label ||
   (category === 'other_income' ? 'Khoản thu khác' : 'Khác')
 
+const fmtShort = (value: number) => {
+  const absolute = Math.abs(value)
+  if (absolute >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(1)} tỷ`
+  if (absolute >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}tr`
+  if (absolute >= 1_000) return `${Math.round(value / 1_000)}k`
+  return fmt(value)
+}
+
+function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
+  const width = 760
+  const height = 180
+  const padding = { top: 14, right: 18, bottom: 30, left: 58 }
+  const plotWidth = width - padding.left - padding.right
+  const plotHeight = height - padding.top - padding.bottom
+  const maxValue = Math.max(1, ...data.flatMap((item) => [item.revenue, item.expense]))
+  const scaleMax = maxValue * 1.12
+  const x = (index: number) =>
+    padding.left + (data.length <= 1 ? plotWidth / 2 : (index / (data.length - 1)) * plotWidth)
+  const y = (value: number) => padding.top + plotHeight - (value / scaleMax) * plotHeight
+  const linePath = (field: 'revenue' | 'expense') =>
+    data.map((item, index) => `${index === 0 ? 'M' : 'L'} ${x(index)} ${y(item[field])}`).join(' ')
+  const labelStep = Math.max(1, Math.ceil(data.length / 6))
+  const hasData = data.some((item) => item.revenue > 0 || item.expense > 0)
+
+  if (!hasData) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-slate-400">
+        <i className="fa-solid fa-chart-line text-3xl opacity-30 mb-2"></i>
+        <span className="text-xs font-semibold">Chưa có biến động thu chi trong kỳ</span>
+      </div>
+    )
+  }
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Biểu đồ xu hướng doanh thu và chi phí"
+      className="w-full h-full overflow-visible"
+    >
+      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+        const value = scaleMax * ratio
+        const lineY = y(value)
+        return (
+          <g key={ratio}>
+            <line
+              x1={padding.left}
+              x2={width - padding.right}
+              y1={lineY}
+              y2={lineY}
+              stroke="#e8eef1"
+              strokeWidth="1"
+            />
+            <text
+              x={padding.left - 9}
+              y={lineY + 4}
+              textAnchor="end"
+              fill="#82909c"
+              fontSize="10"
+              fontWeight="600"
+            >
+              {fmtShort(value)}
+            </text>
+          </g>
+        )
+      })}
+
+      <path d={linePath('revenue')} fill="none" stroke="#00a859" strokeWidth="3" />
+      <path d={linePath('expense')} fill="none" stroke="#ef6b62" strokeWidth="2.5" />
+
+      {data.map((item, index) => (
+        <g key={item.key}>
+          <circle
+            cx={x(index)}
+            cy={y(item.revenue)}
+            r="4"
+            fill="#00a859"
+            stroke="white"
+            strokeWidth="2"
+          >
+            <title>{`${item.label}: Doanh thu ${fmt(item.revenue)} đ`}</title>
+          </circle>
+          <circle
+            cx={x(index)}
+            cy={y(item.expense)}
+            r="3.5"
+            fill="#ef6b62"
+            stroke="white"
+            strokeWidth="2"
+          >
+            <title>{`${item.label}: Chi phí ${fmt(item.expense)} đ`}</title>
+          </circle>
+          {(index % labelStep === 0 || index === data.length - 1) && (
+            <text
+              x={x(index)}
+              y={height - 8}
+              textAnchor="middle"
+              fill="#7a8894"
+              fontSize="10"
+              fontWeight="600"
+            >
+              {item.label}
+            </text>
+          )}
+        </g>
+      ))}
+    </svg>
+  )
+}
 
 function ReportDatePicker({
   label,
@@ -216,12 +331,12 @@ function ReportDatePicker({
           </div>
 
           <div className="grid grid-cols-7 gap-1 text-center">
-            {weekDays.map(day => (
+            {weekDays.map((day) => (
               <div key={day} className="py-1 text-[10px] font-black text-slate-400">
                 {day}
               </div>
             ))}
-            {days.map(date => {
+            {days.map((date) => {
               const isCurrentMonth = date.getMonth() === visibleMonth.getMonth()
               const isSelected = sameDay(date, selectedDate)
               const isToday = sameDay(date, today)
@@ -407,10 +522,12 @@ const isRoomUtilityDisplayInvoice = (invoice: Invoice) => {
 
 export function BusinessReport({
   currentUser,
-  onNavigateToInvoices
+  onNavigateToInvoices,
+  initialTab = 'overview'
 }: {
   currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
+  initialTab?: 'overview' | 'cashflow'
 } = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const { data: cashTransactions = [] } = useQuery({
@@ -423,10 +540,14 @@ export function BusinessReport({
 
   const [activeTab, setActiveTab] = useState<
     'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'
-  >('overview')
+  >(initialTab)
+
+  useEffect(() => {
+    setActiveTab(initialTab)
+  }, [initialTab])
 
   const today = new Date()
-  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('range')
+  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('all')
   const [startDate, setStartDate] = useState(
     iso(new Date(today.getFullYear(), today.getMonth(), 1))
   )
@@ -437,13 +558,15 @@ export function BusinessReport({
   const [buildingDrill, setBuildingDrill] = useState<UtilityBuildingDrill | null>(null)
   const [expandedElectricBuilding, setExpandedElectricBuilding] = useState<string | null>(null)
   const [expandedWaterBuilding, setExpandedWaterBuilding] = useState<string | null>(null)
+  const [expandedUnifiedBuilding, setExpandedUnifiedBuilding] = useState<string | null>(null)
+  const showLegacyUtilityReport: boolean = false
 
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [activeDatePicker, setActiveDatePicker] = useState<DatePickerKey | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Temp states for Shopee-style date selector
-  const [tempPeriodMode, setTempPeriodMode] = useState<ReportPeriodMode>('range')
+  const [tempPeriodMode, setTempPeriodMode] = useState<ReportPeriodMode>('all')
   const [tempStartDate, setTempStartDate] = useState(startDate)
   const [tempEndDate, setTempEndDate] = useState(endDate)
   const [tempSelectedDate, setTempSelectedDate] = useState(selectedDate)
@@ -543,7 +666,9 @@ export function BusinessReport({
     }
     return 'Lọc thời gian'
   }, [periodMode, selectedDate, startDate, endDate])
-  const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(() => new Set())
+  const [collapsedSections, setCollapsedSections] = useState<Set<PnlSection>>(
+    () => new Set(['revenue'])
+  )
 
   const period = useMemo<ReportPeriod>(() => {
     if (periodMode === 'all') {
@@ -662,6 +787,53 @@ export function BusinessReport({
       cashCount: filteredCash.length + invoiceCashRows.length
     }
   }, [expenseByCategory, expenseCategories, filteredCash, filteredInvoices, invoiceCashRows])
+
+  const dailyTrendData = useMemo<PnlTrendPoint[]>(() => {
+    const totals = new Map<string, { revenue: number; expense: number }>()
+    const addAmount = (dateValue: string, field: 'revenue' | 'expense', amount: number) => {
+      const key = iso(toDate(dateValue))
+      const current = totals.get(key) || { revenue: 0, expense: 0 }
+      current[field] += Number(amount || 0)
+      totals.set(key, current)
+    }
+
+    for (const item of invoiceCashRows) {
+      addAmount(item.record.payment_date || item.record.created_at, 'revenue', item.record.amount)
+    }
+    for (const item of filteredCash) {
+      addAmount(
+        item.transaction_date || item.created_at,
+        item.type === 'income' ? 'revenue' : 'expense',
+        item.amount
+      )
+    }
+
+    const activityDates = [...totals.keys()].sort()
+    const fallbackEnd = activityDates.length
+      ? parseIsoDate(activityDates[activityDates.length - 1])
+      : new Date()
+    const end = period.end ? new Date(period.end) : fallbackEnd
+    const requestedStart = new Date(end)
+    requestedStart.setDate(requestedStart.getDate() - 13)
+    const start =
+      period.start && period.start > requestedStart ? new Date(period.start) : requestedStart
+    const points: PnlTrendPoint[] = []
+    const cursor = new Date(start)
+
+    while (cursor <= end) {
+      const key = iso(cursor)
+      const value = totals.get(key) || { revenue: 0, expense: 0 }
+      points.push({
+        key,
+        label: `${String(cursor.getDate()).padStart(2, '0')}/${String(cursor.getMonth() + 1).padStart(2, '0')}`,
+        revenue: value.revenue,
+        expense: value.expense
+      })
+      cursor.setDate(cursor.getDate() + 1)
+    }
+
+    return points
+  }, [filteredCash, invoiceCashRows, period.end, period.start])
 
   const expenseRows: PnlRow[] = expenseCategories.map((item) => ({
     key: `expense-${item.value}`,
@@ -1451,86 +1623,226 @@ export function BusinessReport({
 
       {activeTab === 'pnl' && (
         <>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="font-black text-slate-900 flex items-center gap-2">
-                <i className="fa-solid fa-table-list text-primary"></i>
-                Bảng Kết quả Kinh doanh (P&L)
-              </h2>
-              <span className="text-xs text-slate-400">Click số tiền để xem chi tiết</span>
+          <div className="flex flex-col gap-4 text-[#152536]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-black tracking-[-0.35px] text-[#152536]">
+                  Kết quả Kinh doanh (P&amp;L)
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Theo dõi lợi nhuận và ưu tiên các khoản cần xử lý trong kỳ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="self-start sm:self-auto inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <i className="fa-solid fa-download text-slate-400"></i>
+                Xuất báo cáo
+              </button>
             </div>
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="text-left px-5 py-3">Hạng mục</th>
-                  <th className="text-right px-5 py-3">Số tiền</th>
-                  <th className="text-center px-5 py-3">% DT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row) => {
-                  const pct = pnl.operatingRevenue
-                    ? (Math.abs(row.amount) / pnl.operatingRevenue) * 100
-                    : 0
-                  const isCollapsed = collapsedSections.has(row.section)
-                  const canDrill = !!row.invoiceType || !!row.cashType
-                  return (
-                    <tr
-                      key={row.key}
-                      className={`${row.group || row.total ? 'bg-slate-50 font-bold' : 'border-t border-slate-100'} ${row.total ? 'text-base' : ''}`}
-                    >
-                      <td
-                        className={`px-5 py-3 ${row.group || row.total ? row.color : 'text-slate-700'} ${row.indent ? 'pl-10' : ''}`}
-                      >
-                        {row.group ? (
-                          <button
-                            onClick={() => toggleSection(row.section)}
-                            className={`flex items-center gap-2 font-black ${row.color}`}
-                          >
-                            <i
-                              className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'} text-[10px]`}
-                            ></i>
-                            {row.label}
-                          </button>
-                        ) : (
-                          row.label
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums">
-                        {canDrill ? (
-                          <button
-                            onClick={() => openRowDrill(row)}
-                            className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-bold border-b border-dashed border-slate-300 hover:border-primary`}
-                          >
-                            {row.amount < 0 ? '-' : ''}
-                            {fmt(Math.abs(row.amount))} đ{' '}
-                            <i className="fa-regular fa-eye text-[10px] opacity-50 ml-1"></i>
-                          </button>
-                        ) : (
-                          <span
-                            className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-black`}
-                          >
-                            {row.amount < 0 ? '-' : ''}
-                            {fmt(Math.abs(row.amount))} đ
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        {row.key === 'rev' ? (
-                          <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">
-                            100%
-                          </span>
-                        ) : (
-                          <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 font-bold">
-                            {pct.toFixed(1)}%
-                          </span>
-                        )}
-                      </td>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(300px,1fr)_minmax(480px,1fr)] gap-4">
+              <section
+                className={`relative min-h-[210px] overflow-hidden rounded-xl border p-6 ${pnl.netProfit >= 0 ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/60'}`}
+              >
+                <div
+                  className={`absolute -right-14 -top-16 h-48 w-48 rounded-full opacity-40 ${pnl.netProfit >= 0 ? 'bg-emerald-100' : 'bg-red-100'}`}
+                ></div>
+                <div className="relative">
+                  <div className="flex items-center gap-2 text-base font-bold text-slate-700">
+                    <i
+                      className={`fa-solid ${pnl.netProfit >= 0 ? 'fa-arrow-trend-up text-emerald-600' : 'fa-arrow-trend-down text-red-500'}`}
+                    ></i>
+                    Lợi nhuận thực
+                  </div>
+                  <div
+                    className={`my-3 text-[clamp(30px,3vw,46px)] leading-none font-black tracking-[-1.4px] tabular-nums ${pnl.netProfit >= 0 ? 'text-[#00a859]' : 'text-[#e53935]'}`}
+                  >
+                    {pnl.netProfit < 0 ? '−' : ''}
+                    {fmt(Math.abs(pnl.netProfit))} đ
+                  </div>
+                  <span
+                    className={`inline-flex rounded-full px-2.5 py-1 text-xs font-black ${pnl.netProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}
+                  >
+                    {pnl.margin.toFixed(1)}% doanh thu
+                  </span>
+                  <p className="mt-5 text-sm text-slate-500">
+                    {pnl.netProfit >= 0
+                      ? 'Kỳ này đang có lãi sau toàn bộ chi phí vận hành.'
+                      : 'Chi phí vận hành đang vượt doanh thu thực thu.'}
+                  </p>
+                </div>
+              </section>
+
+              <section className="min-h-[210px] rounded-xl border border-slate-200 bg-white px-5 pt-4 pb-3 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-base font-black text-slate-800">
+                      Xu hướng doanh thu &amp; chi phí
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Tối đa 14 ngày gần nhất trong kỳ đã chọn
+                    </p>
+                  </div>
+                  <span className="whitespace-nowrap text-sm font-black text-red-500">
+                    {dailyTrendData.length} ngày
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-4 text-xs font-semibold text-slate-500">
+                  <span className="inline-flex items-center gap-1.5">
+                    <i className="h-[3px] w-5 rounded-full bg-[#00a859]"></i>Doanh thu
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <i className="h-[3px] w-5 rounded-full bg-[#ef6b62]"></i>Chi phí phát sinh
+                  </span>
+                </div>
+                <div className="mt-1 h-[142px]">
+                  <PnlTrendChart data={dailyTrendData} />
+                </div>
+              </section>
+            </div>
+
+            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 rounded-xl border border-slate-200 bg-white px-2 py-4 shadow-sm">
+              {[
+                {
+                  label: 'Doanh thu thực thu',
+                  value: pnl.operatingRevenue,
+                  tone: 'text-[#00a859]',
+                  suffix: '100%'
+                },
+                {
+                  label: 'Thu từ hóa đơn',
+                  value: pnl.cashCollected,
+                  tone: 'text-slate-800',
+                  suffix: `${pnl.operatingRevenue ? ((pnl.cashCollected / pnl.operatingRevenue) * 100).toFixed(1) : '0.0'}%`
+                },
+                {
+                  label: 'Chi phí vận hành',
+                  value: pnl.operatingCost,
+                  tone: 'text-[#e53935]',
+                  suffix: `${pnl.operatingRevenue ? ((pnl.operatingCost / pnl.operatingRevenue) * 100).toFixed(1) : '0.0'}%`
+                },
+                {
+                  label: 'Lợi nhuận thực',
+                  value: pnl.netProfit,
+                  tone: pnl.netProfit >= 0 ? 'text-[#00a859]' : 'text-[#e53935]',
+                  suffix: `${pnl.margin.toFixed(1)}%`
+                }
+              ].map((metric, index) => (
+                <div
+                  key={metric.label}
+                  className={`min-w-0 px-5 py-2 ${index < 3 ? 'xl:border-r xl:border-slate-100' : ''} ${index % 2 === 0 ? 'sm:border-r sm:border-slate-100 xl:border-r' : ''}`}
+                >
+                  <span className="block text-xs font-semibold text-slate-500">{metric.label}</span>
+                  <strong
+                    className={`mt-1.5 block text-xl font-black leading-tight tabular-nums ${metric.tone}`}
+                  >
+                    {metric.value < 0 ? '−' : ''}
+                    {fmt(Math.abs(metric.value))} đ{' '}
+                    <small className="text-xs font-black">{metric.suffix}</small>
+                  </strong>
+                </div>
+              ))}
+            </section>
+
+            <section className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h2 className="text-base font-black text-slate-900">Chi tiết theo khoản</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    Bấm vào hạng mục hoặc số tiền có gạch chân để xem sâu
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-slate-400">
+                  <i className="fa-solid fa-chart-column mr-2"></i>Dữ liệu theo kỳ đã chọn
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="bg-[#fbfcfc] text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="text-left px-5 py-3">Hạng mục</th>
+                      <th className="text-right px-5 py-3">Số tiền</th>
+                      <th className="text-center px-5 py-3">% DT</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {visibleRows.map((row) => {
+                      const pct = pnl.operatingRevenue
+                        ? (Math.abs(row.amount) / pnl.operatingRevenue) * 100
+                        : 0
+                      const isCollapsed = collapsedSections.has(row.section)
+                      const canDrill = !!row.invoiceType || !!row.cashType
+                      const rowTone = row.total
+                        ? 'border-y-[3px] border-double border-slate-800 bg-emerald-50/80 text-base'
+                        : row.group
+                          ? 'border-b-2 border-blue-100 bg-blue-50/70'
+                          : 'border-b border-slate-100 hover:bg-emerald-50/30'
+                      return (
+                        <tr
+                          key={row.key}
+                          className={`${rowTone} ${row.group || row.total ? 'font-bold' : ''}`}
+                        >
+                          <td
+                            className={`px-5 py-3.5 ${row.group || row.total ? row.color : 'text-slate-700'} ${row.indent ? 'pl-11' : ''}`}
+                          >
+                            {row.group ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleSection(row.section)}
+                                className={`flex items-center gap-2 font-black transition hover:opacity-75 ${row.color}`}
+                              >
+                                <i
+                                  className={`fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-down'} text-[10px]`}
+                                ></i>
+                                {row.label}
+                              </button>
+                            ) : (
+                              row.label
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums">
+                            {canDrill ? (
+                              <button
+                                type="button"
+                                onClick={() => openRowDrill(row)}
+                                className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} border-b border-dashed border-slate-400 font-bold transition hover:border-primary hover:text-primary`}
+                              >
+                                {row.amount < 0 ? '-' : ''}
+                                {fmt(Math.abs(row.amount))} đ{' '}
+                                <i className="fa-regular fa-eye text-[10px] opacity-50 ml-1"></i>
+                              </button>
+                            ) : (
+                              <span
+                                className={`${row.color || (row.amount < 0 ? 'text-red-600' : 'text-slate-900')} font-black`}
+                              >
+                                {row.amount < 0 ? '-' : ''}
+                                {fmt(Math.abs(row.amount))} đ
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            {row.key === 'rev' ? (
+                              <span className="rounded bg-emerald-100 px-2 py-1 font-black text-emerald-700">
+                                100%
+                              </span>
+                            ) : (
+                              <span
+                                className={`rounded px-2 py-1 font-bold ${row.total ? (pnl.netProfit >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700') : 'bg-slate-100 text-slate-600'}`}
+                              >
+                                {pct.toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
 
           {drill && (
@@ -1732,7 +2044,349 @@ export function BusinessReport({
         </>
       )}
 
+
       {activeTab === 'utility' && (
+        <div className="space-y-5 animate-fade-in">
+          <div>
+            <h2 className="text-[22px] font-black tracking-tight text-slate-900">
+              Bảng đối soát hợp nhất
+            </h2>
+            <p className="mt-1 text-xs font-medium text-slate-500">
+              A Thu thực tế + C Chưa thu - B Chi (đơn vị: đồng)
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                key: 'electric',
+                label: 'Tiền Điện dịch vụ',
+                icon: 'fa-bolt',
+                iconClass: 'bg-amber-500 shadow-amber-500/20',
+                labelClass: 'text-amber-800',
+                revenue: utilityData.electricRevenue,
+                pending: utilityData.electricPending,
+                expense: utilityData.electricExpense,
+                delta: utilityData.electricProjectedDelta,
+                pct: utilityData.electricProjectedPct,
+                paidRooms: utilityData.electricRevenueRoomsCount,
+                pendingRooms: utilityData.electricPendingRoomsCount
+              },
+              {
+                key: 'water',
+                label: 'Tiền Nước sinh hoạt',
+                icon: 'fa-droplet',
+                iconClass: 'bg-sky-500 shadow-sky-500/20',
+                labelClass: 'text-sky-800',
+                revenue: utilityData.waterRevenue,
+                pending: utilityData.waterPending,
+                expense: utilityData.waterExpense,
+                delta: utilityData.waterProjectedDelta,
+                pct: utilityData.waterProjectedPct,
+                paidRooms: utilityData.waterRevenueRoomsCount,
+                pendingRooms: utilityData.waterPendingRoomsCount
+              }
+            ].map((item) => {
+              const isPositive = item.delta >= 0
+              return (
+                <section
+                  key={item.key}
+                  className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
+                  <div className="grid min-w-[1060px] grid-cols-[215px_repeat(3,minmax(145px,1fr))_minmax(190px,1.15fr)_155px] items-stretch">
+                    <div className="flex items-center gap-4 px-6 py-5">
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl text-white shadow-lg ${item.iconClass}`}
+                      >
+                        <i className={`fa-solid ${item.icon}`}></i>
+                      </div>
+                      <div>
+                        <h3 className={`text-sm font-black ${item.labelClass}`}>{item.label}</h3>
+                        <p className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                          Thu + chưa thu - chi
+                        </p>
+                      </div>
+                    </div>
+
+                    {[
+                      {
+                        label: 'A Thu thực tế',
+                        value: item.revenue,
+                        note: `${item.paidRooms} phòng đóng nộp`,
+                        dot: 'bg-emerald-500'
+                      },
+                      {
+                        label: 'C Chưa thu',
+                        value: item.pending,
+                        note: `${item.pendingRooms} phòng còn nợ`,
+                        dot: 'bg-amber-400'
+                      },
+                      {
+                        label: 'B Chi nhà cung cấp',
+                        value: item.expense,
+                        note: 'Hóa đơn nhà nước',
+                        dot: item.key === 'electric' ? 'bg-amber-500' : 'bg-sky-500'
+                      }
+                    ].map((metric) => (
+                      <div key={metric.label} className="border-l border-slate-200 px-6 py-5">
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                          {metric.label}
+                        </p>
+                        <p className="mt-2 text-lg font-black tabular-nums text-slate-900">
+                          {fmt(metric.value)} đ
+                        </p>
+                        <p className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+                          <span className={`h-1.5 w-1.5 rounded-full ${metric.dot}`}></span>
+                          {metric.note}
+                        </p>
+                      </div>
+                    ))}
+
+                    <div className="border-l border-slate-200 px-6 py-5 text-center">
+                      <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-slate-500">
+                        Kết quả (A + C - B)
+                      </p>
+                      <p
+                        className={`mt-2 text-2xl font-black tabular-nums ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}
+                      >
+                        {isPositive ? '+' : ''}
+                        {fmt(item.delta)} đ
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-center border-l border-slate-200 px-5 py-5">
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-black ${isPositive ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}
+                      >
+                        {isPositive ? 'Lời' : 'Lỗ'}{' '}
+                        {Math.abs(item.pct).toFixed(1).replace('.', ',')}%
+                      </span>
+                    </div>
+                  </div>
+                </section>
+              )
+            })}
+          </div>
+
+          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1120px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                    <th rowSpan={2} className="w-[180px] border-r border-slate-200 px-6 py-4 text-left">
+                      Tòa
+                    </th>
+                    <th colSpan={3} className="border-r border-slate-200 px-4 py-3 text-center text-amber-700">
+                      <i className="fa-solid fa-bolt mr-2"></i>Điện dịch vụ
+                    </th>
+                    <th colSpan={3} className="border-r border-slate-200 px-4 py-3 text-center text-sky-700">
+                      <i className="fa-solid fa-droplet mr-2"></i>Nước sinh hoạt
+                    </th>
+                    <th rowSpan={2} className="w-[175px] px-5 py-4 text-center">
+                      Tổng ròng
+                      <span className="mt-1 block text-[9px] font-bold normal-case tracking-normal text-slate-400">
+                        Điện + Nước
+                      </span>
+                    </th>
+                  </tr>
+                  <tr className="border-b border-slate-200 bg-white text-[10px] font-extrabold uppercase tracking-[0.08em] text-slate-500">
+                    <th className="px-4 py-3 text-right">
+                      Thu điện <span className="block text-[9px] text-slate-400">A + C</span>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      Chi điện <span className="block text-[9px] text-slate-400">B</span>
+                    </th>
+                    <th className="border-r border-slate-200 px-4 py-3 text-right text-amber-700">
+                      Lãi / lỗ điện
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      Thu nước <span className="block text-[9px] text-slate-400">A + C</span>
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      Chi nước <span className="block text-[9px] text-slate-400">B</span>
+                    </th>
+                    <th className="border-r border-slate-200 px-4 py-3 text-right text-sky-700">
+                      Lãi / lỗ nước
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-slate-100">
+                  {utilityData.buildingList.map((row) => {
+                    const electricIncome = row.electricRevenue + row.electricPending
+                    const waterIncome = row.waterRevenue + row.waterPending
+                    const electricDelta = electricIncome - row.electricExpense
+                    const waterDelta = waterIncome - row.waterExpense
+                    const totalDelta = electricDelta + waterDelta
+                    const isExpanded = expandedUnifiedBuilding === row.building
+                    const detailRows = utilityInvoiceRows.filter(
+                      (item) => normalizeSearch(item.building) === normalizeSearch(row.building)
+                    )
+
+                    return (
+                      <Fragment key={row.building}>
+                        <tr
+                          className="cursor-pointer transition hover:bg-slate-50/80"
+                          onClick={() =>
+                            setExpandedUnifiedBuilding((current) =>
+                              current === row.building ? null : row.building
+                            )
+                          }
+                        >
+                          <td className="border-r border-slate-200 px-6 py-4 font-black text-slate-900">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-[10px] text-slate-500 shadow-sm">
+                                <i
+                                  className={`fa-solid ${isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'}`}
+                                ></i>
+                              </span>
+                              <span>{row.building}</span>
+                              <span
+                                className={`rounded-full border px-2 py-0.5 text-[9px] font-black ${totalDelta >= 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}
+                              >
+                                {totalDelta >= 0 ? 'Lời' : 'Lỗ'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-700">
+                            {fmt(electricIncome)} đ
+                          </td>
+                          <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-500">
+                            {fmt(row.electricExpense)} đ
+                          </td>
+                          <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
+                          </td>
+                          <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-700">
+                            {fmt(waterIncome)} đ
+                          </td>
+                          <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-500">
+                            {fmt(row.waterExpense)} đ
+                          </td>
+                          <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
+                          </td>
+                          <td className={`px-5 py-4 text-right font-black tabular-nums ${totalDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {totalDelta >= 0 ? '+' : ''}{fmt(totalDelta)} đ
+                          </td>
+                        </tr>
+
+                        {isExpanded && (
+                          <tr className="bg-slate-50/70">
+                            <td colSpan={8} className="p-4">
+                              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                                  <div>
+                                    <p className="text-xs font-black text-slate-800">Chi tiết {row.building}</p>
+                                    <p className="mt-0.5 text-[10px] font-medium text-slate-500">
+                                      Đối chiếu số tiền điện nước theo phòng
+                                    </p>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    {detailRows.length} hóa đơn
+                                  </span>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full min-w-[850px] text-xs">
+                                    <thead className="border-b border-slate-200 text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">
+                                      <tr>
+                                        <th className="px-4 py-3 text-left">Phòng</th>
+                                        <th className="px-4 py-3 text-left">Khách thuê</th>
+                                        <th className="px-3 py-3 text-right">Điện tiêu thụ</th>
+                                        <th className="px-3 py-3 text-right">Tiền điện</th>
+                                        <th className="px-3 py-3 text-right">Nước tiêu thụ</th>
+                                        <th className="px-3 py-3 text-right">Tiền nước</th>
+                                        <th className="px-4 py-3 text-right">Đã thu</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {detailRows.map((item) => (
+                                        <tr key={item.invoiceId} className="hover:bg-slate-50">
+                                          <td className="px-4 py-3 font-black text-slate-800">{item.roomName}</td>
+                                          <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
+                                          <td className="px-3 py-3 text-right tabular-nums text-amber-700">
+                                            {fmt(item.electricUsage)} kWh
+                                          </td>
+                                          <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
+                                            {fmt(item.electricTotal)} đ
+                                          </td>
+                                          <td className="px-3 py-3 text-right tabular-nums text-sky-700">
+                                            {fmt(item.waterUsage)} m³
+                                          </td>
+                                          <td className="px-3 py-3 text-right font-bold tabular-nums text-slate-700">
+                                            {fmt(item.waterTotal)} đ
+                                          </td>
+                                          <td className="px-4 py-3 text-right font-bold tabular-nums text-emerald-700">
+                                            {fmt(item.electricCollected + item.waterCollected)} đ
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {detailRows.length === 0 && (
+                                        <tr>
+                                          <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                                            Không có hóa đơn điện nước trong kỳ cho tòa này.
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                  {utilityData.buildingList.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-6 py-14 text-center text-slate-400">
+                        Chưa có dữ liệu điện nước theo tòa trong kỳ báo cáo này.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+
+                <tfoot className="border-t-2 border-slate-200 bg-slate-50/80">
+                  <tr>
+                    <td className="border-r border-slate-200 px-6 py-4">
+                      <p className="font-black text-slate-900">TỔNG CỘNG</p>
+                      <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                        {utilityData.buildingList.length} tòa
+                      </p>
+                    </td>
+                    <td className="px-4 py-4 text-right font-black tabular-nums text-slate-900">
+                      {fmt(utilityData.electricRevenue + utilityData.electricPending)} đ
+                    </td>
+                    <td className="px-4 py-4 text-right font-black tabular-nums text-slate-700">
+                      {fmt(utilityData.electricExpense)} đ
+                    </td>
+                    <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {utilityData.electricProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta)} đ
+                    </td>
+                    <td className="px-4 py-4 text-right font-black tabular-nums text-slate-900">
+                      {fmt(utilityData.waterRevenue + utilityData.waterPending)} đ
+                    </td>
+                    <td className="px-4 py-4 text-right font-black tabular-nums text-slate-700">
+                      {fmt(utilityData.waterExpense)} đ
+                    </td>
+                    <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {utilityData.waterProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.waterProjectedDelta)} đ
+                    </td>
+                    <td className={`px-5 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? '+' : ''}
+                      {fmt(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta)} đ
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {activeTab === 'utility' && showLegacyUtilityReport && (
+
         <div className="space-y-6">
           {/* SECTION TITLE */}
           <div>

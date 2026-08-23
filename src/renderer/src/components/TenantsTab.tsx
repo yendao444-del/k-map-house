@@ -7,11 +7,6 @@ import { LogoLoading } from './LogoLoading';
 const getContractSortTime = (contract: Contract) =>
   new Date(contract.end_date || contract.created_at || contract.move_in_date).getTime();
 
-const getLatestContract = (contracts: Contract[], tenantId: string) =>
-  contracts
-    .filter(contract => contract.tenant_id === tenantId)
-    .sort((a, b) => getContractSortTime(b) - getContractSortTime(a))[0] || null;
-
 const formatDate = (date?: string) => {
   if (!date) return '—';
   const parsed = new Date(date);
@@ -20,12 +15,16 @@ const formatDate = (date?: string) => {
 
 type DepositStatusTone = 'emerald' | 'amber' | 'sky' | 'slate' | 'red';
 
-const getDepositStatus = (contract: Contract | null | undefined, invoices: Invoice[]) => {
+const getDepositStatus = (
+  contract: Contract | null | undefined,
+  invoices: Invoice[],
+  collectedAmount?: number
+) => {
   const deposit = Number(contract?.deposit_amount || 0);
   if (!contract || deposit <= 0) {
     return { label: 'Chưa có cọc', detail: '', tone: 'slate' as DepositStatusTone };
   }
-  const collected = getCollectedDepositAmount(contract, invoices);
+  const collected = collectedAmount ?? getCollectedDepositAmount(contract, invoices);
   const missing = Math.max(0, deposit - collected);
 
   const relatedInvoices = invoices.filter(invoice =>
@@ -78,15 +77,10 @@ const depositToneClass: Record<DepositStatusTone, string> = {
 
 export const TenantsTab: React.FC = () => {
   const queryClient = useQueryClient();
-  const queryRefreshOptions = {
-    staleTime: 0,
-    refetchOnMount: 'always' as const,
-    refetchOnWindowFocus: true,
-  };
-  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: getTenants, ...queryRefreshOptions });
-  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms, ...queryRefreshOptions });
-  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts, ...queryRefreshOptions });
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices, ...queryRefreshOptions });
+  const { data: tenants = [], isLoading } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
+  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
+  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'left'>('all');
@@ -124,7 +118,7 @@ export const TenantsTab: React.FC = () => {
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) =>
         prev.map((tenant) => tenant.id === updatedTenant.id ? updatedTenant : tenant)
       );
-      queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
     }
   });
 
@@ -132,8 +126,8 @@ export const TenantsTab: React.FC = () => {
     mutationFn: (id: string) => deleteTenant(id),
     onSuccess: (_data, id) => {
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) => prev.filter((tenant) => tenant.id !== id));
-      queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
     },
     onError: (err: any) => {
       alert('Không thể xóa khách thuê: ' + (err?.message || 'Lỗi không xác định.\nKhách này có thể còn hợp đồng hoặc hóa đơn liên kết.'));
@@ -147,9 +141,9 @@ export const TenantsTab: React.FC = () => {
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) =>
         prev.map((t) => t.id === updatedTenant.id ? updatedTenant : t)
       );
-      queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
     }
   });
 
@@ -158,7 +152,7 @@ export const TenantsTab: React.FC = () => {
     mutationFn: (data: Omit<Tenant, 'id' | 'created_at' | 'updated_at'>) => createTenant(data),
     onSuccess: (createdTenant) => {
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) => [createdTenant, ...prev]);
-      queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setIsAddModalOpen(false);
       setCreateError(null);
     },
@@ -183,41 +177,104 @@ export const TenantsTab: React.FC = () => {
     });
   }, []);
 
-  const filteredTenants = useMemo(() => {
-    return tenants.filter(t => {
-      const hasActiveContract = contracts.some(c => c.tenant_id === t.id && c.status === 'active');
-      const hasPastContract = contracts.some(c => c.tenant_id === t.id && c.status !== 'active');
+  const tenantViewById = useMemo(() => {
+    const roomById = new Map(rooms.map(room => [room.id, room]));
+    const contractsByTenantId = new Map<string, Contract[]>();
+    const invoicesByTenantRoom = new Map<string, Invoice[]>();
+    const invoicesByRoom = new Map<string, Invoice[]>();
 
-      const isCurrentlyActive = hasActiveContract;
-      const hasLeft = !hasActiveContract && (hasPastContract || t.is_active === false || !!t.left_at || !!t.last_room_name);
-      const isNeverStayed = !hasActiveContract && !hasLeft;
+    for (const contract of contracts) {
+      if (!contract.tenant_id) continue;
+      const list = contractsByTenantId.get(contract.tenant_id) || [];
+      list.push(contract);
+      contractsByTenantId.set(contract.tenant_id, list);
+    }
+    for (const list of contractsByTenantId.values()) {
+      list.sort((a, b) => getContractSortTime(b) - getContractSortTime(a));
+    }
+    for (const invoice of invoices) {
+      const key = `${invoice.tenant_id}|${invoice.room_id}`;
+      const list = invoicesByTenantRoom.get(key) || [];
+      list.push(invoice);
+      invoicesByTenantRoom.set(key, list);
+      const roomInvoices = invoicesByRoom.get(invoice.room_id) || [];
+      roomInvoices.push(invoice);
+      invoicesByRoom.set(invoice.room_id, roomInvoices);
+    }
+
+    const result = new Map<string, {
+      contracts: Contract[];
+      activeContract: Contract | null;
+      latestContract: Contract | null;
+      room: (typeof rooms)[number] | null;
+      isCurrentlyActive: boolean;
+      hasLeft: boolean;
+      searchText: string;
+      depositStatus: ReturnType<typeof getDepositStatus>;
+      collectedDeposit: number;
+    }>();
+
+    for (const tenant of tenants) {
+      const tenantContracts = contractsByTenantId.get(tenant.id) || [];
+      const activeContract = tenantContracts.find(contract => contract.status === 'active') || null;
+      const latestContract = activeContract || tenantContracts[0] || null;
+      const room = latestContract ? roomById.get(latestContract.room_id) || null : null;
+      const hasPastContract = tenantContracts.some(contract => contract.status !== 'active');
+      const isCurrentlyActive = Boolean(activeContract);
+      const hasLeft = !isCurrentlyActive && (
+        hasPastContract || tenant.is_active === false || Boolean(tenant.left_at) || Boolean(tenant.last_room_name)
+      );
+      const relatedInvoices = latestContract
+        ? latestContract.tenant_id
+          ? invoicesByTenantRoom.get(`${latestContract.tenant_id}|${latestContract.room_id}`) || []
+          : invoicesByRoom.get(latestContract.room_id) || []
+        : [];
+      const collectedDeposit = getCollectedDepositAmount(latestContract, relatedInvoices);
+      const depositStatus = getDepositStatus(latestContract, relatedInvoices, collectedDeposit);
+      const roomNames = tenantContracts.map(contract => roomById.get(contract.room_id)?.name || '').join(' ');
+      const contractText = tenantContracts
+        .map(contract => `${contract.tenant_phone || ''} ${contract.tenant_id_card || ''}`)
+        .join(' ');
+
+      result.set(tenant.id, {
+        contracts: tenantContracts,
+        activeContract,
+        latestContract,
+        room,
+        isCurrentlyActive,
+        hasLeft,
+        searchText: `${roomNames} ${contractText}`.toLowerCase(),
+        depositStatus,
+        collectedDeposit,
+      });
+    }
+
+    return result;
+  }, [contracts, invoices, rooms, tenants]);
+
+  const filteredTenants = useMemo(() => {
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    return tenants.filter(t => {
+      const view = tenantViewById.get(t.id);
+      const isCurrentlyActive = view?.isCurrentlyActive || false;
+      const hasLeft = view?.hasLeft || false;
+      const isNeverStayed = !isCurrentlyActive && !hasLeft;
 
       if (filterActive === 'active' && !isCurrentlyActive) return false;
       if (filterActive === 'inactive' && !isNeverStayed) return false;
       if (filterActive === 'left' && !hasLeft) return false;
 
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const tenantContracts = contracts.filter(c => c.tenant_id === t.id);
-        const roomNames = tenantContracts
-          .map(c => rooms.find(r => r.id === c.room_id)?.name || '')
-          .join(' ')
-          .toLowerCase();
-        const contractText = tenantContracts
-          .map(c => `${c.tenant_phone || ''} ${c.tenant_id_card || ''}`)
-          .join(' ')
-          .toLowerCase();
+      if (normalizedSearch) {
         return (
-          t.full_name?.toLowerCase().includes(q) ||
-          t.phone?.includes(q) ||
-          t.identity_card?.includes(q) ||
-          roomNames.includes(q) ||
-          contractText.includes(q)
+          t.full_name?.toLowerCase().includes(normalizedSearch) ||
+          t.phone?.includes(normalizedSearch) ||
+          t.identity_card?.includes(normalizedSearch) ||
+          view?.searchText.includes(normalizedSearch)
         );
       }
       return true;
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [contracts, rooms, tenants, filterActive, searchQuery]);
+  }, [filterActive, searchQuery, tenantViewById, tenants]);
 
   const filterCounts = useMemo(() => {
     let active = 0;
@@ -225,12 +282,11 @@ export const TenantsTab: React.FC = () => {
     let left = 0;
 
     tenants.forEach(t => {
-      const hasActiveContract = contracts.some(c => c.tenant_id === t.id && c.status === 'active');
-      const hasPastContract = contracts.some(c => c.tenant_id === t.id && c.status !== 'active');
+      const view = tenantViewById.get(t.id);
 
-      if (hasActiveContract) {
+      if (view?.isCurrentlyActive) {
         active++;
-      } else if (hasPastContract || t.is_active === false || !!t.left_at || !!t.last_room_name) {
+      } else if (view?.hasLeft) {
         left++;
       } else {
         inactive++;
@@ -238,28 +294,36 @@ export const TenantsTab: React.FC = () => {
     });
 
     return { all: tenants.length, active, inactive, left };
-  }, [tenants, contracts]);
+  }, [tenantViewById, tenants]);
+
+  const actionSummary = useMemo(() => {
+    let missingContact = 0;
+    let missingDeposit = 0;
+
+    tenants.forEach((tenant) => {
+      const view = tenantViewById.get(tenant.id);
+      const contract = view?.activeContract || view?.latestContract;
+      const contactPhone = tenant.phone || contract?.tenant_phone;
+      const agreedDeposit = Number(contract?.deposit_amount || 0);
+
+      if (!contactPhone) missingContact++;
+      if (agreedDeposit > 0 && Number(view?.collectedDeposit || 0) < agreedDeposit) missingDeposit++;
+    });
+
+    return { missingContact, missingDeposit, total: missingContact + missingDeposit };
+  }, [tenantViewById, tenants]);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-6 p-4">
-      {/* Header Widget */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pointer-events-none">
-        <div className="flex max-w-full flex-wrap items-center gap-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200 pointer-events-auto">
-          {(['all', 'active', 'inactive', 'left'] as const).map(f => {
-            const label = f === 'all' ? 'Tất cả' : f === 'active' ? 'Đang ở' : f === 'inactive' ? 'Chưa ở' : 'Đã rời đi';
-            return (
-              <button
-                key={f}
-                onClick={() => setFilterActive(f)}
-                className={`px-3 py-2 xl:px-4 rounded-lg text-sm font-bold transition-all duration-200 ${filterActive === f ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 font-medium hover:bg-slate-50'}`}
-              >
-                {label} ({filterCounts[f]})
-              </button>
-            );
-          })}
+    <div className="flex h-full min-h-0 w-full flex-col gap-4 bg-[#f5f7f6] p-4 lg:p-5">
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="mb-1 flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span>Quản lý cư dân</span><i className="fa-solid fa-chevron-right text-[9px]"></i><span>Khách thuê</span>
+          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#173b35]">Khách thuê</h1>
+          <p className="mt-1 text-sm text-slate-500">Tổng {tenants.length} khách thuê <span className="mx-1 text-slate-300">•</span> Cập nhật hôm nay</p>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3 pointer-events-auto">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-56 xl:w-64">
             <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
             <input
@@ -267,42 +331,75 @@ export const TenantsTab: React.FC = () => {
               placeholder="Tìm tên, SĐT, CCCD..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-slate-200 shadow-sm rounded-lg pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 outline-none transition text-sm"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm shadow-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
             />
           </div>
-          <button data-tour="add-tenant-btn" onClick={openAddModal} className="bg-primary text-white px-3 py-2.5 xl:px-4 rounded-lg font-bold hover:bg-primary-dark transition shadow-sm flex items-center gap-2 text-sm whitespace-nowrap">
-            <i className="fa-solid fa-plus"></i> Thêm khách mới
+          <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-primary hover:text-primary" title="Bộ lọc">
+            <i className="fa-solid fa-filter"></i>
+          </button>
+          <button data-tour="add-tenant-btn" onClick={openAddModal} className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(16,185,129,0.22)] transition hover:bg-primary-dark">
+            <i className="fa-solid fa-plus"></i> Thêm khách thuê
           </button>
         </div>
-      </div>
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex min-h-0 flex-1 flex-col overflow-hidden">
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(['all', 'active', 'inactive', 'left'] as const).map(f => {
+            const label = f === 'all' ? 'Tất cả' : f === 'active' ? 'Đang ở' : f === 'inactive' ? 'Chưa ở' : 'Đã rời đi';
+            return (
+              <button
+                key={f}
+                onClick={() => setFilterActive(f)}
+                className={`rounded-xl px-3 py-2 text-sm font-bold transition-all ${filterActive === f ? 'bg-[#064e3b] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                {label} <span className={`ml-1 text-xs ${filterActive === f ? 'text-emerald-100' : 'text-slate-400'}`}>{filterCounts[f]}</span>
+              </button>
+            );
+          })}
+          <div className="mx-1 hidden h-6 w-px bg-slate-200 xl:block"></div>
+          <span className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-600"><i className="fa-solid fa-burst mr-1.5 text-[11px]"></i>Cần xử lý {actionSummary.total}</span>
+          <div className="ml-auto hidden items-center gap-2 text-xs text-slate-400 lg:flex">
+            <span className="rounded-lg bg-slate-50 px-3 py-2">Tất cả phòng <i className="fa-solid fa-chevron-down ml-2 text-[9px]"></i></span>
+            <span className="rounded-lg bg-slate-50 px-3 py-2">Trạng thái đặt cọc <i className="fa-solid fa-chevron-down ml-2 text-[9px]"></i></span>
+          </div>
+        </div>
+      </section>
+
+      {actionSummary.total > 0 && (
+        <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-[#fff8ec] px-4 py-3 text-sm">
+          <div className="font-bold text-[#8a5418]"><i className="fa-solid fa-bell mr-2 text-red-500"></i>{actionSummary.total} việc cần xử lý hôm nay</div>
+          {actionSummary.missingDeposit > 0 && <span className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-xs font-semibold text-red-500">{actionSummary.missingDeposit} chưa đóng đặt cọc</span>}
+          {actionSummary.missingContact > 0 && <span className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-xs font-semibold text-red-500">{actionSummary.missingContact} thiếu thông tin liên hệ</span>}
+          <span className="ml-auto cursor-pointer font-bold text-primary hover:underline">Xem danh sách <i className="fa-solid fa-arrow-right ml-1"></i></span>
+        </section>
+      )}
+
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 bg-slate-50 text-[11px] xl:text-[13px] text-slate-400 uppercase tracking-widest font-bold border-b border-slate-100 z-10">
+          <table className="w-full min-w-[1080px] text-left border-collapse">
+            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-[#f8faf9] text-[10px] font-extrabold uppercase tracking-[0.11em] text-slate-400">
               <tr>
-                <th className="px-4 py-4 xl:px-6">Khách hàng</th>
-                <th className="px-4 py-4 xl:px-6">Liên hệ</th>
-                <th className="px-4 py-4 text-center xl:px-6">Phòng ở</th>
-                <th className="px-4 py-4 text-center xl:px-6">Trạng thái</th>
-                <th className="px-4 py-4 xl:px-6">Tiền cọc</th>
-                <th className="hidden px-4 py-4 xl:table-cell xl:px-6">Định danh (CCCD)</th>
-                <th className="px-4 py-4 xl:px-6">Ngày tham gia</th>
-                <th className="hidden px-4 py-4 2xl:table-cell xl:px-6">Ngày rời đi</th>
-                <th className="px-4 py-4 text-center xl:px-6">Xem thêm</th>
+                <th className="w-[25%] px-5 py-3.5">Khách thuê & phòng</th>
+                <th className="w-[17%] px-4 py-3.5">Liên hệ</th>
+                <th className="w-[15%] px-4 py-3.5">Hợp đồng</th>
+                <th className="w-[18%] px-4 py-3.5">Đặt cọc</th>
+                <th className="w-[14%] px-4 py-3.5">Hoạt động gần nhất</th>
+                <th className="px-4 py-3.5">Tham gia</th>
+                <th className="px-4 py-3.5 text-center"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50 text-base">
+            <tbody className="divide-y divide-slate-100 text-sm">
               {isLoading && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                     <LogoLoading className="min-h-[45vh]" />
                   </td>
                 </tr>
               )}
               {!isLoading && filteredTenants.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-16 text-center text-slate-400">
+                  <td colSpan={7} className="px-6 py-16 text-center text-slate-400">
                     <i className="fa-solid fa-user-slash text-3xl opacity-50 mb-3"></i>
                     <p className="text-base font-medium">Không tìm thấy khách hàng nào</p>
                   </td>
@@ -321,29 +418,35 @@ export const TenantsTab: React.FC = () => {
                 ];
                 const colorIdx = tenant.full_name?.length ? tenant.full_name.length % avatarColors.length : 0;
 
-                const tenantContracts = contracts.filter(c => c.tenant_id === tenant.id);
-                const activeContract = tenantContracts.find(c => c.status === 'active');
-                const latestContract = activeContract || getLatestContract(contracts, tenant.id);
-                const room = latestContract ? rooms.find(r => r.id === latestContract.room_id) : null;
-                const isActuallyActive = !!activeContract;
-                const hasLeft = !isActuallyActive && (!!tenant.left_at || !!tenant.last_room_name || tenantContracts.some(c => c.status !== 'active'));
+                const tenantView = tenantViewById.get(tenant.id)!;
+                const latestContract = tenantView.latestContract;
+                const room = tenantView.room;
+                const isActuallyActive = tenantView.isCurrentlyActive;
+                const hasLeft = tenantView.hasLeft;
                 const roomLabel = room?.name || tenant.last_room_name || '—';
                 const contactPhone = tenant.phone || latestContract?.tenant_phone || '';
-                const identityCard = tenant.identity_card || latestContract?.tenant_id_card || '';
-                const depositStatus = getDepositStatus(latestContract, invoices);
-                const collectedDeposit = getCollectedDepositAmount(latestContract, invoices);
+                const depositStatus = tenantView.depositStatus;
+                const collectedDeposit = tenantView.collectedDeposit;
                 const joinDateLabel = formatDate(latestContract?.move_in_date || tenant.created_at);
-                const leftDateLabel = formatDate(tenant.left_at || latestContract?.end_date);
+                const agreedDeposit = Number(latestContract?.deposit_amount || 0);
+                const depositProgress = agreedDeposit > 0 ? Math.min(100, Math.round((collectedDeposit / agreedDeposit) * 100)) : 0;
+                const needsDeposit = agreedDeposit > 0 && collectedDeposit < agreedDeposit;
+                const needsAttention = needsDeposit || !contactPhone;
 
                 return (
-                  <tr key={tenant.id} className="hover:bg-slate-50/80 transition group relative">
-                    <td className="px-4 py-4 xl:px-6">
+                  <tr key={tenant.id} className={`group relative border-l-[4px] transition hover:bg-slate-50/80 ${needsDeposit ? 'border-l-red-500 bg-red-50/[0.26]' : !contactPhone ? 'border-l-amber-400' : 'border-l-transparent'}`}>
+                    <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl ${avatarColors[colorIdx]} flex items-center justify-center font-bold text-sm shrink-0`}>
+                        {needsDeposit && <i className="fa-solid fa-circle-exclamation -ml-3.5 text-base text-red-500" title="Cần xử lý"></i>}
+                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${avatarColors[colorIdx]} `}>
                           {initials}
                         </div>
-                        <div className="font-bold text-slate-900 text-base group-hover:text-primary transition">
-                          {tenant.full_name}
+                        <div className="min-w-0">
+                          <div className="font-bold text-slate-900 transition group-hover:text-primary">{tenant.full_name}</div>
+                          <div className="mt-1 flex items-center gap-2">
+                            {roomLabel !== '—' && <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${isActuallyActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{roomLabel}</span>}
+                            <span className={`text-[11px] font-semibold ${isActuallyActive ? 'text-emerald-600' : hasLeft ? 'text-amber-600' : 'text-slate-400'}`}><i className="fa-solid fa-circle mr-1 text-[7px]"></i>{isActuallyActive ? 'Đang ở' : hasLeft ? 'Đã rời đi' : 'Chưa ở'}</span>
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -356,18 +459,29 @@ export const TenantsTab: React.FC = () => {
                               {contactPhone}
                             </span>
                             <a
+                              href={`tel:${contactPhone.replace(/[^0-9+]/g, '')}`}
+                              title="Gọi điện"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-emerald-600 transition hover:text-emerald-700"
+                            >
+                              <i className="fa-solid fa-phone text-[12px]"></i>
+                            </a>
+                            <a
                               href={`https://zalo.me/${contactPhone.replace(/[^0-9]/g, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
                               title="Nhắn Zalo"
                               onClick={(e) => e.stopPropagation()}
-                              className="w-[22px] h-[22px] flex items-center justify-center rounded bg-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white transition shadow-sm"
+                              className="flex h-[22px] w-[22px] items-center justify-center rounded text-emerald-600 transition hover:bg-emerald-50 hover:text-emerald-700"
                             >
-                              <i className="fa-brands fa-facebook-messenger text-[11px]"></i>
+                              <i className="fa-brands fa-whatsapp text-[15px]"></i>
                             </a>
                           </div>
                         ) : (
-                          <span className="text-slate-400 italic text-[13px]">Chưa có SĐT</span>
+                          <div className="flex flex-col items-start gap-1.5">
+                            <span className="font-mono text-[15px] text-slate-400">—</span>
+                            <span className="inline-flex items-center rounded-md border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-500">Thiếu SĐT</span>
+                          </div>
                         )}
                         {tenant.email && (
                           <div className="text-[14px] text-slate-500 flex items-center gap-1.5">
@@ -378,56 +492,27 @@ export const TenantsTab: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 text-center xl:px-6">
-                      {roomLabel !== '—' ? (
-                        <span className={`px-3 py-1 rounded-full font-bold text-[13px] border shadow-sm whitespace-nowrap ${isActuallyActive ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>{roomLabel}</span>
-                      ) : (
-                        <span className="text-[13px] text-slate-400 italic bg-transparent">—</span>
-                      )}
+                    <td className="px-4 py-3.5">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-slate-700">{latestContract ? (isActuallyActive ? 'Hợp đồng đang hiệu lực' : hasLeft ? 'Hợp đồng đã kết thúc' : 'Hợp đồng chờ kích hoạt') : 'Chưa có hợp đồng'}</div>
+                        <div className="text-xs text-slate-400">{latestContract ? `${formatDate(latestContract.move_in_date)} – ${formatDate(latestContract.end_date)}` : 'Cần tạo hợp đồng'}</div>
+                      </div>
                     </td>
 
-                    <td className="px-4 py-4 text-center xl:px-6">
-                      {isActuallyActive ? (
-                        <div className="flex items-center gap-2 justify-center">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                          </span>
-                          <span className="text-emerald-700 font-bold text-[15px] whitespace-nowrap tracking-tight">Đang ở</span>
-                        </div>
-                      ) : hasLeft ? (
-                        <div className="flex items-center gap-2 justify-center">
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                          <span className="text-amber-700 font-bold text-[15px] whitespace-nowrap tracking-tight">Đã rời đi</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 justify-center opacity-70">
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-                          <span className="text-slate-500 font-bold text-[15px] whitespace-nowrap tracking-tight">Chưa ở</span>
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 xl:px-6">
+                    <td className="px-4 py-3.5">
                       {latestContract && latestContract.deposit_amount > 0 ? (() => {
                         const agreedDeposit = Number(latestContract.deposit_amount || 0);
                         const missingDeposit = Math.max(0, agreedDeposit - collectedDeposit);
                         const isDepositComplete = agreedDeposit > 0 && missingDeposit <= 0;
                         const displayAmount = isDepositComplete ? agreedDeposit : collectedDeposit;
-                        const depositIcon =
-                          depositStatus.tone === 'emerald' || depositStatus.tone === 'sky'
-                            ? 'fa-circle-check'
-                            : depositStatus.tone === 'amber'
-                              ? 'fa-triangle-exclamation'
-                              : 'fa-circle-exclamation';
+                        const depositIcon = 'fa-shield-halved';
 
                         return (
-                          <div className="relative inline-block min-w-[92px] cursor-help select-none group/deposit">
+                          <div className="relative inline-block min-w-[130px] cursor-help select-none group/deposit">
                             <div className="text-left">
-                              <div className="whitespace-nowrap font-bold text-slate-800 tabular-nums">
-                                {displayAmount.toLocaleString('vi-VN')} đ
-                              </div>
-                              <span className={`mt-1 inline-flex max-w-[92px] items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide leading-tight ${depositToneClass[depositStatus.tone]}`}>
+                              <div className="flex items-center justify-between gap-3 whitespace-nowrap font-bold text-slate-800 tabular-nums"><span>{displayAmount.toLocaleString('vi-VN')} đ</span><span className="text-[10px] text-slate-400">/{agreedDeposit.toLocaleString('vi-VN')} đ</span></div>
+                              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${needsDeposit ? 'bg-amber-400' : 'bg-emerald-500'}`} style={{ width: `${depositProgress}%` }}></div></div>
+                              <span className={`mt-1.5 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide leading-tight ${depositToneClass[depositStatus.tone]}`}>
                                 <i className={`fa-solid ${depositIcon} text-[10px]`}></i>
                                 {depositStatus.label}
                               </span>
@@ -462,60 +547,22 @@ export const TenantsTab: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="hidden px-4 py-4 xl:table-cell xl:px-6">
-                      {identityCard ? (
-                        <div
-                          className="inline-block cursor-help"
-                          onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const popupHeight = 166;
-                            const margin = 8;
-                            const openUp = window.innerHeight - rect.bottom < popupHeight + margin;
-
-                            const top = openUp
-                              ? rect.top - popupHeight - margin
-                              : rect.bottom + margin;
-
-                            setCccdHover({
-                              id: tenant.id,
-                              url: tenant.identity_image_url || '',
-                              name: tenant.full_name,
-                              top,
-                              left: rect.left + rect.width / 2,
-                              openUp
-                            });
-                          }}
-                          onMouseLeave={() => setCccdHover(null)}
-                        >
-                          <div className="flex items-center gap-2 px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-[13px] font-mono hover:bg-slate-200 transition">
-                            <i className="fa-solid fa-address-card text-slate-400"></i>
-                            {identityCard}
-                          </div>
-                        </div>
+                    <td className="px-4 py-3.5">
+                      {needsAttention ? (
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700"><i className="fa-solid fa-clock text-amber-400"></i>{needsDeposit ? 'Chờ hoàn tất cọc' : 'Cần bổ sung liên hệ'}</div>
                       ) : (
-                        <span className="text-[13px] text-slate-400 italic bg-transparent">—</span>
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><i className="fa-solid fa-circle-check text-emerald-500"></i>Hồ sơ đã cập nhật</div>
                       )}
                     </td>
 
-                    <td className="px-4 py-4 xl:px-6">
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-2 text-slate-600 text-sm">
                         <i className="fa-solid fa-calendar-day text-slate-300"></i>
                         <span className="font-medium">{joinDateLabel}</span>
                       </div>
                     </td>
 
-                    <td className="hidden px-4 py-4 2xl:table-cell xl:px-6">
-                      {leftDateLabel !== '—' ? (
-                        <div className="flex items-center gap-2 text-slate-600 text-sm">
-                          <i className="fa-solid fa-person-walking text-slate-300"></i>
-                          <span className="font-medium">{leftDateLabel}</span>
-                        </div>
-                      ) : (
-                        <span className="text-[13px] text-slate-400 italic">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-4 text-center xl:px-6" style={{ overflow: 'visible' }}>
+                    <td className="px-4 py-3.5 text-center" style={{ overflow: 'visible' }}>
                       <div className="relative inline-block text-left">
                         <button
                           onClick={(e) => {
@@ -935,7 +982,7 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
       queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) =>
         prev.map((item) => item.id === updatedTenant.id ? updatedTenant : item)
       );
-      queryClient.invalidateQueries({ queryKey: ['tenants'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setTenant(updatedTenant);
       setIsEditing(false);
       onClose();

@@ -258,17 +258,32 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
         if (uniqueInvoiceIds.length !== 1) return
 
         const inv = matchedInvoices[0]
+        const normalizedTxKeys = [tx.reference_number, tx.id]
+          .map((value) => normalizeTransferText(value || ''))
+          .filter(Boolean)
+        const wasRecorded = (inv.payment_records || []).some((record) => {
+          const recordValues = [record.external_ref, record.external_id, record.note]
+            .map((value) => normalizeTransferText(value || ''))
+            .filter(Boolean)
+          return normalizedTxKeys.some((key) =>
+            recordValues.some((value) => value === key || value.includes(key))
+          )
+        })
+        if (wasRecorded) return
+
         const needToPay = inv.total_amount - inv.paid_amount
 
-        // Strict: chỉ cho phép sync khi số tiền đúng bằng số còn nợ.
-        // A unique transfer code can safely receive a partial payment. Payments
-        // above the outstanding balance stay out of automatic reconciliation.
-        if (!Number.isFinite(amount) || amount <= 0 || amount > needToPay) return
+        if (!Number.isFinite(amount) || amount <= 0) return
 
         foundMatches.push({
           invoice: inv,
           transaction: tx,
-          matchType: Math.abs(amount - needToPay) < 1 ? 'exact' : 'partial'
+          matchType:
+            Math.abs(amount - needToPay) < 1
+              ? 'exact'
+              : amount < needToPay
+                ? 'partial'
+                : 'over'
         })
       })
 
@@ -568,17 +583,23 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                         <div className={`mt-2 text-xs font-bold ${match.matchType === 'exact' ? 'text-green-600' : 'text-amber-600'}`}>
                           {match.matchType === 'exact'
                             ? 'Khớp mã và đúng số tiền. Có thể chốt phiếu.'
-                            : `Khớp mã, thu một phần. Còn thu ${formatVND(Math.max(0, remaining - actual))} đ sau giao dịch này.`}
+                            : match.matchType === 'partial'
+                              ? `Đúng mã nhưng chuyển thiếu ${formatVND(remaining - actual)} đ. Cần duyệt thu một phần.`
+                              : `Đúng mã nhưng chuyển thừa ${formatVND(actual - remaining)} đ. Không thể tự động chốt; cần đối soát thủ công.`}
                         </div>
                       </div>
 
                       <div className="flex flex-col gap-2 shrink-0 justify-center">
                         <button
                           onClick={() => updateMutation.mutate({ match })}
-                          disabled={updateMutation.isPending || isProcessing}
+                          disabled={updateMutation.isPending || isProcessing || match.matchType === 'over'}
                           className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-xs font-bold transition shadow-sm border border-emerald-600 disabled:opacity-50"
                         >
-                          {match.matchType === 'exact' ? 'Duyệt: Chốt phiếu' : `Duyệt: Thu ${formatVND(actual)} đ`}
+                          {match.matchType === 'exact'
+                            ? 'Duyệt: Chốt phiếu'
+                            : match.matchType === 'partial'
+                              ? `Duyệt: Thu ${formatVND(actual)} đ`
+                              : 'Chuyển thừa - kiểm tra'}
                         </button>
                       </div>
                     </div>

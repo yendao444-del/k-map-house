@@ -7,7 +7,8 @@ import {
   Bell,
   Box,
   ClipboardList,
-  BarChart3
+  BarChart3,
+  Sparkles
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
@@ -37,7 +38,14 @@ import {
   type Invoice,
   type AppUser
 } from './lib/db'
-import { playSuccess, playCreate, playDelete, playClick, playNotification, playPayment } from './lib/sound'
+import {
+  playSuccess,
+  playCreate,
+  playDelete,
+  playClick,
+  playNotification,
+  announcePaymentAmount
+} from './lib/sound'
 import { EditableCell } from './components/EditableCell'
 import { LogoLoading } from './components/LogoLoading'
 
@@ -45,33 +53,77 @@ import { LoginScreen } from './components/LoginScreen'
 import { setupRealtime } from './lib/realtime'
 import { buildInvoiceTransferDescription, normalizeTransferText } from './lib/invoiceTransfer'
 import logoNavbar from './assets/an_khang_home_logo.png'
+import { isPasswordRecoveryRedirect } from './lib/supabase'
 
-const InvoiceModal = lazy(() => import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal })))
-const RoomDetailsModal = lazy(() => import('./components/RoomDetailsModal').then((module) => ({ default: module.RoomDetailsModal })))
-const PaymentModal = lazy(() => import('./components/PaymentModal').then((module) => ({ default: module.PaymentModal })))
-const NewContractModal = lazy(() => import('./components/NewContractModal'))
-const EndContractNoticeModal = lazy(() => import('./components/EndContractNoticeModal').then((module) => ({ default: module.EndContractNoticeModal })))
-const TerminateContractModal = lazy(() => import('./components/TerminateContractModal').then((module) => ({ default: module.TerminateContractModal })))
-const CancelContractModal = lazy(() => import('./components/CancelContractModal').then((module) => ({ default: module.CancelContractModal })))
-const ChangeRoomModal = lazy(() => import('./components/ChangeRoomModal').then((module) => ({ default: module.ChangeRoomModal })))
-const TourOverlay = lazy(() => import('./components/TourOverlay').then((module) => ({ default: module.TourOverlay })))
-const ProfileModal = lazy(() => import('./components/ProfileModal').then((module) => ({ default: module.ProfileModal })))
-const TenantsTab = lazy(() => import('./components/TenantsTab').then((module) => ({ default: module.TenantsTab })))
-const InvoicesTab = lazy(() => import('./components/InvoicesTab').then((module) => ({ default: module.InvoicesTab })))
-const AssetsTab = lazy(() => import('./components/AssetsTab').then((module) => ({ default: module.AssetsTab })))
-const ContractsTab = lazy(() => import('./components/ContractsTab').then((module) => ({ default: module.ContractsTab })))
-const SettingsTab = lazy(() => import('./components/SettingsTab').then((module) => ({ default: module.SettingsTab })))
-const BusinessReport = lazy(() => import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport })))
-
-const TabLoading = () => (
-  <LogoLoading className="flex-1 bg-gray-50" />
+const InvoiceModal = lazy(() =>
+  import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal }))
 )
-const isDev = import.meta.env.DEV
+const RoomDetailsModal = lazy(() =>
+  import('./components/RoomDetailsModal').then((module) => ({ default: module.RoomDetailsModal }))
+)
+const PaymentModal = lazy(() =>
+  import('./components/PaymentModal').then((module) => ({ default: module.PaymentModal }))
+)
+const NewContractModal = lazy(() => import('./components/NewContractModal'))
+const EndContractNoticeModal = lazy(() =>
+  import('./components/EndContractNoticeModal').then((module) => ({
+    default: module.EndContractNoticeModal
+  }))
+)
+const TerminateContractModal = lazy(() =>
+  import('./components/TerminateContractModal').then((module) => ({
+    default: module.TerminateContractModal
+  }))
+)
+const CancelContractModal = lazy(() =>
+  import('./components/CancelContractModal').then((module) => ({
+    default: module.CancelContractModal
+  }))
+)
+const ChangeRoomModal = lazy(() =>
+  import('./components/ChangeRoomModal').then((module) => ({ default: module.ChangeRoomModal }))
+)
+const TourOverlay = lazy(() =>
+  import('./components/TourOverlay').then((module) => ({ default: module.TourOverlay }))
+)
+const ProfileModal = lazy(() =>
+  import('./components/ProfileModal').then((module) => ({ default: module.ProfileModal }))
+)
+const TenantsTab = lazy(() =>
+  import('./components/TenantsTab').then((module) => ({ default: module.TenantsTab }))
+)
+const InvoicesTab = lazy(() =>
+  import('./components/InvoicesTab').then((module) => ({ default: module.InvoicesTab }))
+)
+const AssetsTab = lazy(() =>
+  import('./components/AssetsTab').then((module) => ({ default: module.AssetsTab }))
+)
+const ContractsTab = lazy(() =>
+  import('./components/ContractsTab').then((module) => ({ default: module.ContractsTab }))
+)
+const SettingsTab = lazy(() =>
+  import('./components/SettingsTab').then((module) => ({ default: module.SettingsTab }))
+)
+const BusinessReport = lazy(() =>
+  import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport }))
+)
+const AiAnalysisTab = lazy(() =>
+  import('./components/AiAnalysisTab').then((module) => ({ default: module.AiAnalysisTab }))
+)
+const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
   snap.note || snap.room_asset_id
-type AppTab = 'rooms' | 'invoices' | 'assets' | 'contracts' | 'tenants' | 'reports' | 'settings'
+type AppTab =
+  | 'rooms'
+  | 'invoices'
+  | 'assets'
+  | 'contracts'
+  | 'ai-analysis'
+  | 'tenants'
+  | 'reports'
+  | 'settings'
 type PendingAssetReceive = { roomId: string; roomName: string }
 type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
 type UpdateBannerInfo = {
@@ -100,10 +152,11 @@ type SepayBackgroundMatch = {
   roomName: string
   tenantName: string
   amount: number
+  remaining: number
   transactionId: string
   referenceNumber: string
   transactionDate?: string
-  matchType: 'exact' | 'partial'
+  matchType: 'exact' | 'partial' | 'over'
 }
 const normalizeRoomName = (name: string) =>
   name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
@@ -1166,9 +1219,12 @@ const ConfirmDeleteWithHistoryModal = ({
               <i className="fa-solid fa-clock-rotate-left" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">Phòng này còn dữ liệu lịch sử</h3>
+              <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">
+                Phòng này còn dữ liệu lịch sử
+              </h3>
               <p className="text-[13px] text-gray-500">
-                Phòng <span className="font-semibold text-gray-700">{room.name}</span> còn hóa đơn, hợp đồng hoặc biên lai liên quan.
+                Phòng <span className="font-semibold text-gray-700">{room.name}</span> còn hóa đơn,
+                hợp đồng hoặc biên lai liên quan.
               </p>
             </div>
           </div>
@@ -1177,7 +1233,9 @@ const ConfirmDeleteWithHistoryModal = ({
           <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 flex gap-3">
             <i className="fa-solid fa-circle-info text-amber-500 mt-0.5 shrink-0" />
             <p className="text-[12.5px] text-amber-800 leading-relaxed">
-              Toàn bộ dữ liệu liên quan <span className="font-semibold">(hóa đơn, hợp đồng, biên lai, tài sản, xe)</span> của phòng này sẽ bị xóa vĩnh viễn và không thể khôi phục.
+              Toàn bộ dữ liệu liên quan{' '}
+              <span className="font-semibold">(hóa đơn, hợp đồng, biên lai, tài sản, xe)</span> của
+              phòng này sẽ bị xóa vĩnh viễn và không thể khôi phục.
             </p>
           </div>
 
@@ -1199,7 +1257,7 @@ const ConfirmDeleteWithHistoryModal = ({
               disabled={isDeleting}
               className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 shadow-md shadow-orange-200 transition-all active:scale-95 flex items-center justify-center gap-2"
             >
-              <i className={isDeleting ? "fa-solid fa-spinner fa-spin" : "fa-solid fa-trash-can"} />
+              <i className={isDeleting ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-trash-can'} />
               {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
             </button>
           </div>
@@ -1210,20 +1268,41 @@ const ConfirmDeleteWithHistoryModal = ({
 }
 
 const App: React.FC = () => {
-  const { data: rooms = [], isLoading } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
+  const queryClient = useQueryClient()
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [passwordRecovery, setPasswordRecovery] = useState(isPasswordRecoveryRedirect)
+  const canLoadData = authReady && Boolean(currentUser)
+
+  const { data: rooms = [], isLoading } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: getRooms,
+    enabled: canLoadData
+  })
   const { data: serviceZones = [] } = useQuery({
     queryKey: ['serviceZones'],
-    queryFn: getServiceZones
+    queryFn: getServiceZones,
+    enabled: canLoadData
   })
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
-  const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({ queryKey: ['activeContracts'], queryFn: getActiveContracts })
+  const { data: invoices = [] } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: getInvoices,
+    enabled: canLoadData
+  })
+  const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({
+    queryKey: ['activeContracts'],
+    queryFn: getActiveContracts,
+    enabled: canLoadData
+  })
   const { data: moveInReceipts = [] } = useQuery({
     queryKey: ['moveInReceipts'],
-    queryFn: getRoomMoveInReceipts
+    queryFn: getRoomMoveInReceipts,
+    enabled: canLoadData
   })
   const { data: appSettings = {} } = useQuery({
     queryKey: ['appSettings'],
-    queryFn: getAppSettings
+    queryFn: getAppSettings,
+    enabled: canLoadData
   })
   const roomIds = useMemo(() => rooms.map((room) => room.id), [rooms])
   const roomIdsKey = useMemo(() => roomIds.slice().sort().join('|'), [roomIds])
@@ -1250,17 +1329,27 @@ const App: React.FC = () => {
     Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }>
   >({
     queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey, activeContractStartKey],
-    enabled: rooms.length > 0,
+    enabled: canLoadData && rooms.length > 0,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const snapshots = await getAssetSnapshotsByRoomIds(roomIds, ['move_in', 'move_out', 'handover'])
-      const roomWorkflow: Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }> = {}
+      const snapshots = await getAssetSnapshotsByRoomIds(roomIds, [
+        'move_in',
+        'move_out',
+        'handover'
+      ])
+      const roomWorkflow: Record<
+        string,
+        { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }
+      > = {}
 
       for (const roomId of roomIds) {
         roomWorkflow[roomId] = { hasMoveIn: false, hasMoveOut: false, hasHandover: false }
       }
 
-      const handoverByRoom = new Map<string, Array<{ room_asset_id: string; note?: string; condition: string; deduction?: number }>>()
+      const handoverByRoom = new Map<
+        string,
+        Array<{ room_asset_id: string; note?: string; condition: string; deduction?: number }>
+      >()
       for (const snap of snapshots) {
         const roomState = roomWorkflow[snap.room_id]
         if (!roomState) continue
@@ -1288,7 +1377,8 @@ const App: React.FC = () => {
             handover.some(
               (snap) =>
                 getHandoverSnapshotKey(snap) === id &&
-                (snap.condition === 'ok' || (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
+                (snap.condition === 'ok' ||
+                  (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
             )
           )
       }
@@ -1306,7 +1396,9 @@ const App: React.FC = () => {
     'info' | 'assets' | 'vehicles' | 'history'
   >('info')
   const [assetModuleInitialRoomId, setAssetModuleInitialRoomId] = useState<string | null>(null)
-  const [assetModuleGuideMode, setAssetModuleGuideMode] = useState<'move_in' | 'move_out' | null>(null)
+  const [assetModuleGuideMode, setAssetModuleGuideMode] = useState<'move_in' | 'move_out' | null>(
+    null
+  )
   const [assetReceivePending, setAssetReceivePending] = useState<PendingAssetReceive | null>(null)
   const assetReceivePendingRef = React.useRef<PendingAssetReceive | null>(null)
   const [assetLeavePrompt, setAssetLeavePrompt] = useState<{
@@ -1319,7 +1411,11 @@ const App: React.FC = () => {
 
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
   const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom'>('bottom')
-  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{
+    top: number
+    right: number
+    bottom: number
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({
     occupied: false,
@@ -1327,10 +1423,6 @@ const App: React.FC = () => {
     ending: false,
     expiring: false
   })
-  const queryClient = useQueryClient()
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
-  const [authReady, setAuthReady] = useState(false)
-
   // --- REALTIME SYNC ---
   useEffect(() => {
     if (!currentUser) return undefined
@@ -1361,6 +1453,7 @@ const App: React.FC = () => {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false)
   const [sepaySyncOpenSignal, setSepaySyncOpenSignal] = useState(0)
   const sepayAutoPaymentKeysRef = React.useRef(new Set<string>())
+  const sepayKnownTransactionKeysRef = React.useRef<Set<string> | null>(null)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
@@ -1370,10 +1463,13 @@ const App: React.FC = () => {
   const reportDropdownRef = React.useRef<HTMLDivElement | null>(null)
   const notificationCountRef = React.useRef<number | null>(null)
 
-  const handleAssetReceivePendingChange = React.useCallback((pending: PendingAssetReceive | null) => {
-    assetReceivePendingRef.current = pending
-    setAssetReceivePending(pending)
-  }, [])
+  const handleAssetReceivePendingChange = React.useCallback(
+    (pending: PendingAssetReceive | null) => {
+      assetReceivePendingRef.current = pending
+      setAssetReceivePending(pending)
+    },
+    []
+  )
 
   const requestActiveTab = (tab: AppTab) => {
     const pendingAssetReceive = assetReceivePendingRef.current || assetReceivePending
@@ -1411,6 +1507,12 @@ const App: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    if (passwordRecovery) {
+      setCurrentUser(null)
+      setAuthReady(true)
+      return undefined
+    }
+
     let mounted = true
     withTimeout(getCurrentSessionUser(), 6000, 'Không thể kết nối Supabase để kiểm tra đăng nhập.')
       .then((sessionUser) => {
@@ -1428,9 +1530,11 @@ const App: React.FC = () => {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [passwordRecovery])
 
   useEffect(() => {
+    if (!window.api?.update) return undefined
+
     const removeAvailable = window.api.update.onAvailable((data) => {
       setUpdateBanner({
         latestVersion: data.latestVersion,
@@ -1443,9 +1547,12 @@ const App: React.FC = () => {
 
     const removeStatus = window.api.update.onStatus((event) => {
       setUpdateBanner((current) => {
-        const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & { currentVersion?: string }
+        const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & {
+          currentVersion?: string
+        }
         return {
-          latestVersion: eventData.latestVersion || current?.latestVersion || eventData.currentVersion,
+          latestVersion:
+            eventData.latestVersion || current?.latestVersion || eventData.currentVersion,
           downloadUrl: eventData.downloadUrl || current?.downloadUrl || null,
           status: event.status,
           message: event.message,
@@ -1455,25 +1562,10 @@ const App: React.FC = () => {
     })
 
     const removeProgress = window.api.update.onProgress((event) => {
-      setUpdateBanner((current) => current ? { ...current, progress: event.percent } : current)
+      setUpdateBanner((current) => (current ? { ...current, progress: event.percent } : current))
     })
 
-    const autoInstallTimer = isDev ? null : window.setTimeout(() => {
-      // Kiểm tra ngầm — chỉ hiện banner nếu có update thực sự hoặc lỗi
-      void window.api.update.installLatest().then((result) => {
-        if (!result.success) {
-          setUpdateBanner({
-            status: 'error',
-            message: result.error || 'Không thể tự động cập nhật.',
-            progress: 0
-          })
-        }
-        // Nếu applied = true, onAvailable/onStatus/onProgress sẽ tự cập nhật banner
-      })
-    }, 2500)
-
     return () => {
-      if (autoInstallTimer !== null) window.clearTimeout(autoInstallTimer)
       removeAvailable()
       removeStatus()
       removeProgress()
@@ -1587,6 +1679,9 @@ const App: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       setMenuOpenId(null)
+    },
+    onError: (error: Error) => {
+      alert(error.message || 'Không thể xóa phòng vì cơ chế bảo vệ dữ liệu đang bật.')
     }
   })
 
@@ -1653,7 +1748,10 @@ const App: React.FC = () => {
     for (const contract of contracts) {
       if (contract.status !== 'active') continue
       const current = map.get(contract.room_id)
-      if (!current || new Date(contract.created_at).getTime() > new Date(current.created_at).getTime()) {
+      if (
+        !current ||
+        new Date(contract.created_at).getTime() > new Date(current.created_at).getTime()
+      ) {
         map.set(contract.room_id, contract)
       }
     }
@@ -1700,69 +1798,126 @@ const App: React.FC = () => {
     [invoices]
   )
 
-  const sepayPendingInvoicesKey = useMemo(
-    () =>
-      sepayPendingInvoices
-        .map((invoice) => `${invoice.id}:${invoice.paid_amount}:${invoice.total_amount}:${invoice.payment_status}`)
-        .sort()
-        .join('|'),
-    [sepayPendingInvoices]
-  )
   const { data: sepayTokenStatus } = useQuery({
     queryKey: ['sepayTokenStatus'],
     queryFn: getSepayTokenStatus,
+    enabled: canLoadData && currentUser?.role === 'admin',
     staleTime: 60_000
   })
 
-  const { data: sepayBackgroundMatches = [] } = useQuery<SepayBackgroundMatch[]>({
-    queryKey: ['sepayBackgroundMatches', Boolean(sepayTokenStatus?.configured), sepayPendingInvoicesKey],
-    enabled: Boolean(currentUser && sepayTokenStatus?.configured && sepayPendingInvoices.length > 0),
-    refetchInterval: 60_000,
+  const { data: sepayBackgroundTransactions = [], isSuccess: isSepayBackgroundSuccess } = useQuery<
+    SepayBackgroundTransaction[]
+  >({
+    queryKey: ['sepayBackgroundTransactions', Boolean(sepayTokenStatus?.configured)],
+    enabled: Boolean(currentUser && sepayTokenStatus?.configured),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
-    staleTime: 30_000,
+    staleTime: 10_000,
     queryFn: async () => {
       const res = (await fetchSepayTransactions()) as SepayBackgroundFetchResult
-      if (!res.ok || res.data?.status !== 200) return []
-
-      const txs = res.data.transactions || []
-      const matches: SepayBackgroundMatch[] = []
-
-      for (const tx of txs) {
-        const normalizedContent = normalizeTransferText(tx.transaction_content || '')
-        const amount = Number(tx.amount_in)
-        if (!Number.isFinite(amount) || amount <= 0) continue
-
-        const matchedInvoices = sepayPendingInvoices.filter((invoice) => {
-          const roomName = roomById.get(invoice.room_id)?.name || ''
-          const transferCode = buildInvoiceTransferDescription(invoice, roomName)
-          return normalizedContent.includes(normalizeTransferText(transferCode))
-        })
-        const uniqueInvoiceIds = new Set(matchedInvoices.map((invoice) => invoice.id))
-        if (uniqueInvoiceIds.size !== 1) continue
-
-        const invoice = matchedInvoices[0]
-        const remaining = Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0))
-        // CÃ¹ng má»™t mÃ£ chuyá»ƒn khoáº£n chá»‰ Ä‘á»‘i chiáº¿u má»™t hÃ³a Ä‘Æ¡n.
-        // Chuyá»ƒn thiáº¿u Ä‘Æ°á»£c ghi nháº­n lÃ  thu má»™t pháº§n; chuyá»ƒn dÆ° cáº§n duyá»‡t thá»§ cÃ´ng.
-        if (amount > remaining) continue
-
-        const room = roomById.get(invoice.room_id)
-        matches.push({
-          invoice,
-          roomName: room?.name || 'Phòng ?',
-          tenantName: room?.tenant_name || '',
-          amount,
-          transactionId: tx.id,
-          referenceNumber: tx.reference_number || '',
-          transactionDate: tx.transaction_date,
-          matchType: Math.abs(amount - remaining) < 1 ? 'exact' : 'partial'
-        })
+      if (!res.ok || Number(res.data?.status) !== 200) {
+        throw new Error('Không lấy được giao dịch mới từ SePay.')
       }
-
-      return matches.slice(0, 9)
+      return res.data?.transactions || []
     }
   })
 
+  const sepayBackgroundMatches = useMemo<SepayBackgroundMatch[]>(() => {
+    const matches: SepayBackgroundMatch[] = []
+
+    for (const tx of sepayBackgroundTransactions) {
+      const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+      const amount = Number(tx.amount_in)
+      if (!Number.isFinite(amount) || amount <= 0) continue
+
+      const matchedInvoices = sepayPendingInvoices.filter((invoice) => {
+        const roomName = roomById.get(invoice.room_id)?.name || ''
+        const transferCode = buildInvoiceTransferDescription(invoice, roomName)
+        return normalizedContent.includes(normalizeTransferText(transferCode))
+      })
+      const uniqueInvoiceIds = new Set(matchedInvoices.map((invoice) => invoice.id))
+      if (uniqueInvoiceIds.size !== 1) continue
+
+      const invoice = matchedInvoices[0]
+      const remaining = Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0))
+      const transactionKeys = [tx.reference_number, tx.id]
+        .map((value) => normalizeTransferText(value || ''))
+        .filter(Boolean)
+      const wasRecorded = (invoice.payment_records || []).some((record) => {
+        const recordValues = [record.external_ref, record.external_id, record.note]
+          .map((value) => normalizeTransferText(value || ''))
+          .filter(Boolean)
+        return transactionKeys.some((key) =>
+          recordValues.some((value) => value === key || value.includes(key))
+        )
+      })
+      if (wasRecorded) continue
+
+      const room = roomById.get(invoice.room_id)
+      matches.push({
+        invoice,
+        roomName: room?.name || 'Phòng ?',
+        tenantName: room?.tenant_name || '',
+        amount,
+        remaining,
+        transactionId: tx.id,
+        referenceNumber: tx.reference_number || '',
+        transactionDate: tx.transaction_date,
+        matchType:
+          Math.abs(amount - remaining) < 1 ? 'exact' : amount < remaining ? 'partial' : 'over'
+      })
+    }
+
+    return matches.slice(0, 9)
+  }, [roomById, sepayBackgroundTransactions, sepayPendingInvoices])
+
+  useEffect(() => {
+    if (!isSepayBackgroundSuccess) return
+
+    const incomingTransactions = sepayBackgroundTransactions.filter((tx) => {
+      const amount = Number(tx.amount_in)
+      return (
+        Number.isFinite(amount) &&
+        amount > 0 &&
+        Boolean((tx.reference_number || tx.id || '').trim())
+      )
+    })
+    const currentKeys = new Set(
+      incomingTransactions.map((tx) => (tx.reference_number || tx.id || '').trim())
+    )
+
+    // Lần lấy dữ liệu đầu tiên chỉ ghi nhớ lịch sử hiện tại, không đọc lại tiền cũ.
+    if (sepayKnownTransactionKeysRef.current === null) {
+      sepayKnownTransactionKeysRef.current = currentKeys
+      return
+    }
+
+    const newTransactions = incomingTransactions
+      .filter((tx) => {
+        const key = (tx.reference_number || tx.id || '').trim()
+        return !sepayKnownTransactionKeysRef.current?.has(key)
+      })
+      .sort(
+        (left, right) =>
+          (Date.parse(left.transaction_date || '') || 0) -
+          (Date.parse(right.transaction_date || '') || 0)
+      )
+
+    for (const transaction of newTransactions) {
+      sepayKnownTransactionKeysRef.current.add(
+        (transaction.reference_number || transaction.id || '').trim()
+      )
+    }
+
+    if (newTransactions.length > 0) {
+      void (async () => {
+        for (const transaction of newTransactions) {
+          await announcePaymentAmount(Number(transaction.amount_in))
+        }
+      })()
+    }
+  }, [isSepayBackgroundSuccess, sepayBackgroundTransactions])
   useEffect(() => {
     if (sepayBackgroundMatches.length === 0) return
 
@@ -1771,6 +1926,10 @@ const App: React.FC = () => {
       let didSync = false
 
       for (const match of sepayBackgroundMatches) {
+        // Chỉ tự động chốt khi đúng đủ số tiền. Giao dịch thiếu/thừa phải hiện
+        // cảnh báo và được người dùng duyệt trong màn đối soát SePay.
+        if (match.matchType !== 'exact') continue
+
         const transactionKey = match.referenceNumber || match.transactionId
         if (!transactionKey || sepayAutoPaymentKeysRef.current.has(transactionKey)) continue
 
@@ -1780,8 +1939,10 @@ const App: React.FC = () => {
           await recordInvoicePayment(match.invoice.id, {
             amount: match.amount,
             payment_method: 'transfer',
-            payment_date: Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10) : date.toISOString().slice(0, 10),
-            note: `Tự động thu qua SePay (${match.matchType === 'partial' ? 'thu một phần' : 'đủ tiền'}). Ref: ${transactionKey}`,
+            payment_date: Number.isNaN(date.getTime())
+              ? new Date().toISOString().slice(0, 10)
+              : date.toISOString().slice(0, 10),
+            note: `Tự động thu qua SePay (đủ tiền). Ref: ${transactionKey}`,
             external_ref: match.referenceNumber || undefined,
             external_id: match.transactionId || undefined,
             source: 'sepay'
@@ -1796,7 +1957,6 @@ const App: React.FC = () => {
       }
 
       if (!disposed && didSync) {
-        playPayment()
         queryClient.invalidateQueries({ queryKey: ['invoices'] })
         queryClient.invalidateQueries({ queryKey: ['rooms'] })
         queryClient.invalidateQueries({ queryKey: ['contracts'] })
@@ -1829,22 +1989,27 @@ const App: React.FC = () => {
   )
 
   // Lọc phòng theo checkbox + tìm kiếm
-  const filteredRooms = useMemo(() => rooms.filter((room) => {
-    // Nếu không tick checkbox nào → hiện tất cả
-    const anyFilterActive = filters.occupied || filters.vacant || filters.ending || filters.expiring
-    if (anyFilterActive) {
-      const statusMatch =
-        (filters.vacant && room.status === 'vacant') ||
-        (filters.occupied && room.status === 'occupied') ||
-        (filters.ending && room.status === 'ending')
-      if (!statusMatch) return false
-    }
-    // Tìm kiếm theo tên
-    if (searchQuery.trim()) {
-      return room.name.toLowerCase().includes(searchQuery.toLowerCase())
-    }
-    return true
-  }), [rooms, filters, searchQuery])
+  const filteredRooms = useMemo(
+    () =>
+      rooms.filter((room) => {
+        // Nếu không tick checkbox nào → hiện tất cả
+        const anyFilterActive =
+          filters.occupied || filters.vacant || filters.ending || filters.expiring
+        if (anyFilterActive) {
+          const statusMatch =
+            (filters.vacant && room.status === 'vacant') ||
+            (filters.occupied && room.status === 'occupied') ||
+            (filters.ending && room.status === 'ending')
+          if (!statusMatch) return false
+        }
+        // Tìm kiếm theo tên
+        if (searchQuery.trim()) {
+          return room.name.toLowerCase().includes(searchQuery.toLowerCase())
+        }
+        return true
+      }),
+    [rooms, filters, searchQuery]
+  )
 
   const isAllRoomFilter =
     !filters.occupied && !filters.vacant && !filters.ending && !filters.expiring
@@ -1879,7 +2044,7 @@ const App: React.FC = () => {
     setMenuAnchor({
       top: buttonRect.bottom,
       bottom: window.innerHeight - buttonRect.top,
-      right: window.innerWidth - buttonRect.right,
+      right: window.innerWidth - buttonRect.right
     })
     setMenuOpenId(roomId)
   }
@@ -1939,9 +2104,9 @@ const App: React.FC = () => {
     .map((room) => {
       const daysLeft = room.expected_end_date
         ? Math.ceil(
-          (new Date(room.expected_end_date).getTime() - new Date().setHours(0, 0, 0, 0)) /
-          (1000 * 60 * 60 * 24)
-        )
+            (new Date(room.expected_end_date).getTime() - new Date().setHours(0, 0, 0, 0)) /
+              (1000 * 60 * 60 * 24)
+          )
         : null
 
       return {
@@ -1995,19 +2160,29 @@ const App: React.FC = () => {
       }
     })
 
-  const sepayNotificationItems = sepayBackgroundMatches.map((match) => ({
-    id: `sepay-${match.transactionId}-${match.invoice.id}`,
-    icon: 'fa-building-columns',
-    iconClass: 'text-emerald-500',
-    title: `${match.roomName} có tiền SePay khớp ${formatVND(match.amount)}đ`,
-    description: `${match.tenantName ? `${match.tenantName} · ` : ''}Đúng mã chuyển khoản và đúng số tiền còn thu.`,
-    actionLabel: 'Mở đồng bộ SePay',
-    onClick: () => {
-      setIsNotificationOpen(false)
-      requestActiveTab('invoices')
-      setSepaySyncOpenSignal((value) => value + 1)
+  const sepayNotificationItems = sepayBackgroundMatches.map((match) => {
+    const difference = Math.abs(match.amount - match.remaining)
+    const isExact = match.matchType === 'exact'
+    const mismatchLabel = match.matchType === 'partial' ? 'chuyển thiếu' : 'chuyển thừa'
+
+    return {
+      id: `sepay-${match.transactionId}-${match.invoice.id}`,
+      icon: isExact ? 'fa-building-columns' : 'fa-triangle-exclamation',
+      iconClass: isExact ? 'text-emerald-500' : 'text-amber-500',
+      title: isExact
+        ? `${match.roomName} có tiền SePay khớp ${formatVND(match.amount)}đ`
+        : `${match.roomName} ${mismatchLabel} ${formatVND(difference)}đ`,
+      description: isExact
+        ? `${match.tenantName ? `${match.tenantName} · ` : ''}Đúng mã chuyển khoản và đúng số tiền còn thu.`
+        : `${match.tenantName ? `${match.tenantName} · ` : ''}SePay nhận ${formatVND(match.amount)}đ, hóa đơn còn thu ${formatVND(match.remaining)}đ. Cần đối soát thủ công.`,
+      actionLabel: 'Mở đối soát SePay',
+      onClick: () => {
+        setIsNotificationOpen(false)
+        requestActiveTab('invoices')
+        setSepaySyncOpenSignal((value) => value + 1)
+      }
     }
-  }))
+  })
 
   const readNotificationIds = new Set(appSettings.notification_read_ids || [])
   const notificationItems = [
@@ -2039,14 +2214,22 @@ const App: React.FC = () => {
     notificationCountRef.current = notificationItems.length
   }, [notificationItems.length])
 
-  if (!authReady) return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
+  if (!authReady)
+    return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
 
   if (!currentUser) {
-    return <LoginScreen onLogin={setCurrentUser} />
+    return (
+      <LoginScreen
+        onLogin={setCurrentUser}
+        recoveryMode={passwordRecovery}
+        onRecoveryComplete={() => setPasswordRecovery(false)}
+      />
+    )
   }
 
-  const accountDisplayName = currentUser.full_name || (currentUser.role === 'admin' ? 'Admin' : currentUser.username)
-  const sapoGreen = '#00ffcc'
+  const accountDisplayName =
+    currentUser.full_name || (currentUser.role === 'admin' ? 'Admin' : currentUser.username)
+  const sapoGreen = '#7FD1AE'
   const headerNavItems = [
     { id: 'rooms' as const, icon: Home, label: 'Phòng' },
     { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' },
@@ -2058,1626 +2241,1846 @@ const App: React.FC = () => {
   return (
     <Suspense fallback={<TabLoading />}>
       <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
-      {invoiceGuardNotice &&
-        (() => {
-          const inv = invoiceGuardNotice.invoice
-          const remaining = Math.max(0, inv.total_amount - inv.paid_amount)
-          const room = roomById.get(inv.room_id)
-          return (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-              <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white shadow-2xl">
-                {/* Header */}
-                <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                    <i className="fa-solid fa-triangle-exclamation text-lg"></i>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-bold text-gray-900">
-                      Hóa đơn này chưa được thanh toán
-                    </h3>
-                    <p className="mt-1 text-sm leading-6 text-gray-600">
-                      {invoiceGuardNotice.message}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Invoice Detail Card */}
-                <div className="px-5 py-4 space-y-3">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-100 overflow-hidden">
-                    {/* Row: Loại hóa đơn */}
-                    <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs text-slate-500 font-medium">Loại hóa đơn</span>
-                      <span className="text-xs font-bold text-slate-800">
-                        {inv.is_first_month
-                          ? '⚡ Tháng đầu (nhận phòng)'
-                          : inv.is_settlement
-                            ? '🔚 Tất toán hợp đồng'
-                            : `📅 Hàng tháng – Tháng ${inv.month}/${inv.year}`}
-                      </span>
+        {invoiceGuardNotice &&
+          (() => {
+            const inv = invoiceGuardNotice.invoice
+            const remaining = Math.max(0, inv.total_amount - inv.paid_amount)
+            const room = roomById.get(inv.room_id)
+            return (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+                <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white shadow-2xl">
+                  {/* Header */}
+                  <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                      <i className="fa-solid fa-triangle-exclamation text-lg"></i>
                     </div>
-
-                    {/* Row: Phòng */}
-                    {room && (
-                      <div className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-xs text-slate-500 font-medium">Phòng</span>
-                        <span className="text-xs font-bold text-slate-800">{room.name}</span>
-                      </div>
-                    )}
-
-                    {/* Row: Tổng tiền */}
-                    <div className="flex items-center justify-between px-4 py-2.5">
-                      <span className="text-xs text-slate-500 font-medium">Tổng hóa đơn</span>
-                      <span className="text-sm font-bold text-slate-900">
-                        {inv.total_amount.toLocaleString('vi-VN')}đ
-                      </span>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold text-gray-900">
+                        Hóa đơn này chưa được thanh toán
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-gray-600">
+                        {invoiceGuardNotice.message}
+                      </p>
                     </div>
+                  </div>
 
-                    {/* Row: Đã trả */}
-                    {inv.paid_amount > 0 && (
+                  {/* Invoice Detail Card */}
+                  <div className="px-5 py-4 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-100 overflow-hidden">
+                      {/* Row: Loại hóa đơn */}
                       <div className="flex items-center justify-between px-4 py-2.5">
-                        <span className="text-xs text-slate-500 font-medium">Đã thanh toán</span>
-                        <span className="text-xs font-bold text-emerald-600">
-                          {inv.paid_amount.toLocaleString('vi-VN')}đ
+                        <span className="text-xs text-slate-500 font-medium">Loại hóa đơn</span>
+                        <span className="text-xs font-bold text-slate-800">
+                          {inv.is_first_month
+                            ? '⚡ Tháng đầu (nhận phòng)'
+                            : inv.is_settlement
+                              ? '🔚 Tất toán hợp đồng'
+                              : `📅 Hàng tháng – Tháng ${inv.month}/${inv.year}`}
                         </span>
                       </div>
-                    )}
 
-                    {/* Row: Còn thiếu */}
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-red-50">
-                      <span className="text-xs text-red-600 font-bold">Còn thiếu</span>
-                      <span className="text-base font-black text-red-600">
-                        {remaining.toLocaleString('vi-VN')}đ
-                      </span>
+                      {/* Row: Phòng */}
+                      {room && (
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-slate-500 font-medium">Phòng</span>
+                          <span className="text-xs font-bold text-slate-800">{room.name}</span>
+                        </div>
+                      )}
+
+                      {/* Row: Tổng tiền */}
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs text-slate-500 font-medium">Tổng hóa đơn</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          {inv.total_amount.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+
+                      {/* Row: Đã trả */}
+                      {inv.paid_amount > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-slate-500 font-medium">Đã thanh toán</span>
+                          <span className="text-xs font-bold text-emerald-600">
+                            {inv.paid_amount.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Row: Còn thiếu */}
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-red-50">
+                        <span className="text-xs text-red-600 font-bold">Còn thiếu</span>
+                        <span className="text-base font-black text-red-600">
+                          {remaining.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <i className="fa-solid fa-circle-info mr-2 text-amber-500"></i>
+                      Thanh toán hóa đơn này trước để tiếp tục lập hóa đơn mới.
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    <i className="fa-solid fa-circle-info mr-2 text-amber-500"></i>
-                    Thanh toán hóa đơn này trước để tiếp tục lập hóa đơn mới.
+                  {/* Footer */}
+                  <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceGuardNotice(null)}
+                      className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                    >
+                      Thoát ra
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentInvoice(invoiceGuardNotice.invoice)
+                        setInvoiceGuardNotice(null)
+                      }}
+                      className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 flex items-center justify-center gap-2"
+                    >
+                      <i className="fa-solid fa-money-bill-wave"></i> Thanh toán ngay
+                    </button>
                   </div>
                 </div>
-
-                {/* Footer */}
-                <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceGuardNotice(null)}
-                    className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-                  >
-                    Thoát ra
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaymentInvoice(invoiceGuardNotice.invoice)
-                      setInvoiceGuardNotice(null)
-                    }}
-                    className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 flex items-center justify-center gap-2"
-                  >
-                    <i className="fa-solid fa-money-bill-wave"></i> Thanh toán ngay
-                  </button>
+              </div>
+            )
+          })()}
+        {assetGuardNotice && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
+              <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <i className="fa-solid fa-clipboard-check text-lg"></i>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-gray-900">
+                    {assetGuardNotice.type === 'move_in'
+                      ? 'Cần chốt nhận phòng'
+                      : 'Cần đối chiếu trả phòng'}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    {assetGuardNotice.type === 'move_in'
+                      ? `Phòng ${assetGuardNotice.room.name} đã có hợp đồng mới. Cần vào tab Tài sản để chốt nhận phòng trước khi lập hoặc thu hóa đơn.`
+                      : `Phòng ${assetGuardNotice.room.name} đang báo trả phòng. Cần hoàn tất Đối chiếu trả phòng trong tab Tài sản trước khi thu hóa đơn.`}
+                  </p>
                 </div>
               </div>
-            </div>
-          )
-        })()}
-      {assetGuardNotice && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
-            <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                <i className="fa-solid fa-clipboard-check text-lg"></i>
+              <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setAssetGuardNotice(null)}
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                >
+                  Để sau
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const noticeType = assetGuardNotice.type
+                    setAssetModuleInitialRoomId(assetGuardNotice.room.id)
+                    setAssetModuleGuideMode(noticeType)
+                    requestActiveTab('assets')
+                    setAssetGuardNotice(null)
+                  }}
+                  className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-couch"></i> Đi tới Tài sản
+                </button>
               </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-bold text-gray-900">
-                  {assetGuardNotice.type === 'move_in' ? 'Cần chốt nhận phòng' : 'Cần đối chiếu trả phòng'}
-                </h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">
-                  {assetGuardNotice.type === 'move_in'
-                    ? `Phòng ${assetGuardNotice.room.name} đã có hợp đồng mới. Cần vào tab Tài sản để chốt nhận phòng trước khi lập hoặc thu hóa đơn.`
-                    : `Phòng ${assetGuardNotice.room.name} đang báo trả phòng. Cần hoàn tất Đối chiếu trả phòng trong tab Tài sản trước khi thu hóa đơn.`}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setAssetGuardNotice(null)}
-                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-              >
-                Để sau
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const noticeType = assetGuardNotice.type
-                  setAssetModuleInitialRoomId(assetGuardNotice.room.id)
-                  setAssetModuleGuideMode(noticeType)
-                  requestActiveTab('assets')
-                  setAssetGuardNotice(null)
-                }}
-                className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
-              >
-                <i className="fa-solid fa-couch"></i> Đi tới Tài sản
-              </button>
             </div>
           </div>
-        </div>
-      )}
-      {assetLeavePrompt && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
-            <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                <i className="fa-solid fa-clipboard-check text-lg"></i>
+        )}
+        {assetLeavePrompt && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
+              <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <i className="fa-solid fa-clipboard-check text-lg"></i>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-gray-900">Chưa chốt nhận tài sản</h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    Phòng {assetLeavePrompt.pending.roomName} đã được thêm tài sản nhưng chưa chốt
+                    nhận phòng. Cần chốt nhận để lưu tình trạng ban đầu và khóa danh sách thiết bị
+                    trước khi xử lý nghiệp vụ khác.
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-bold text-gray-900">Chưa chốt nhận tài sản</h3>
-                <p className="mt-1 text-sm leading-6 text-gray-600">
-                  Phòng {assetLeavePrompt.pending.roomName} đã được thêm tài sản nhưng chưa chốt nhận phòng. Cần chốt nhận để lưu tình trạng ban đầu và khóa danh sách thiết bị trước khi xử lý nghiệp vụ khác.
-                </p>
+              <div className="bg-amber-50 px-5 py-3 text-[12px] font-semibold leading-5 text-amber-700">
+                Nếu bỏ qua bước này, lúc trả phòng sẽ không có mốc đối chiếu chính xác.
               </div>
-            </div>
-            <div className="bg-amber-50 px-5 py-3 text-[12px] font-semibold leading-5 text-amber-700">
-              Nếu bỏ qua bước này, lúc trả phòng sẽ không có mốc đối chiếu chính xác.
-            </div>
-            <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
-              <button
-                type="button"
-                onClick={continuePendingAssetLeave}
-                className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
-              >
-                Vẫn chuyển tab
-              </button>
-              <button
-                type="button"
-                onClick={openPendingAssetReceive}
-                className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
-              >
-                <i className="fa-solid fa-clipboard-check"></i> Chốt nhận ngay
-              </button>
+              <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={continuePendingAssetLeave}
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                >
+                  Vẫn chuyển tab
+                </button>
+                <button
+                  type="button"
+                  onClick={openPendingAssetReceive}
+                  className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-clipboard-check"></i> Chốt nhận ngay
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      {isAddRoomOpen && (
-        <AddRoomModal
-          onClose={() => setIsAddRoomOpen(false)}
-          onOpenContract={({ room, moveInDate }) => {
-            setIsAddRoomOpen(false)
-            setNewContractRoom(room)
-            setNewContractSeed({ moveInDate })
-          }}
-        />
-      )}
-      {editRoom && <EditRoomModal room={editRoom} onClose={() => setEditRoom(null)} />}
-      {isServiceZoneOpen && <ServiceZoneModal onClose={() => setIsServiceZoneOpen(false)} />}
-      {serviceZoneRoom && (
-        <RoomServiceZonePickerModal
-          room={serviceZoneRoom}
-          onClose={() => setServiceZoneRoom(null)}
-        />
-      )}
+        )}
+        {isAddRoomOpen && (
+          <AddRoomModal
+            onClose={() => setIsAddRoomOpen(false)}
+            onOpenContract={({ room, moveInDate }) => {
+              setIsAddRoomOpen(false)
+              setNewContractRoom(room)
+              setNewContractSeed({ moveInDate })
+            }}
+          />
+        )}
+        {editRoom && <EditRoomModal room={editRoom} onClose={() => setEditRoom(null)} />}
+        {isServiceZoneOpen && <ServiceZoneModal onClose={() => setIsServiceZoneOpen(false)} />}
+        {serviceZoneRoom && (
+          <RoomServiceZonePickerModal
+            room={serviceZoneRoom}
+            onClose={() => setServiceZoneRoom(null)}
+          />
+        )}
 
-      {paymentInvoice && (
-        <PaymentModal
-          invoice={paymentInvoice}
-          room={roomById.get(paymentInvoice.room_id)}
-          onClose={() => setPaymentInvoice(null)}
-        />
-      )}
-      {roomToDelete && (
-        <ConfirmDeleteModal
-          room={roomToDelete}
-          onConfirm={confirmDelete}
-          onCancel={() => setRoomToDelete(null)}
-          isDeleting={deleteMutation.isPending}
-        />
-      )}
-      {roomToDeleteWithHistory && (
-        <ConfirmDeleteWithHistoryModal
-          room={roomToDeleteWithHistory}
-          onConfirm={() => {
-            deleteMutation.mutate(roomToDeleteWithHistory.id, {
-              onSuccess: () => setRoomToDeleteWithHistory(null)
-            })
-          }}
-          onCancel={() => setRoomToDeleteWithHistory(null)}
-          isDeleting={deleteMutation.isPending}
-        />
-      )}
-      {/* Header Menu */}
-      <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#003d4d] bg-[#002b36] px-4 pr-40 font-sans text-white shadow-md">
-        <div className="app-no-drag flex min-w-0 items-center space-x-4">
-          <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
-              <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
+        {paymentInvoice && (
+          <PaymentModal
+            invoice={paymentInvoice}
+            room={roomById.get(paymentInvoice.room_id)}
+            onClose={() => setPaymentInvoice(null)}
+          />
+        )}
+        {roomToDelete && (
+          <ConfirmDeleteModal
+            room={roomToDelete}
+            onConfirm={confirmDelete}
+            onCancel={() => setRoomToDelete(null)}
+            isDeleting={deleteMutation.isPending}
+          />
+        )}
+        {roomToDeleteWithHistory && (
+          <ConfirmDeleteWithHistoryModal
+            room={roomToDeleteWithHistory}
+            onConfirm={() => {
+              deleteMutation.mutate(roomToDeleteWithHistory.id, {
+                onSuccess: () => setRoomToDeleteWithHistory(null)
+              })
+            }}
+            onCancel={() => setRoomToDeleteWithHistory(null)}
+            isDeleting={deleteMutation.isPending}
+          />
+        )}
+        {/* Header Menu */}
+        <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#00462F] bg-[#005B3C] px-4 pr-40 font-sans text-white shadow-md">
+          <div className="app-no-drag flex min-w-0 items-center space-x-4">
+            <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
+                <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="text-sm font-bold tracking-tight text-white">AN KHANG HOME</span>
+                <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
+                  Quản lý phòng trọ
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-sm font-bold tracking-tight text-white">
-                AN KHANG HOME
-              </span>
-              <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
-                Quản lý phòng trọ
-              </span>
-            </div>
+
+            <nav className="ml-4 flex h-14 min-w-0 overflow-x-auto scrollbar-hide">
+              {headerNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activeTab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      playClick()
+                      requestActiveTab(item.id)
+                    }}
+                    className={`flex shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-[#005B3C] text-white'
+                        : 'border-transparent text-white hover:bg-white/5'
+                    }`}
+                    style={{ borderBottomColor: isActive ? sapoGreen : 'transparent' }}
+                  >
+                    <Icon size={18} className="text-white" />
+                    <span className="text-white">{item.label}</span>
+                  </button>
+                )
+              })}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick()
+                    requestActiveTab('reports')
+                  }}
+                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                    activeTab === 'reports'
+                      ? 'bg-[#005B3C] text-white'
+                      : 'border-transparent text-white hover:bg-white/5'
+                  }`}
+                  style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
+                >
+                  <BarChart3 size={18} className="text-white" />
+                  <span className="text-white">Báo cáo</span>
+                </button>
+              </div>
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick()
+                    requestActiveTab('ai-analysis')
+                  }}
+                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                    activeTab === 'ai-analysis'
+                      ? 'bg-[#005B3C] text-white'
+                      : 'border-transparent text-white hover:bg-white/5'
+                  }`}
+                  style={{
+                    borderBottomColor: activeTab === 'ai-analysis' ? sapoGreen : 'transparent'
+                  }}
+                >
+                  <Sparkles size={18} className="text-white" />
+                  <span className="text-white">Phân tích AI</span>
+                </button>
+              </div>
+            </nav>
           </div>
 
-          <nav className="ml-4 flex h-14 min-w-0 overflow-x-auto scrollbar-hide">
-            {headerNavItems.map((item) => {
-              const Icon = item.icon
-              const isActive = activeTab === item.id
+          <div className="app-no-drag flex shrink-0 items-center space-x-4">
+            <div className="relative" ref={notificationMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen((prev) => !prev)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
+                title="Thông báo"
+              >
+                <Bell
+                  size={20}
+                  className={
+                    notificationItems.length > 0 && !isNotificationOpen
+                      ? 'notification-bell-ring'
+                      : ''
+                  }
+                />
+                {notificationItems.length > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-[3px] text-[9px] font-bold text-white">
+                    {notificationBadgeLabel}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
+                  <div className="flex items-center justify-between px-4 pb-2 pt-1">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-800">
+                        Thông báo
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {notificationItems.length > 0
+                          ? `Có ${notificationItems.length} mục cần xử lý`
+                          : 'Hiện không có thông báo mới'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {notificationItems.length > 0 ? (
+                    <div className="max-h-80 overflow-y-auto px-2">
+                      {notificationItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleNotificationAction(item.id, item.onClick)}
+                          className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                        >
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 ${item.iconClass}`}
+                          >
+                            <i className={`fa-solid ${item.icon} text-sm`}></i>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[12px] font-bold text-slate-800">{item.title}</div>
+                            <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                              {item.description}
+                            </div>
+                            <div className="mt-2 text-[11px] font-bold text-primary">
+                              {item.actionLabel}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 text-center text-[12px] text-slate-500">
+                      Mọi thứ đang ổn. Chưa có việc nào cần xử lý ngay.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                playClick()
+                setSettingsInitialTab('general')
+                requestActiveTab('settings')
+              }}
+              className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
+              title="Cài đặt hệ thống"
+            >
+              <SettingsIcon size={18} />
+            </button>
+
+            <div className="relative" ref={accountMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsAccountMenuOpen((prev) => !prev)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-all hover:scale-105 active:scale-95 border-2 border-white/20 overflow-hidden bg-white/10 backdrop-blur-sm"
+                title={accountDisplayName}
+              >
+                <img
+                  src={
+                    currentUser.avatar_url ||
+                    (currentUser.role === 'admin'
+                      ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0'
+                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
+                  }
+                  alt="Avatar"
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent"></div>
+              </button>
+
+              {isAccountMenuOpen && (
+                <div
+                  className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
+                  style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
+                >
+                  {/* User Info Card */}
+                  <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
+                    {/* Decorative backgrounds */}
+                    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"></div>
+                    <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
+
+                    <div className="relative mb-4">
+                      <div className="h-20 w-20 rounded-[24px] bg-white p-1 shadow-2xl ring-4 ring-white/10 transition-transform hover:scale-105">
+                        <img
+                          src={
+                            currentUser.avatar_url ||
+                            (currentUser.role === 'admin'
+                              ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0'
+                              : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
+                          }
+                          className="h-full w-full rounded-[20px] object-cover"
+                          alt="Avatar Large"
+                        />
+                      </div>
+                      <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-800 bg-emerald-400 shadow-lg">
+                        <div className="h-2 w-2 rounded-full bg-white animate-pulse"></div>
+                      </span>
+                    </div>
+
+                    <div className="relative z-10">
+                      <div className="text-lg font-black text-white tracking-tight">
+                        {accountDisplayName}
+                      </div>
+                      <div className="inline-flex mt-1 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 border border-white/5">
+                        <i className="fa-solid fa-shield-halved"></i>
+                        Quyền: {currentUser.role?.toUpperCase()}
+                      </div>
+                      <div className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest opacity-60">
+                        ID: {currentUser.id?.slice(0, 8) || 'ADMIN_DB'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <button
+                      className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-emerald-50 group border border-transparent hover:border-emerald-100"
+                      onClick={() => {
+                        setIsAccountMenuOpen(false)
+                        setIsProfileOpen(true)
+                      }}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
+                        <i className="fa-solid fa-id-card text-emerald-500"></i>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-600">Hồ sơ</span>
+                    </button>
+                    <button className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-amber-50 group border border-transparent hover:border-amber-100">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
+                        <i className="fa-solid fa-key text-amber-500"></i>
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-600">Bảo mật</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center justify-center gap-3 rounded-[20px] bg-rose-50 px-3 py-4 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-100 group border border-rose-100/50 uppercase tracking-widest"
+                  >
+                    <i className="fa-solid fa-power-off text-base group-hover:rotate-180 transition-transform duration-500"></i>
+                    <span>Đăng xuất hệ thống</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {isProfileOpen && currentUser && (
+          <ProfileModal
+            currentUser={currentUser}
+            onClose={() => setIsProfileOpen(false)}
+            onUpdate={(updated) => setCurrentUser(updated)}
+          />
+        )}
+
+        {isReportMenuOpen && (
+          <div
+            ref={reportDropdownRef}
+            className="fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
+            style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
+          >
+            {[
+              { id: 'cashflow' as const, icon: 'fa-wallet', label: 'Thu / Chi' },
+              {
+                id: 'finance' as const,
+                icon: 'fa-money-bill-trend-up',
+                label: 'Báo cáo kinh doanh'
+              }
+            ].map((item) => {
+              const isActive = activeTab === 'reports' && reportSubTab === item.id
               return (
                 <button
                   key={item.id}
                   type="button"
                   onClick={() => {
                     playClick()
-                    requestActiveTab(item.id)
+                    setReportSubTab(item.id)
+                    requestActiveTab('reports')
+                    setIsReportMenuOpen(false)
                   }}
-                  className={`flex shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${isActive
-                    ? 'bg-white/10 text-white'
-                    : 'border-transparent text-white hover:bg-white/5'
-                    }`}
-                  style={{ borderBottomColor: isActive ? sapoGreen : 'transparent' }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                    isActive
+                      ? 'bg-primary/10 text-primary font-bold'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
                 >
-                  <Icon size={18} className="text-white" />
-                  <span className="text-white">{item.label}</span>
+                  <i className={`fa-solid ${item.icon} w-4 text-center`}></i>
+                  <span>{item.label}</span>
                 </button>
               )
             })}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  playClick()
-                  requestActiveTab('reports')
-                }}
-                className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${activeTab === 'reports'
-                  ? 'bg-white/10 text-white'
-                  : 'border-transparent text-white hover:bg-white/5'
-                  }`}
-                style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
-              >
-                <BarChart3 size={18} className="text-white" />
-                <span className="text-white">Báo cáo</span>
-              </button>
-            </div>
-          </nav>
-        </div>
+          </div>
+        )}
 
-        <div className="app-no-drag flex shrink-0 items-center space-x-4">
-          <div className="relative" ref={notificationMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsNotificationOpen((prev) => !prev)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
-              title="Thông báo"
-            >
-              <Bell size={20} className={notificationItems.length > 0 && !isNotificationOpen ? 'notification-bell-ring' : ''} />
-              {notificationItems.length > 0 && (
-                <span className="absolute right-0.5 top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-[3px] text-[9px] font-bold text-white">
-                  {notificationBadgeLabel}
-                </span>
-              )}
-            </button>
-
-            {isNotificationOpen && (
-              <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
-                <div className="flex items-center justify-between px-4 pb-2 pt-1">
-                  <div>
-                    <div className="text-xs font-black uppercase tracking-wide text-slate-800">
-                      Thông báo
+        {/* MAIN SCROLLABLE CONTENT */}
+        <div
+          key={activeTab}
+          className="flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]"
+        >
+          {activeTab === 'rooms' ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {dueRoomsCount > 0 && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500">
+                      <i className="fa-solid fa-bell animate-[swing_0.5s_ease-out]"></i>
                     </div>
-                    <div className="text-[11px] text-slate-500">
-                      {notificationItems.length > 0
-                        ? `Có ${notificationItems.length} mục cần xử lý`
-                        : 'Hiện không có thông báo mới'}
+                    <div>
+                      <strong className="font-bold">Đến kỳ lập hóa đơn!</strong>
+                      <span className="block text-xs mt-0.5 opacity-90">
+                        Có {dueRoomsCount} phòng cần lập hóa đơn của tháng {currentMonth}/
+                        {currentYear}.
+                      </span>
                     </div>
                   </div>
                 </div>
+              )}
+              {/* SUMMARY WIDGETS (Removed per user request) */}
 
-                {notificationItems.length > 0 ? (
-                  <div className="max-h-80 overflow-y-auto px-2">
-                    {notificationItems.map((item) => (
+              {/* MAIN TABLE WHITE BOX */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
+                {/* Table Header Area */}
+                <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
+                      <i className="fa-solid fa-house"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
+                      <p className="text-sm text-gray-500">
+                        Hệ thống đang quản lý{' '}
+                        <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
+                        <span className="font-bold text-primary">AN KHANG HOME</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsAddRoomOpen(true)}
+                      className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
+                    >
+                      <i className="fa-solid fa-plus text-xs"></i>
+                      <span>Thêm phòng</span>
+                    </button>
+                    <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+                      <i className="fa-solid fa-file-excel text-green-600"></i>
+                      <span>Xuất Excel</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Area */}
+                <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
+                      <i className="fa-solid fa-filter text-xs"></i>
+                      <span className="text-xs font-bold font-heading">{rooms.length}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resetRoomFilters}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        isAllRoomFilter
+                          ? 'bg-primary text-white shadow-md shadow-primary/20'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+
+                    {[
+                      {
+                        id: 'occupied' as const,
+                        label: 'Đang ở',
+                        count: counts.occupied,
+                        color: 'primary'
+                      },
+                      {
+                        id: 'vacant' as const,
+                        label: 'Đang trống',
+                        count: counts.vacant,
+                        color: 'gray'
+                      },
+                      {
+                        id: 'ending' as const,
+                        label: 'Sắp chuyển',
+                        count: counts.ending,
+                        color: 'amber'
+                      },
+                      {
+                        id: 'expiring' as const,
+                        label: 'Hết hạn',
+                        count: counts.expiring,
+                        color: 'blue'
+                      }
+                    ].map((f) => (
                       <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleNotificationAction(item.id, item.onClick)}
-                        className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                        key={f.id}
+                        onClick={() => toggleFilter(f.id)}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${
+                          filters[f.id]
+                            ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
+                            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
                       >
                         <div
-                          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 ${item.iconClass}`}
+                          className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}
+                        ></div>
+                        <span>{f.label}</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}
                         >
-                          <i className={`fa-solid ${item.icon} text-sm`}></i>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[12px] font-bold text-slate-800">
-                            {item.title}
-                          </div>
-                          <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                            {item.description}
-                          </div>
-                          <div className="mt-2 text-[11px] font-bold text-primary">
-                            {item.actionLabel}
-                          </div>
-                        </div>
+                          {f.count}
+                        </span>
                       </button>
                     ))}
                   </div>
-                ) : (
-                  <div className="px-4 py-6 text-center text-[12px] text-slate-500">
-                    Mọi thứ đang ổn. Chưa có việc nào cần xử lý ngay.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          <button
-            onClick={() => {
-              playClick()
-              setSettingsInitialTab('general')
-              requestActiveTab('settings')
-            }}
-            className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
-            title="Cài đặt hệ thống"
-          >
-            <SettingsIcon size={18} />
-          </button>
-
-          <div className="relative" ref={accountMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-all hover:scale-105 active:scale-95 border-2 border-white/20 overflow-hidden bg-white/10 backdrop-blur-sm"
-              title={accountDisplayName}
-            >
-              <img
-                src={currentUser.avatar_url || (currentUser.role === 'admin'
-                  ? "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0"
-                  : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
-                }
-                alt="Avatar"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent"></div>
-            </button>
-
-            {isAccountMenuOpen && (
-              <div
-                className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
-                style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
-              >
-                {/* User Info Card */}
-                <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
-                  {/* Decorative backgrounds */}
-                  <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"></div>
-                  <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
-
-                  <div className="relative mb-4">
-                    <div className="h-20 w-20 rounded-[24px] bg-white p-1 shadow-2xl ring-4 ring-white/10 transition-transform hover:scale-105">
-                      <img
-                        src={currentUser.avatar_url || (currentUser.role === 'admin'
-                          ? "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0"
-                          : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
-                        }
-                        className="h-full w-full rounded-[20px] object-cover"
-                        alt="Avatar Large"
-                      />
+                  <div className="relative w-full max-w-[300px]">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-magnifying-glass text-xs"></i>
                     </div>
-                    <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-800 bg-emerald-400 shadow-lg">
-                      <div className="h-2 w-2 rounded-full bg-white animate-pulse"></div>
-                    </span>
-                  </div>
-
-                  <div className="relative z-10">
-                    <div className="text-lg font-black text-white tracking-tight">{accountDisplayName}</div>
-                    <div className="inline-flex mt-1 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 border border-white/5">
-                      <i className="fa-solid fa-shield-halved"></i>
-                      Quyền: {currentUser.role?.toUpperCase()}
-                    </div>
-                    <div className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest opacity-60">ID: {currentUser.id?.slice(0, 8) || 'ADMIN_DB'}</div>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm số phòng..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
+                    />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <button
-                    className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-emerald-50 group border border-transparent hover:border-emerald-100"
-                    onClick={() => { setIsAccountMenuOpen(false); setIsProfileOpen(true) }}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
-                      <i className="fa-solid fa-id-card text-emerald-500"></i>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-600">Hồ sơ</span>
-                  </button>
-                  <button className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-amber-50 group border border-transparent hover:border-amber-100">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
-                      <i className="fa-solid fa-key text-amber-500"></i>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-600">Bảo mật</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={handleLogout}
-                  className="flex w-full items-center justify-center gap-3 rounded-[20px] bg-rose-50 px-3 py-4 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-100 group border border-rose-100/50 uppercase tracking-widest"
-                >
-                  <i className="fa-solid fa-power-off text-base group-hover:rotate-180 transition-transform duration-500"></i>
-                  <span>Đăng xuất hệ thống</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </header >
-
-      {isProfileOpen && currentUser && (
-        <ProfileModal
-          currentUser={currentUser}
-          onClose={() => setIsProfileOpen(false)}
-          onUpdate={(updated) => setCurrentUser(updated)}
-        />
-      )}
-
-      {isReportMenuOpen && (
-        <div
-          ref={reportDropdownRef}
-          className="fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
-          style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
-        >
-          {[
-            { id: 'cashflow' as const, icon: 'fa-wallet', label: 'Thu / Chi' },
-            { id: 'finance' as const, icon: 'fa-money-bill-trend-up', label: 'Báo cáo kinh doanh' }
-          ].map((item) => {
-            const isActive = activeTab === 'reports' && reportSubTab === item.id
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  playClick()
-                  setReportSubTab(item.id)
-                  requestActiveTab('reports')
-                  setIsReportMenuOpen(false)
-                }}
-                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${isActive
-                  ? 'bg-primary/10 text-primary font-bold'
-                  : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                <i className={`fa-solid ${item.icon} w-4 text-center`}></i>
-                <span>{item.label}</span>
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {/* MAIN SCROLLABLE CONTENT */}
-      <div key={activeTab} className="flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]">
-        {activeTab === 'rooms' ? (
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {dueRoomsCount > 0 && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500">
-                    <i className="fa-solid fa-bell animate-[swing_0.5s_ease-out]"></i>
-                  </div>
-                  <div>
-                    <strong className="font-bold">Đến kỳ lập hóa đơn!</strong>
-                    <span className="block text-xs mt-0.5 opacity-90">
-                      Có {dueRoomsCount} phòng cần lập hóa đơn của tháng {currentMonth}/{currentYear}.
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-            {/* SUMMARY WIDGETS (Removed per user request) */}
-
-            {/* MAIN TABLE WHITE BOX */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
-              {/* Table Header Area */}
-              <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
-                    <i className="fa-solid fa-house"></i>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
-                    <p className="text-sm text-gray-500">
-                      Hệ thống đang quản lý <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
-                      <span className="font-bold text-primary">AN KHANG HOME</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsAddRoomOpen(true)}
-                    className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
-                  >
-                    <i className="fa-solid fa-plus text-xs"></i>
-                    <span>Thêm phòng</span>
-                  </button>
-                  <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
-                    <i className="fa-solid fa-file-excel text-green-600"></i>
-                    <span>Xuất Excel</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Filter Area */}
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
-                    <i className="fa-solid fa-filter text-xs"></i>
-                    <span className="text-xs font-bold font-heading">{rooms.length}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={resetRoomFilters}
-                    className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${isAllRoomFilter
-                      ? 'bg-primary text-white shadow-md shadow-primary/20'
-                      : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'}`}
-                  >
-                    Tất cả
-                  </button>
-
-                  {[
-                    { id: 'occupied' as const, label: 'Đang ở', count: counts.occupied, color: 'primary' },
-                    { id: 'vacant' as const, label: 'Đang trống', count: counts.vacant, color: 'gray' },
-                    { id: 'ending' as const, label: 'Sắp chuyển', count: counts.ending, color: 'amber' },
-                    { id: 'expiring' as const, label: 'Hết hạn', count: counts.expiring, color: 'blue' }
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => toggleFilter(f.id)}
-                      className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${filters[f.id]
-                        ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
-                        : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                    >
-                      <div className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}></div>
-                      <span>{f.label}</span>
-                      <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}>
-                        {f.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="relative w-full max-w-[300px]">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
-                    <i className="fa-solid fa-magnifying-glass text-xs"></i>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Tìm kiếm số phòng..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
-                  />
-                </div>
-              </div>
-
-              {/* Table content */}
-              <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="text-[10px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
-                    <tr>
-                      <th
-                        rowSpan={2}
-                        className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
-                      >
-                        <i className="fa-solid fa-bars-staggered"></i>
-                      </th>
-                      <th
-                        rowSpan={2}
-                        className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <i className="fa-solid fa-door-open text-primary/60"></i>
-                          <span>Tên phòng</span>
-                        </div>
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-tag mr-1 text-green-500/70"></i> Giá thuê
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-bolt mr-1 text-yellow-500/70"></i> Phí DV
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-shield-halved mr-1 text-blue-400/70"></i> Tiền cọc
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400/70"></i> Nợ cũ
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-users mr-1 text-teal-500/70"></i> KH thuê
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
-                        <i className="fa-solid fa-calendar-check mr-1 text-orange-400/70"></i> Ngày vào
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 text-center border-r border-gray-100">
-                        Tình trạng
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 text-center border-r border-gray-100">
-                        Tài chính
-                      </th>
-                      <th rowSpan={2} className="px-3 py-2.5 w-8"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {isLoading ? (
+                {/* Table content */}
+                <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="text-[10px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
                       <tr>
-                        <td colSpan={12} className="text-center py-10 text-gray-400">
-                          <LogoLoading message="Đang tải danh sách phòng..." className="min-h-[45vh]" />
-                        </td>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
+                        >
+                          <i className="fa-solid fa-bars-staggered"></i>
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <i className="fa-solid fa-door-open text-primary/60"></i>
+                            <span>Tên phòng</span>
+                          </div>
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-tag mr-1 text-green-500/70"></i> Giá thuê
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-bolt mr-1 text-yellow-500/70"></i> Phí DV
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-shield-halved mr-1 text-blue-400/70"></i> Tiền
+                          cọc
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400/70"></i>{' '}
+                          Nợ cũ
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-users mr-1 text-teal-500/70"></i> KH thuê
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-calendar-check mr-1 text-orange-400/70"></i>{' '}
+                          Ngày vào
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 text-center border-r border-gray-100"
+                        >
+                          Tình trạng
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 text-center border-r border-gray-100"
+                        >
+                          Tài chính
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 w-8"></th>
                       </tr>
-                    ) : (
-                      filteredRooms.map((origRoom, roomIndex) => {
-                        const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
-                        const zone = serviceZoneById.get(room.service_zone_id || '') || {
-                          name: 'Chưa có',
-                          electric_price: 0,
-                          water_price: 0,
-                          internet_price: 0,
-                          cleaning_price: 0
-                        }
-                        const activeContract = activeContractByRoomId.get(room.id)
-                        const roomInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                          (i) =>
-                            i.payment_status !== 'cancelled' &&
-                            i.payment_status !== 'merged'
-                        )
-                        const roomMoveInReceipts = moveInReceiptsByRoomId.get(room.id) || []
-                        const checkInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                          (i) =>
-                            (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id) &&
-                            new Date(
-                              i.created_at || i.invoice_date || activeContract?.created_at || Date.now()
-                            ).getTime() >=
-                            new Date(
-                              activeContract?.created_at || activeContract?.move_in_date || Date.now()
-                            ).getTime()
-                        )
-                        const endingOutstandingInvoice = checkInvoices
-                          .filter(
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {isLoading ? (
+                        <tr>
+                          <td colSpan={12} className="text-center py-10 text-gray-400">
+                            <LogoLoading
+                              message="Đang tải danh sách phòng..."
+                              className="min-h-[45vh]"
+                            />
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredRooms.map((origRoom, roomIndex) => {
+                          const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
+                          const zone = serviceZoneById.get(room.service_zone_id || '') || {
+                            name: 'Chưa có',
+                            electric_price: 0,
+                            water_price: 0,
+                            internet_price: 0,
+                            cleaning_price: 0
+                          }
+                          const activeContract = activeContractByRoomId.get(room.id)
+                          const roomInvoices = (invoicesByRoomId.get(room.id) || []).filter(
+                            (i) => i.payment_status !== 'cancelled' && i.payment_status !== 'merged'
+                          )
+                          const roomMoveInReceipts = moveInReceiptsByRoomId.get(room.id) || []
+                          const checkInvoices = (invoicesByRoomId.get(room.id) || []).filter(
                             (i) =>
-                              i.payment_status !== 'cancelled' &&
-                              i.payment_status !== 'merged' &&
-                              (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                              (!activeContract?.tenant_id ||
+                                i.tenant_id === activeContract.tenant_id) &&
+                              new Date(
+                                i.created_at ||
+                                  i.invoice_date ||
+                                  activeContract?.created_at ||
+                                  Date.now()
+                              ).getTime() >=
+                                new Date(
+                                  activeContract?.created_at ||
+                                    activeContract?.move_in_date ||
+                                    Date.now()
+                                ).getTime()
                           )
-                          .sort((a, b) => {
-                            if (!!a.is_first_month !== !!b.is_first_month) return a.is_first_month ? -1 : 1
-                            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                          })[0] || null
-                        const unpaidFirstMonthForCurrentTenant = checkInvoices.find(
-                          (i) =>
-                            i.is_first_month &&
-                            i.payment_status === 'unpaid' &&
-                            (i.paid_amount || 0) === 0
-                        )
-                        const canCancel =
-                          activeContract &&
-                          !checkInvoices.some(
+                          const endingOutstandingInvoice =
+                            checkInvoices
+                              .filter(
+                                (i) =>
+                                  i.payment_status !== 'cancelled' &&
+                                  i.payment_status !== 'merged' &&
+                                  (i.payment_status === 'unpaid' || i.payment_status === 'partial')
+                              )
+                              .sort((a, b) => {
+                                if (!!a.is_first_month !== !!b.is_first_month)
+                                  return a.is_first_month ? -1 : 1
+                                return (
+                                  new Date(b.created_at).getTime() -
+                                  new Date(a.created_at).getTime()
+                                )
+                              })[0] || null
+                          const unpaidFirstMonthForCurrentTenant = checkInvoices.find(
                             (i) =>
-                              i.payment_status !== 'cancelled' &&
-                              i.payment_status !== 'merged' &&
-                              (i.payment_status === 'paid' ||
-                                i.payment_status === 'partial' ||
-                                i.paid_amount > 0)
+                              i.is_first_month &&
+                              i.payment_status === 'unpaid' &&
+                              (i.paid_amount || 0) === 0
                           )
-                        const canDeleteRoom =
-                          roomInvoices.length === 0 && roomMoveInReceipts.length === 0
-                        // Hóa đơn tháng đầu đã được tạo là đủ để phòng thoát trạng thái "Chờ lập HĐ".
-                        // Các hóa đơn thường khác chỉ đánh dấu bắt đầu khi đã ghi nhận thanh toán.
-                        const hasStartedInvoice = checkInvoices.some((i) => {
-                          if (i.payment_status === 'cancelled' || i.payment_status === 'merged') return false
-                          if (i.is_settlement || i.billing_reason === 'contract_end') return false
-                          if (i.is_first_month) return true
-                          if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0) return false
-                          return (
-                            Number(i.room_cost || 0) > 0 ||
-                            Number(i.electric_cost || 0) > 0 ||
-                            Number(i.water_cost || 0) > 0 ||
-                            Number(i.wifi_cost || 0) > 0 ||
-                            Number(i.garbage_cost || 0) > 0
-                          )
-                        })
-                        const hasStartedBilling = hasStartedInvoice || activeContract?.is_migration === true
+                          const canCancel =
+                            activeContract &&
+                            !checkInvoices.some(
+                              (i) =>
+                                i.payment_status !== 'cancelled' &&
+                                i.payment_status !== 'merged' &&
+                                (i.payment_status === 'paid' ||
+                                  i.payment_status === 'partial' ||
+                                  i.paid_amount > 0)
+                            )
+                          const canDeleteRoom =
+                            roomInvoices.length === 0 && roomMoveInReceipts.length === 0
+                          // Hóa đơn tháng đầu đã được tạo là đủ để phòng thoát trạng thái "Chờ lập HĐ".
+                          // Các hóa đơn thường khác chỉ đánh dấu bắt đầu khi đã ghi nhận thanh toán.
+                          const hasStartedInvoice = checkInvoices.some((i) => {
+                            if (i.payment_status === 'cancelled' || i.payment_status === 'merged')
+                              return false
+                            if (i.is_settlement || i.billing_reason === 'contract_end') return false
+                            if (i.is_first_month) return true
+                            if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0)
+                              return false
+                            return (
+                              Number(i.room_cost || 0) > 0 ||
+                              Number(i.electric_cost || 0) > 0 ||
+                              Number(i.water_cost || 0) > 0 ||
+                              Number(i.wifi_cost || 0) > 0 ||
+                              Number(i.garbage_cost || 0) > 0
+                            )
+                          })
+                          const hasStartedBilling =
+                            hasStartedInvoice || activeContract?.is_migration === true
 
-                        const menuItemClass =
-                          'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
-                        const roomActionMenu = (
-                          <div
-                            className="fixed w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-[9999] animate-[fadeIn_0.15s_ease-out]"
-                            style={menuAnchor ? (
-                              menuPlacement === 'top'
-                                ? { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
-                                : { top: menuAnchor.top + 4, right: menuAnchor.right }
-                            ) : {}}
-                          >
-                            <div className="grid grid-cols-2 gap-2 overflow-hidden">
-                              {room.status === 'vacant' ? (
-                                <>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setNewContractSeed(null)
-                                      setNewContractRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-file-signature w-4 text-green-600"></i> Lập hợp đồng
-                                  </button>
+                          const menuItemClass =
+                            'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
+                          const roomActionMenu = (
+                            <div
+                              className="fixed w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-[9999] animate-[fadeIn_0.15s_ease-out]"
+                              style={
+                                menuAnchor
+                                  ? menuPlacement === 'top'
+                                    ? { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
+                                    : { top: menuAnchor.top + 4, right: menuAnchor.right }
+                                  : {}
+                              }
+                            >
+                              <div className="grid grid-cols-2 gap-2 overflow-hidden">
+                                {room.status === 'vacant' ? (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setNewContractSeed(null)
+                                        setNewContractRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
+                                    >
+                                      <i className="fa-solid fa-file-signature w-4 text-green-600"></i>{' '}
+                                      Lập hợp đồng
+                                    </button>
 
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setEditRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-pen-to-square w-4 text-blue-500"></i>{' '}
-                                    Sửa phòng
-                                  </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-blue-50 text-blue-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-pen-to-square w-4 text-blue-500"></i>{' '}
+                                      Sửa phòng
+                                    </button>
 
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setServiceZoneRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
-                                    dịch vụ
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setAssetModuleInitialRoomId(room.id)
-                                      requestActiveTab('assets')
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-list-check w-4 text-gray-500"></i> Thiết
-                                    lập tài sản
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMenuOpenId(null)
-                                      if (!canDeleteRoom) {
-                                        setRoomToDeleteWithHistory(room)
-                                      } else {
-                                        setRoomToDelete(room)
-                                      }
-                                    }}
-                                    className={`${menuItemClass} ${canDeleteRoom ? 'hover:bg-red-50 text-red-700' : 'hover:bg-orange-50 text-orange-700'} font-medium`}
-                                  >
-                                    <i className={`fa-solid fa-trash-can w-4 ${canDeleteRoom ? 'text-red-500' : 'text-orange-500'}`}></i>
-                                    Xóa phòng{!canDeleteRoom && ' ⚠'}
-                                  </button>
-                                </>
-                              ) : (
-                                <>
-                                  {/* === MENU PHÒNG ĐANG CÓ KHÁCH === */}
-                                  {(unpaidFirstMonthForCurrentTenant || endingOutstandingInvoice) && (
-                                    <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800 min-w-0 overflow-hidden">
-                                      <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
-                                      <span className="min-w-0 break-words">
-                                        {endingOutstandingInvoice
-                                          ? <><strong>Phòng này còn hóa đơn chưa thu.</strong> Cần thu xong trước khi xác nhận trả phòng.</>
-                                          : <><strong>Hóa đơn chưa được thanh toán.</strong> Thu tiền trước, sau đó mới có thể thực hiện các thao tác khác.{canCancel && ' Hoặc hủy hợp đồng nếu nhập nhầm.'}</>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setServiceZoneRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                      dịch vụ
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        requestActiveTab('assets')
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-list-check w-4 text-gray-500"></i>{' '}
+                                      Thiết lập tài sản
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMenuOpenId(null)
+                                        if (!canDeleteRoom) {
+                                          setRoomToDeleteWithHistory(room)
+                                        } else {
+                                          setRoomToDelete(room)
                                         }
-                                      </span>
-                                    </div>
-                                  )}
-                                  {/* Nhóm 1: Tài chính & Quản lý */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (endingOutstandingInvoice) {
-                                        setPaymentInvoice(endingOutstandingInvoice)
-                                      } else {
-                                        openInvoiceFlow(room)
-                                      }
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-file-invoice-dollar w-4"></i>
-                                    {endingOutstandingInvoice
-                                      ? ' Thu tiền hóa đơn còn nợ'
-                                      : unpaidFirstMonthForCurrentTenant
-                                        ? ' Thu tiền hóa đơn'
-                                        : ' Lập hóa đơn'}
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setDetailRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setServiceZoneRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
-                                    dịch vụ
-                                  </button>
-                                  {/* Nhóm 2: Di chuyển & Tài sản */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setChangeTargetRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
-                                    Chuyển đổi phòng
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setAssetModuleInitialRoomId(room.id)
-                                      requestActiveTab('assets')
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
-                                  >
-                                    <i className="fa-solid fa-table-list w-4 text-gray-500"></i> Thiết lập tài sản
-                                  </button>
-                                  {/* Nhóm 3: Kết thúc HĐ */}
-                                  {room.status === 'ending' ? (
+                                      }}
+                                      className={`${menuItemClass} ${canDeleteRoom ? 'hover:bg-red-50 text-red-700' : 'hover:bg-orange-50 text-orange-700'} font-medium`}
+                                    >
+                                      <i
+                                        className={`fa-solid fa-trash-can w-4 ${canDeleteRoom ? 'text-red-500' : 'text-orange-500'}`}
+                                      ></i>
+                                      Xóa phòng{!canDeleteRoom && ' ⚠'}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* === MENU PHÒNG ĐANG CÓ KHÁCH === */}
+                                    {(unpaidFirstMonthForCurrentTenant ||
+                                      endingOutstandingInvoice) && (
+                                      <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800 min-w-0 overflow-hidden">
+                                        <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
+                                        <span className="min-w-0 break-words">
+                                          {endingOutstandingInvoice ? (
+                                            <>
+                                              <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần
+                                              thu xong trước khi xác nhận trả phòng.
+                                            </>
+                                          ) : (
+                                            <>
+                                              <strong>Hóa đơn chưa được thanh toán.</strong> Thu
+                                              tiền trước, sau đó mới có thể thực hiện các thao tác
+                                              khác.
+                                              {canCancel && ' Hoặc hủy hợp đồng nếu nhập nhầm.'}
+                                            </>
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {/* Nhóm 1: Tài chính & Quản lý */}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        updateRoom(room.id, {
-                                          status: 'occupied',
-                                          expected_end_date: undefined
-                                        } as any).then(() => {
-                                          playSuccess()
-                                          queryClient.invalidateQueries({ queryKey: ['rooms'] })
-                                        })
+                                        if (endingOutstandingInvoice) {
+                                          setPaymentInvoice(endingOutstandingInvoice)
+                                        } else {
+                                          openInvoiceFlow(room)
+                                        }
                                         setMenuOpenId(null)
                                       }}
-                                      className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
                                     >
-                                      <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
-                                      Hủy báo trả phòng
+                                      <i className="fa-solid fa-file-invoice-dollar w-4"></i>
+                                      {endingOutstandingInvoice
+                                        ? ' Thu tiền hóa đơn còn nợ'
+                                        : unpaidFirstMonthForCurrentTenant
+                                          ? ' Thu tiền hóa đơn'
+                                          : ' Lập hóa đơn'}
                                     </button>
-                                  ) : (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        setEndNoticeRoom(room)
+                                        setDetailRoom(room)
                                         setMenuOpenId(null)
                                       }}
-                                      className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
                                     >
-                                      <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo trả phòng
+                                      <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
                                     </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setTerminateRoom(room)
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
-                                  >
-                                    <i className="fa-solid fa-door-closed w-4 text-red-400"></i> Trả phòng
-                                  </button>
-                                  {/* Nhóm 4: Nguy hiểm */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      if (canCancel) {
-                                        setCancelContractRoom(room)
-                                        setMenuOpenId(null)
-                                      }
-                                    }}
-                                    disabled={!canCancel}
-                                    title={!canCancel ? 'Không thể hủy khi đã có thanh toán. Dùng "Trả phòng" để tất toán.' : undefined}
-                                    className={`${menuItemClass} ${canCancel ? 'hover:bg-red-50 text-red-500' : 'opacity-40 cursor-not-allowed text-red-400'} font-semibold`}
-                                  >
-                                    <i className="fa-solid fa-ban w-4"></i> Hủy hợp đồng
-                                  </button>
-                                  {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
-                                  {isActiveContractsFetched && !activeContract && room.status === 'occupied' && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
+                                        setServiceZoneRoom(room)
                                         setMenuOpenId(null)
-                                        if (window.confirm('Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin khách thuê và đưa phòng về trạng thái "Đang trống".')) {
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                      dịch vụ
+                                    </button>
+                                    {/* Nhóm 2: Di chuyển & Tài sản */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setChangeTargetRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
+                                      Chuyển đổi phòng
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        requestActiveTab('assets')
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-table-list w-4 text-gray-500"></i>{' '}
+                                      Thiết lập tài sản
+                                    </button>
+                                    {/* Nhóm 3: Kết thúc HĐ */}
+                                    {room.status === 'ending' ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
                                           updateRoom(room.id, {
-                                            status: 'vacant',
-                                            tenant_name: undefined,
-                                            tenant_phone: undefined,
-                                            tenant_email: undefined,
-                                            tenant_id_card: undefined,
-                                            move_in_date: undefined,
-                                            contract_expiration: undefined,
+                                            status: 'occupied',
+                                            expected_end_date: undefined
                                           } as any).then(() => {
+                                            playSuccess()
                                             queryClient.invalidateQueries({ queryKey: ['rooms'] })
                                           })
-                                        }
-                                      }}
-                                      className={`${menuItemClass} hover:bg-amber-50 text-amber-700 font-semibold col-span-2 border border-amber-200 rounded-lg mt-1`}
-                                    >
-                                      <i className="fa-solid fa-person-walking-arrow-right w-4 text-amber-600"></i>{' '}
-                                      Đánh dấu đã chuyển đi (không có HĐ)
-                                    </button>
-                                  )}
-                                  {canDeleteRoom && (
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      >
+                                        <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
+                                        Hủy báo trả phòng
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setEndNoticeRoom(room)
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      >
+                                        <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo
+                                        trả phòng
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        setRoomToDelete(room)
+                                        setTerminateRoom(room)
                                         setMenuOpenId(null)
                                       }}
-                                      className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
                                     >
-                                      <i className="fa-solid fa-trash-can w-4 text-red-500"></i> Xóa phòng
+                                      <i className="fa-solid fa-door-closed w-4 text-red-400"></i>{' '}
+                                      Trả phòng
                                     </button>
-                                  )}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setMenuOpenId(null)
-                                    }}
-                                    className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center mt-2`}
-                                  >
-                                    <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
-                                    Đóng menu
-                                  </button>
-                                </>
-                              )}
+                                    {/* Nhóm 4: Nguy hiểm */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (canCancel) {
+                                          setCancelContractRoom(room)
+                                          setMenuOpenId(null)
+                                        }
+                                      }}
+                                      disabled={!canCancel}
+                                      title={
+                                        !canCancel
+                                          ? 'Không thể hủy khi đã có thanh toán. Dùng "Trả phòng" để tất toán.'
+                                          : undefined
+                                      }
+                                      className={`${menuItemClass} ${canCancel ? 'hover:bg-red-50 text-red-500' : 'opacity-40 cursor-not-allowed text-red-400'} font-semibold`}
+                                    >
+                                      <i className="fa-solid fa-ban w-4"></i> Hủy hợp đồng
+                                    </button>
+                                    {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
+                                    {isActiveContractsFetched &&
+                                      !activeContract &&
+                                      room.status === 'occupied' && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setMenuOpenId(null)
+                                            if (
+                                              window.confirm(
+                                                'Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin khách thuê và đưa phòng về trạng thái "Đang trống".'
+                                              )
+                                            ) {
+                                              updateRoom(room.id, {
+                                                status: 'vacant',
+                                                tenant_name: undefined,
+                                                tenant_phone: undefined,
+                                                tenant_email: undefined,
+                                                tenant_id_card: undefined,
+                                                move_in_date: undefined,
+                                                contract_expiration: undefined
+                                              } as any).then(() => {
+                                                queryClient.invalidateQueries({
+                                                  queryKey: ['rooms']
+                                                })
+                                              })
+                                            }
+                                          }}
+                                          className={`${menuItemClass} hover:bg-amber-50 text-amber-700 font-semibold col-span-2 border border-amber-200 rounded-lg mt-1`}
+                                        >
+                                          <i className="fa-solid fa-person-walking-arrow-right w-4 text-amber-600"></i>{' '}
+                                          Đánh dấu đã chuyển đi (không có HĐ)
+                                        </button>
+                                      )}
+                                    {canDeleteRoom && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setRoomToDelete(room)
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                      >
+                                        <i className="fa-solid fa-trash-can w-4 text-red-500"></i>{' '}
+                                        Xóa phòng
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center mt-2`}
+                                    >
+                                      <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
+                                      Đóng menu
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )
-                        const tenantTooltipName = activeContract?.tenant_name || room.tenant_name || 'Chưa có khách thuê'
-                        const tenantTooltipPhone = activeContract?.tenant_phone || room.tenant_phone || '—'
-                        const showRoomTooltipAbove = roomIndex >= filteredRooms.length - 3
+                          )
+                          const tenantTooltipName =
+                            activeContract?.tenant_name || room.tenant_name || 'Chưa có khách thuê'
+                          const tenantTooltipPhone =
+                            activeContract?.tenant_phone || room.tenant_phone || '—'
+                          const showRoomTooltipAbove = roomIndex >= filteredRooms.length - 3
 
-                        return (
-                          <tr
-                            key={room.id}
-                            className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
-                          >
-                            <td className="px-3 py-2 text-center text-gray-400">
-                              <i className="fa-solid fa-bars"></i>
-                            </td>
-                            <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
-                              <div
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
-                              >
-                                <i className="fa-solid fa-door-open"></i>
-                              </div>
-                              <div className="relative group/room-tooltip min-w-0 cursor-help">
-                                <span className="block truncate py-1">{room.name}</span>
+                          return (
+                            <tr
+                              key={room.id}
+                              className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
+                            >
+                              <td className="px-3 py-2 text-center text-gray-400">
+                                <i className="fa-solid fa-bars"></i>
+                              </td>
+                              <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
                                 <div
-                                  className={`absolute left-0 w-56 rounded-lg bg-emerald-800 p-3 text-xs text-white shadow-xl opacity-0 invisible group-hover/room-tooltip:opacity-100 group-hover/room-tooltip:visible transition-all z-50 ${
-                                    showRoomTooltipAbove ? 'bottom-full mb-2' : 'top-full mt-2'
-                                  }`}
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
                                 >
-                                  <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
-                                    {room.name}
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <span className="shrink-0">
-                                        <i className="fa-solid fa-user text-green-300 w-4"></i>{' '}
-                                        Người thuê:
-                                      </span>
-                                      <span className="font-semibold text-right whitespace-normal">
-                                        {tenantTooltipName}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3">
-                                      <span className="shrink-0">
-                                        <i className="fa-solid fa-phone text-blue-300 w-4"></i>{' '}
-                                        SĐT:
-                                      </span>
-                                      <span className="font-semibold tabular-nums">
-                                        {tenantTooltipPhone}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div
-                                    className={`absolute left-6 border-4 border-transparent ${
-                                      showRoomTooltipAbove
-                                        ? 'top-full border-t-emerald-800'
-                                        : 'bottom-full border-b-emerald-800'
-                                    }`}
-                                  ></div>
+                                  <i className="fa-solid fa-door-open"></i>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
-                                {formatVND(room.base_rent)} đ
-                              </div>
-                              {room.status === 'occupied' &&
-                                (() => {
-                                  if (!activeContract) return null
-                                  const paidRentInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                                    (i) => i.paid_amount > 0
+                                <div className="relative group/room-tooltip min-w-0 cursor-help">
+                                  <span className="block truncate py-1">{room.name}</span>
+                                  <div
+                                    className={`absolute left-0 w-56 rounded-lg bg-emerald-800 p-3 text-xs text-white shadow-xl opacity-0 invisible group-hover/room-tooltip:opacity-100 group-hover/room-tooltip:visible transition-all z-50 ${
+                                      showRoomTooltipAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                                    }`}
+                                  >
+                                    <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
+                                      {room.name}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <span className="shrink-0">
+                                          <i className="fa-solid fa-user text-green-300 w-4"></i>{' '}
+                                          Người thuê:
+                                        </span>
+                                        <span className="font-semibold text-right whitespace-normal">
+                                          {tenantTooltipName}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="shrink-0">
+                                          <i className="fa-solid fa-phone text-blue-300 w-4"></i>{' '}
+                                          SĐT:
+                                        </span>
+                                        <span className="font-semibold tabular-nums">
+                                          {tenantTooltipPhone}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`absolute left-6 border-4 border-transparent ${
+                                        showRoomTooltipAbove
+                                          ? 'top-full border-t-emerald-800'
+                                          : 'bottom-full border-b-emerald-800'
+                                      }`}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
+                                  {formatVND(room.base_rent)} đ
+                                </div>
+                                {room.status === 'occupied' &&
+                                  (() => {
+                                    if (!activeContract) return null
+                                    const paidRentInvoices = (
+                                      invoicesByRoomId.get(room.id) || []
+                                    ).filter((i) => i.paid_amount > 0)
+
+                                    return (
+                                      <div className="text-[10px] mt-0.5 flex flex-col items-start leading-tight">
+                                        {paidRentInvoices.length === 0 && (
+                                          <span className="text-red-500 font-medium whitespace-nowrap">
+                                            Chưa thu lần nào
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
+                              </td>
+                              <td className="px-3 py-2">
+                                {(() => {
+                                  // Bảng màu cho mỗi vùng
+                                  const zoneColors = [
+                                    {
+                                      bg: 'bg-emerald-100',
+                                      text: 'text-emerald-700',
+                                      border: 'border-emerald-200',
+                                      dot: 'bg-emerald-500',
+                                      tooltipBg: 'bg-emerald-800',
+                                      arrow: 'border-b-emerald-800'
+                                    },
+                                    {
+                                      bg: 'bg-violet-100',
+                                      text: 'text-violet-700',
+                                      border: 'border-violet-200',
+                                      dot: 'bg-violet-500',
+                                      tooltipBg: 'bg-violet-800',
+                                      arrow: 'border-b-violet-800'
+                                    },
+                                    {
+                                      bg: 'bg-amber-100',
+                                      text: 'text-amber-700',
+                                      border: 'border-amber-200',
+                                      dot: 'bg-amber-500',
+                                      tooltipBg: 'bg-amber-800',
+                                      arrow: 'border-b-amber-800'
+                                    },
+                                    {
+                                      bg: 'bg-sky-100',
+                                      text: 'text-sky-700',
+                                      border: 'border-sky-200',
+                                      dot: 'bg-sky-500',
+                                      tooltipBg: 'bg-sky-800',
+                                      arrow: 'border-b-sky-800'
+                                    },
+                                    {
+                                      bg: 'bg-rose-100',
+                                      text: 'text-rose-700',
+                                      border: 'border-rose-200',
+                                      dot: 'bg-rose-500',
+                                      tooltipBg: 'bg-rose-800',
+                                      arrow: 'border-b-rose-800'
+                                    },
+                                    {
+                                      bg: 'bg-teal-100',
+                                      text: 'text-teal-700',
+                                      border: 'border-teal-200',
+                                      dot: 'bg-teal-500',
+                                      tooltipBg: 'bg-teal-800',
+                                      arrow: 'border-b-teal-800'
+                                    }
+                                  ]
+                                  const zoneIndex = serviceZones.findIndex(
+                                    (z) => z.id === (zone as any)?.id
                                   )
+                                  const color =
+                                    zoneColors[zoneIndex >= 0 ? zoneIndex % zoneColors.length : 0]
+                                  const fixedTotal =
+                                    (zone.internet_price || 0) + (zone.cleaning_price || 0)
 
                                   return (
-                                    <div className="text-[10px] mt-0.5 flex flex-col items-start leading-tight">
-                                      {paidRentInvoices.length === 0 && (
-                                        <span className="text-red-500 font-medium whitespace-nowrap">
-                                          Chưa thu lần nào
+                                    <div className="relative group/tooltip inline-block cursor-help">
+                                      <div
+                                        className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
+                                      >
+                                        <span
+                                          className={`w-2 h-2 rounded-full ${color.dot} shrink-0`}
+                                        ></span>
+                                        <span className="tabular-nums">
+                                          {formatVND(fixedTotal)} đ
                                         </span>
-                                      )}
+                                      </div>
+                                      {/* Tooltip Content */}
+                                      <div
+                                        className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 ${color.tooltipBg} text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50`}
+                                      >
+                                        <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
+                                          {zone.name}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <div className="flex justify-between">
+                                            <span>
+                                              <i className="fa-solid fa-bolt text-yellow-400 w-4"></i>{' '}
+                                              Điện:
+                                            </span>{' '}
+                                            <span className="font-semibold tabular-nums">
+                                              {formatVND(zone.electric_price)} đ/kWh
+                                            </span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>
+                                              <i className="fa-solid fa-droplet text-blue-300 w-4"></i>{' '}
+                                              Nước:
+                                            </span>{' '}
+                                            <span className="font-semibold tabular-nums">
+                                              {formatVND(zone.water_price)} đ/m³
+                                            </span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>
+                                              <i className="fa-solid fa-wifi text-green-300 w-4"></i>{' '}
+                                              Nét:
+                                            </span>{' '}
+                                            <span className="font-semibold tabular-nums">
+                                              {formatVND(zone.internet_price)} đ/ph
+                                            </span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span>
+                                              <i className="fa-solid fa-broom text-gray-300 w-4"></i>{' '}
+                                              Rác:
+                                            </span>{' '}
+                                            <span className="font-semibold tabular-nums">
+                                              {formatVND(zone.cleaning_price)} đ/ph
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="mt-2 pt-1.5 border-t border-white/20 flex justify-between font-bold text-sm">
+                                          <span>Cố định:</span>
+                                          <span className="tabular-nums">
+                                            {formatVND(fixedTotal)} đ/th
+                                          </span>
+                                        </div>
+                                        {/* Arrow pointing up */}
+                                        <div
+                                          className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${color.arrow}`}
+                                        ></div>
+                                      </div>
                                     </div>
                                   )
                                 })()}
-                            </td>
-                            <td className="px-3 py-2">
-                              {(() => {
-                                // Bảng màu cho mỗi vùng
-                                const zoneColors = [
-                                  {
-                                    bg: 'bg-emerald-100',
-                                    text: 'text-emerald-700',
-                                    border: 'border-emerald-200',
-                                    dot: 'bg-emerald-500',
-                                    tooltipBg: 'bg-emerald-800',
-                                    arrow: 'border-b-emerald-800'
-                                  },
-                                  {
-                                    bg: 'bg-violet-100',
-                                    text: 'text-violet-700',
-                                    border: 'border-violet-200',
-                                    dot: 'bg-violet-500',
-                                    tooltipBg: 'bg-violet-800',
-                                    arrow: 'border-b-violet-800'
-                                  },
-                                  {
-                                    bg: 'bg-amber-100',
-                                    text: 'text-amber-700',
-                                    border: 'border-amber-200',
-                                    dot: 'bg-amber-500',
-                                    tooltipBg: 'bg-amber-800',
-                                    arrow: 'border-b-amber-800'
-                                  },
-                                  {
-                                    bg: 'bg-sky-100',
-                                    text: 'text-sky-700',
-                                    border: 'border-sky-200',
-                                    dot: 'bg-sky-500',
-                                    tooltipBg: 'bg-sky-800',
-                                    arrow: 'border-b-sky-800'
-                                  },
-                                  {
-                                    bg: 'bg-rose-100',
-                                    text: 'text-rose-700',
-                                    border: 'border-rose-200',
-                                    dot: 'bg-rose-500',
-                                    tooltipBg: 'bg-rose-800',
-                                    arrow: 'border-b-rose-800'
-                                  },
-                                  {
-                                    bg: 'bg-teal-100',
-                                    text: 'text-teal-700',
-                                    border: 'border-teal-200',
-                                    dot: 'bg-teal-500',
-                                    tooltipBg: 'bg-teal-800',
-                                    arrow: 'border-b-teal-800'
+                              </td>
+
+                              <td className="px-3 py-2">
+                                {(() => {
+                                  // Chỉ tính tiền cọc khi phòng đang có người ở
+                                  if (room.status === 'vacant') {
+                                    return <span className="text-gray-300 text-xs">—</span>
                                   }
-                                ]
-                                const zoneIndex = serviceZones.findIndex(
-                                  (z) => z.id === (zone as any)?.id
-                                )
-                                const color =
-                                  zoneColors[zoneIndex >= 0 ? zoneIndex % zoneColors.length : 0]
-                                const fixedTotal =
-                                  (zone.internet_price || 0) + (zone.cleaning_price || 0)
-
-                                return (
-                                  <div className="relative group/tooltip inline-block cursor-help">
-                                    <div
-                                      className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
-                                    >
-                                      <span
-                                        className={`w-2 h-2 rounded-full ${color.dot} shrink-0`}
-                                      ></span>
-                                      <span className="tabular-nums">{formatVND(fixedTotal)} đ</span>
-                                    </div>
-                                    {/* Tooltip Content */}
-                                    <div
-                                      className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 ${color.tooltipBg} text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50`}
-                                    >
-                                      <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
-                                        {zone.name}
-                                      </div>
-                                      <div className="space-y-1.5">
-                                        <div className="flex justify-between">
-                                          <span>
-                                            <i className="fa-solid fa-bolt text-yellow-400 w-4"></i>{' '}
-                                            Điện:
-                                          </span>{' '}
-                                          <span className="font-semibold tabular-nums">
-                                            {formatVND(zone.electric_price)} đ/kWh
-                                          </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span>
-                                            <i className="fa-solid fa-droplet text-blue-300 w-4"></i>{' '}
-                                            Nước:
-                                          </span>{' '}
-                                          <span className="font-semibold tabular-nums">
-                                            {formatVND(zone.water_price)} đ/m³
-                                          </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span>
-                                            <i className="fa-solid fa-wifi text-green-300 w-4"></i>{' '}
-                                            Nét:
-                                          </span>{' '}
-                                          <span className="font-semibold tabular-nums">
-                                            {formatVND(zone.internet_price)} đ/ph
-                                          </span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                          <span>
-                                            <i className="fa-solid fa-broom text-gray-300 w-4"></i>{' '}
-                                            Rác:
-                                          </span>{' '}
-                                          <span className="font-semibold tabular-nums">
-                                            {formatVND(zone.cleaning_price)} đ/ph
-                                          </span>
-                                        </div>
-                                      </div>
-                                      <div className="mt-2 pt-1.5 border-t border-white/20 flex justify-between font-bold text-sm">
-                                        <span>Cố định:</span>
-                                        <span className="tabular-nums">
-                                          {formatVND(fixedTotal)} đ/th
-                                        </span>
-                                      </div>
-                                      {/* Arrow pointing up */}
-                                      <div
-                                        className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${color.arrow}`}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                )
-                              })()}
-                            </td>
-
-                            <td className="px-3 py-2">
-                              {(() => {
-                                // Chỉ tính tiền cọc khi phòng đang có người ở
-                                if (room.status === 'vacant') {
-                                  return <span className="text-gray-300 text-xs">—</span>
-                                }
-                                const currentTenantInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                                  (i) =>
-                                    i.payment_status !== 'cancelled' &&
-                                    (!activeContract?.tenant_id ||
-                                      i.tenant_id === activeContract.tenant_id)
-                                )
-                                if (activeContract) {
-                                  const agreedDeposit = activeContract.deposit_amount || room.default_deposit || 0
-                                  const collectedDeposit = getCollectedDepositAmount(activeContract, currentTenantInvoices)
-                                  const missingDeposit = Math.max(0, agreedDeposit - collectedDeposit)
-                                  const isDepositComplete = agreedDeposit > 0 && missingDeposit <= 0
-
-                                  if (agreedDeposit === 0) {
-                                    return (
-                                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-50 text-slate-400 border border-slate-200/60 select-none">
-                                        Không cọc
-                                      </span>
-                                    )
-                                  }
-
-                                  // Badge color & display amount configuration based on state
-                                  let valueDisplayAmount = 0
-                                  let badgeClass = ''
-                                  let badgeText = ''
-                                  let badgeIcon = ''
-
-                                  if (isDepositComplete) {
-                                    valueDisplayAmount = agreedDeposit
-                                    badgeClass = 'bg-emerald-50 text-emerald-600 border border-emerald-200/50'
-                                    badgeText = 'Đã thu đủ'
-                                    badgeIcon = 'fa-circle-check'
-                                  } else if (collectedDeposit > 0) {
-                                    valueDisplayAmount = collectedDeposit
-                                    badgeClass = 'bg-amber-50 text-amber-600 border border-amber-200/50'
-                                    badgeText = 'Thu thiếu'
-                                    badgeIcon = 'fa-triangle-exclamation'
-                                  } else {
-                                    valueDisplayAmount = 0
-                                    badgeClass = 'bg-red-50 text-red-500 border border-red-200/50'
-                                    badgeText = 'Chưa thu cọc'
-                                    badgeIcon = 'fa-circle-exclamation'
-                                  }
-
-                                  return (
-                                    <div className="relative group/tooltip inline-block cursor-help select-none">
-                                      <div>
-                                        <div className="font-bold text-slate-800 tabular-nums">
-                                          {formatVND(valueDisplayAmount)} đ
-                                        </div>
-                                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold mt-1 uppercase tracking-wide border ${badgeClass}`}>
-                                          <i className={`fa-solid ${badgeIcon} text-[10px]`}></i>
-                                          {badgeText}
-                                        </span>
-                                      </div>
-                                      
-                                      {/* Tooltip Details on Hover */}
-                                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-48 bg-slate-900/95 text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50">
-                                        <div className="font-bold text-slate-300 mb-1.5 pb-1 border-b border-white/10 text-[10px] uppercase tracking-wider text-center">
-                                          Chi tiết tiền cọc
-                                        </div>
-                                        <div className="space-y-1.5 font-medium">
-                                          <div className="flex justify-between gap-4">
-                                            <span className="text-slate-400">Đã thu:</span>
-                                            <span className="font-bold tabular-nums text-emerald-400">{formatVND(collectedDeposit)} đ</span>
-                                          </div>
-                                          <div className="flex justify-between gap-4">
-                                            <span className="text-slate-400">Cần cọc:</span>
-                                            <span className="font-bold tabular-nums">{formatVND(agreedDeposit)} đ</span>
-                                          </div>
-                                          {!isDepositComplete && (
-                                            <div className="flex justify-between gap-4 pt-1.5 border-t border-white/5 text-amber-400 font-bold">
-                                              <span>Còn thiếu:</span>
-                                              <span className="tabular-nums">{formatVND(missingDeposit)} đ</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                        {/* Tooltip Arrow pointing up */}
-                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95"></div>
-                                      </div>
-                                    </div>
-                                  )
-                                }
-                                return (
-                                  <EditableCell
-                                    value={room.default_deposit || 0}
-                                    displayValue={`${formatVND(room.default_deposit || 0)} đ`}
-                                    type="number"
-                                    className="font-bold text-gray-800"
-                                    onSave={(v) =>
-                                      handleQueueChange(room.id, { default_deposit: Number(v) })
-                                    }
-                                  />
-                                )
-                              })()}
-                            </td>
-                            <td className="px-3 py-2 font-semibold">
-                              {(() => {
-                                // Nợ thuộc về tenant, không thuộc phòng.
-                                // Phòng trống → không hiển thị nợ cũ.
-                                if (room.status === 'vacant') {
-                                  return <span className="text-gray-300 text-xs">—</span>
-                                }
-                                const debt = (invoicesByRoomId.get(room.id) || [])
-                                  .filter(
+                                  const currentTenantInvoices = (
+                                    invoicesByRoomId.get(room.id) || []
+                                  ).filter(
                                     (i) =>
-                                      i.payment_status !== 'paid' &&
                                       i.payment_status !== 'cancelled' &&
                                       (!activeContract?.tenant_id ||
                                         i.tenant_id === activeContract.tenant_id)
                                   )
-                                  .reduce(
-                                    (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
-                                    0
-                                  )
-                                return debt > 0 ? (
-                                  <span className="text-red-500">{formatVND(debt)} đ</span>
-                                ) : (
-                                  <span className="text-gray-400">0 đ</span>
-                                )
-                              })()}
-                            </td>
-                            <td className="px-3 py-2 text-gray-600">
-                              <EditableCell
-                                value={room.max_occupants || 2}
-                                type="select"
-                                options={[
-                                  { value: '0', label: '0 người' },
-                                  { value: '1', label: '1 người' },
-                                  { value: '2', label: '2 người' },
-                                  { value: '3', label: '3 người' },
-                                  { value: '4', label: '4 người' },
-                                  { value: '5', label: '5 người' },
-                                  { value: '6', label: '6 người' }
-                                ]}
-                                displayValue={`${room.max_occupants || 2} người`}
-                                onSave={(v) =>
-                                  handleQueueChange(room.id, { max_occupants: Number(v) })
-                                }
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-gray-600 text-sm">
-                              {(() => {
-                                if (room.status === 'vacant') {
-                                  return <span className="text-gray-400 italic text-xs">Chưa có</span>
-                                }
-                                // Ngày vào ở = lấy từ hợp đồng, chỉ hiện khi đã lập HĐ đầu tiên
-                                const moveInDate = activeContract?.move_in_date ||
-                                  room.move_in_date
-
-                                if (hasStartedBilling && moveInDate) {
-                                  return (
-                                    <span className="font-medium">
-                                      {new Date(moveInDate).toLocaleDateString('vi-VN', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric'
-                                      })}
-                                    </span>
-                                  )
-                                }
-                                return <span className="text-gray-400 italic text-xs">Chưa bắt đầu</span>
-                              })()}
-                            </td>
-                            <td
-                              className="px-3 py-2 text-center"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div>
-                                <span
-                                  title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
-                                  className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide ${room.status === 'vacant'
-                                    ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
-                                    : room.status === 'occupied' && hasStartedBilling
-                                      ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
-                                      : room.status === 'occupied' && !hasStartedBilling
-                                        ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
-                                        : room.status === 'ending'
-                                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-400/40'
-                                          : 'bg-gradient-to-r from-gray-500 to-slate-600 text-white shadow-sm shadow-slate-400/40'
-                                    }`}
-                                >
-                                  {room.status === 'vacant' && (
-                                    <i className="fa-solid fa-door-open text-[9px]"></i>
-                                  )}
-                                  {room.status === 'occupied' && hasStartedBilling && (
-                                    <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-                                      <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-60 animate-ping"></span>
-                                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white"></span>
-                                    </span>
-                                  )}
-                                  {room.status === 'occupied' && !hasStartedBilling && (
-                                    <i className="fa-solid fa-file-signature text-[9px]"></i>
-                                  )}
-                                  {room.status === 'ending' && (
-                                    <i className="fa-solid fa-right-from-bracket text-[9px]"></i>
-                                  )}
-                                  {room.status === 'maintenance' && (
-                                    <i className="fa-solid fa-screwdriver-wrench text-[9px]"></i>
-                                  )}
-                                  {room.status === 'vacant'
-                                    ? 'Đang trống'
-                                    : room.status === 'occupied' && hasStartedBilling
-                                      ? 'Đang ở'
-                                      : room.status === 'occupied' && !hasStartedBilling
-                                        ? 'Chờ lập HĐ'
-                                        : room.status === 'ending'
-                                          ? 'Sắp chuyển phòng'
-                                          : 'Bảo trì'}
-                                </span>
-                                {room.status === 'ending' &&
-                                  room.expected_end_date &&
-                                  (() => {
-                                    const daysLeft = Math.ceil(
-                                      (new Date(room.expected_end_date).getTime() -
-                                        new Date().getTime()) /
-                                      (1000 * 60 * 60 * 24)
+                                  if (activeContract) {
+                                    const agreedDeposit =
+                                      activeContract.deposit_amount || room.default_deposit || 0
+                                    const collectedDeposit = getCollectedDepositAmount(
+                                      activeContract,
+                                      currentTenantInvoices
                                     )
-                                    const dateStr = new Date(
-                                      room.expected_end_date
-                                    ).toLocaleDateString('vi-VN', {
-                                      day: '2-digit',
-                                      month: '2-digit'
-                                    })
+                                    const missingDeposit = Math.max(
+                                      0,
+                                      agreedDeposit - collectedDeposit
+                                    )
+                                    const isDepositComplete =
+                                      agreedDeposit > 0 && missingDeposit <= 0
+
+                                    if (agreedDeposit === 0) {
+                                      return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-50 text-slate-400 border border-slate-200/60 select-none">
+                                          Không cọc
+                                        </span>
+                                      )
+                                    }
+
+                                    // Badge color & display amount configuration based on state
+                                    let valueDisplayAmount = 0
+                                    let badgeClass = ''
+                                    let badgeText = ''
+                                    let badgeIcon = ''
+
+                                    if (isDepositComplete) {
+                                      valueDisplayAmount = agreedDeposit
+                                      badgeClass =
+                                        'bg-emerald-50 text-emerald-600 border border-emerald-200/50'
+                                      badgeText = 'Đã thu đủ'
+                                      badgeIcon = 'fa-circle-check'
+                                    } else if (collectedDeposit > 0) {
+                                      valueDisplayAmount = collectedDeposit
+                                      badgeClass =
+                                        'bg-amber-50 text-amber-600 border border-amber-200/50'
+                                      badgeText = 'Thu thiếu'
+                                      badgeIcon = 'fa-triangle-exclamation'
+                                    } else {
+                                      valueDisplayAmount = 0
+                                      badgeClass = 'bg-red-50 text-red-500 border border-red-200/50'
+                                      badgeText = 'Chưa thu cọc'
+                                      badgeIcon = 'fa-circle-exclamation'
+                                    }
+
                                     return (
-                                      <div
-                                        className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 3 ? 'text-red-500' : 'text-orange-500'}`}
-                                      >
-                                        Còn {daysLeft} ngày ({dateStr})
+                                      <div className="relative group/tooltip inline-block cursor-help select-none">
+                                        <div>
+                                          <div className="font-bold text-slate-800 tabular-nums">
+                                            {formatVND(valueDisplayAmount)} đ
+                                          </div>
+                                          <span
+                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold mt-1 uppercase tracking-wide border ${badgeClass}`}
+                                          >
+                                            <i className={`fa-solid ${badgeIcon} text-[10px]`}></i>
+                                            {badgeText}
+                                          </span>
+                                        </div>
+
+                                        {/* Tooltip Details on Hover */}
+                                        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-48 bg-slate-900/95 text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50">
+                                          <div className="font-bold text-slate-300 mb-1.5 pb-1 border-b border-white/10 text-[10px] uppercase tracking-wider text-center">
+                                            Chi tiết tiền cọc
+                                          </div>
+                                          <div className="space-y-1.5 font-medium">
+                                            <div className="flex justify-between gap-4">
+                                              <span className="text-slate-400">Đã thu:</span>
+                                              <span className="font-bold tabular-nums text-emerald-400">
+                                                {formatVND(collectedDeposit)} đ
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between gap-4">
+                                              <span className="text-slate-400">Cần cọc:</span>
+                                              <span className="font-bold tabular-nums">
+                                                {formatVND(agreedDeposit)} đ
+                                              </span>
+                                            </div>
+                                            {!isDepositComplete && (
+                                              <div className="flex justify-between gap-4 pt-1.5 border-t border-white/5 text-amber-400 font-bold">
+                                                <span>Còn thiếu:</span>
+                                                <span className="tabular-nums">
+                                                  {formatVND(missingDeposit)} đ
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          {/* Tooltip Arrow pointing up */}
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95"></div>
+                                        </div>
                                       </div>
                                     )
-                                  })()}
-                              </div>
-                            </td>
-                            {(() => {
-                              const today = new Date()
-                              const currentMonth = today.getMonth() + 1
-                              const currentYear = today.getFullYear()
-                              const hasActiveContract = activeContract
-                              const contractStartedAt = hasActiveContract?.created_at || hasActiveContract?.move_in_date
-                              const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
-                              const roomMonthInvoices = roomInvoicesAll
-                                .filter(
-                                  (i) =>
-                                    i.month === currentMonth &&
-                                    i.year === currentYear &&
-                                    i.payment_status !== 'cancelled' &&
-                                    i.payment_status !== 'merged' &&
-                                    !i.is_settlement &&
-                                    !isDepositOnlyInvoice(i) &&
-                                    (!hasActiveContract?.tenant_id ||
-                                      i.tenant_id === hasActiveContract.tenant_id) &&
-                                    (!contractStartedAt || i.created_at >= contractStartedAt)
-                                )
-                                .sort(
-                                  (a, b) =>
-                                    new Date(b.created_at).getTime() -
-                                    new Date(a.created_at).getTime()
-                                )
+                                  }
+                                  return (
+                                    <EditableCell
+                                      value={room.default_deposit || 0}
+                                      displayValue={`${formatVND(room.default_deposit || 0)} đ`}
+                                      type="number"
+                                      className="font-bold text-gray-800"
+                                      onSave={(v) =>
+                                        handleQueueChange(room.id, { default_deposit: Number(v) })
+                                      }
+                                    />
+                                  )
+                                })()}
+                              </td>
+                              <td className="px-3 py-2 font-semibold">
+                                {(() => {
+                                  // Nợ thuộc về tenant, không thuộc phòng.
+                                  // Phòng trống → không hiển thị nợ cũ.
+                                  if (room.status === 'vacant') {
+                                    return <span className="text-gray-300 text-xs">—</span>
+                                  }
+                                  const debt = (invoicesByRoomId.get(room.id) || [])
+                                    .filter(
+                                      (i) =>
+                                        i.payment_status !== 'paid' &&
+                                        i.payment_status !== 'cancelled' &&
+                                        (!activeContract?.tenant_id ||
+                                          i.tenant_id === activeContract.tenant_id)
+                                    )
+                                    .reduce(
+                                      (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
+                                      0
+                                    )
+                                  return debt > 0 ? (
+                                    <span className="text-red-500">{formatVND(debt)} đ</span>
+                                  ) : (
+                                    <span className="text-gray-400">0 đ</span>
+                                  )
+                                })()}
+                              </td>
+                              <td className="px-3 py-2 text-gray-600">
+                                <EditableCell
+                                  value={room.max_occupants || 2}
+                                  type="select"
+                                  options={[
+                                    { value: '0', label: '0 người' },
+                                    { value: '1', label: '1 người' },
+                                    { value: '2', label: '2 người' },
+                                    { value: '3', label: '3 người' },
+                                    { value: '4', label: '4 người' },
+                                    { value: '5', label: '5 người' },
+                                    { value: '6', label: '6 người' }
+                                  ]}
+                                  displayValue={`${room.max_occupants || 2} người`}
+                                  onSave={(v) =>
+                                    handleQueueChange(room.id, { max_occupants: Number(v) })
+                                  }
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-gray-600 text-sm">
+                                {(() => {
+                                  if (room.status === 'vacant') {
+                                    return (
+                                      <span className="text-gray-400 italic text-xs">Chưa có</span>
+                                    )
+                                  }
+                                  // Ngày vào ở = lấy từ hợp đồng, chỉ hiện khi đã lập HĐ đầu tiên
+                                  const moveInDate =
+                                    activeContract?.move_in_date || room.move_in_date
 
-                              const currentTenantInvoices = roomInvoicesAll
-                                .filter(
-                                  (i) =>
-                                    i.payment_status !== 'cancelled' &&
-                                    i.payment_status !== 'merged' &&
-                                    (!hasActiveContract?.tenant_id ||
-                                      i.tenant_id === hasActiveContract.tenant_id) &&
-                                    (!contractStartedAt || i.created_at >= contractStartedAt)
-                                )
-                                .sort(
-                                  (a, b) =>
-                                    new Date(b.created_at).getTime() -
-                                    new Date(a.created_at).getTime()
-                                )
+                                  if (hasStartedBilling && moveInDate) {
+                                    return (
+                                      <span className="font-medium">
+                                        {new Date(moveInDate).toLocaleDateString('vi-VN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric'
+                                        })}
+                                      </span>
+                                    )
+                                  }
+                                  return (
+                                    <span className="text-gray-400 italic text-xs">
+                                      Chưa bắt đầu
+                                    </span>
+                                  )
+                                })()}
+                              </td>
+                              <td
+                                className="px-3 py-2 text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div>
+                                  <span
+                                    title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
+                                    className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide ${
+                                      room.status === 'vacant'
+                                        ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
+                                        : room.status === 'occupied' && hasStartedBilling
+                                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
+                                          : room.status === 'occupied' && !hasStartedBilling
+                                            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
+                                            : room.status === 'ending'
+                                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-400/40'
+                                              : 'bg-gradient-to-r from-gray-500 to-slate-600 text-white shadow-sm shadow-slate-400/40'
+                                    }`}
+                                  >
+                                    {room.status === 'vacant' && (
+                                      <i className="fa-solid fa-door-open text-[9px]"></i>
+                                    )}
+                                    {room.status === 'occupied' && hasStartedBilling && (
+                                      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+                                        <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-60 animate-ping"></span>
+                                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white"></span>
+                                      </span>
+                                    )}
+                                    {room.status === 'occupied' && !hasStartedBilling && (
+                                      <i className="fa-solid fa-file-signature text-[9px]"></i>
+                                    )}
+                                    {room.status === 'ending' && (
+                                      <i className="fa-solid fa-right-from-bracket text-[9px]"></i>
+                                    )}
+                                    {room.status === 'maintenance' && (
+                                      <i className="fa-solid fa-screwdriver-wrench text-[9px]"></i>
+                                    )}
+                                    {room.status === 'vacant'
+                                      ? 'Đang trống'
+                                      : room.status === 'occupied' && hasStartedBilling
+                                        ? 'Đang ở'
+                                        : room.status === 'occupied' && !hasStartedBilling
+                                          ? 'Chờ lập HĐ'
+                                          : room.status === 'ending'
+                                            ? 'Sắp chuyển phòng'
+                                            : 'Bảo trì'}
+                                  </span>
+                                  {room.status === 'ending' &&
+                                    room.expected_end_date &&
+                                    (() => {
+                                      const daysLeft = Math.ceil(
+                                        (new Date(room.expected_end_date).getTime() -
+                                          new Date().getTime()) /
+                                          (1000 * 60 * 60 * 24)
+                                      )
+                                      const dateStr = new Date(
+                                        room.expected_end_date
+                                      ).toLocaleDateString('vi-VN', {
+                                        day: '2-digit',
+                                        month: '2-digit'
+                                      })
+                                      return (
+                                        <div
+                                          className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 3 ? 'text-red-500' : 'text-orange-500'}`}
+                                        >
+                                          Còn {daysLeft} ngày ({dateStr})
+                                        </div>
+                                      )
+                                    })()}
+                                </div>
+                              </td>
+                              {(() => {
+                                const today = new Date()
+                                const currentMonth = today.getMonth() + 1
+                                const currentYear = today.getFullYear()
+                                const hasActiveContract = activeContract
+                                const contractStartedAt =
+                                  hasActiveContract?.created_at || hasActiveContract?.move_in_date
+                                const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
+                                const roomMonthInvoices = roomInvoicesAll
+                                  .filter(
+                                    (i) =>
+                                      i.month === currentMonth &&
+                                      i.year === currentYear &&
+                                      i.payment_status !== 'cancelled' &&
+                                      i.payment_status !== 'merged' &&
+                                      !i.is_settlement &&
+                                      !isDepositOnlyInvoice(i) &&
+                                      (!hasActiveContract?.tenant_id ||
+                                        i.tenant_id === hasActiveContract.tenant_id) &&
+                                      (!contractStartedAt || i.created_at >= contractStartedAt)
+                                  )
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.created_at).getTime() -
+                                      new Date(a.created_at).getTime()
+                                  )
 
-                              const unpaidFirstMonthInvoice = currentTenantInvoices.find(
-                                (i) =>
-                                  i.is_first_month &&
-                                  (i.payment_status === 'unpaid' || i.payment_status === 'partial')
-                              )
+                                const currentTenantInvoices = roomInvoicesAll
+                                  .filter(
+                                    (i) =>
+                                      i.payment_status !== 'cancelled' &&
+                                      i.payment_status !== 'merged' &&
+                                      (!hasActiveContract?.tenant_id ||
+                                        i.tenant_id === hasActiveContract.tenant_id) &&
+                                      (!contractStartedAt || i.created_at >= contractStartedAt)
+                                  )
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.created_at).getTime() -
+                                      new Date(a.created_at).getTime()
+                                  )
 
-                              const roomInvoice =
-                                unpaidFirstMonthInvoice ||
-                                roomMonthInvoices.find(
+                                const unpaidFirstMonthInvoice = currentTenantInvoices.find(
                                   (i) =>
                                     i.is_first_month &&
-                                    (i.payment_status === 'unpaid' || i.payment_status === 'partial')
-                                ) ||
-                                roomMonthInvoices.find(
-                                  (i) =>
-                                    i.payment_status === 'unpaid' || i.payment_status === 'partial'
-                                ) ||
-                                roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
-                                null
-
-                              // Tính ngày đầu tháng sau
-                              const nextMonthFirst = new Date(currentYear, currentMonth, 1)
-                              const daysUntilNext = Math.ceil(
-                                (nextMonthFirst.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-                              )
-
-                              // Helper: phòng mới = có contract active nhưng chưa từng trả tiền lần nào
-                              const firstMonthInvoice = currentTenantInvoices.find(
-                                (i) => i.is_first_month
-                              )
-                              const isNewContract = !!hasActiveContract && !hasActiveContract.is_migration && !firstMonthInvoice
-                              const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
-                              const hasDepositCollected =
-                                hasActiveContract?.deposit_pre_collected === true ||
-                                currentTenantInvoices.some(
-                                  (i) =>
-                                    (isDepositOnlyInvoice(i) || (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
-                                    i.paid_amount > 0
+                                    (i.payment_status === 'unpaid' ||
+                                      i.payment_status === 'partial')
                                 )
 
-                              const btnNewContract = (
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setSelectedRoom(room)
-                                    }}
-                                    className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                  >
-                                    <i className="fa-solid fa-triangle-exclamation mr-1"></i>
-                                    Cần lập HĐ đầu
-                                  </button>
-                                </td>
-                              )
+                                const roomInvoice =
+                                  unpaidFirstMonthInvoice ||
+                                  roomMonthInvoices.find(
+                                    (i) =>
+                                      i.is_first_month &&
+                                      (i.payment_status === 'unpaid' ||
+                                        i.payment_status === 'partial')
+                                  ) ||
+                                  roomMonthInvoices.find(
+                                    (i) =>
+                                      i.payment_status === 'unpaid' ||
+                                      i.payment_status === 'partial'
+                                  ) ||
+                                  roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
+                                  null
 
-                              const btnReceiveRoom = (
-                                <td className="px-4 py-3 text-center">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setAssetModuleInitialRoomId(room.id)
-                                      setAssetModuleGuideMode('move_in')
-                                      requestActiveTab('assets')
-                                    }}
-                                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                  >
-                                    <i className="fa-solid fa-clipboard-check mr-1"></i>
-                                    Cần nhận phòng
-                                  </button>
-                                </td>
-                              )
+                                // Tính ngày đầu tháng sau
+                                const nextMonthFirst = new Date(currentYear, currentMonth, 1)
+                                const daysUntilNext = Math.ceil(
+                                  (nextMonthFirst.getTime() - today.getTime()) /
+                                    (1000 * 60 * 60 * 24)
+                                )
 
-                              if (!roomInvoice || room.status === 'vacant') {
-                                if (!room.move_in_date || room.status === 'vacant') {
+                                // Helper: phòng mới = có contract active nhưng chưa từng trả tiền lần nào
+                                const firstMonthInvoice = currentTenantInvoices.find(
+                                  (i) => i.is_first_month
+                                )
+                                const isNewContract =
+                                  !!hasActiveContract &&
+                                  !hasActiveContract.is_migration &&
+                                  !firstMonthInvoice
+                                const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
+                                const hasDepositCollected =
+                                  hasActiveContract?.deposit_pre_collected === true ||
+                                  currentTenantInvoices.some(
+                                    (i) =>
+                                      (isDepositOnlyInvoice(i) ||
+                                        (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
+                                      i.paid_amount > 0
+                                  )
+
+                                const btnNewContract = (
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedRoom(room)
+                                      }}
+                                      className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                    >
+                                      <i className="fa-solid fa-triangle-exclamation mr-1"></i>
+                                      Cần lập HĐ đầu
+                                    </button>
+                                  </td>
+                                )
+
+                                const btnReceiveRoom = (
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        setAssetModuleGuideMode('move_in')
+                                        requestActiveTab('assets')
+                                      }}
+                                      className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                    >
+                                      <i className="fa-solid fa-clipboard-check mr-1"></i>
+                                      Cần nhận phòng
+                                    </button>
+                                  </td>
+                                )
+
+                                if (!roomInvoice || room.status === 'vacant') {
+                                  if (!room.move_in_date || room.status === 'vacant') {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="text-gray-400 text-[10px] italic">—</span>
+                                      </td>
+                                    )
+                                  }
+                                  // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
+                                  if (room.status === 'ending') {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
+                                          <i className="fa-solid fa-clock mr-1"></i>Chờ trả phòng
+                                        </span>
+                                      </td>
+                                    )
+                                  }
+                                  if (
+                                    hasActiveContract &&
+                                    room.status === 'occupied' &&
+                                    !hasReceivedAssets
+                                  )
+                                    return btnReceiveRoom
+                                  if (isNewContract) {
+                                    if (hasDepositCollected) {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setSelectedRoom(room)
+                                            }}
+                                            className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
+                                          >
+                                            <div>
+                                              <i className="fa-solid fa-lock mr-1"></i>Đã thu cọc
+                                            </div>
+                                            <div className="mt-0.5 font-normal opacity-90">
+                                              Chưa lập HĐ đầu tiên
+                                            </div>
+                                          </button>
+                                        </td>
+                                      )
+                                    }
+                                    return btnNewContract
+                                  }
                                   return (
                                     <td className="px-4 py-3 text-center">
-                                      <span className="text-gray-400 text-[10px] italic">—</span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                        className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                      >
+                                        Có thể lập HĐ ngay
+                                      </button>
                                     </td>
                                   )
                                 }
-                                // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
-                                if (room.status === 'ending') {
-                                  return (
-                                    <td className="px-4 py-3 text-center">
-                                      <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
-                                        <i className="fa-solid fa-clock mr-1"></i>Chờ trả phòng
-                                      </span>
-                                    </td>
-                                  )
+
+                                if (
+                                  hasActiveContract &&
+                                  room.status === 'occupied' &&
+                                  !hasReceivedAssets
+                                ) {
+                                  return btnReceiveRoom
                                 }
-                                if (hasActiveContract && room.status === 'occupied' && !hasReceivedAssets) return btnReceiveRoom
-                                if (isNewContract) {
-                                  if (hasDepositCollected) {
+
+                                if (
+                                  roomInvoice.payment_status === 'unpaid' ||
+                                  roomInvoice.payment_status === 'partial'
+                                ) {
+                                  if (room.status === 'ending') {
                                     return (
                                       <td className="px-4 py-3 text-center">
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            setSelectedRoom(room)
+                                            setPaymentInvoice(roomInvoice)
                                           }}
-                                          className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
+                                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                         >
-                                          <div><i className="fa-solid fa-lock mr-1"></i>Đã thu cọc</div>
-                                          <div className="mt-0.5 font-normal opacity-90">Chưa lập HĐ đầu tiên</div>
+                                          <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                          Thu hóa đơn còn nợ
                                         </button>
                                       </td>
                                     )
                                   }
-                                  return btnNewContract
-                                }
-                                return (
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        openInvoiceFlow(room)
-                                      }}
-                                      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                    >
-                                      Có thể lập HĐ ngay
-                                    </button>
-                                  </td>
-                                )
-                              }
-
-                              if (hasActiveContract && room.status === 'occupied' && !hasReceivedAssets) {
-                                return btnReceiveRoom
-                              }
-
-                              if (
-                                roomInvoice.payment_status === 'unpaid' ||
-                                roomInvoice.payment_status === 'partial'
-                              ) {
-                                if (room.status === 'ending') {
+                                  // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
+                                  if (roomInvoice.is_first_month) {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            openInvoiceFlow(room)
+                                          }}
+                                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                        >
+                                          <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                          {roomInvoice.payment_status === 'partial'
+                                            ? 'Tháng đầu còn nợ'
+                                            : 'Chưa thu tiền tháng đầu'}
+                                        </button>
+                                      </td>
+                                    )
+                                  }
                                   return (
                                     <td className="px-4 py-3 text-center">
                                       <button
@@ -3688,148 +4091,126 @@ const App: React.FC = () => {
                                         className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                       >
                                         <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                        Thu hóa đơn còn nợ
+                                        {roomInvoice.payment_status === 'partial'
+                                          ? `Còn nợ tháng ${roomInvoice.month}`
+                                          : `Chưa thu tháng ${roomInvoice.month}`}
                                       </button>
                                     </td>
                                   )
                                 }
-                                // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
-                                if (roomInvoice.is_first_month) {
-                                  return (
-                                    <td className="px-4 py-3 text-center">
+
+                                // Đã thu (đủ hoặc thiếu)
+                                return (
+                                  <td className="px-4 py-3 text-center">
+                                    {daysUntilNext > 0 ? (
+                                      <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
+                                        <i className="fa-solid fa-check-double text-[9px]"></i>
+                                        Đã thu
+                                        <span className="bg-white text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
+                                          Còn {daysUntilNext}d
+                                        </span>
+                                      </span>
+                                    ) : (
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           openInvoiceFlow(room)
                                         }}
-                                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                        className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                       >
-                                        <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                        {roomInvoice.payment_status === 'partial'
-                                          ? 'Tháng đầu còn nợ'
-                                          : 'Chưa thu tiền tháng đầu'}
+                                        Có thể lập HĐ mới
                                       </button>
-                                    </td>
-                                  )
-                                }
-                                return (
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        setPaymentInvoice(roomInvoice)
-                                      }}
-                                      className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                    >
-                                      <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                      {roomInvoice.payment_status === 'partial'
-                                        ? `Còn nợ tháng ${roomInvoice.month}`
-                                        : `Chưa thu tháng ${roomInvoice.month}`}
-                                    </button>
+                                    )}
                                   </td>
                                 )
-                              }
-
-                              // Đã thu (đủ hoặc thiếu)
-                              return (
-                                <td className="px-4 py-3 text-center">
-                                  {daysUntilNext > 0 ? (
-                                    <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
-                                      <i className="fa-solid fa-check-double text-[9px]"></i>
-                                      Đã thu
-                                      <span className="bg-white text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
-                                        Còn {daysUntilNext}d
-                                      </span>
-                                    </span>
-                                  ) : (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        openInvoiceFlow(room)
-                                      }}
-                                      className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                    >
-                                      Có thể lập HĐ mới
-                                    </button>
+                              })()}
+                              <td className="px-4 py-3 text-center">
+                                <div className="relative inline-block">
+                                  {menuOpenId === room.id && (
+                                    <div
+                                      className="fixed inset-0 z-40"
+                                      onClick={() => setMenuOpenId(null)}
+                                    />
                                   )}
-                                </td>
-                              )
-                            })()}
-                            <td className="px-4 py-3 text-center">
-                              <div className="relative inline-block">
-                                {menuOpenId === room.id && (
-                                  <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={() => setMenuOpenId(null)}
-                                  />
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleRoomMenu(e, room.id)
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-xs font-medium text-gray-600 shadow-sm relative z-10 flex items-center gap-1.5 transition"
-                                >
-                                  Xem thêm <i className="fa-solid fa-chevron-down text-[9px]"></i>
-                                </button>
-                                {menuOpenId === room.id && roomActionMenu}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleRoomMenu(e, room.id)
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-xs font-medium text-gray-600 shadow-sm relative z-10 flex items-center gap-1.5 transition"
+                                  >
+                                    Xem thêm <i className="fa-solid fa-chevron-down text-[9px]"></i>
+                                  </button>
+                                  {menuOpenId === room.id && roomActionMenu}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Removed Table Footer to save space as requested */}
               </div>
-
-              {/* Removed Table Footer to save space as requested */}
             </div>
-          </div>
-        ) : activeTab === 'invoices' ? (
-          <Suspense fallback={<TabLoading />}>
-            <InvoicesTab
-              currentUser={currentUser}
-              openSePaySyncSignal={sepaySyncOpenSignal}
-              onSePaySyncSignalHandled={handleSePaySyncSignalHandled}
-            />
-          </Suspense>
-        ) : activeTab === 'assets' ? (
-          <Suspense fallback={<TabLoading />}>
-            <AssetsTab
-              initialRoomId={assetModuleInitialRoomId}
-              onReceivePendingChange={handleAssetReceivePendingChange}
-              guideMode={assetModuleGuideMode}
-              guideRoomId={assetModuleInitialRoomId}
-              onGuideHandled={() => setAssetModuleGuideMode(null)}
-            />
-          </Suspense>
-        ) : activeTab === 'contracts' ? (
-          <Suspense fallback={<TabLoading />}>
-            <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
-          </Suspense>
-        ) : activeTab === 'reports' ? (
-          <Suspense fallback={<TabLoading />}>
-            <BusinessReport currentUser={currentUser} onNavigateToInvoices={() => requestActiveTab('invoices')} />
-          </Suspense>
-        ) : activeTab === 'tenants' ? (
-          <Suspense fallback={<TabLoading />}>
-            <TenantsTab />
-          </Suspense>
-        ) : activeTab === 'settings' ? (
-          <Suspense fallback={<TabLoading />}>
-            <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
-          </Suspense>
-        ) : null}
-      </div>
+          ) : activeTab === 'invoices' ? (
+            <Suspense fallback={<TabLoading />}>
+              <InvoicesTab
+                currentUser={currentUser}
+                openSePaySyncSignal={sepaySyncOpenSignal}
+                onSePaySyncSignalHandled={handleSePaySyncSignalHandled}
+              />
+            </Suspense>
+          ) : activeTab === 'assets' ? (
+            <Suspense fallback={<TabLoading />}>
+              <AssetsTab
+                initialRoomId={assetModuleInitialRoomId}
+                onReceivePendingChange={handleAssetReceivePendingChange}
+                guideMode={assetModuleGuideMode}
+                guideRoomId={assetModuleInitialRoomId}
+                onGuideHandled={() => setAssetModuleGuideMode(null)}
+              />
+            </Suspense>
+          ) : activeTab === 'contracts' ? (
+            <Suspense fallback={<TabLoading />}>
+              <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
+            </Suspense>
+          ) : activeTab === 'reports' ? (
+            <Suspense fallback={<TabLoading />}>
+              <BusinessReport
+                currentUser={currentUser}
+                initialTab={reportSubTab === 'cashflow' ? 'cashflow' : 'overview'}
+                onNavigateToInvoices={() => requestActiveTab('invoices')}
+              />
+            </Suspense>
+          ) : activeTab === 'ai-analysis' ? (
+            <Suspense fallback={<TabLoading />}>
+              <AiAnalysisTab
+                propertyAddress={appSettings.property_address?.trim() || ''}
+                onNavigateToRooms={() => requestActiveTab('rooms')}
+              />
+            </Suspense>
+          ) : activeTab === 'tenants' ? (
+            <Suspense fallback={<TabLoading />}>
+              <TenantsTab />
+            </Suspense>
+          ) : activeTab === 'settings' ? (
+            <Suspense fallback={<TabLoading />}>
+              <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+            </Suspense>
+          ) : null}
+        </div>
 
-      {
-        updateBanner && updateBanner.status !== 'idle' && (
+        {updateBanner && updateBanner.status !== 'idle' && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/85 p-6 text-white backdrop-blur-sm">
             <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-slate-900 shadow-2xl">
               <div className="flex items-start gap-4">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
-                  <i className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}></i>
+                  <i
+                    className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}
+                  ></i>
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-base font-black text-slate-900">
@@ -3839,10 +4220,12 @@ const App: React.FC = () => {
                         ? 'Đang kiểm tra cập nhật'
                         : updateBanner.status === 'restarting'
                           ? 'Đang khởi động lại'
-                          : 'Đang tự động cập nhật' + (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
+                          : 'Đang tự động cập nhật' +
+                            (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
                   </div>
                   <div className="mt-2 text-sm leading-6 text-slate-600">
-                    {updateBanner.message || 'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
+                    {updateBanner.message ||
+                      'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
                   </div>
                   {updateBanner.status !== 'error' && (
                     <div className="mt-5">
@@ -3851,33 +4234,33 @@ const App: React.FC = () => {
                         <span>{updateBanner.progress || 0}%</span>
                       </div>
                       <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-                        <div className="h-full rounded-full bg-primary transition-all" style={{ width: String(updateBanner.progress || 0) + '%' }}></div>
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: String(updateBanner.progress || 0) + '%' }}
+                        ></div>
                       </div>
                     </div>
                   )}
                   {updateBanner.status === 'error' && (
                     <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
-                      Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử lại.
+                      Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử
+                      lại.
                     </p>
                   )}
                 </div>
               </div>
             </div>
           </div>
-        )
-      }
+        )}
 
-      {
-        selectedRoom && (
+        {selectedRoom && (
           <InvoiceModal
             room={selectedRoom}
             tenant={null} // Sau này fetch tenant
             onClose={() => setSelectedRoom(null)}
           />
-        )
-      }
-      {
-        serviceZoneRoom && (
+        )}
+        {serviceZoneRoom && (
           <RoomServiceZonePickerModal
             room={serviceZoneRoom}
             invoiceBlocked={(serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone'}
@@ -3889,10 +4272,8 @@ const App: React.FC = () => {
             }}
             onClose={() => setServiceZoneRoom(null)}
           />
-        )
-      }
-      {
-        detailRoom && (
+        )}
+        {detailRoom && (
           <RoomDetailsModal
             room={detailRoom}
             zone={serviceZones.find((z) => z.id === detailRoom.service_zone_id) || null}
@@ -3914,10 +4295,8 @@ const App: React.FC = () => {
               openInvoiceFlow(r)
             }}
           />
-        )
-      }
-      {
-        newContractRoom && (
+        )}
+        {newContractRoom && (
           <NewContractModal
             room={newContractRoom}
             zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
@@ -3949,10 +4328,8 @@ const App: React.FC = () => {
               setActiveTab('assets')
             }}
           />
-        )
-      }
-      {
-        migrationContractRoom && (
+        )}
+        {migrationContractRoom && (
           <NewContractModal
             room={migrationContractRoom}
             zone={serviceZones.find((z) => z.id === migrationContractRoom.service_zone_id)}
@@ -3964,15 +4341,11 @@ const App: React.FC = () => {
             }
             initialIsMigration={true}
           />
-        )
-      }
-      {
-        endNoticeRoom && (
+        )}
+        {endNoticeRoom && (
           <EndContractNoticeModal room={endNoticeRoom} onClose={() => setEndNoticeRoom(null)} />
-        )
-      }
-      {
-        terminateRoom && (
+        )}
+        {terminateRoom && (
           <TerminateContractModal
             room={terminateRoom}
             onClose={() => setTerminateRoom(null)}
@@ -3983,18 +4356,14 @@ const App: React.FC = () => {
               requestActiveTab('assets')
             }}
           />
-        )
-      }
-      {
-        cancelContractRoom && (
+        )}
+        {cancelContractRoom && (
           <CancelContractModal
             room={cancelContractRoom}
             onClose={() => setCancelContractRoom(null)}
           />
-        )
-      }
-      {
-        Object.keys(pendingRoomUpdates).length > 0 && (
+        )}
+        {Object.keys(pendingRoomUpdates).length > 0 && (
           <div className="fixed bottom-0 left-0 right-0 bg-[#e7f1f7] border-t border-blue-100 py-3 px-6 flex items-center justify-center gap-6 z-50 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] animate-[slideUp_0.2s_ease-out]">
             <div className="text-[15px] font-bold text-gray-800 flex items-center">
               {saveError ? (
@@ -4035,12 +4404,10 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
-        )
-      }
+        )}
 
-      {/* Toast thành công */}
-      {
-        saveToast && (
+        {/* Toast thành công */}
+        {saveToast && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl animate-[fadeIn_0.2s_ease-out] min-w-[280px]">
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
               <i className="fa-solid fa-check text-white text-sm"></i>
@@ -4050,11 +4417,9 @@ const App: React.FC = () => {
               <div className="text-gray-400 text-xs">Toàn bộ thay đổi đã được cập nhật.</div>
             </div>
           </div>
-        )
-      }
+        )}
 
-      {
-        changeTargetRoom && (
+        {changeTargetRoom && (
           <ChangeRoomModal
             room={changeTargetRoom}
             onClose={() => setChangeTargetRoom(null)}
@@ -4065,11 +4430,10 @@ const App: React.FC = () => {
               requestActiveTab('assets')
             }}
           />
-        )
-      }
+        )}
 
-      <TourOverlay />
-      </div >
+        <TourOverlay />
+      </div>
     </Suspense>
   )
 }

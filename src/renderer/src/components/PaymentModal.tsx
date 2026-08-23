@@ -99,11 +99,10 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
       }),
     onSuccess: () => {
       playPayment();
-      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['roomInvoices'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
       onClose();
     },
   });

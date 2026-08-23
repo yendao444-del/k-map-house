@@ -27,7 +27,7 @@ export type AssetType = 'furniture' | 'appliance' | 'plumbing' | 'electrical'
 export interface RoomAsset { id: string; room_id: string; name: string; quantity: number; sort_order: number; type?: AssetType; status?: 'ok' | 'error' | 'repairing'; issue_note?: string; icon?: string; repairman_name?: string; repairman_phone?: string; repair_called_at?: string; repaired_at?: string; }
 export interface RoomAssetAdjustment { id: string; room_id: string; room_asset_id?: string; action: 'add' | 'update'; name: string; quantity: number; reason: string; recorded_at: string; }
 export interface MeterReadingAdjustment { id: string; room_id: string; invoice_id?: string; contract_id?: string; old_electric: number; new_electric: number; old_water: number; new_water: number; reason: string; adjusted_by?: string; adjusted_by_name?: string; recorded_at: string; }
-export interface AssetSnapshot { id: string; room_id: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
+export interface AssetSnapshot { id: string; room_id: string; contract_id?: string; tenant_id?: string; room_asset_id: string; type: 'move_in' | 'move_out' | 'handover'; condition: string; deduction: number; note?: string; recorded_at: string; }
 export interface RoomVehicle { id: string; room_id: string; owner_name?: string; license_plate: string; vehicle_type?: string; brand?: string; color?: string; registered_at: string; }
 export interface AppSettings { bank_id?: string; account_no?: string; account_name?: string; sepay_api_token?: string; property_name?: string; property_address?: string; property_owner_name?: string; property_owner_phone?: string; property_owner_id_card?: string; notification_read_ids?: string[]; contract_template?: string; opening_balance_cash?: number; opening_balance_bank?: number; opening_balance_date?: string; }
 
@@ -98,21 +98,10 @@ const formatRoomName = (name: string) => {
 const createEntityId = (prefix: string): string =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-const normalizePaymentKey = (value?: string): string =>
-  (value || '').trim().toLowerCase()
-
 const extractPaymentRefFromNote = (note?: string): string => {
   const value = note || ''
   return value.match(/\(Ref:\s*([^)]+)\)/i)?.[1]?.trim() || ''
 }
-
-const getPaymentRecordDedupeKeys = (record: InvoicePaymentRecord): string[] =>
-  [record.external_ref, record.external_id, extractPaymentRefFromNote(record.note)]
-    .map(normalizePaymentKey)
-    .filter(Boolean)
-
-const hasDuplicatePaymentRecord = (records: InvoicePaymentRecord[] = [], keys: string[]): boolean =>
-  keys.length > 0 && records.some((record) => getPaymentRecordDedupeKeys(record).some((key) => keys.includes(key)))
 
 const normalizeRemoteErrorMessage = (message: string): string => {
   if (/failed to fetch|fetch failed|enotfound|networkerror/i.test(message)) {
@@ -375,18 +364,10 @@ export const adjustRoomMeterReadings = async (data: {
 }
 
 export const deleteRoom = async (id: string): Promise<void> => {
-  // Xóa song song toàn bộ dữ liệu liên quan trước để tránh FK constraint
-  await Promise.all([
-    supabase.from('invoices').delete().eq('room_id', id),
-    supabase.from('move_in_receipts').delete().eq('room_id', id),
-    supabase.from('contracts').delete().eq('room_id', id),
-    supabase.from('room_assets').delete().eq('room_id', id),
-    supabase.from('asset_snapshots').delete().eq('room_id', id),
-    supabase.from('room_vehicles').delete().eq('room_id', id),
-    supabase.from('room_asset_adjustments').delete().eq('room_id', id),
-    supabase.from('meter_reading_adjustments').delete().eq('room_id', id),
-  ])
-  await safeQuery(() => supabase.from('rooms').delete().eq('id', id))
+  void id
+  throw new Error(
+    'Đã chặn xóa vĩnh viễn phòng để bảo vệ hóa đơn, hợp đồng và lịch sử tài sản. Hãy chuyển phòng về trạng thái phù hợp thay vì xóa.'
+  )
 }
 
 // =========================================================
@@ -409,13 +390,10 @@ export const updateTenant = async (id: string, updates: Partial<Tenant>): Promis
 }
 
 export const deleteTenant = async (id: string): Promise<void> => {
-  await Promise.all([
-    safeQuery(() => supabase.from('move_in_receipts').delete().eq('tenant_id', id)),
-    safeQuery(() => supabase.from('asset_snapshots').delete().eq('tenant_id', id)),
-    safeQuery(() => supabase.from('invoices').delete().eq('tenant_id', id)),
-    safeQuery(() => supabase.from('contracts').delete().eq('tenant_id', id)),
-  ])
-  await safeQuery(() => supabase.from('tenants').delete().eq('id', id))
+  void id
+  throw new Error(
+    'Đã chặn xóa vĩnh viễn khách thuê để bảo vệ hợp đồng và lịch sử thanh toán. Hãy dùng “Đánh dấu đã chuyển đi”.'
+  )
 }
 
 export const markTenantLeft = async (tenantId: string): Promise<Tenant> => {
@@ -1018,72 +996,34 @@ export const deleteInvoice = async (id: string): Promise<Invoice> => {
 export const recordInvoicePayment = async (id: string, data: { amount: number; payment_method: PaymentMethod; payment_date: string; note?: string; external_ref?: string; external_id?: string; source?: string }): Promise<Invoice> => {
   const amount = Number(data.amount || 0)
   if (!Number.isFinite(amount) || amount === 0) throw new Error('Số tiền thu không hợp lệ.')
-
-  const incomingKeys = [data.external_ref, data.external_id, extractPaymentRefFromNote(data.note)]
-    .map(normalizePaymentKey)
-    .filter(Boolean)
-
-  const { data: inv, error } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
-  if (error) throw new Error(error.message)
-  if (!inv) throw new Error('Không tìm thấy hóa đơn.')
-
-  const existingRecords = (inv.payment_records || []) as InvoicePaymentRecord[]
-  if (hasDuplicatePaymentRecord(existingRecords, incomingKeys)) {
-    return inv as Invoice
+  const normalizedPaymentDate = data.payment_date.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedPaymentDate)) {
+    throw new Error('Ngày thanh toán không hợp lệ.')
   }
 
-  const currentPaidAmount = Number(inv.paid_amount || 0)
-  const totalAmount = Number(inv.total_amount || 0)
-  if (inv.payment_status === 'paid') {
-    return inv as Invoice
-  }
+  const { data: paymentResult, error } = await supabase.rpc('record_invoice_payment_atomic', {
+    p_invoice_id: id,
+    p_amount: amount,
+    p_payment_method: data.payment_method,
+    p_payment_date: normalizedPaymentDate,
+    p_note: data.note || null,
+    p_external_ref: data.external_ref || extractPaymentRefFromNote(data.note) || null,
+    p_external_id: data.external_id || null,
+    p_source: data.source || null
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 
-  const newPaidAmount = currentPaidAmount + amount
-  const record = {
-    id: createEntityId('pay'),
-    amount,
-    payment_method: data.payment_method,
-    payment_date: data.payment_date,
-    note: data.note,
-    external_ref: data.external_ref || extractPaymentRefFromNote(data.note) || undefined,
-    external_id: data.external_id || undefined,
-    source: data.source || undefined,
-    created_at: new Date().toISOString()
-  }
-  const nextStatus: PaymentStatus =
-    totalAmount < 0
-      ? newPaidAmount <= totalAmount
-        ? 'paid'
-        : 'partial'
-      : newPaidAmount >= totalAmount
-        ? 'paid'
-        : 'partial'
+  const rpcResult = paymentResult as {
+    invoice?: Invoice
+    applied?: boolean
+    transitioned_to_paid?: boolean
+  } | null
+  if (!rpcResult?.invoice) throw new Error('Không nhận được kết quả ghi nhận thanh toán.')
 
-  const { data: updatedRow, error: updateError } = await supabase
-    .from('invoices')
-    .update({ paid_amount: newPaidAmount, payment_status: nextStatus, payment_method: data.payment_method, payment_date: data.payment_date, payment_records: [...existingRecords, record] } as any)
-    .eq('id', id)
-    .eq('paid_amount', currentPaidAmount)
-    .eq('payment_status', inv.payment_status)
-    .select()
-    .maybeSingle()
+  const updated = rpcResult.invoice
+  const transitionedToPaid = rpcResult.transitioned_to_paid === true
 
-  if (updateError) throw new Error(updateError.message)
-
-  if (!updatedRow) {
-    const { data: latest, error: latestError } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
-    if (latestError) throw new Error(latestError.message)
-    if (!latest) throw new Error('Không tìm thấy hóa đơn.')
-    if (hasDuplicatePaymentRecord((latest.payment_records || []) as InvoicePaymentRecord[], incomingKeys) || latest.payment_status === 'paid') {
-      return latest as Invoice
-    }
-    throw new Error('Hóa đơn vừa được cập nhật bởi thao tác khác. Vui lòng tải lại rồi thử lại.')
-  }
-
-  const result = updatedRow
-  const updated = result as any as Invoice
-
-  if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && !updated.is_settlement) {
+  if (transitionedToPaid && updated.room_id && !updated.is_settlement) {
     await supabase
       .from('rooms')
       .update({
@@ -1095,7 +1035,7 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
       .eq('id', updated.room_id)
   }
 
-  if (inv.payment_status !== 'paid' && nextStatus === 'paid' && updated.room_id && updated.is_settlement) {
+  if (transitionedToPaid && updated.room_id && updated.is_settlement) {
     const [{ data: room }, { data: activeContract }] = await Promise.all([
       supabase.from('rooms').select('id,status').eq('id', updated.room_id).maybeSingle(),
       supabase
@@ -1154,12 +1094,12 @@ export const recordInvoicePayment = async (id: string, data: { amount: number; p
 // ASSETS & SNAPSHOTS
 // =========================================================
 export const getRoomAssets = async (roomId: string): Promise<RoomAsset[]> => {
-  const data = await safeQuery(() => supabase.from('room_assets').select('*').eq('room_id', roomId).order('sort_order', { ascending: true }))
+  const data = await safeQuery(() => supabase.from('room_assets').select('*').eq('room_id', roomId).gt('quantity', 0).order('sort_order', { ascending: true }))
   return data || []
 }
 
 export const getAllRoomAssets = async (): Promise<RoomAsset[]> => {
-  const data = await safeQuery(() => supabase.from('room_assets').select('*').order('sort_order', { ascending: true }))
+  const data = await safeQuery(() => supabase.from('room_assets').select('*').gt('quantity', 0).order('sort_order', { ascending: true }))
   return data || []
 }
 
@@ -1198,8 +1138,47 @@ export const deleteAssetTemplate = async (id: string): Promise<void> => {
   await safeQuery(() => supabase.from('asset_templates').delete().eq('id', id))
 }
 
+const getSnapshotContractForRoom = async (
+  roomId: string
+): Promise<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,tenant_id,status,created_at')
+      .eq('room_id', roomId)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+  ) as Array<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'>> | null
+
+  if (!data || data.length === 0) return null
+  return data.find(contract => contract.status === 'active') || data[0]
+}
+
+const getActiveSnapshotContractForRoom = async (
+  roomId: string
+): Promise<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,tenant_id,status,created_at')
+      .eq('room_id', roomId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  )
+  return data as Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null
+}
+
 export const getAssetSnapshots = async (roomId: string, type?: string): Promise<AssetSnapshot[]> => {
-  let q = supabase.from('asset_snapshots').select('*').eq('room_id', roomId)
+  const contract = await getSnapshotContractForRoom(roomId)
+  if (!contract) return []
+
+  let q = supabase
+    .from('asset_snapshots')
+    .select('*')
+    .eq('room_id', roomId)
+    .eq('contract_id', contract.id)
   if (type) q = q.eq('type', type)
   const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
   return data || []
@@ -1210,7 +1189,28 @@ export const getAssetSnapshotsByRoomIds = async (
   types?: Array<AssetSnapshot['type']>
 ): Promise<AssetSnapshot[]> => {
   if (roomIds.length === 0) return []
-  let q = supabase.from('asset_snapshots').select('*').in('room_id', roomIds)
+
+  const contracts = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,status,created_at')
+      .in('room_id', roomIds)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+  ) as Array<Pick<Contract, 'id' | 'room_id' | 'status' | 'created_at'>> | null
+
+  const contractByRoom = new Map<string, Pick<Contract, 'id' | 'room_id' | 'status' | 'created_at'>>()
+  for (const contract of contracts || []) {
+    const existing = contractByRoom.get(contract.room_id)
+    if (!existing || (contract.status === 'active' && existing.status !== 'active')) {
+      contractByRoom.set(contract.room_id, contract)
+    }
+  }
+
+  const contractIds = Array.from(contractByRoom.values(), contract => contract.id)
+  if (contractIds.length === 0) return []
+
+  let q = supabase.from('asset_snapshots').select('*').in('contract_id', contractIds)
   if (types && types.length > 0) q = q.in('type', types)
   const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
   return data || []
@@ -1219,28 +1219,41 @@ export const getAssetSnapshotsByRoomIds = async (
 export const createAssetSnapshots = async (data: Partial<AssetSnapshot>[]): Promise<AssetSnapshot[]> => {
   if (data.length === 0) return []
 
-  const replacedGroups = new Set<string>()
-  for (const snap of data) {
-    if (!snap.room_id || !snap.type) continue
-    replacedGroups.add(`${snap.room_id}|${snap.type}`)
+  const roomIds = Array.from(new Set(data.map(snap => snap.room_id).filter((roomId): roomId is string => !!roomId)))
+  const contracts = await Promise.all(roomIds.map(roomId => getActiveSnapshotContractForRoom(roomId)))
+  const contractByRoom = new Map(contracts.filter((contract): contract is NonNullable<typeof contract> => !!contract).map(contract => [contract.room_id, contract]))
+
+  const missingContractRoom = roomIds.find(roomId => !contractByRoom.has(roomId))
+  if (missingContractRoom) {
+    throw new Error('Phòng chưa có hợp đồng để ghi nhận bàn giao tài sản.')
   }
-  await Promise.all(
-    Array.from(replacedGroups).map(key => {
-      const [roomId, type] = key.split('|')
-      return safeQuery(() =>
-        supabase.from('asset_snapshots').delete().eq('room_id', roomId).eq('type', type)
-      )
-    })
-  )
 
   const recordedAt = new Date().toISOString()
-  const snaps = data.map(s => ({ ...s, id: createEntityId('snap'), recorded_at: recordedAt }))
+  const snaps = data.map(s => {
+    const contract = contractByRoom.get(s.room_id || '')!
+    return {
+      ...s,
+      contract_id: contract.id,
+      tenant_id: s.tenant_id || contract.tenant_id,
+      id: createEntityId('snap'),
+      recorded_at: recordedAt,
+    }
+  })
   const result = await safeQuery(() => supabase.from('asset_snapshots').insert(snaps).select())
   return result as any as AssetSnapshot[]
 }
 
 export const createAssetSnapshot = async (data: Partial<AssetSnapshot>): Promise<AssetSnapshot> => {
-  const newSnap = { ...data, id: createEntityId('snap'), recorded_at: new Date().toISOString() }
+  if (!data.room_id) throw new Error('Thiếu phòng khi ghi nhận tài sản.')
+  const contract = await getActiveSnapshotContractForRoom(data.room_id)
+  if (!contract) throw new Error('Phòng chưa có hợp đồng để ghi nhận bàn giao tài sản.')
+  const newSnap = {
+    ...data,
+    contract_id: contract.id,
+    tenant_id: data.tenant_id || contract.tenant_id,
+    id: createEntityId('snap'),
+    recorded_at: new Date().toISOString(),
+  }
   const result = await safeQuery(() => supabase.from('asset_snapshots').insert(newSnap).select().single())
   return result as any as AssetSnapshot
 }
@@ -1303,13 +1316,26 @@ export const getCashTransactions = async (): Promise<CashTransaction[]> => {
   return data || []
 }
 
+const validateCashTransactionRoom = (
+  data: Pick<Partial<CashTransaction>, 'type' | 'category' | 'room_id'>
+) => {
+  if (data.type === 'expense' && data.category === 'maintenance' && !data.room_id?.trim()) {
+    throw new Error('Vui lòng gắn phòng cho khoản chi bảo trì / sửa chữa.')
+  }
+}
+
 export const createCashTransaction = async (data: Partial<CashTransaction>): Promise<CashTransaction> => {
+  validateCashTransactionRoom(data)
   const newTx = { ...data, id: createEntityId('tx'), created_at: new Date().toISOString(), updated_at: new Date().toISOString() }
   const result = await safeQuery(() => supabase.from('cash_transactions').insert(newTx).select().single())
   return result as any as CashTransaction
 }
 
 export const updateCashTransaction = async (id: string, updates: Partial<CashTransaction>): Promise<CashTransaction> => {
+  const current = (await safeQuery(() =>
+    supabase.from('cash_transactions').select('type,category,room_id').eq('id', id).single()
+  )) as Pick<CashTransaction, 'type' | 'category' | 'room_id'>
+  validateCashTransactionRoom({ ...current, ...updates })
   const result = await safeQuery(() => supabase.from('cash_transactions').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select().single())
   return result as any as CashTransaction
 }
@@ -1509,6 +1535,52 @@ export const signInUser = async (login: string, password: string): Promise<AppUs
   const user = await getCurrentSessionUser()
   if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi đăng nhập.')
   return user
+}
+
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('Vui lòng nhập địa chỉ email hợp lệ.')
+  }
+
+  const { data: registeredEmail, error: lookupError } = await supabase.rpc('resolve_login_email', {
+    login_name: normalizedEmail
+  })
+  if (lookupError) throw new Error(normalizeRemoteErrorMessage(lookupError.message))
+  if (
+    typeof registeredEmail !== 'string' ||
+    registeredEmail.trim().toLowerCase() !== normalizedEmail
+  ) {
+    throw new Error('Email này không thuộc tài khoản đang hoạt động trong hệ thống.')
+  }
+
+  const recoveryUrl = new URL(window.location.href)
+  recoveryUrl.hash = ''
+  recoveryUrl.searchParams.set('password-recovery', '1')
+  const redirectTo = recoveryUrl.toString()
+  const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+}
+
+export const resetPasswordFromRecoveryLink = async (newPassword: string): Promise<void> => {
+  if (newPassword.length < 8) {
+    throw new Error('Mật khẩu mới phải có ít nhất 8 ký tự.')
+  }
+
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) throw new Error(normalizeRemoteErrorMessage(sessionError.message))
+  if (!session) {
+    throw new Error('Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại yêu cầu.')
+  }
+
+  try {
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) throw new Error(normalizeRemoteErrorMessage(updateError.message))
+  } finally {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    window.sessionStorage.removeItem('an-khang-password-recovery')
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }
 }
 
 export const signOutUser = async (): Promise<void> => {

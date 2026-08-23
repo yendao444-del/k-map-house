@@ -117,7 +117,7 @@ export function EditInvoiceModal({ invoice, room, onClose }: EditInvoiceModalPro
       })
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
       onClose();
     },
     onError: (err: any) => {

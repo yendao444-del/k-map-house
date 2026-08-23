@@ -31,6 +31,7 @@ const MIN_GAP_MS = 45
 let audioCtx: AudioContext | null = null
 let lastSoundAt = 0
 let globalEffectsInstalled = false
+let paymentAnnouncementQueue: Promise<void> = Promise.resolve()
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null
@@ -305,6 +306,40 @@ export function playPayment() {
     ],
     'triangle'
   )
+}
+
+export function announcePaymentAmount(amount: number): Promise<void> {
+  const roundedAmount = Math.round(Number(amount))
+  if (!Number.isFinite(roundedAmount) || roundedAmount <= 0) return Promise.resolve()
+
+  const announce = async () => {
+    playPayment()
+
+    try {
+      const result = await window.api.tts.synthesizePayment(roundedAmount)
+      if (!result.ok || !result.audioBase64) {
+        throw new Error(result.error || 'Không nhận được dữ liệu giọng đọc.')
+      }
+
+      const audio = new Audio('data:audio/mpeg;base64,' + result.audioBase64)
+      audio.volume = 1
+      await audio.play()
+      await new Promise<void>((resolve) => {
+        const timeoutId = window.setTimeout(resolve, 20_000)
+        const finish = () => {
+          window.clearTimeout(timeoutId)
+          resolve()
+        }
+        audio.addEventListener('ended', finish, { once: true })
+        audio.addEventListener('error', finish, { once: true })
+      })
+    } catch (error) {
+      console.warn('Không thể đọc thông báo tiền vào, đã phát chuông dự phòng:', error)
+    }
+  }
+
+  paymentAnnouncementQueue = paymentAnnouncementQueue.catch(() => undefined).then(announce)
+  return paymentAnnouncementQueue
 }
 
 export function playCreate() {

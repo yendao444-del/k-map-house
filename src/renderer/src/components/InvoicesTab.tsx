@@ -684,20 +684,40 @@ export const InvoicesTab: React.FC<{
     [invoices, selectedMonth, selectedYear]
   );
 
-  const roomNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const room of rooms) map.set(room.id, room.name || '');
+  const roomById = useMemo(() => {
+    const map = new Map<string, (typeof rooms)[number]>();
+    for (const room of rooms) map.set(room.id, room);
     return map;
   }, [rooms]);
 
-  const statusCounts = useMemo(() => ({
-    paid: monthInvoices.filter(i => i.payment_status === 'paid' && !i.is_settlement).length,
-    unpaid: monthInvoices.filter(i => i.payment_status === 'unpaid' && !i.is_settlement).length,
-    partial: monthInvoices.filter(i => i.payment_status === 'partial' && !i.is_settlement).length,
-    settlement: monthInvoices.filter(i => !!i.is_settlement).length,
-    merged: monthInvoices.filter(i => i.payment_status === 'merged').length,
-    cancelled: monthInvoices.filter(i => i.payment_status === 'cancelled').length,
-  }), [monthInvoices]);
+  const tenantById = useMemo(() => {
+    const map = new Map<string, (typeof tenants)[number]>();
+    for (const tenant of tenants) map.set(tenant.id, tenant);
+    return map;
+  }, [tenants]);
+
+  const invoiceCountByMonth = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const invoice of invoices) {
+      const key = `${invoice.year}-${invoice.month}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [invoices]);
+
+  const statusCounts = useMemo(() => {
+    const counts = { paid: 0, unpaid: 0, partial: 0, settlement: 0, merged: 0, cancelled: 0 };
+    for (const invoice of monthInvoices) {
+      if (invoice.is_settlement) counts.settlement++;
+      if (invoice.payment_status === 'merged') counts.merged++;
+      if (invoice.payment_status === 'cancelled') counts.cancelled++;
+      if (invoice.is_settlement) continue;
+      if (invoice.payment_status === 'paid') counts.paid++;
+      if (invoice.payment_status === 'unpaid') counts.unpaid++;
+      if (invoice.payment_status === 'partial') counts.partial++;
+    }
+    return counts;
+  }, [monthInvoices]);
 
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = searchQuery.toLowerCase();
@@ -718,18 +738,33 @@ export const InvoicesTab: React.FC<{
       if (inv.payment_status === 'paid' && !filters.paid) return false;
       if (inv.payment_status === 'unpaid' && !filters.unpaid) return false;
       if (inv.payment_status === 'partial' && !filters.partial) return false;
-      const roomName = roomNameById.get(inv.room_id) || '';
+      const roomName = roomById.get(inv.room_id)?.name || '';
       return roomName.toLowerCase().includes(normalizedSearch);
     });
     return result.sort((a, b) => {
-      const roomA = roomNameById.get(a.room_id) || '';
-      const roomB = roomNameById.get(b.room_id) || '';
+      const roomA = roomById.get(a.room_id)?.name || '';
+      const roomB = roomById.get(b.room_id)?.name || '';
       if (sortOrder === 'room_asc') return roomA.localeCompare(roomB);
       if (sortOrder === 'room_desc') return roomB.localeCompare(roomA);
       if (sortOrder === 'amount_desc') return b.total_amount - a.total_amount;
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [monthInvoices, filters, roomNameById, searchQuery, sortOrder]);
+  }, [monthInvoices, filters, roomById, searchQuery, sortOrder]);
+
+  const filteredInvoiceSummary = useMemo(() => {
+    let count = 0;
+    let total = 0;
+    let paid = 0;
+    let remaining = 0;
+    for (const invoice of filteredInvoices) {
+      if (invoice.payment_status === 'cancelled') continue;
+      count++;
+      total += invoice.total_amount;
+      paid += invoice.paid_amount;
+      remaining += Math.max(0, invoice.total_amount - invoice.paid_amount);
+    }
+    return { count, total, paid, remaining };
+  }, [filteredInvoices]);
 
   const unpaidInvoicesToExport = useMemo(
     () =>
@@ -764,8 +799,8 @@ export const InvoicesTab: React.FC<{
       const logoMarkSrc = await getImageDataUrl(logoMark)
 
       for (const invoice of unpaidInvoicesToExport) {
-        const room = rooms.find((item) => item.id === invoice.room_id)
-        const tenant = tenants.find((item) => item.id === invoice.tenant_id)
+        const room = roomById.get(invoice.room_id)
+        const tenant = tenantById.get(invoice.tenant_id)
         const html = buildInvoiceDetailExportHtml(invoice, room, tenant, appSettings, logoSrc, logoMarkSrc)
         const roomName = (room?.name || 'phong').replace(/\s+/g, '-')
         const fileName = `hoa-don-${roomName}-T${String(invoice.month).padStart(2, '0')}-${invoice.year}.jpg`
@@ -837,7 +872,7 @@ export const InvoicesTab: React.FC<{
           <div className="flex gap-1.5 pb-0 min-w-max">
             {monthYearOptions.map(opt => {
               const isActive = selectedMonth === opt.month && selectedYear === opt.year;
-              const count = invoices.filter(i => i.month === opt.month && i.year === opt.year).length;
+              const count = invoiceCountByMonth.get(`${opt.year}-${opt.month}`) || 0;
               return (
                 <button
                   key={`${opt.month}-${opt.year}`}
@@ -947,7 +982,7 @@ export const InvoicesTab: React.FC<{
                 </tr>
               ) : (
                 filteredInvoices.map((invoice) => {
-                  const room = rooms.find(r => r.id === invoice.room_id);
+                  const room = roomById.get(invoice.room_id);
                   const isPaid = invoice.payment_status === 'paid';
                   const isPartial = invoice.payment_status === 'partial';
                   const isCancelled = invoice.payment_status === 'cancelled';
@@ -1157,24 +1192,24 @@ export const InvoicesTab: React.FC<{
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 grid grid-cols-4 gap-4 text-center">
             <div>
               <div className="text-xs text-gray-500 mb-0.5">Tổng hóa đơn</div>
-              <div className="font-bold text-gray-800">{filteredInvoices.filter(i => i.payment_status !== 'cancelled').length}</div>
+              <div className="font-bold text-gray-800">{filteredInvoiceSummary.count}</div>
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-0.5">Tổng tiền</div>
               <div className="font-bold text-blue-600 tabular-nums">
-                {formatVND(filteredInvoices.filter(i => i.payment_status !== 'cancelled').reduce((s, i) => s + i.total_amount, 0))} đ
+                {formatVND(filteredInvoiceSummary.total)} đ
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-0.5">Đã thu</div>
               <div className="font-bold text-emerald-600 tabular-nums">
-                {formatVND(filteredInvoices.filter(i => i.payment_status !== 'cancelled').reduce((s, i) => s + i.paid_amount, 0))} đ
+                {formatVND(filteredInvoiceSummary.paid)} đ
               </div>
             </div>
             <div>
               <div className="text-xs text-gray-500 mb-0.5">Còn thu</div>
               <div className="font-bold text-red-500 tabular-nums">
-                {formatVND(filteredInvoices.filter(i => i.payment_status !== 'cancelled').reduce((s, i) => s + Math.max(0, i.total_amount - i.paid_amount), 0))} đ
+                {formatVND(filteredInvoiceSummary.remaining)} đ
               </div>
             </div>
           </div>
@@ -1281,7 +1316,7 @@ export const InvoicesTab: React.FC<{
       {editingInvoice && (
         <EditInvoiceModal
           invoice={editingInvoice}
-          room={rooms.find(r => r.id === editingInvoice.room_id)}
+          room={roomById.get(editingInvoice.room_id)}
           onClose={() => setEditingInvoice(null)}
         />
       )}
@@ -1289,7 +1324,7 @@ export const InvoicesTab: React.FC<{
       {payingInvoice && (
         <PaymentModal
           invoice={payingInvoice}
-          room={rooms.find(r => r.id === payingInvoice.room_id)}
+          room={roomById.get(payingInvoice.room_id)}
           onClose={() => setPayingInvoice(null)}
         />
       )}
@@ -1303,8 +1338,8 @@ export const InvoicesTab: React.FC<{
       )}
 
       {viewingInvoice && (() => {
-        const vRoom = rooms.find(r => r.id === viewingInvoice.room_id);
-        const vTenant = tenants.find(t => t.id === viewingInvoice.tenant_id);
+        const vRoom = roomById.get(viewingInvoice.room_id);
+        const vTenant = tenantById.get(viewingInvoice.tenant_id);
         return (
           <InvoiceDetailModal
             invoice={viewingInvoice}

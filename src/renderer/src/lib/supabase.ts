@@ -3,11 +3,37 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
+// Capture the recovery intent before Supabase consumes the URL hash. The query
+// flag survives page reloads; sessionStorage also keeps the state during HMR.
+const recoveryStorageKey = 'an-khang-password-recovery'
+const recoveryHashDetected =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.hash.replace(/^#/, '')).get('type') === 'recovery'
+const recoveryQueryDetected =
+  typeof window !== 'undefined' &&
+  new URLSearchParams(window.location.search).get('password-recovery') === '1'
+
+if (recoveryHashDetected || recoveryQueryDetected) {
+  window.sessionStorage.setItem(recoveryStorageKey, '1')
+}
+
+const openedFromPasswordRecoveryLink =
+  typeof window !== 'undefined' &&
+  (recoveryHashDetected ||
+    recoveryQueryDetected ||
+    window.sessionStorage.getItem(recoveryStorageKey) === '1')
+
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Thiếu biến môi trường Supabase.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export const isPasswordRecoveryRedirect = (): boolean => openedFromPasswordRecoveryLink
+
+export const clearPasswordRecoveryRedirect = (): void => {
+  window.sessionStorage.removeItem(recoveryStorageKey)
+}
 
 export async function safeQuery<T>(
   queryFn: () => PromiseLike<{ data: T | null; error: any }>

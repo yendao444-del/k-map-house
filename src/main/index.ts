@@ -1,10 +1,25 @@
-﻿import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
 import 'dotenv/config'
 import { extname, join } from 'path'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, appendFileSync } from 'fs'
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  mkdirSync,
+  copyFileSync,
+  appendFileSync
+} from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerUpdateHandlers } from './update-handlers'
+import {
+  crawlPhongTro123,
+  getMarketSnapshot,
+  scanMarket,
+  type MarketCrawlRequest,
+  type MarketScanRequest
+} from './market-crawler'
+import { EdgeTTS } from 'node-edge-tts'
 
 interface DBState {
   [key: string]: unknown
@@ -23,7 +38,11 @@ function writeCrashLog(scope: string, error: unknown): void {
     mkdirSync(logDir, { recursive: true })
     const message =
       error instanceof Error ? `${error.message}\n${error.stack || ''}` : JSON.stringify(error)
-    appendFileSync(join(logDir, 'main-crash.log'), `[${new Date().toISOString()}] ${scope}\n${message}\n\n`, 'utf-8')
+    appendFileSync(
+      join(logDir, 'main-crash.log'),
+      `[${new Date().toISOString()}] ${scope}\n${message}\n\n`,
+      'utf-8'
+    )
   } catch {
     // ignore logging failures
   }
@@ -105,6 +124,24 @@ function setupDBHandlers(): void {
   ipcMain.handle('db:getPath', () => getDBPath())
 }
 
+function setupMarketDataHandlers(): void {
+  ipcMain.removeHandler('marketData:getSnapshot')
+  ipcMain.removeHandler('marketData:scanMarket')
+  ipcMain.removeHandler('marketData:scanPhongTro123')
+
+  ipcMain.handle(
+    'marketData:getSnapshot',
+    (_event, request?: string | { propertyAddress?: string }) =>
+      getMarketSnapshot(typeof request === 'string' ? request : request?.propertyAddress)
+  )
+  ipcMain.handle('marketData:scanMarket', (_event, request: MarketScanRequest) =>
+    scanMarket(request)
+  )
+  ipcMain.handle('marketData:scanPhongTro123', (_event, request: MarketCrawlRequest) =>
+    crawlPhongTro123(request)
+  )
+}
+
 function normalizeVietnamPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (digits.startsWith('84')) return `0${digits.slice(2)}`
@@ -173,7 +210,10 @@ function setupInvoiceHandlers(): void {
   const captureInvoiceImage = async (rawHtml: string, targetPath: string): Promise<void> => {
     const tempDir = join(app.getPath('temp'), 'phongtro-invoices')
     mkdirSync(tempDir, { recursive: true })
-    const htmlPath = join(tempDir, `invoice_temp_${Date.now()}_${Math.random().toString(36).slice(2)}.html`)
+    const htmlPath = join(
+      tempDir,
+      `invoice_temp_${Date.now()}_${Math.random().toString(36).slice(2)}.html`
+    )
 
     const captureWindow = new BrowserWindow({
       width: 820,
@@ -189,7 +229,7 @@ function setupInvoiceHandlers(): void {
       await captureWindow.loadFile(htmlPath)
       await new Promise((resolve) => setTimeout(resolve, 1200))
 
-      const contentSize = await captureWindow.webContents.executeJavaScript(`
+      const contentSize = (await captureWindow.webContents.executeJavaScript(`
         (() => {
           window.scrollTo(0, 0)
           const doc = document.documentElement
@@ -212,10 +252,16 @@ function setupInvoiceHandlers(): void {
           )
           return { width, height }
         })()
-      `) as { width?: number; height?: number }
+      `)) as { width?: number; height?: number }
 
-      const captureWidth = Math.min(2200, Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12))
-      const captureHeight = Math.min(9000, Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4))
+      const captureWidth = Math.min(
+        2200,
+        Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12)
+      )
+      const captureHeight = Math.min(
+        9000,
+        Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4)
+      )
 
       captureWindow.setContentSize(captureWidth, captureHeight)
       await new Promise((resolve) => setTimeout(resolve, 220))
@@ -251,81 +297,89 @@ function setupInvoiceHandlers(): void {
     }
   }
 
-  ipcMain.handle('invoice:saveImageToDownloads', async (_event, payload: { html: string, fileName: string }) => {
-    try {
-      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
-      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
-
-      if (!rawHtml.trim()) {
-        return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
-      }
-
-      const safeBaseName =
-        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').replace(/\.(jpg|jpeg|png)$/i, '').trim() ||
-        `hoa-don-${Date.now()}`
-      const downloadsDir = app.getPath('downloads')
-      mkdirSync(downloadsDir, { recursive: true })
-      let targetPath = join(downloadsDir, `${safeBaseName}.jpg`)
-      let index = 2
-      while (existsSync(targetPath)) {
-        targetPath = join(downloadsDir, `${safeBaseName}-${index}.jpg`)
-        index += 1
-      }
-
-      await captureInvoiceImage(rawHtml, targetPath)
-      return { ok: true, filePath: targetPath }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
-      return { ok: false, error: message }
-    }
-  })
-
-  ipcMain.handle('invoice:saveImage', async (_event, payload: { html: string, fileName: string }) => {
-    try {
-      const { dialog } = require('electron')
-      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
-      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
-
-      if (!rawHtml.trim()) {
-        return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
-      }
-
-      const safeDefaultName =
-        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() || `hoa-don-${Date.now()}.jpg`
-
-      const saveResult = await dialog.showSaveDialog({
-        title: 'Luu anh hoa don',
-        defaultPath: safeDefaultName,
-        filters: [{ name: 'Images', extensions: ['jpg', 'png'] }]
-      })
-
-      if (saveResult.canceled || !saveResult.filePath) {
-        return { ok: true, canceled: true }
-      }
-
-      const tempDir = join(app.getPath('temp'), 'phongtro-invoices')
-      mkdirSync(tempDir, { recursive: true })
-      const htmlPath = join(tempDir, `invoice_temp_${Date.now()}.html`)
-
-      const captureWindow = new BrowserWindow({
-        width: 820,
-        height: 1180,
-        show: false,
-        frame: false,
-        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
-      })
-
-      const htmlWithTailwind = rawHtml.replace(
-        '</head>',
-        '<script src="https://cdn.tailwindcss.com"></script></head>'
-      )
-      writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
-
+  ipcMain.handle(
+    'invoice:saveImageToDownloads',
+    async (_event, payload: { html: string; fileName: string }) => {
       try {
-        await captureWindow.loadFile(htmlPath)
-        await new Promise((resolve) => setTimeout(resolve, 1200))
+        const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
+        const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
 
-        const contentSize = await captureWindow.webContents.executeJavaScript(`
+        if (!rawHtml.trim()) {
+          return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
+        }
+
+        const safeBaseName =
+          rawFileName
+            .replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_')
+            .replace(/\.(jpg|jpeg|png)$/i, '')
+            .trim() || `hoa-don-${Date.now()}`
+        const downloadsDir = app.getPath('downloads')
+        mkdirSync(downloadsDir, { recursive: true })
+        let targetPath = join(downloadsDir, `${safeBaseName}.jpg`)
+        let index = 2
+        while (existsSync(targetPath)) {
+          targetPath = join(downloadsDir, `${safeBaseName}-${index}.jpg`)
+          index += 1
+        }
+
+        await captureInvoiceImage(rawHtml, targetPath)
+        return { ok: true, filePath: targetPath }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
+        return { ok: false, error: message }
+      }
+    }
+  )
+
+  ipcMain.handle(
+    'invoice:saveImage',
+    async (_event, payload: { html: string; fileName: string }) => {
+      try {
+        const { dialog } = require('electron')
+        const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
+        const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
+
+        if (!rawHtml.trim()) {
+          return { ok: false, error: 'Du lieu hoa don rong, khong the tao anh.' }
+        }
+
+        const safeDefaultName =
+          rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() ||
+          `hoa-don-${Date.now()}.jpg`
+
+        const saveResult = await dialog.showSaveDialog({
+          title: 'Luu anh hoa don',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'Images', extensions: ['jpg', 'png'] }]
+        })
+
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { ok: true, canceled: true }
+        }
+
+        const tempDir = join(app.getPath('temp'), 'phongtro-invoices')
+        mkdirSync(tempDir, { recursive: true })
+        const htmlPath = join(tempDir, `invoice_temp_${Date.now()}.html`)
+
+        const captureWindow = new BrowserWindow({
+          width: 820,
+          height: 1180,
+          show: false,
+          frame: false,
+          webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
+        })
+
+        const htmlWithTailwind = rawHtml.replace(
+          '</head>',
+          '<script src="https://cdn.tailwindcss.com"></script></head>'
+        )
+        writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
+
+        try {
+          await captureWindow.loadFile(htmlPath)
+          await new Promise((resolve) => setTimeout(resolve, 1200))
+
+          const contentSize = (await captureWindow.webContents.executeJavaScript(`
           (() => {
             window.scrollTo(0, 0)
             const doc = document.documentElement
@@ -348,23 +402,29 @@ function setupInvoiceHandlers(): void {
             )
             return { width, height }
           })()
-        `) as { width?: number; height?: number }
+        `)) as { width?: number; height?: number }
 
-        const captureWidth = Math.min(2200, Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12))
-        const captureHeight = Math.min(9000, Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4))
+          const captureWidth = Math.min(
+            2200,
+            Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12)
+          )
+          const captureHeight = Math.min(
+            9000,
+            Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4)
+          )
 
-        captureWindow.setContentSize(captureWidth, captureHeight)
-        await new Promise((resolve) => setTimeout(resolve, 220))
+          captureWindow.setContentSize(captureWidth, captureHeight)
+          await new Promise((resolve) => setTimeout(resolve, 220))
 
-        // On some displays, Electron caps hidden-window height to the work area.
-        // If content is taller than the capturable viewport, scale it down to avoid clipping.
-        const actualBounds = captureWindow.getContentBounds()
-        const viewportWidth = Math.max(1, actualBounds.width)
-        const viewportHeight = Math.max(1, actualBounds.height)
+          // On some displays, Electron caps hidden-window height to the work area.
+          // If content is taller than the capturable viewport, scale it down to avoid clipping.
+          const actualBounds = captureWindow.getContentBounds()
+          const viewportWidth = Math.max(1, actualBounds.width)
+          const viewportHeight = Math.max(1, actualBounds.height)
 
-        if (viewportHeight < captureHeight - 8) {
-          const scale = Math.max(0.45, Math.min(1, (viewportHeight - 16) / captureHeight))
-          await captureWindow.webContents.executeJavaScript(`
+          if (viewportHeight < captureHeight - 8) {
+            const scale = Math.max(0.45, Math.min(1, (viewportHeight - 16) / captureHeight))
+            await captureWindow.webContents.executeJavaScript(`
             (() => {
               const s = ${scale}
               document.documentElement.style.overflow = 'hidden'
@@ -374,101 +434,107 @@ function setupInvoiceHandlers(): void {
               document.body.style.margin = '0'
             })()
           `)
-          await new Promise((resolve) => setTimeout(resolve, 180))
+            await new Promise((resolve) => setTimeout(resolve, 180))
+          }
+
+          const image = await captureWindow.webContents.capturePage({
+            x: 0,
+            y: 0,
+            width: viewportWidth,
+            height: viewportHeight
+          })
+          const selectedExt = extname(saveResult.filePath).toLowerCase()
+          const targetExt =
+            selectedExt === '.jpg' || selectedExt === '.jpeg' || selectedExt === '.png'
+              ? selectedExt
+              : '.jpg'
+          const targetPath = selectedExt
+            ? saveResult.filePath
+            : `${saveResult.filePath}${targetExt}`
+
+          if (targetExt === '.png') {
+            writeFileSync(targetPath, image.toPNG())
+          } else {
+            writeFileSync(targetPath, image.toJPEG(92))
+          }
+
+          return { ok: true, filePath: targetPath }
+        } finally {
+          captureWindow.destroy()
         }
-
-        const image = await captureWindow.webContents.capturePage({
-          x: 0,
-          y: 0,
-          width: viewportWidth,
-          height: viewportHeight
-        })
-        const selectedExt = extname(saveResult.filePath).toLowerCase()
-        const targetExt =
-          selectedExt === '.jpg' || selectedExt === '.jpeg' || selectedExt === '.png'
-            ? selectedExt
-            : '.jpg'
-        const targetPath = selectedExt ? saveResult.filePath : `${saveResult.filePath}${targetExt}`
-
-        if (targetExt === '.png') {
-          writeFileSync(targetPath, image.toPNG())
-        } else {
-          writeFileSync(targetPath, image.toJPEG(92))
-        }
-
-        return { ok: true, filePath: targetPath }
-      } finally {
-        captureWindow.destroy()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
+        return { ok: false, error: message }
       }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Khong the luu anh hoa don.'
-      return { ok: false, error: message }
     }
-  })
+  )
 }
 
 function setupContractHandlers(): void {
   ipcMain.removeHandler('contract:savePDF')
 
-  ipcMain.handle('contract:savePDF', async (_event, payload: { html: string; fileName: string }) => {
-    try {
-      const { dialog } = require('electron')
-      const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
-      const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
-
-      if (!rawHtml.trim()) {
-        return { ok: false, error: 'Nội dung hợp đồng rỗng.' }
-      }
-
-      const safeDefaultName =
-        rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() || `hop-dong-${Date.now()}.pdf`
-
-      const saveResult = await dialog.showSaveDialog({
-        title: 'Lưu hợp đồng PDF',
-        defaultPath: safeDefaultName,
-        filters: [{ name: 'PDF', extensions: ['pdf'] }]
-      })
-
-      if (saveResult.canceled || !saveResult.filePath) {
-        return { ok: true, canceled: true }
-      }
-
-      const tempDir = join(app.getPath('temp'), 'phongtro-contracts')
-      mkdirSync(tempDir, { recursive: true })
-      const htmlPath = join(tempDir, `contract_temp_${Date.now()}.html`)
-      writeFileSync(htmlPath, rawHtml, 'utf-8')
-
-      const pdfWindow = new BrowserWindow({
-        width: 794,
-        height: 1123,
-        show: false,
-        frame: false,
-        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
-      })
-
+  ipcMain.handle(
+    'contract:savePDF',
+    async (_event, payload: { html: string; fileName: string }) => {
       try {
-        await pdfWindow.loadFile(htmlPath)
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        const pdfBuffer = await pdfWindow.webContents.printToPDF({
-          pageSize: 'A4',
-          printBackground: true,
-          margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
-        })
-        const targetPath = saveResult.filePath.endsWith('.pdf')
-          ? saveResult.filePath
-          : `${saveResult.filePath}.pdf`
-        writeFileSync(targetPath, pdfBuffer)
-        return { ok: true, filePath: targetPath }
-      } finally {
-        pdfWindow.destroy()
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Không thể tạo file PDF.'
-      return { ok: false, error: message }
-    }
-  })
-}
+        const { dialog } = require('electron')
+        const rawHtml = typeof payload?.html === 'string' ? payload.html : ''
+        const rawFileName = typeof payload?.fileName === 'string' ? payload.fileName : ''
 
+        if (!rawHtml.trim()) {
+          return { ok: false, error: 'Nội dung hợp đồng rỗng.' }
+        }
+
+        const safeDefaultName =
+          rawFileName.replace(/[<>:"/\\|?*\u0000-\u001F]+/g, '_').trim() ||
+          `hop-dong-${Date.now()}.pdf`
+
+        const saveResult = await dialog.showSaveDialog({
+          title: 'Lưu hợp đồng PDF',
+          defaultPath: safeDefaultName,
+          filters: [{ name: 'PDF', extensions: ['pdf'] }]
+        })
+
+        if (saveResult.canceled || !saveResult.filePath) {
+          return { ok: true, canceled: true }
+        }
+
+        const tempDir = join(app.getPath('temp'), 'phongtro-contracts')
+        mkdirSync(tempDir, { recursive: true })
+        const htmlPath = join(tempDir, `contract_temp_${Date.now()}.html`)
+        writeFileSync(htmlPath, rawHtml, 'utf-8')
+
+        const pdfWindow = new BrowserWindow({
+          width: 794,
+          height: 1123,
+          show: false,
+          frame: false,
+          webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
+        })
+
+        try {
+          await pdfWindow.loadFile(htmlPath)
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          const pdfBuffer = await pdfWindow.webContents.printToPDF({
+            pageSize: 'A4',
+            printBackground: true,
+            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+          })
+          const targetPath = saveResult.filePath.endsWith('.pdf')
+            ? saveResult.filePath
+            : `${saveResult.filePath}.pdf`
+          writeFileSync(targetPath, pdfBuffer)
+          return { ok: true, filePath: targetPath }
+        } finally {
+          pdfWindow.destroy()
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Không thể tạo file PDF.'
+        return { ok: false, error: message }
+      }
+    }
+  )
+}
 
 /* Legacy privileged IPC handlers. Replaced by the authenticated Supabase Edge Function.
 function verifyAdminAccessToken(accessToken: unknown): Promise<{ ok: boolean; error?: string }> {
@@ -850,6 +916,118 @@ function setupSepayHandlers(): void {
   })
 } */
 
+const VIETNAMESE_DIGITS = ['không', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín']
+
+function readVietnameseThreeDigits(value: number, forceHundreds: boolean): string {
+  const hundreds = Math.floor(value / 100)
+  const tens = Math.floor((value % 100) / 10)
+  const units = value % 10
+  const words: string[] = []
+
+  if (hundreds > 0) {
+    words.push(VIETNAMESE_DIGITS[hundreds], 'trăm')
+  } else if (forceHundreds && value > 0) {
+    words.push('không', 'trăm')
+  }
+
+  if (tens > 1) {
+    words.push(VIETNAMESE_DIGITS[tens], 'mươi')
+    if (units === 1) words.push('mốt')
+    else if (units === 4) words.push('tư')
+    else if (units === 5) words.push('lăm')
+    else if (units > 0) words.push(VIETNAMESE_DIGITS[units])
+  } else if (tens === 1) {
+    words.push('mười')
+    if (units === 5) words.push('lăm')
+    else if (units > 0) words.push(VIETNAMESE_DIGITS[units])
+  } else if (units > 0) {
+    if (hundreds > 0 || forceHundreds) words.push('lẻ')
+    words.push(VIETNAMESE_DIGITS[units])
+  }
+
+  return words.join(' ')
+}
+
+function amountToVietnameseWords(amount: number): string {
+  if (amount === 0) return 'không'
+
+  const scaleNames = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ', 'triệu tỷ']
+  const groups: number[] = []
+  let remaining = amount
+
+  while (remaining > 0) {
+    groups.push(remaining % 1000)
+    remaining = Math.floor(remaining / 1000)
+  }
+
+  const words: string[] = []
+  for (let index = groups.length - 1; index >= 0; index -= 1) {
+    const group = groups[index]
+    if (group === 0) continue
+
+    words.push(readVietnameseThreeDigits(group, words.length > 0 && group < 100))
+    if (scaleNames[index]) words.push(scaleNames[index])
+  }
+
+  return words.join(' ').trim()
+}
+
+function setupTtsHandlers(): void {
+  ipcMain.removeHandler('tts:synthesizePayment')
+  const pendingAudio = new Map<number, Promise<Buffer>>()
+
+  ipcMain.handle('tts:synthesizePayment', async (_event, rawAmount: unknown) => {
+    const amount = Math.round(Number(rawAmount))
+    if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 999_999_999_999) {
+      return { ok: false, error: 'Số tiền thông báo không hợp lệ.' }
+    }
+
+    const createAudio = async (): Promise<Buffer> => {
+      const cacheDir = join(app.getPath('temp'), 'an-khang-home-tts')
+      const audioPath = join(cacheDir, 'namminh-' + amount + '.mp3')
+      mkdirSync(cacheDir, { recursive: true })
+
+      if (existsSync(audioPath)) {
+        const cachedAudio = readFileSync(audioPath)
+        if (cachedAudio.length > 100) return cachedAudio
+      }
+
+      const tts = new EdgeTTS({
+        voice: 'vi-VN-NamMinhNeural',
+        lang: 'vi-VN',
+        outputFormat: 'audio-24khz-48kbitrate-mono-mp3',
+        rate: '+4%',
+        timeout: 12_000
+      })
+      const text = 'Đã nhận được ' + amountToVietnameseWords(amount) + ' đồng.'
+      await tts.ttsPromise(text, audioPath)
+
+      const audio = readFileSync(audioPath)
+      if (audio.length <= 100) throw new Error('Microsoft Edge không trả về âm thanh.')
+      return audio
+    }
+
+    let task = pendingAudio.get(amount)
+    if (!task) {
+      task = createAudio()
+      pendingAudio.set(amount, task)
+    }
+
+    try {
+      const audio = await task
+      return { ok: true, audioBase64: audio.toString('base64') }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không tạo được giọng đọc.'
+      writeDebugLog('tts:synthesizePayment:error', message)
+      return { ok: false, error: message }
+    } finally {
+      if (pendingAudio.get(amount) === task) pendingAudio.delete(amount)
+    }
+  })
+}
+
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
   const useCustomTitleBar = !useSafeWindow && process.platform === 'win32'
@@ -859,17 +1037,17 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'AN KHANG HOME',
-    backgroundColor: '#002b36',
+    backgroundColor: '#005B3C',
     icon: useSafeWindow ? undefined : icon,
     ...(useCustomTitleBar
       ? {
-        titleBarStyle: 'hidden' as const,
-        titleBarOverlay: {
-          color: '#002b36',
-          symbolColor: '#ffffff',
-          height: 40
+          titleBarStyle: 'hidden' as const,
+          titleBarOverlay: {
+            color: '#005B3C',
+            symbolColor: '#ffffff',
+            height: 40
+          }
         }
-      }
       : {}),
     webPreferences: {
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
@@ -896,16 +1074,23 @@ function createWindow(): void {
     writeDebugLog('webContents:did-finish-load', mainWindow.webContents.getURL())
   })
 
-  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
-    writeDebugLog('webContents:did-fail-load', { errorCode, errorDescription, validatedURL })
-  })
+  mainWindow.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL) => {
+      writeDebugLog('webContents:did-fail-load', { errorCode, errorDescription, validatedURL })
+    }
+  )
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     writeDebugLog('webContents:render-process-gone', details)
   })
 
   mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
-    writeDebugLog('webContents:preload-error', { preloadPath, error: error.message, stack: error.stack })
+    writeDebugLog('webContents:preload-error', {
+      preloadPath,
+      error: error.message,
+      stack: error.stack
+    })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -920,7 +1105,9 @@ function createWindow(): void {
   })
 
   if (useSafeWindow) {
-    mainWindow.loadURL('data:text/html;charset=utf-8,<html><body><h1>AN KHANG HOME Safe Window</h1></body></html>')
+    mainWindow.loadURL(
+      'data:text/html;charset=utf-8,<html><body><h1>AN KHANG HOME Safe Window</h1></body></html>'
+    )
   } else if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -943,9 +1130,11 @@ app.whenReady().then(() => {
   }
 
   setupDBHandlers()
+  setupMarketDataHandlers()
   setupZaloHandlers()
   setupInvoiceHandlers()
   setupContractHandlers()
+  setupTtsHandlers()
   // Privileged Supabase and SePay operations run through the authenticated Edge Function.
   registerUpdateHandlers()
   createWindow()

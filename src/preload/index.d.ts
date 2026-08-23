@@ -18,6 +18,85 @@ interface DbAPI {
   getPath: () => Promise<string>
 }
 
+type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban'
+type MarketSourceState = 'success' | 'blocked' | 'error' | 'unsupported'
+
+interface MarketListing {
+  source: MarketSourceId
+  sourceId: string
+  url: string
+  title: string
+  description: string
+  priceMonthly: number
+  areaM2: number | null
+  pricePerM2: number | null
+  address: string
+  city: string
+  district: string
+  imageUrl: string | null
+  postedAt: string | null
+  crawledAt: string
+  roomType: 'room' | 'studio' | 'serviced-apartment' | 'shared-room' | 'sleepbox'
+  amenities: string[]
+  excludedReason: string | null
+}
+
+interface MarketLocation {
+  propertyAddress: string
+  ward: string
+  district: string
+  city: string
+}
+
+interface MarketSourceSnapshot {
+  source: MarketSourceId
+  label: string
+  status: MarketSourceState
+  locationUrl: string
+  pagesScanned: number
+  robotsAllowed: boolean
+  listings: MarketListing[]
+  total: number
+  usable: number
+  error?: string
+}
+
+interface MarketCrawlSnapshot {
+  source: 'multi' | MarketSourceId
+  propertyAddress: string
+  analysisAddress: string
+  location: MarketLocation
+  locationUrl: string
+  lastRunAt: string | null
+  pagesScanned: number
+  robotsAllowed: boolean
+  sources: MarketSourceSnapshot[]
+  sourceStatuses: MarketSourceSnapshot[]
+  listings: MarketListing[]
+  stats: {
+    total: number
+    usable: number
+    excluded: number
+    sourceCount: number
+    medianPrice: number | null
+    minPrice: number | null
+    maxPrice: number | null
+  }
+}
+
+interface MarketDataAPI {
+  getSnapshot: (propertyAddress?: string) => Promise<MarketCrawlSnapshot>
+  scanMarket: (payload: {
+    propertyAddress: string
+    maxPages?: number
+    sourceIds?: MarketSourceId[]
+  }) => Promise<{ ok: boolean; snapshot?: MarketCrawlSnapshot; error?: string }>
+  scanPhongTro123: (payload: {
+    locationUrl: string
+    maxPages?: number
+  }) => Promise<{ ok: boolean; snapshot?: MarketCrawlSnapshot; error?: string }>
+}
+
 interface ZaloSendPayload {
   phone: string
   html: string
@@ -26,7 +105,9 @@ interface ZaloSendPayload {
 }
 
 interface ZaloAPI {
-  send: (payload: ZaloSendPayload) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
+  send: (
+    payload: ZaloSendPayload
+  ) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
 }
 
 interface UpdateCheckResult {
@@ -42,7 +123,15 @@ interface UpdateCheckResult {
 }
 
 interface UpdateStatusEvent {
-  status: 'checking' | 'available' | 'idle' | 'downloading' | 'extracting' | 'installing' | 'restarting' | 'error'
+  status:
+    | 'checking'
+    | 'available'
+    | 'idle'
+    | 'downloading'
+    | 'extracting'
+    | 'installing'
+    | 'restarting'
+    | 'error'
   message: string
   data?: UpdateCheckResult
 }
@@ -81,8 +170,20 @@ interface UpdateAPI {
 }
 
 interface InvoiceAPI {
-  saveImage: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }>
-  saveImageToDownloads: (payload: { html: string, fileName: string }) => Promise<{ ok: boolean; error?: string; filePath?: string }>
+  saveImage: (payload: {
+    html: string
+    fileName: string
+  }) => Promise<{ ok: boolean; error?: string; filePath?: string; canceled?: boolean }>
+  saveImageToDownloads: (payload: {
+    html: string
+    fileName: string
+  }) => Promise<{ ok: boolean; error?: string; filePath?: string }>
+}
+
+interface TtsAPI {
+  synthesizePayment: (
+    amount: number
+  ) => Promise<{ ok: boolean; audioBase64?: string; error?: string }>
 }
 
 declare global {
@@ -94,11 +195,13 @@ declare global {
     }
     api: {
       db: DbAPI
+      marketData: MarketDataAPI
       zalo: ZaloAPI
       invoice: InvoiceAPI
+      tts: TtsAPI
       update: UpdateAPI
     }
   }
 }
 
-export { }
+export {}

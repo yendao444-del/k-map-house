@@ -4,11 +4,30 @@ directories:
   buildResources: build
 files:
   - '!**/.vscode/*'
-  - '!src/*'
+  - '!src/**/*'
+  - '!supabase/**/*'
+  - '!scripts/**/*'
+  - '!dist/**/*'
+  - '!build/**/*'
+  - '!_perf-package-check*/**/*'
+  - '!.claude/**/*'
+  - '!.planning/**/*'
+  - '!_tmp_min_pkg/**/*'
+  - '!.update-check-latest/**/*'
+  - '!LOGO/**/*'
+  - '!RAG/**/*'
+  - '!phase/**/*'
+  - '!node_modules/**/*.map'
+  - '!node_modules/**/*.{ts,tsx,mts,cts,tsbuildinfo}'
+  - '!node_modules/**/{test,tests,__tests__,docs,example,examples}/**/*'
+  - '!node_modules/**/*.snap'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!electron.vite.config.*.mjs'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,app.code-workspace}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.web.tsbuildinfo}'
+  - '!*.{bat,sql,code-workspace}'
+  - '!{_tmp_min_app.js,debug_json.js,demo_doi_soat.html,download_vehicles.js,extract_from_view_file.js,find_creation.js,find_full_backup.js,find_lines.js,getfont.js,restore_html.js,]}'
 asar: false
 asarUnpack:
   - resources/**

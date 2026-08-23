@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowDown, ArrowUp, ChevronLeft } from 'lucide-react'
 import {
   createCashTransaction,
   deleteCashTransaction,
@@ -76,6 +77,181 @@ type CashFlowRow =
 type ConfirmAction =
   | { type: 'edit'; transaction: CashTransaction }
   | { type: 'delete'; transaction: CashTransaction }
+
+const REPORT_LEDGER_PAGE_SIZE = 8
+
+function ReportLedgerPanel({
+  type,
+  rows,
+  total,
+  categoryOptions,
+  roomById,
+  isAdmin,
+  onNavigateToInvoices,
+  onEdit,
+  onDelete
+}: {
+  type: CashTransactionType
+  rows: CashFlowRow[]
+  total: number
+  categoryOptions: CategoryOption[]
+  roomById: Map<string, { name: string }>
+  isAdmin: boolean
+  onNavigateToInvoices?: () => void
+  onEdit: (transaction: CashTransaction) => void
+  onDelete: (transaction: CashTransaction) => void
+}) {
+  const isIncome = type === 'income'
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(rows.length / REPORT_LEDGER_PAGE_SIZE))
+  const pageRows = rows.slice((page - 1) * REPORT_LEDGER_PAGE_SIZE, page * REPORT_LEDGER_PAGE_SIZE)
+  const icon = isIncome ? (
+    <ArrowDown size={22} strokeWidth={2.7} />
+  ) : (
+    <ArrowUp size={22} strokeWidth={2.7} />
+  )
+
+  React.useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, totalPages))
+  }, [totalPages])
+
+  return (
+    <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex h-10 w-10 items-center justify-center rounded-full text-white ${isIncome ? 'bg-emerald-600' : 'bg-red-500'}`}
+          >
+            {icon}
+          </span>
+          <h3
+            className={
+              isIncome ? 'text-lg font-black text-emerald-600' : 'text-lg font-black text-red-500'
+            }
+          >
+            {isIncome ? 'Tiền vào' : 'Tiền ra'}
+          </h3>
+        </div>
+        <div
+          className={`text-lg font-black tabular-nums ${isIncome ? 'text-emerald-600' : 'text-red-500'}`}
+        >
+          {formatVND(total)} đ
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[106px_minmax(0,1fr)_126px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold text-slate-500">
+        <span>Ngày</span>
+        <span>Nội dung</span>
+        <span className="text-right">Số tiền</span>
+      </div>
+
+      <div className="min-h-[416px] divide-y divide-slate-100">
+        {pageRows.map((item) => {
+          const isManual = item.source === 'manual'
+          const target = getCashTargetLabel(item, roomById)
+          const subtitle = [target, item.note].filter(Boolean).join(' · ')
+          return (
+            <div
+              key={item.id}
+              className="grid grid-cols-[106px_minmax(0,1fr)_126px] gap-3 px-4 py-2.5 transition hover:bg-slate-50"
+            >
+              <div className="pt-1 text-sm font-medium text-slate-500">
+                {formatDateToDDMMYYYY(item.transaction_date)}
+              </div>
+              <div className="flex min-w-0 gap-3">
+                <span
+                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}
+                >
+                  <i className={`fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-bolt'} text-sm`} />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-black text-slate-800">
+                    {categoryLabel(item.category, categoryOptions)}
+                    {item.source === 'invoice' && (
+                      <button
+                        type="button"
+                        onClick={onNavigateToInvoices}
+                        className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 hover:bg-blue-100"
+                      >
+                        Hóa đơn
+                      </button>
+                    )}
+                  </div>
+                  <div className="truncate text-xs text-slate-500" title={subtitle}>
+                    {subtitle || 'Giao dịch ghi nhận thủ công'}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                <span
+                  className={`text-right text-sm font-black tabular-nums ${isIncome ? 'text-emerald-600' : 'text-red-500'}`}
+                >
+                  {isIncome ? '' : '-'}
+                  {formatVND(item.amount)} đ
+                </span>
+                {isManual && isAdmin && (
+                  <span className="ml-1 flex gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onEdit(item)}
+                      className="p-1 text-slate-400 hover:text-blue-600"
+                      title="Sửa chứng từ"
+                    >
+                      <i className="fa-solid fa-pen text-[10px]" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(item)}
+                      className="p-1 text-slate-400 hover:text-red-600"
+                      title="Xóa chứng từ"
+                    >
+                      <i className="fa-solid fa-trash text-[10px]" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {rows.length === 0 && (
+          <div className="flex min-h-[416px] items-center justify-center px-5 text-center text-sm text-slate-400">
+            Chưa có khoản {isIncome ? 'thu' : 'chi'} trong kỳ này.
+          </div>
+        )}
+      </div>
+      <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2.5">
+        <span className="text-xs font-semibold text-slate-500">
+          {rows.length
+            ? `${(page - 1) * REPORT_LEDGER_PAGE_SIZE + 1}–${Math.min(page * REPORT_LEDGER_PAGE_SIZE, rows.length)} / ${rows.length} giao dịch`
+            : '0 giao dịch'}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            disabled={page === 1}
+            onClick={() => setPage((currentPage) => currentPage - 1)}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Trang trước"
+          >
+            <i className="fa-solid fa-chevron-left text-[10px]" />
+          </button>
+          <span className="min-w-11 text-center text-xs font-black text-slate-700">
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={page === totalPages}
+            onClick={() => setPage((currentPage) => currentPage + 1)}
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Trang sau"
+          >
+            <i className="fa-solid fa-chevron-right text-[10px]" />
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
 
 function ConfirmActionModal({
   action,
@@ -242,6 +418,7 @@ function CashTransactionModal({
   }, [rooms])
 
   const isBuildingTarget = isExpense && isUtilityBuildingCategory(category)
+  const requiresRoom = isExpense && category === 'maintenance'
 
   React.useEffect(() => {
     const nextCategory =
@@ -260,8 +437,13 @@ function CashTransactionModal({
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const amount = Number(amountDisplay.replace(/\D/g, '')) || 0
+    const roomId = String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '').trim()
     if (amount <= 0) {
       setError('Số tiền phải lớn hơn 0.')
+      return
+    }
+    if (requiresRoom && !roomId) {
+      setError('Vui lòng gắn phòng cho khoản chi bảo trì / sửa chữa.')
       return
     }
     setError('')
@@ -270,7 +452,7 @@ function CashTransactionModal({
       category,
       transaction_date: String(form.get('transaction_date') || todayIso()),
       amount,
-      room_id: String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '') || undefined,
+      room_id: roomId || undefined,
       payment_method: (String(form.get('payment_method') || '') || undefined) as
         | PaymentMethod
         | undefined,
@@ -415,6 +597,7 @@ function CashTransactionModal({
               <div className="p-4 space-y-1 border-l border-slate-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   {isBuildingTarget ? 'Gắn tòa' : 'Gắn phòng'}
+                  {requiresRoom && <span className="ml-1 text-red-500">*</span>}
                 </p>
                 {isBuildingTarget ? (
                   <select
@@ -437,9 +620,13 @@ function CashTransactionModal({
                   <select
                     name="room_id"
                     defaultValue={transaction?.room_id || ''}
+                    required={requiresRoom}
+                    aria-required={requiresRoom}
                     className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                   >
-                    <option value="">Không gắn phòng</option>
+                    <option value="">
+                      {requiresRoom ? 'Chọn phòng' : 'Không gắn phòng'}
+                    </option>
                     {rooms.map((room) => (
                       <option key={room.id} value={room.id}>
                         {room.name}
@@ -687,14 +874,14 @@ export function CashFlowTab({
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="overflow-hidden rounded-2xl border border-[#D5E8DD] bg-white shadow-[0_10px_28px_rgba(0,91,60,0.08)]">
+        <div className="flex items-center justify-between border-b border-[#E2EFE7] bg-white p-4">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded bg-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#DDF5E7] text-xl text-[#007A4D]">
               <i className="fa-solid fa-wallet"></i>
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-800">Thu / Chi</h2>
+              <h2 className="text-lg font-black text-[#12372A]">Thu / Chi</h2>
               <p className="text-xs text-gray-500">
                 Khoản thu được lấy tự động từ tab Hóa đơn theo từng lần thu; tại đây bạn quản lý
                 thêm các chứng từ chi và khoản thu khác.
@@ -703,14 +890,57 @@ export function CashFlowTab({
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-sm transition"
+            className="flex items-center gap-2 rounded-lg bg-[#008F5A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#006B4F]"
           >
             <i className="fa-solid fa-plus"></i>
             Thêm thu/chi
           </button>
         </div>
 
-        <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-3 flex-wrap">
+        <section className="flex min-h-[92px] items-center bg-[#006B4F] px-6 text-white">
+          <div className="min-w-[330px] border-r border-white/45 pr-7">
+            <div className="text-xs font-black uppercase tracking-wide text-white/90">
+              Số dư khả dụng (Chênh lệch)
+            </div>
+            <div
+              className={`mt-1 text-2xl font-black tabular-nums ${
+                totalIncome - totalExpense >= 0 ? 'text-white' : 'text-[#FFB8AC]'
+              }`}
+            >
+              {formatVND(totalIncome - totalExpense)} đ
+            </div>
+          </div>
+          <div className="ml-auto flex items-center divide-x divide-white/35">
+            <div className="flex min-w-[270px] items-center gap-3 px-7">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/90 text-lg">
+                <i className="fa-solid fa-arrow-down" />
+              </span>
+              <div>
+                <div className="text-xs font-black uppercase tracking-wide text-white/90">
+                  Tổng thu
+                </div>
+                <div className="mt-1 text-xl font-black tabular-nums text-white">
+                  {formatVND(totalIncome)} đ
+                </div>
+              </div>
+            </div>
+            <div className="flex min-w-[270px] items-center gap-3 px-7">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#FFAAA0] text-lg text-[#FFAAA0]">
+                <i className="fa-solid fa-arrow-up" />
+              </span>
+              <div>
+                <div className="text-xs font-black uppercase tracking-wide text-white/85">
+                  Tổng chi
+                </div>
+                <div className="mt-1 text-xl font-black tabular-nums text-white">
+                  {formatVND(totalExpense)} đ
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex flex-wrap items-center gap-3 border-b border-[#CFE5D8] bg-white px-4 py-5">
           <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-slate-600">
             <i className="fa-regular fa-calendar mr-1 text-slate-400"></i>
             {period?.label || 'Toàn thời gian'}
@@ -736,147 +966,190 @@ export function CashFlowTab({
               </option>
             ))}
           </select>
-          <div className="ml-auto flex items-center gap-4 text-sm">
-            <div className="font-bold text-emerald-700">Thu: {formatVND(totalIncome)} đ</div>
-            <div className="font-bold text-red-600">Chi: {formatVND(totalExpense)} đ</div>
-            <div
-              className={`font-black ${totalIncome - totalExpense >= 0 ? 'text-sky-700' : 'text-red-700'}`}
-            >
-              Chênh lệch: {formatVND(totalIncome - totalExpense)} đ
-            </div>
-          </div>
         </div>
 
-        <div className="overflow-x-auto min-h-[320px]">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-blue-50 text-gray-600 text-xs font-semibold sticky top-0 z-10 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3">Ngày</th>
-                <th className="px-4 py-3">Loại</th>
-                <th className="px-4 py-3">Nhóm</th>
-                <th className="px-4 py-3">Phòng / Tòa</th>
-                <th className="px-4 py-3 text-right">Số tiền</th>
-                <th className="px-4 py-3">Phương thức</th>
-                {hasOpeningBalance && <th className="px-4 py-3 text-right">Số dư</th>}
-                <th className="px-4 py-3">Ghi chú</th>
-                <th className="px-4 py-3 text-center">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filtered.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-semibold text-gray-700">
-                    {formatDateToDDMMYYYY(item.transaction_date)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2.5 py-1 rounded text-[11px] font-black ${item.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
-                      >
-                        {item.type === 'income' ? 'Thu' : 'Chi'}
-                      </span>
-                      {item.source === 'invoice' &&
-                        (onNavigateToInvoices ? (
-                          <button
-                            onClick={onNavigateToInvoices}
-                            className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-[10px] font-black hover:bg-blue-200 transition flex items-center gap-1"
-                            title="Xem hóa đơn"
-                          >
-                            <i className="fa-solid fa-link text-[9px]" />
-                            Hóa đơn
-                          </button>
-                        ) : (
-                          <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-[10px] font-black">
-                            Hóa đơn
-                          </span>
-                        ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-bold text-gray-800">
-                    {categoryLabel(item.category, categoryOptions)}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {getCashTargetLabel(item, roomById as Map<string, { name: string }>)}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}
+        {embedded ? (
+          <div className="grid grid-cols-[minmax(0,1fr)_126px_minmax(0,1fr)] gap-3 p-3">
+            <ReportLedgerPanel
+              type="income"
+              rows={filtered.filter((item) => item.type === 'income')}
+              total={totalIncome}
+              categoryOptions={categoryOptions}
+              roomById={roomById}
+              isAdmin={isAdmin}
+              onNavigateToInvoices={onNavigateToInvoices}
+              onEdit={requestEdit}
+              onDelete={requestDelete}
+            />
+            <aside className="relative flex min-h-[320px] flex-col items-center overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
+              <div className="mt-9 w-full border-t border-dashed border-[#008F5A]" />
+              <div className="mt-[-10px] bg-white px-2 text-xs font-bold text-[#008F5A]">
+                {formatVND(totalIncome)} đ
+              </div>
+              <div className="absolute bottom-12 top-14 border-l border-dashed border-emerald-200" />
+              <div className="relative z-10 my-auto flex items-center bg-white py-3 pl-3 text-center">
+                <div>
+                  <div className="text-sm font-bold text-slate-800">Còn lại</div>
+                  <div
+                    className={`mt-1 text-base font-black tabular-nums ${totalIncome >= totalExpense ? 'text-[#007A4D]' : 'text-[#E04444]'}`}
                   >
-                    {item.type === 'expense' ? '-' : ''}
-                    {formatVND(item.amount)} đ
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {item.payment_method === 'cash'
-                      ? 'Tiền mặt'
-                      : item.payment_method === 'transfer'
-                        ? 'Chuyển khoản'
-                        : '—'}
-                  </td>
-                  {hasOpeningBalance && (
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {balanceMap.has(item.id) ? (
-                        <span
-                          className={`font-bold text-xs ${(balanceMap.get(item.id) ?? 0) >= 0 ? 'text-sky-700' : 'text-red-600'}`}
-                        >
-                          {formatVND(balanceMap.get(item.id) ?? 0)} đ
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                  )}
-                  <td
-                    className="min-w-[280px] max-w-[520px] px-4 py-3 align-top leading-5 text-gray-500 whitespace-normal break-words"
-                    title={item.note || undefined}
-                  >
-                    {item.note || '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-center gap-2">
-                      {item.source === 'manual' ? (
-                        <>
-                          <button
-                            onClick={() => requestEdit(item)}
-                            disabled={!isAdmin}
-                            title={isAdmin ? 'Sửa chứng từ' : 'Chỉ admin mới được sửa'}
-                            className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
-                          >
-                            <i className="fa-solid fa-pen text-xs"></i>
-                          </button>
-                          <button
-                            onClick={() => requestDelete(item)}
-                            disabled={!isAdmin}
-                            title={isAdmin ? 'Xóa chứng từ' : 'Chỉ admin mới được xóa'}
-                            className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
-                          >
-                            <i className="fa-solid fa-trash text-xs"></i>
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          title="Dòng này lấy tự động từ lịch sử thanh toán hóa đơn."
-                          className="w-8 h-8 rounded-lg border border-gray-200 text-gray-400 cursor-default"
-                        >
-                          <i className="fa-solid fa-ellipsis"></i>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+                    {formatVND(totalIncome - totalExpense)} đ
+                  </div>
+                </div>
+                <ChevronLeft
+                  size={22}
+                  className={totalIncome >= totalExpense ? 'text-[#007A4D]' : 'text-[#E04444]'}
+                />
+              </div>
+              <div className="mb-9 w-full border-t border-dashed border-[#E04444]" />
+              <div className="mb-4 mt-[-10px] bg-white px-2 text-xs font-bold text-[#E04444]">
+                {formatVND(totalExpense)} đ
+              </div>
+            </aside>
+            <ReportLedgerPanel
+              type="expense"
+              rows={filtered.filter((item) => item.type === 'expense')}
+              total={totalExpense}
+              categoryOptions={categoryOptions}
+              roomById={roomById}
+              isAdmin={isAdmin}
+              onNavigateToInvoices={onNavigateToInvoices}
+              onEdit={requestEdit}
+              onDelete={requestDelete}
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto min-h-[320px]">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 z-10 border-b border-[#B8DDC8] bg-[#EAF5EE] text-xs font-bold text-[#235D46]">
                 <tr>
-                  <td
-                    colSpan={hasOpeningBalance ? 9 : 8}
-                    className="px-4 py-12 text-center text-gray-400"
-                  >
-                    Chưa có chứng từ thu/chi trong kỳ này.
-                  </td>
+                  <th className="px-4 py-3">Ngày</th>
+                  <th className="px-4 py-3">Loại</th>
+                  <th className="px-4 py-3">Nhóm</th>
+                  <th className="px-4 py-3">Phòng / Tòa</th>
+                  <th className="px-4 py-3 text-right">Số tiền</th>
+                  <th className="px-4 py-3">Phương thức</th>
+                  {hasOpeningBalance && <th className="px-4 py-3 text-right">Số dư</th>}
+                  <th className="px-4 py-3">Ghi chú</th>
+                  <th className="px-4 py-3 text-center">Thao tác</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-[#D8EADF]">
+                {filtered.map((item) => (
+                  <tr key={item.id} className="transition-colors hover:bg-[#F4F8F6]">
+                    <td className="px-4 py-3 font-semibold text-gray-700">
+                      {formatDateToDDMMYYYY(item.transaction_date)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-1 rounded text-[11px] font-black ${item.type === 'income' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}
+                        >
+                          {item.type === 'income' ? 'Thu' : 'Chi'}
+                        </span>
+                        {item.source === 'invoice' &&
+                          (onNavigateToInvoices ? (
+                            <button
+                              onClick={onNavigateToInvoices}
+                              className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-[10px] font-black hover:bg-blue-200 transition flex items-center gap-1"
+                              title="Xem hóa đơn"
+                            >
+                              <i className="fa-solid fa-link text-[9px]" />
+                              Hóa đơn
+                            </button>
+                          ) : (
+                            <span className="px-2 py-1 rounded bg-blue-100 text-blue-700 text-[10px] font-black">
+                              Hóa đơn
+                            </span>
+                          ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-bold text-gray-800">
+                      {categoryLabel(item.category, categoryOptions)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {getCashTargetLabel(item, roomById as Map<string, { name: string }>)}
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}
+                    >
+                      {item.type === 'expense' ? '-' : ''}
+                      {formatVND(item.amount)} đ
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {item.payment_method === 'cash'
+                        ? 'Tiền mặt'
+                        : item.payment_method === 'transfer'
+                          ? 'Chuyển khoản'
+                          : '—'}
+                    </td>
+                    {hasOpeningBalance && (
+                      <td className="px-4 py-3 text-right tabular-nums">
+                        {balanceMap.has(item.id) ? (
+                          <span
+                            className={`font-bold text-xs ${(balanceMap.get(item.id) ?? 0) >= 0 ? 'text-sky-700' : 'text-red-600'}`}
+                          >
+                            {formatVND(balanceMap.get(item.id) ?? 0)} đ
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
+                      </td>
+                    )}
+                    <td
+                      className="min-w-[280px] max-w-[520px] px-4 py-3 align-top leading-5 text-gray-500 whitespace-normal break-words"
+                      title={item.note || undefined}
+                    >
+                      {item.note || '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-2">
+                        {item.source === 'manual' ? (
+                          <>
+                            <button
+                              onClick={() => requestEdit(item)}
+                              disabled={!isAdmin}
+                              title={isAdmin ? 'Sửa chứng từ' : 'Chỉ admin mới được sửa'}
+                              className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
+                            >
+                              <i className="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            <button
+                              onClick={() => requestDelete(item)}
+                              disabled={!isAdmin}
+                              title={isAdmin ? 'Xóa chứng từ' : 'Chỉ admin mới được xóa'}
+                              className="w-8 h-8 rounded-lg border border-gray-200 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-inherit"
+                            >
+                              <i className="fa-solid fa-trash text-xs"></i>
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            title="Dòng này lấy tự động từ lịch sử thanh toán hóa đơn."
+                            className="w-8 h-8 rounded-lg border border-gray-200 text-gray-400 cursor-default"
+                          >
+                            <i className="fa-solid fa-ellipsis"></i>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={hasOpeningBalance ? 9 : 8}
+                      className="px-4 py-12 text-center text-gray-400"
+                    >
+                      Chưa có chứng từ thu/chi trong kỳ này.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {modalOpen && (

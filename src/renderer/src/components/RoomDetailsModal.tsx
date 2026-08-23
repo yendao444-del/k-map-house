@@ -159,10 +159,10 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
       setIsEditingRent(false);
       setRentReason('');
       setRentError(null);
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['room', room.id], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
     },
     onError: (err: any) => {
       setRentError(err?.message || 'Không thể cập nhật giá thuê.');
@@ -205,10 +205,10 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
       setIsEditingDeposit(false);
       setDepositReason('');
       setDepositError(null);
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['room', room.id], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
     },
     onError: (err: any) => {
       setDepositError(err?.message || 'Không thể cập nhật tiền cọc.');
@@ -239,11 +239,10 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({ room, zone, 
       setIsAdjustMeterOpen(false);
       setMeterReason('');
       setMeterError(null);
-      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['invoices', room.id], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['contracts'], refetchType: 'all' });
-      queryClient.invalidateQueries({ queryKey: ['activeContracts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['rooms'] });
+      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
     },
     onError: (err: any) => {
       setMeterError(err?.message || 'Không thể điều chỉnh chỉ số.')
