@@ -72,12 +72,12 @@ function AiSidebar({
   onChange: (section: AiSection) => void
 }) {
   return (
-    <aside className="hidden min-h-[calc(100vh-56px)] w-[238px] shrink-0 border-r border-slate-200 bg-white px-3 py-6 lg:block">
+    <aside className="hidden min-h-[calc(100vh-56px)] w-[238px] shrink-0 bg-[#005B3C] px-3 py-6 text-white lg:block">
       <div className="px-3 pb-4">
-        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+        <p className="text-[11px] font-black uppercase tracking-[0.12em] text-emerald-200/70">
           Trung tâm AI
         </p>
-        <p className="mt-1 text-sm font-bold text-slate-700">Phân tích vận hành</p>
+        <p className="mt-1 text-sm font-bold text-white">Phân tích vận hành</p>
       </div>
       <nav className="space-y-1.5" aria-label="Điều hướng phân tích AI">
         {AI_SECTIONS.map((item) => {
@@ -87,10 +87,10 @@ function AiSidebar({
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              className={`group flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${isActive ? 'bg-emerald-50 text-[#007A4D] shadow-[inset_0_0_0_1px_rgba(0,122,77,0.12)]' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+              className={`group flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left transition ${isActive ? 'bg-white text-[#005B3C] shadow-lg shadow-emerald-950/20' : 'text-emerald-50/90 hover:bg-white/10 hover:text-white'}`}
             >
               <span
-                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-white text-[#007A4D] shadow-sm' : 'bg-slate-100 text-slate-500 group-hover:bg-white group-hover:shadow-sm'}`}
+                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isActive ? 'bg-emerald-50 text-[#007A4D]' : 'bg-white/10 text-emerald-100 group-hover:bg-white/15 group-hover:text-white'}`}
               >
                 <i className={`fa-solid ${item.icon}`} />
               </span>
@@ -99,7 +99,7 @@ function AiSidebar({
                   {item.label}
                 </span>
                 <span
-                  className={`mt-0.5 block text-[11px] leading-4 ${isActive ? 'text-emerald-700/70' : 'text-slate-400'}`}
+                  className={`mt-0.5 block text-[11px] leading-4 ${isActive ? 'text-emerald-700/70' : 'text-emerald-100/60'}`}
                 >
                   {item.description}
                 </span>
@@ -108,11 +108,11 @@ function AiSidebar({
           )
         })}
       </nav>
-      <div className="mx-3 mt-6 rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
-        <div className="flex items-center gap-2 text-xs font-black text-violet-700">
+      <div className="mx-3 mt-6 rounded-2xl border border-white/15 bg-white/10 p-3">
+        <div className="flex items-center gap-2 text-xs font-black text-white">
           <i className="fa-solid fa-wand-magic-sparkles" /> Trợ lý DeepSeek
         </div>
-        <p className="mt-2 text-[11px] leading-4 text-violet-600">
+        <p className="mt-2 text-[11px] leading-4 text-emerald-100/75">
           AI chỉ giải thích và đề xuất dựa trên dữ liệu đã được kiểm chứng.
         </p>
       </div>
@@ -480,7 +480,7 @@ export function AiAnalysisTab({
     opportunities[0]
 
   return (
-    <div className="min-h-full bg-[#f7faf8] text-slate-900">
+    <div className="h-full overflow-y-auto overscroll-contain bg-[#f7faf8] text-slate-900">
       <div className="mx-auto flex max-w-[1760px]">
         <AiSidebar activeSection={activeSection} onChange={setActiveSection} />
         <div className="min-w-0 flex-1 px-5 py-6 sm:px-7 lg:px-8">

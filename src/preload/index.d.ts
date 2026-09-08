@@ -18,7 +18,7 @@ interface DbAPI {
   getPath: () => Promise<string>
 }
 
-type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban'
+type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'
 type MarketSourceState = 'success' | 'blocked' | 'error' | 'unsupported'
 
 interface MarketListing {

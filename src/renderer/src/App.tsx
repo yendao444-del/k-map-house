@@ -2785,7 +2785,7 @@ const App: React.FC = () => {
         {/* MAIN SCROLLABLE CONTENT */}
         <div
           key={activeTab}
-          className="flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]"
+          className="min-h-0 flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]"
         >
           {activeTab === 'rooms' ? (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">

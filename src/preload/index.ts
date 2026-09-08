@@ -18,7 +18,7 @@ const api = {
     scanMarket: (payload: {
       propertyAddress: string
       maxPages?: number
-      sourceIds?: Array<'phongtro123' | 'nhatot' | 'muaban'>
+      sourceIds?: Array<'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'>
     }): Promise<unknown> => ipcRenderer.invoke('marketData:scanMarket', payload),
     scanPhongTro123: (payload: { locationUrl: string; maxPages?: number }): Promise<unknown> =>
       ipcRenderer.invoke('marketData:scanPhongTro123', payload)

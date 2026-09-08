@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 
-export const MARKET_SOURCE_IDS = ['phongtro123', 'nhatot', 'muaban'] as const
+export const MARKET_SOURCE_IDS = ['phongtro123', 'nhatot', 'muaban', 'batdongsan'] as const
 export type MarketSourceId = (typeof MARKET_SOURCE_IDS)[number]
 export type MarketSourceState = 'success' | 'blocked' | 'error' | 'unsupported'
 
@@ -109,7 +109,8 @@ class UnsupportedLocationError extends Error {}
 const LABELS: Record<MarketSourceId, string> = {
   phongtro123: 'Phongtro123',
   nhatot: 'Nhà Tốt',
-  muaban: 'Mua Bán'
+  muaban: 'Mua Bán',
+  batdongsan: 'Batdongsan.com.vn'
 }
 
 const normalizeSpace = (value: string): string => value.replace(/\s+/g, ' ').trim()
@@ -123,6 +124,9 @@ const decodeHtml = (value: string): string =>
       .replace(/&#39;|&apos;/gi, "'")
       .replace(/&lt;/gi, '<')
       .replace(/&gt;/gi, '>')
+      .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) =>
+        String.fromCodePoint(Number.parseInt(code, 16))
+      )
       .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)))
   )
 
@@ -140,6 +144,57 @@ const normalizedKey = (value: string): string =>
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
 const slugify = (value: string): string => normalizedKey(value).replace(/\s+/g, '-')
+
+const LOCALITY_ALIASES: Record<string, string[]> = {
+  'dai mo': [
+    'dai mo',
+    'dai linh',
+    'trung van',
+    'phung khoang',
+    'luong the vinh',
+    'to huu',
+    'van phuc',
+    'tay mo',
+    'mo lao'
+  ]
+}
+
+const LOCALITY_EXCLUSIONS: Record<string, string[]> = {
+  'dai mo': [
+    'my dinh',
+    'phu my',
+    'dinh thon',
+    'me tri',
+    'phu do',
+    'le duc tho',
+    'ham nghi',
+    'do duc duc'
+  ]
+}
+
+const localityAliases = (location: MarketLocation): string[] => {
+  const ward = normalizedKey(location.ward).replace(/^(phuong|xa|thi tran)\s+/, '')
+  return LOCALITY_ALIASES[ward] || []
+}
+
+const filterForLocalArea = (
+  listings: MarketListing[],
+  location: MarketLocation
+): MarketListing[] => {
+  const aliases = localityAliases(location)
+  if (!aliases.length) return listings
+  const ward = normalizedKey(location.ward).replace(/^(phuong|xa|thi tran)\s+/, '')
+  const exclusions = LOCALITY_EXCLUSIONS[ward] || []
+  return listings.filter((listing) => {
+    const haystack = normalizedKey(
+      [listing.title, listing.description, listing.address, listing.district, listing.url].join(' ')
+    )
+    return (
+      !exclusions.some((excludedArea) => haystack.includes(excludedArea)) &&
+      aliases.some((alias) => haystack.includes(alias))
+    )
+  })
+}
 
 export const inferMarketLocation = (rawAddress: string): MarketLocation => {
   const propertyAddress = normalizeSpace(rawAddress)
@@ -628,16 +683,33 @@ const crawlPhongTroSource = async (
     for (const listing of parsePhongTro123Page(html, crawledAt)) byId.set(listing.sourceId, listing)
     if (page < maxPages) await wait(900)
   }
-  return sourceSuccess('phongtro123', startUrl, pagesScanned, Array.from(byId.values()))
+  return sourceSuccess(
+    'phongtro123',
+    startUrl,
+    pagesScanned,
+    filterForLocalArea(Array.from(byId.values()), location)
+  )
 }
 
-type NhaTotLocationCode = { region: string; area?: string; canonicalArea: string }
+type NhaTotLocationCode = {
+  region: string
+  area?: string
+  wards?: string[]
+  canonicalArea: string
+}
 
 const getNhaTotLocationCode = (location: MarketLocation): NhaTotLocationCode => {
   const city = normalizedKey(location.city)
   const district = normalizedKey(location.district).replace(/^(quan|huyen|thi xa|thanh pho)\s+/, '')
-  if (city === 'ha noi' && district === 'nam tu liem')
-    return { region: '12000', area: '12121', canonicalArea: 'quan-nam-tu-liem-ha-noi' }
+  if (city === 'ha noi' && district === 'nam tu liem') {
+    const ward = normalizedKey(location.ward).replace(/^(phuong|xa|thi tran)\s+/, '')
+    return {
+      region: '12000',
+      area: '12121',
+      wards: ward === 'dai mo' ? ['209', '210', '206'] : undefined,
+      canonicalArea: 'quan-nam-tu-liem-ha-noi'
+    }
+  }
   throw new UnsupportedLocationError(
     'Nhà Tốt chưa có mã khu vực tự động cho ' + location.district + ', ' + location.city + '.'
   )
@@ -698,23 +770,28 @@ const crawlNhaTotSource = async (
   _maxPages: number
 ): Promise<MarketSourceSnapshot> => {
   const code = getNhaTotLocationCode(location)
-  const url = new URL('https://gateway.chotot.com/v1/public/ad-listing')
-  url.searchParams.set('region_v2', code.region)
-  if (code.area) url.searchParams.set('area_v2', code.area)
-  url.searchParams.set('cg', '1050')
-  url.searchParams.set('limit', '20')
-  url.searchParams.set('w', '1')
-  url.searchParams.set('st', 'u')
+  const urls = (code.wards?.length ? code.wards : [undefined]).map((ward) => {
+    const url = new URL('https://gateway.chotot.com/v1/public/ad-listing')
+    url.searchParams.set('region_v2', code.region)
+    if (code.area) url.searchParams.set('area_v2', code.area)
+    if (ward) url.searchParams.set('ward', ward)
+    url.searchParams.set('cg', '1050')
+    url.searchParams.set('limit', '20')
+    url.searchParams.set('w', '1')
+    url.searchParams.set('st', 'u')
+    return url
+  })
   // Offset parameter "o" is deliberately omitted because the public robots policy disallows it.
-  await assertRobotsAllowed(url)
+  await assertRobotsAllowed(urls[0])
   const crawledAt = new Date().toISOString()
-  const listings = parseNhaTotResponse(
-    await fetchJson(url),
-    location,
-    code.canonicalArea,
-    crawledAt
+  const responses = await Promise.all(urls.map((url) => fetchJson(url)))
+  const listings = filterForLocalArea(
+    responses.flatMap((response) =>
+      parseNhaTotResponse(response, location, code.canonicalArea, crawledAt)
+    ),
+    location
   )
-  return sourceSuccess('nhatot', url, 1, listings)
+  return sourceSuccess('nhatot', urls[0], urls.length, listings)
 }
 
 const parseMuaBanPage = (
@@ -744,7 +821,7 @@ const parseMuaBanPage = (
         description,
         priceMonthly: parsePrice(offer.price || data.price),
         areaM2: parseArea(data.floorSize || description),
-        address: String(addressData.streetAddress || location.propertyAddress),
+        address: String(addressData.streetAddress || addressData.addressLocality || ''),
         city: String(addressData.addressRegion || location.city),
         district: String(addressData.addressLocality || location.district),
         imageUrl: extractMarketImageUrl(
@@ -791,7 +868,114 @@ const crawlMuaBanSource = async (
       byId.set(listing.sourceId, listing)
     if (page < maxPages) await wait(900)
   }
-  return sourceSuccess('muaban', startUrl, pagesScanned, Array.from(byId.values()))
+  return sourceSuccess(
+    'muaban',
+    startUrl,
+    pagesScanned,
+    filterForLocalArea(Array.from(byId.values()), location)
+  )
+}
+
+export const parseBatDongSanPage = (
+  html: string,
+  location: MarketLocation,
+  crawledAt = new Date().toISOString()
+): MarketListing[] =>
+  html
+    .split(/<div class="js__card js__card-full-web/i)
+    .slice(1)
+    .flatMap((card): MarketListing[] => {
+      const link = card.match(
+        /<a[^>]*class="js__product-link-for-product-id"[^>]*data-product-id="(\d+)"[^>]*href="([^"]+)"/i
+      )
+      const title = decodeHtml(
+        card.match(/<span[^>]*class="pr-title js__card-title"[^>]*>([\s\S]*?)<\/span>/i)?.[1] || ''
+      )
+      if (!link || !title) return []
+      const price = decodeHtml(
+        card.match(/class="re__card-config-price js__card-config-item"[^>]*>([\s\S]*?)<\/span>/i)?.[1] || ''
+      )
+      const area = decodeHtml(
+        card.match(/class="re__card-config-area js__card-config-item"[^>]*>([\s\S]*?)<\/span>/i)?.[1] || ''
+      )
+      const address = decodeHtml(
+        card.match(/<div class="re__card-location">[\s\S]*?<span>([\s\S]*?)<\/span>/i)?.[1] ||
+          location.ward
+      )
+      const imageUrl = extractMarketImageUrl(
+        card.match(/<img[^>]*(?:data-img|src)="([^"]+)"/i)?.[1] || '',
+        'https://batdongsan.com.vn'
+      )
+      const dateLabel = card.match(
+        /re__card-published-info-published-at"[^>]*aria-label="([^"]+)"/i
+      )?.[1]
+      const postedAt = dateLabel
+        ? parseDate(dateLabel.split('/').reverse().join('-') + 'T00:00:00+07:00')
+        : null
+      return [
+        makeListing('batdongsan', {
+          sourceId: link[1],
+          url: new URL(decodeHtml(link[2]), 'https://batdongsan.com.vn').toString(),
+          title,
+          description: title,
+          priceMonthly: parsePrice(price),
+          areaM2: parseArea(area),
+          address,
+          city: location.city,
+          district: address || location.ward || location.district,
+          imageUrl,
+          postedAt,
+          crawledAt
+        })
+      ]
+    })
+
+const buildBatDongSanUrl = (location: MarketLocation): URL => {
+  const city = normalizedKey(location.city)
+  const ward = normalizedKey(location.ward).replace(/^(phuong|xa|thi tran)\s+/, '')
+  if (city === 'ha noi' && ward === 'dai mo')
+    return new URL(
+      'https://batdongsan.com.vn/cho-thue-nha-tro-phong-tro-phuong-dai-mo-tp-ha-noi'
+    )
+  const district = normalizedKey(location.district).replace(
+    /^(quan|huyen|thi xa|thanh pho)\s+/,
+    ''
+  )
+  if (city === 'ha noi' && district === 'nam tu liem')
+    return new URL('https://batdongsan.com.vn/cho-thue-nha-tro-phong-tro-nam-tu-liem')
+  throw new UnsupportedLocationError(
+    'Batdongsan.com.vn chưa có đường dẫn khu vực tự động cho ' +
+      location.district +
+      ', ' +
+      location.city +
+      '.'
+  )
+}
+
+const crawlBatDongSanSource = async (
+  location: MarketLocation,
+  maxPages: number
+): Promise<MarketSourceSnapshot> => {
+  const startUrl = buildBatDongSanUrl(location)
+  await assertRobotsAllowed(startUrl)
+  const crawledAt = new Date().toISOString()
+  const byId = new Map<string, MarketListing>()
+  let pagesScanned = 0
+  for (let page = 1; page <= maxPages; page += 1) {
+    const pageUrl = new URL(startUrl)
+    if (page > 1) pageUrl.pathname += '/p' + page
+    const html = await fetchText(pageUrl)
+    pagesScanned += 1
+    for (const listing of parseBatDongSanPage(html, location, crawledAt))
+      byId.set(listing.sourceId, listing)
+    if (page < maxPages) await wait(900)
+  }
+  return sourceSuccess(
+    'batdongsan',
+    startUrl,
+    pagesScanned,
+    filterForLocalArea(Array.from(byId.values()), location)
+  )
 }
 
 const sourceFailure = (source: MarketSourceId, reason: unknown): MarketSourceSnapshot => {
@@ -980,7 +1164,8 @@ const crawlBySource = (
 ): Promise<MarketSourceSnapshot> => {
   if (source === 'phongtro123') return crawlPhongTroSource(location, maxPages)
   if (source === 'nhatot') return crawlNhaTotSource(location, maxPages)
-  return crawlMuaBanSource(location, maxPages)
+  if (source === 'muaban') return crawlMuaBanSource(location, maxPages)
+  return crawlBatDongSanSource(location, maxPages)
 }
 
 export const scanMarket = async (request: MarketScanRequest): Promise<MarketCrawlResult> => {

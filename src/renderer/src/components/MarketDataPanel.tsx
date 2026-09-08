@@ -3,9 +3,9 @@ import { ListingThumbnail } from './ListingThumbnail'
 
 type MarketSnapshot = Awaited<ReturnType<Window['api']['marketData']['getSnapshot']>>
 type MarketListing = MarketSnapshot['listings'][number]
-type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban'
+type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'
 
-const SOURCE_IDS: MarketSourceId[] = ['phongtro123', 'nhatot', 'muaban']
+const SOURCE_IDS: MarketSourceId[] = ['phongtro123', 'nhatot', 'muaban', 'batdongsan']
 
 const SOURCE_META: Record<
   MarketSourceId,
@@ -31,6 +31,13 @@ const SOURCE_META: Record<
     icon: 'fa-tags',
     badge: 'bg-orange-50 text-orange-700',
     iconClass: 'bg-orange-100 text-orange-700'
+  },
+  batdongsan: {
+    label: 'Batdongsan.com.vn',
+    description: 'Tin theo đúng phường và khu vực lân cận',
+    icon: 'fa-city',
+    badge: 'bg-violet-50 text-violet-700',
+    iconClass: 'bg-violet-100 text-violet-700'
   }
 }
 
@@ -286,7 +293,7 @@ export function MarketDataPanel({ propertyAddress }: { propertyAddress: string }
           </span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {SOURCE_IDS.map((sourceId) => {
             const meta = SOURCE_META[sourceId]
             const sourceStatus = statusBySource.get(sourceId)
@@ -363,7 +370,10 @@ export function MarketDataPanel({ propertyAddress }: { propertyAddress: string }
         <>
           <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             {[
-              ['Nguồn có dữ liệu', String(currentSnapshot.stats.sourceCount) + '/3'],
+              [
+                'Nguồn có dữ liệu',
+                String(currentSnapshot.stats.sourceCount) + '/' + SOURCE_IDS.length
+              ],
               ['Tin thu thập', currentSnapshot.stats.total],
               ['Tin sử dụng được', currentSnapshot.stats.usable],
               ['Tin đã loại', currentSnapshot.stats.excluded],

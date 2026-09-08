@@ -12,6 +12,7 @@ import {
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerUpdateHandlers } from './update-handlers'
+import { startTelegramUltraViewerBot } from './telegram-ultraviewer'
 import {
   crawlPhongTro123,
   getMarketSnapshot,
@@ -1137,6 +1138,8 @@ app.whenReady().then(() => {
   setupTtsHandlers()
   // Privileged Supabase and SePay operations run through the authenticated Edge Function.
   registerUpdateHandlers()
+  const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()
+  app.once('before-quit', stopTelegramUltraViewerBot)
   createWindow()
 
   app.on('activate', () => {

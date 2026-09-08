@@ -73,6 +73,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
   const [successCount, setSuccessCount] = useState(0)
   const [rawTxs, setRawTxs] = useState<SepayTransaction[]>([])
   const [processingTxKeys, setProcessingTxKeys] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
 
   const roomNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -117,8 +118,8 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
     [invoiceCodeInfos]
   )
 
-  const recentTxDiagnostics = useMemo(() => {
-    return rawTxs.slice(0, 5).map((tx) => {
+  const transactionDiagnostics = useMemo(() => {
+    return rawTxs.map((tx) => {
       const amount = Number(tx.amount_in)
       const accountLabel = [tx.account_name, tx.bank_brand_name].filter(Boolean).join(' - ') || 'Tài khoản nhận'
       const accountNumber = tx.account_number || tx.sub_account || ''
@@ -218,6 +219,40 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
       }
     })
   }, [invoiceCodeInfos, pendingCodeInfos, rawTxs, rooms])
+
+  const displayedTxDiagnostics = useMemo(() => {
+    const query = searchTerm.trim()
+    if (!query) return transactionDiagnostics.slice(0, 5)
+
+    const normalizedQuery = normalizeTransferText(query)
+    const lowercaseQuery = query.toLocaleLowerCase('vi-VN')
+
+    return transactionDiagnostics.filter((item) => {
+      const searchableText = [
+        item.tx.id,
+        item.tx.reference_number,
+        item.tx.transaction_content,
+        item.tx.transaction_date,
+        item.amount,
+        formatVND(item.amount),
+        item.accountLabel,
+        item.accountNumber,
+        item.roomName,
+        item.tenantName,
+        item.tenantPhone,
+        item.invoiceTitle,
+        item.periodText,
+        item.transferCode,
+        item.title,
+        item.detail
+      ].join(' ')
+
+      return (
+        searchableText.toLocaleLowerCase('vi-VN').includes(lowercaseQuery) ||
+        (normalizedQuery !== '' && normalizeTransferText(searchableText).includes(normalizedQuery))
+      )
+    })
+  }, [searchTerm, transactionDiagnostics])
 
   const fetchTransactions = async (): Promise<void> => {
     setLoading(true)
@@ -376,17 +411,49 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
 
               {rawTxs.length > 0 && (
                 <div className="mt-6 w-full space-y-3 text-left">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                    <label htmlFor="sepay-transaction-search" className="mb-2 block text-xs font-black uppercase tracking-wide text-blue-700">
+                      Tìm giao dịch SePay
+                    </label>
+                    <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
+                      <i className="fa-solid fa-magnifying-glass text-sm text-blue-500" />
+                      <input
+                        id="sepay-transaction-search"
+                        type="search"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Nhập mã giao dịch, nội dung CK, phòng, khách hoặc số tiền..."
+                        className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-slate-800 outline-none placeholder:text-slate-400"
+                      />
+                      {searchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                          aria-label="Xóa nội dung tìm kiếm"
+                        >
+                          <i className="fa-solid fa-xmark" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-2 text-[11px] font-medium text-blue-600">
+                      {searchTerm.trim()
+                        ? `Tìm thấy ${displayedTxDiagnostics.length} giao dịch trong ${rawTxs.length} giao dịch đã tải.`
+                        : `Đang hiển thị 5 giao dịch mới nhất trong ${rawTxs.length} giao dịch đã tải.`}
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
                     <div className="mb-3">
                       <div className="text-xs font-black uppercase tracking-wide text-slate-500">
-                        5 giao dịch SePay gần nhất
+                        {searchTerm.trim() ? 'Kết quả tìm kiếm' : '5 giao dịch SePay gần nhất'}
                       </div>
                       <div className="mt-1 text-[11px] text-slate-400">
                         Hiển thị lý do từng giao dịch chưa được tự động chốt.
                       </div>
                     </div>
                     <div className="space-y-2">
-                      {recentTxDiagnostics.map(({
+                      {displayedTxDiagnostics.map(({
                         tx,
                         amount,
                         accountLabel,
@@ -478,6 +545,13 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                           </div>
                         </div>
                       ))}
+                      {displayedTxDiagnostics.length === 0 && (
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
+                          <i className="fa-solid fa-magnifying-glass mb-2 text-2xl text-slate-300" />
+                          <div className="text-sm font-bold text-slate-600">Không tìm thấy giao dịch phù hợp</div>
+                          <div className="mt-1 text-xs text-slate-400">Thử nhập mã giao dịch, mã chuyển khoản hoặc số phòng.</div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

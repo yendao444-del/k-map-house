@@ -159,6 +159,22 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     [firstMonthInvoice]
   )
 
+  const hasCurrentContractMonthlyInvoice = useMemo(() => {
+    if (!currentTenantId) return false
+    const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+
+    return existingInvoices.some(
+      (invoice) =>
+        invoice.tenant_id === currentTenantId &&
+        invoice.billing_reason === 'monthly' &&
+        invoice.payment_status !== 'cancelled' &&
+        invoice.payment_status !== 'merged' &&
+        (!contractStartedAt || invoice.created_at >= contractStartedAt)
+    )
+  }, [activeContract, currentTenantId, existingInvoices])
+
+  const hasCompletedFirstMonth = hasPaidFirstMonthInvoice || hasCurrentContractMonthlyInvoice
+
   const zone = useMemo(
     () => serviceZones.find((item) => item.id === billingRoom.service_zone_id) || null,
     [billingRoom.service_zone_id, serviceZones]
@@ -181,17 +197,14 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
       setBillingReason('first_month')
       return
     }
-    if (existingInvoices.length > 0) {
-      setBillingReason(hasPaidFirstMonthInvoice ? 'monthly' : 'first_month')
-    }
+    setBillingReason(hasCompletedFirstMonth ? 'monthly' : 'first_month')
     // Nếu có lịch sử chuyển phòng chưa thanh toán, thì auto force Monthly để gộp ngay
     if (hasTransfer) {
       setBillingReason('monthly')
       return
     }
   }, [
-    hasPaidFirstMonthInvoice,
-    existingInvoices.length,
+    hasCompletedFirstMonth,
     hasTransfer,
     isMigratedContract,
     unpaidFirstMonthInvoice
@@ -728,9 +741,9 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
                 }
 
                 // Đã thu HD đầu tiên thì khóa "Thu tháng đầu tiên"
-                if (option.value === 'first_month' && hasPaidFirstMonthInvoice) {
+                if (option.value === 'first_month' && hasCompletedFirstMonth) {
                   locked = true
-                  suffix = ' (đã thu)'
+                  suffix = ' (đã qua tháng đầu)'
                 }
 
                 // Chưa thu HD đầu tiên thì KHÓA tất cả trừ "Thu tháng đầu tiên"
