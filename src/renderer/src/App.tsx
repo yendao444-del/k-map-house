@@ -112,6 +112,16 @@ const AiAnalysisTab = lazy(() =>
 )
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+const hasInvoiceBalance = (invoice: Pick<Invoice, 'payment_status' | 'total_amount' | 'paid_amount'>): boolean => {
+  if (invoice.payment_status !== 'unpaid' && invoice.payment_status !== 'partial') return false
+
+  const total = Number(invoice.total_amount || 0)
+  const paid = Number(invoice.paid_amount || 0)
+  if (!Number.isFinite(total) || !Number.isFinite(paid) || total === 0) return false
+
+  // Positive invoices need more money; negative invoices still need a refund.
+  return total > 0 ? paid < total : paid > total
+}
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
   snap.note || snap.room_asset_id
@@ -1277,7 +1287,9 @@ const App: React.FC = () => {
   const { data: rooms = [], isLoading } = useQuery({
     queryKey: ['rooms'],
     queryFn: getRooms,
-    enabled: canLoadData
+    enabled: canLoadData,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000
   })
   const { data: serviceZones = [] } = useQuery({
     queryKey: ['serviceZones'],
@@ -1287,7 +1299,9 @@ const App: React.FC = () => {
   const { data: invoices = [] } = useQuery({
     queryKey: ['invoices'],
     queryFn: getInvoices,
-    enabled: canLoadData
+    enabled: canLoadData,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000
   })
   const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({
     queryKey: ['activeContracts'],
@@ -1792,8 +1806,7 @@ const App: React.FC = () => {
         (invoice) =>
           invoice.payment_status !== 'cancelled' &&
           invoice.payment_status !== 'merged' &&
-          (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial') &&
-          Number(invoice.total_amount || 0) > Number(invoice.paid_amount || 0)
+          hasInvoiceBalance(invoice)
       ),
     [invoices]
   )
@@ -1936,7 +1949,7 @@ const App: React.FC = () => {
         sepayAutoPaymentKeysRef.current.add(transactionKey)
         try {
           const date = new Date(match.transactionDate || Date.now())
-          await recordInvoicePayment(match.invoice.id, {
+          const updatedInvoice = await recordInvoicePayment(match.invoice.id, {
             amount: match.amount,
             payment_method: 'transfer',
             payment_date: Number.isNaN(date.getTime())
@@ -1947,6 +1960,13 @@ const App: React.FC = () => {
             external_id: match.transactionId || undefined,
             source: 'sepay'
           })
+          // Update the active cache immediately; the following refetch verifies
+          // the server state and keeps rooms/invoices consistent in production.
+          queryClient.setQueryData<Invoice[]>(['invoices'], (current) =>
+            (current || []).map((invoice) =>
+              invoice.id === updatedInvoice.id ? updatedInvoice : invoice
+            )
+          )
           didSync = true
         } catch (error) {
           // A retry is allowed on the next SePay refresh; the DB-level idempotency
@@ -1957,10 +1977,12 @@ const App: React.FC = () => {
       }
 
       if (!disposed && didSync) {
-        queryClient.invalidateQueries({ queryKey: ['invoices'] })
-        queryClient.invalidateQueries({ queryKey: ['rooms'] })
-        queryClient.invalidateQueries({ queryKey: ['contracts'] })
-        queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ['invoices'], type: 'active' }),
+          queryClient.refetchQueries({ queryKey: ['rooms'], type: 'active' }),
+          queryClient.refetchQueries({ queryKey: ['contracts'], type: 'active' }),
+          queryClient.refetchQueries({ queryKey: ['activeContracts'], type: 'active' })
+        ])
       }
     }
 
@@ -3895,8 +3917,7 @@ const App: React.FC = () => {
                                 const unpaidFirstMonthInvoice = currentTenantInvoices.find(
                                   (i) =>
                                     i.is_first_month &&
-                                    (i.payment_status === 'unpaid' ||
-                                      i.payment_status === 'partial')
+                                    hasInvoiceBalance(i)
                                 )
 
                                 const roomInvoice =
@@ -3904,13 +3925,10 @@ const App: React.FC = () => {
                                   roomMonthInvoices.find(
                                     (i) =>
                                       i.is_first_month &&
-                                      (i.payment_status === 'unpaid' ||
-                                        i.payment_status === 'partial')
+                                      hasInvoiceBalance(i)
                                   ) ||
                                   roomMonthInvoices.find(
-                                    (i) =>
-                                      i.payment_status === 'unpaid' ||
-                                      i.payment_status === 'partial'
+                                    (i) => hasInvoiceBalance(i)
                                   ) ||
                                   roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
                                   null
@@ -4043,8 +4061,7 @@ const App: React.FC = () => {
                                 }
 
                                 if (
-                                  roomInvoice.payment_status === 'unpaid' ||
-                                  roomInvoice.payment_status === 'partial'
+                                  hasInvoiceBalance(roomInvoice)
                                 ) {
                                   if (room.status === 'ending') {
                                     return (
