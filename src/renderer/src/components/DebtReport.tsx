@@ -28,7 +28,7 @@ type PendingDebtChange = {
 }
 
 const reasonOptions: Record<EditableKey, string[]> = {
-  totalDebt: ['Nghĩa vụ ban đầu', 'Nợ chuyển từ kỳ trước'],
+  totalDebt: ['Nghĩa vụ ban đầu', 'Nợ chuyển từ kỳ trước', 'Vay thêm'],
   paid: ['Trả nợ hàng tháng', 'Thanh toán bổ sung'],
   offset: ['Tiền kho', 'Tiền điện', 'Tiền nước']
 }
@@ -153,6 +153,7 @@ export function DebtReport({
   }
 
   const openEditor = (key: EditableKey) => {
+    if (!isAdmin) return
     setEditing(key)
     setEditingEntryId(null)
     setAmount('')
@@ -172,8 +173,8 @@ export function DebtReport({
     setEditingEntryId(null)
     setDebtAdjustmentMode('increase')
     setAmount('')
-    setReason('')
-    setIsCustomReason(true)
+    setReason('Vay thêm')
+    setIsCustomReason(false)
   }
 
   const openOpeningDebtSetup = () => {
@@ -210,7 +211,7 @@ export function DebtReport({
   }
 
   const confirmRemoveEntry = () => {
-    if (!pendingDelete || pendingDelete.type === 'totalDebt') return
+    if (!isAdmin || !pendingDelete || pendingDelete.type === 'totalDebt') return
     const entry = pendingDelete
     localEditRef.current = true
     setEntries((current) => current.filter((item) => item.id !== entry.id))
@@ -222,7 +223,7 @@ export function DebtReport({
   }
 
   const confirmDebtChange = () => {
-    if (!pendingDebtChange) return
+    if (!isAdmin || !pendingDebtChange) return
     const signedAmount = pendingDebtChange.mode === 'decrease' ? -pendingDebtChange.amount : pendingDebtChange.amount
     const nextTotal = pendingDebtChange.mode === 'opening'
       ? pendingDebtChange.amount
@@ -254,6 +255,7 @@ export function DebtReport({
 
   const submitEditor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!isAdmin) return
     const normalizedAmount = amount.trim().replace(/[.\s,]/g, '')
     const parsed = Number(normalizedAmount)
     if (
@@ -484,7 +486,7 @@ export function DebtReport({
                             }}
                             className="ml-2 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 transition hover:bg-sky-100"
                           >
-                            {hasLockedOpeningDebt ? 'Điều chỉnh' : 'Thiết lập nợ gốc'}
+                            {hasLockedOpeningDebt ? 'Vay thêm / điều chỉnh' : 'Thiết lập nợ gốc'}
                           </button>
                         )}
                       </td>
@@ -612,14 +614,25 @@ export function DebtReport({
           <div className="flex items-center gap-2">
             <h2 className="text-[15px] font-black text-[#132e62]">Tăng trưởng nợ</h2>
           </div>
-          <button
-            type="button"
-            onClick={() => (hasLockedOpeningDebt ? openEditor('paid') : openOpeningDebtSetup())}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
-          >
-            <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
-            {hasLockedOpeningDebt ? 'Thêm GD' : 'Thiết lập nợ gốc'}
-          </button>
+          {isAdmin && (hasLockedOpeningDebt ? (
+            <button
+              type="button"
+              onClick={() => openEditor('paid')}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
+            >
+              <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
+              Thêm giao dịch
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openOpeningDebtSetup}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
+            >
+              <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
+              Thiết lập nợ gốc
+            </button>
+          ))}
         </div>
 
         {/* Chỉ số tóm tắt trên đầu biểu đồ */}
