@@ -8,6 +8,13 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
+import { supabase } from '../lib/supabase'
+import {
+  createDebtEntry,
+  deleteDebtEntry,
+  getDebtEntries,
+  updateDebtEntry
+} from '../lib/db'
 
 type DebtSummary = { totalDebt: number; paid: number; offset: number }
 type EditableKey = 'totalDebt' | 'paid' | 'offset'
@@ -111,6 +118,7 @@ export function DebtReport({
   const [debtAdjustmentMode, setDebtAdjustmentMode] = useState<'increase' | 'decrease' | null>(null)
   const [pendingDebtChange, setPendingDebtChange] = useState<PendingDebtChange | null>(null)
   const [isOpeningSetup, setIsOpeningSetup] = useState(false)
+  const [syncError, setSyncError] = useState('')
 
   useEffect(() => {
     if (!localEditRef.current) setValues(summary)
@@ -129,6 +137,58 @@ export function DebtReport({
   useEffect(() => {
     if (localEditRef.current) window.localStorage.setItem(entriesStorageKey, JSON.stringify(entries))
   }, [entries])
+
+  useEffect(() => {
+    let disposed = false
+
+    const loadRemoteEntries = async (): Promise<void> => {
+      try {
+        let remoteEntries = await getDebtEntries()
+        if (remoteEntries.length === 0 && storedEntries.length > 0) {
+          remoteEntries = []
+          for (const entry of storedEntries) {
+            remoteEntries.push(await createDebtEntry({
+              id: entry.id,
+              type: entry.type,
+              amount: entry.amount,
+              reason: entry.reason,
+              created_at: entry.createdAt
+            }))
+          }
+        }
+
+        if (disposed) return
+        const nextEntries = remoteEntries.map((entry) => ({
+          id: entry.id,
+          type: entry.type,
+          amount: Number(entry.amount),
+          reason: entry.reason,
+          createdAt: entry.created_at
+        }))
+        localEditRef.current = nextEntries.length > 0
+        setEntries(nextEntries)
+        setValues(nextEntries.length > 0 ? summarizeEntries(nextEntries) : summary)
+        setSyncError('')
+      } catch (error) {
+        if (!disposed) {
+          setSyncError(error instanceof Error ? error.message : 'Không thể đồng bộ sổ Nợ online.')
+        }
+      }
+    }
+
+    void loadRemoteEntries()
+    const channel = supabase
+      .channel(`debt-entries-${Date.now()}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'debt_entries' }, () => {
+        void loadRemoteEntries()
+      })
+      .subscribe()
+
+    return () => {
+      disposed = true
+      void supabase.removeChannel(channel)
+    }
+  }, [storedEntries, summary])
 
   // Keep the signed balance so an overpayment can be shown as a surplus.
   const remaining = values.totalDebt - values.paid - values.offset
@@ -219,6 +279,9 @@ export function DebtReport({
       ...current,
       [entry.type]: Math.max(0, current[entry.type] - entry.amount)
     }))
+    void deleteDebtEntry(entry.id).catch((error) => {
+      setSyncError(error instanceof Error ? error.message : 'Không thể xóa giao dịch online.')
+    })
     setPendingDelete(null)
   }
 
@@ -231,20 +294,27 @@ export function DebtReport({
     if (nextTotal < 0) return
 
     localEditRef.current = true
-    setEntries((current) => [
-      {
-        id:
-          typeof crypto !== 'undefined' && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random()}`,
-        type: 'totalDebt',
-        amount: pendingDebtChange.mode === 'opening' ? pendingDebtChange.amount : signedAmount,
-        reason: pendingDebtChange.reason,
-        createdAt: new Date().toISOString()
-      },
-      ...current
-    ])
+    const entry: DebtEntry = {
+      id:
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random()}`,
+      type: 'totalDebt',
+      amount: pendingDebtChange.mode === 'opening' ? pendingDebtChange.amount : signedAmount,
+      reason: pendingDebtChange.reason,
+      createdAt: new Date().toISOString()
+    }
+    setEntries((current) => [entry, ...current])
     setValues((current) => ({ ...current, totalDebt: nextTotal }))
+    void createDebtEntry({
+      id: entry.id,
+      type: entry.type,
+      amount: entry.amount,
+      reason: entry.reason,
+      created_at: entry.createdAt
+    }).catch((error) => {
+      setSyncError(error instanceof Error ? error.message : 'Không thể lưu giao dịch online.')
+    })
     setPendingDebtChange(null)
     setDebtAdjustmentMode(null)
     setIsOpeningSetup(false)
@@ -291,22 +361,36 @@ export function DebtReport({
           next[editing] += parsed
           return next
         })
-      }
-    } else {
-      setEntries((current) => [
-        {
-          id:
-            typeof crypto !== 'undefined' && crypto.randomUUID
-              ? crypto.randomUUID()
-              : `${Date.now()}-${Math.random()}`,
+        void updateDebtEntry(editingEntryId, {
           type: editing,
           amount: parsed,
-          reason: reason.trim(),
-          createdAt: new Date().toISOString()
-        },
-        ...current
-      ])
+          reason: reason.trim()
+        }).catch((error) => {
+          setSyncError(error instanceof Error ? error.message : 'Không thể cập nhật giao dịch online.')
+        })
+      }
+    } else {
+      const entry: DebtEntry = {
+        id:
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+        type: editing,
+        amount: parsed,
+        reason: reason.trim(),
+        createdAt: new Date().toISOString()
+      }
+      setEntries((current) => [entry, ...current])
       setValues((current) => ({ ...current, [editing]: current[editing] + parsed }))
+      void createDebtEntry({
+        id: entry.id,
+        type: entry.type,
+        amount: entry.amount,
+        reason: entry.reason,
+        created_at: entry.createdAt
+      }).catch((error) => {
+        setSyncError(error instanceof Error ? error.message : 'Không thể lưu giao dịch online.')
+      })
     }
     setEditing(null)
     setEditingEntryId(null)
@@ -415,6 +499,11 @@ export function DebtReport({
             <p className="mt-0.5 text-[12px] text-slate-400">
               Bấm vào mũi tên hoặc hạng mục để mở rộng / thu gọn lịch sử giao dịch
             </p>
+            {syncError && (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
+                Chưa đồng bộ online: {syncError}
+              </p>
+            )}
           </div>
           <span className="flex shrink-0 items-center gap-1.5 text-[12px] font-semibold text-slate-400">
             <i className="fa-solid fa-chart-column text-slate-400" aria-hidden="true"></i>

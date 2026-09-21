@@ -32,6 +32,16 @@ export interface InvoicePaymentRecord {
   external_id?: string
   source?: string
 }
+
+export type DebtEntryType = 'totalDebt' | 'paid' | 'offset'
+
+export interface DebtEntryRecord {
+  id: string
+  type: DebtEntryType
+  amount: number
+  reason: string
+  created_at: string
+}
 export interface ServiceZone {
   id: string
   name: string
@@ -2165,6 +2175,46 @@ export const createRoomAssetAdjustment = async (
 
 export const getInvoicePaymentRecords = (invoice: Invoice): InvoicePaymentRecord[] =>
   invoice.payment_records || []
+
+export const getDebtEntries = async (): Promise<DebtEntryRecord[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('debt_entries')
+      .select('id,type,amount,reason,created_at')
+      .order('created_at', { ascending: false })
+  )
+  return (data || []) as DebtEntryRecord[]
+}
+
+export const createDebtEntry = async (entry: Omit<DebtEntryRecord, 'created_at'> & { created_at?: string }): Promise<DebtEntryRecord> => {
+  const result = await safeQuery(() =>
+    supabase
+      .from('debt_entries')
+      .insert({ ...entry, created_at: entry.created_at || new Date().toISOString() })
+      .select('id,type,amount,reason,created_at')
+      .single()
+  )
+  return result as unknown as DebtEntryRecord
+}
+
+export const updateDebtEntry = async (
+  id: string,
+  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason'>
+): Promise<DebtEntryRecord> => {
+  const result = await safeQuery(() =>
+    supabase
+      .from('debt_entries')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id,type,amount,reason,created_at')
+      .single()
+  )
+  return result as unknown as DebtEntryRecord
+}
+
+export const deleteDebtEntry = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('debt_entries').delete().eq('id', id))
+}
 
 // =========================================================
 // VEHICLES

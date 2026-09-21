@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
 import AdmZip from 'adm-zip'
+import { createPackage, extractAll } from '@electron/asar'
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import {
@@ -355,6 +356,27 @@ exit
   spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
 }
 
+function createAsarFileUpdater(tempDir: string, sourceAsar: string, targetAsar: string): void {
+  const batPath = join(tempDir, 'apply-asar-update.bat')
+  const vbsPath = join(tempDir, 'apply-asar-update.vbs')
+  const batContent = `@echo off
+chcp 65001 >nul
+timeout /t 2 /nobreak >nul
+copy /Y "${sourceAsar}" "${targetAsar}" >nul 2>&1
+start "" "${process.execPath}"
+timeout /t 3 /nobreak >nul
+rmdir /S /Q "${tempDir}" 2>nul
+exit
+`
+  writeFileSync(batPath, batContent, 'utf-8')
+  writeFileSync(
+    vbsPath,
+    `Set shell = CreateObject("WScript.Shell")\r\nshell.Run chr(34) & "${batPath}" & chr(34), 0`,
+    'utf-8'
+  )
+  spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
+}
+
 function createSilentInstallerRunner(tempDir: string, installerPath: string): void {
   const batPath = join(tempDir, 'install-update.bat')
   const vbsPath = join(tempDir, 'install-update.vbs')
@@ -575,9 +597,31 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   const sourceRoot = findAppRoot(extractDir) || extractDir
   const targetRoot = app.getAppPath()
   const sourceFiles = collectFiles(sourceRoot)
-  let hadLockedFiles = false
 
   sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
+
+  // app.getAppPath() points to the app.asar file in production. Build a replacement
+  // archive instead of treating that file as a directory (which causes ENOTDIR).
+  if (targetRoot.toLowerCase().endsWith('.asar')) {
+    const mergedRoot = join(tempDir, 'merged-app')
+    const replacementAsar = join(tempDir, 'replacement.asar')
+    await extractAll(targetRoot, mergedRoot)
+    for (const sourceFile of sourceFiles) {
+      const relativePath = relative(sourceRoot, sourceFile)
+      const targetFile = join(mergedRoot, relativePath)
+      mkdirSync(dirname(targetFile), { recursive: true })
+      copyFileSync(sourceFile, targetFile)
+    }
+    await createPackage(mergedRoot, replacementAsar)
+    createAsarFileUpdater(tempDir, replacementAsar, targetRoot)
+    setTimeout(() => {
+      sendToRenderer('update:status', { status: 'restarting', message: 'Đang khởi động lại...' })
+      setTimeout(() => app.quit(), 1400)
+    }, 300)
+    return { version: 'zip' }
+  }
+
+  let hadLockedFiles = false
   for (const sourceFile of sourceFiles) {
     const relativePath = relative(sourceRoot, sourceFile)
     const targetFile = join(targetRoot, relativePath)
