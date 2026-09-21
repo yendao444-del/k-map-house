@@ -1,0 +1,15 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning Reports > Nợ. The user's required structure is a vertical accounting report, similar to a business-results report but with different debt semantics. Do not use four horizontal metric cards.
+
+Use a premium Vietnamese bank-app visual language inspired by Vietcombank: white content surface, deep forest-green shell, #007A53 accents, pale mint result row, fine gray rules, precise right-aligned VND amounts, compact labels, and calm whitespace. Keep AN KHANG HOME navigation with Reports > Nợ active. No charts, no gradients, no decorative illustrations, no percentage column, and no four-card KPI grid.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Page heading "Báo cáo công nợ", subtitle "Theo dõi tổng nợ, đã trả, khoản cấn trừ và số còn lại", and a date selector "Tính đến ngày 19/09/2026".
+
+The hero must be ONE vertical statement table titled "Chi tiết công nợ" with columns "HẠNG MỤC", "SỐ TIỀN", "DIỄN GIẢI". Show exactly four prominent rows in this order, each as a separate horizontal table row stacked vertically:
+- A. Tổng nợ — 400.000.000 đ — Tổng nghĩa vụ An Khang Home phải trả
+- B. Đã trả — -18.000.000 đ — Tiền thực tế đã chuyển khoản
+- C. Tôi nợ — -2.000.000 đ — Giá trị dịch vụ được cấn trừ
+- D. Còn lại — 380.000.000 đ — Tổng nợ - Đã trả - Tôi nợ
+
+Make the Còn lại row the strongest result row with pale mint fill, emerald amount, and a firm top border. Make Tôi nợ visually distinct with a muted amber/orange accent because it is an offset, not cash. Use minus signs for B and C in the accounting table. Add a small formula line under D: "400.000.000 đ - 18.000.000 đ - 2.000.000 đ = 380.000.000 đ". Include one button "Ghi nhận trả nợ" and a quiet link or icon to expand details.
+
+Below the statement, show a separate compact "Chi tiết giao dịch" table with date, nội dung, đã trả, tôi nợ, and số dư. Keep the vertical statement as the hero and the transaction table secondary. Use realistic Vietnamese VND formatting.

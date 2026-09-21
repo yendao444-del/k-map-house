@@ -1,19 +1,35 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getInvoices, getRooms, getTenants, getAppSettings, deleteInvoice, isDepositOnlyInvoice, updateInvoice, type Invoice, type Room, type AppUser, type Tenant, type AppSettings } from '../lib/db';
-import { PaymentModal } from './PaymentModal';
-import { EditInvoiceModal } from './EditInvoiceModal';
-import { InvoiceDetailModal } from './InvoiceDetailModal';
-import { SePaySyncModal } from './SePaySyncModal';
-import { LogoLoading } from './LogoLoading';
-import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
-import logoNgang from '../assets/an_khang_home_logo_ngang.png';
-import logoMark from '../assets/an_khang_home_logo.png';
+import React, { useState, useMemo, useRef, useEffect } from 'react'
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  getInvoices,
+  getInvoiceMonthCounts,
+  getInvoiceMonthSummary,
+  getRooms,
+  getTenants,
+  getAppSettings,
+  deleteInvoice,
+  isDepositOnlyInvoice,
+  updateInvoice,
+  type Invoice,
+  type Room,
+  type AppUser,
+  type Tenant,
+  type AppSettings
+} from '../lib/db'
+import { PaymentModal } from './PaymentModal'
+import { EditInvoiceModal } from './EditInvoiceModal'
+import { InvoiceDetailModal } from './InvoiceDetailModal'
+import { SePaySyncModal } from './SePaySyncModal'
+import { LogoLoading } from './LogoLoading'
+import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer'
+import logoNgang from '../assets/an_khang_home_logo_ngang.png'
+import logoMark from '../assets/an_khang_home_logo.png'
 
-const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v);
+const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const INVOICE_EXPORT_MARKER = '[INVOICE_EXPORTED]'
 
-const isInvoiceExported = (invoice: Invoice): boolean => (invoice.note || '').includes(INVOICE_EXPORT_MARKER)
+const isInvoiceExported = (invoice: Invoice): boolean =>
+  (invoice.note || '').includes(INVOICE_EXPORT_MARKER)
 
 const appendInvoiceExportNote = (note: string | undefined, filePath: string): string => {
   const marker = `${INVOICE_EXPORT_MARKER} ${new Date().toISOString()} ${filePath}`
@@ -26,13 +42,17 @@ const appendInvoiceExportNote = (note: string | undefined, filePath: string): st
 }
 
 const escapeHtml = (value: string | number | undefined | null): string =>
-  String(value ?? '').replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[char] || char))
+  String(value ?? '').replace(
+    /[&<>"']/g,
+    (char) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      })[char] || char
+  )
 
 const cleanInvoiceNote = (note: string | undefined): string =>
   (note || '')
@@ -59,53 +79,53 @@ const getImageDataUrl = async (src: string): Promise<string> => {
 }
 
 function numberToWords(amount: number): string {
-  if (amount === 0) return 'Không đồng';
-  if (amount < 0) return `Hoàn ${numberToWords(Math.abs(amount)).toLowerCase()}`;
-  const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín'];
+  if (amount === 0) return 'Không đồng'
+  if (amount < 0) return `Hoàn ${numberToWords(Math.abs(amount)).toLowerCase()}`
+  const units = ['', 'một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín']
 
   function threeDigits(n: number, isHead: boolean): string {
-    if (n === 0) return '';
-    const h = Math.floor(n / 100);
-    const t = Math.floor((n % 100) / 10);
-    const u = n % 10;
-    let result = '';
-    if (h > 0) result += units[h] + ' trăm';
-    else if (!isHead && (t > 0 || u > 0)) result += 'không trăm';
+    if (n === 0) return ''
+    const h = Math.floor(n / 100)
+    const t = Math.floor((n % 100) / 10)
+    const u = n % 10
+    let result = ''
+    if (h > 0) result += units[h] + ' trăm'
+    else if (!isHead && (t > 0 || u > 0)) result += 'không trăm'
     if (t === 0) {
       if (u > 0) {
-        const unitWord = u === 1 ? 'một' : u === 5 ? 'lăm' : units[u];
-        result += h > 0 || !isHead ? ' lẻ ' + unitWord : unitWord;
+        const unitWord = u === 1 ? 'một' : u === 5 ? 'lăm' : units[u]
+        result += h > 0 || !isHead ? ' lẻ ' + unitWord : unitWord
       }
     } else if (t === 1) {
-      result += ' mười';
-      if (u > 0) result += ' ' + (u === 5 ? 'lăm' : u === 1 ? 'một' : units[u]);
+      result += ' mười'
+      if (u > 0) result += ' ' + (u === 5 ? 'lăm' : u === 1 ? 'một' : units[u])
     } else {
-      result += ' ' + units[t] + ' mươi';
-      if (u === 1) result += ' mốt';
-      else if (u === 5) result += ' lăm';
-      else if (u > 0) result += ' ' + units[u];
+      result += ' ' + units[t] + ' mươi'
+      if (u === 1) result += ' mốt'
+      else if (u === 5) result += ' lăm'
+      else if (u > 0) result += ' ' + units[u]
     }
-    return result.trim();
+    return result.trim()
   }
 
-  const billion = Math.floor(amount / 1_000_000_000);
-  const million = Math.floor((amount % 1_000_000_000) / 1_000_000);
-  const thousand = Math.floor((amount % 1_000_000) / 1_000);
-  const remainder = amount % 1_000;
-  const parts: string[] = [];
-  if (billion > 0) parts.push(threeDigits(billion, parts.length === 0) + ' tỷ');
-  if (million > 0) parts.push(threeDigits(million, parts.length === 0) + ' triệu');
-  if (thousand > 0) parts.push(threeDigits(thousand, parts.length === 0) + ' nghìn');
-  if (remainder > 0) parts.push(threeDigits(remainder, parts.length === 0));
-  const result = parts.join(' ');
-  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng';
+  const billion = Math.floor(amount / 1_000_000_000)
+  const million = Math.floor((amount % 1_000_000_000) / 1_000_000)
+  const thousand = Math.floor((amount % 1_000_000) / 1_000)
+  const remainder = amount % 1_000
+  const parts: string[] = []
+  if (billion > 0) parts.push(threeDigits(billion, parts.length === 0) + ' tỷ')
+  if (million > 0) parts.push(threeDigits(million, parts.length === 0) + ' triệu')
+  if (thousand > 0) parts.push(threeDigits(thousand, parts.length === 0) + ' nghìn')
+  if (remainder > 0) parts.push(threeDigits(remainder, parts.length === 0))
+  const result = parts.join(' ')
+  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng'
 }
 
 const buildBulkInvoiceHtml = (
   invoice: Invoice,
   room: Room | undefined,
   tenant: Tenant | undefined,
-  settings: AppSettings,
+  settings: AppSettings
 ): string => {
   const rows = [
     ['Tiền phòng', invoice.room_cost],
@@ -115,7 +135,7 @@ const buildBulkInvoiceHtml = (
     ['Phí vệ sinh', invoice.garbage_cost],
     ['Nợ cũ', invoice.old_debt],
     ['Cộng thêm / Giảm trừ', invoice.adjustment_amount || 0],
-    ['Thu/trả cọc', invoice.deposit_amount || 0],
+    ['Thu/trả cọc', invoice.deposit_amount || 0]
   ].filter(([, amount]) => Number(amount) !== 0)
   const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
   const period = getBillingPeriod(invoice, room)
@@ -206,12 +226,12 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
     lines.push({
       label: `Tiền phòng cũ (${invoice.transfer_old_room_name || ''})`,
       detail: `${invoice.transfer_days || 0} ngày`,
-      amount: invoice.transfer_room_cost || 0,
+      amount: invoice.transfer_room_cost || 0
     })
     lines.push({
       label: `Tiền phòng mới (${room?.name || ''})`,
       detail: `${invoice.new_room_days || 0} ngày`,
-      amount: invoice.room_cost || 0,
+      amount: invoice.room_cost || 0
     })
   } else {
     lines.push({
@@ -219,7 +239,7 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
       detail: period
         ? `${fmtDate(period.start)} - ${fmtDate(period.end)}${invoice.prorata_days ? ` (${invoice.prorata_days} ngày)` : ''}\n${formatVND(monthlyRent)}đ/1 tháng`
         : undefined,
-      amount: invoice.room_cost,
+      amount: invoice.room_cost
     })
   }
 
@@ -227,14 +247,17 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
     lines.push({
       label: `Tiền điện (${invoice.transfer_old_room_name || ''})`,
       detail: `${invoice.transfer_electric_usage || 0} kWh`,
-      amount: invoice.transfer_electric_cost || 0,
+      amount: invoice.transfer_electric_cost || 0
     })
   }
   if (invoice.electric_cost > 0) {
     lines.push({
       label: invoice.has_transfer ? `Tiền điện (${room?.name || ''})` : 'Tiền điện',
-      detail: invoice.electric_usage > 0 ? `Số cũ: ${invoice.electric_old} - Số mới: ${invoice.electric_new} (${invoice.electric_usage} kWh)` : undefined,
-      amount: invoice.electric_cost,
+      detail:
+        invoice.electric_usage > 0
+          ? `Số cũ: ${invoice.electric_old} - Số mới: ${invoice.electric_new} (${invoice.electric_usage} kWh)`
+          : undefined,
+      amount: invoice.electric_cost
     })
   }
 
@@ -242,14 +265,17 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
     lines.push({
       label: `Tiền nước (${invoice.transfer_old_room_name || ''})`,
       detail: `${invoice.transfer_water_usage || 0} m³`,
-      amount: invoice.transfer_water_cost || 0,
+      amount: invoice.transfer_water_cost || 0
     })
   }
   if (invoice.water_cost > 0) {
     lines.push({
       label: invoice.has_transfer ? `Tiền nước (${room?.name || ''})` : 'Tiền nước',
-      detail: invoice.water_usage > 0 ? `Số cũ: ${invoice.water_old} - Số mới: ${invoice.water_new} (${invoice.water_usage} m³)` : undefined,
-      amount: invoice.water_cost,
+      detail:
+        invoice.water_usage > 0
+          ? `Số cũ: ${invoice.water_old} - Số mới: ${invoice.water_new} (${invoice.water_usage} m³)`
+          : undefined,
+      amount: invoice.water_cost
     })
   }
 
@@ -257,14 +283,20 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
     lines.push({
       label: `Phí dịch vụ (${invoice.transfer_old_room_name || ''})`,
       detail: `${invoice.transfer_days || 0} ngày`,
-      amount: invoice.transfer_service_cost || 0,
+      amount: invoice.transfer_service_cost || 0
     })
   }
   if (invoice.wifi_cost > 0) {
-    lines.push({ label: invoice.has_transfer ? `Internet / WiFi (${room?.name || ''})` : 'Internet / WiFi', amount: invoice.wifi_cost })
+    lines.push({
+      label: invoice.has_transfer ? `Internet / WiFi (${room?.name || ''})` : 'Internet / WiFi',
+      amount: invoice.wifi_cost
+    })
   }
   if (invoice.garbage_cost > 0) {
-    lines.push({ label: invoice.has_transfer ? `Phí vệ sinh (${room?.name || ''})` : 'Phí vệ sinh', amount: invoice.garbage_cost })
+    lines.push({
+      label: invoice.has_transfer ? `Phí vệ sinh (${room?.name || ''})` : 'Phí vệ sinh',
+      amount: invoice.garbage_cost
+    })
   }
   if (invoice.old_debt > 0) {
     lines.push({ label: 'Nợ kỳ trước', amount: invoice.old_debt })
@@ -272,16 +304,20 @@ const buildDetailExportLines = (invoice: Invoice, room: Room | undefined): Detai
 
   const depositAmt = invoice.deposit_amount || 0
   if (depositAmt !== 0) {
-    lines.push({ label: depositAmt > 0 ? 'Thu tiền cọc' : 'Trả tiền cọc', amount: Math.abs(depositAmt) })
+    lines.push({
+      label: depositAmt > 0 ? 'Thu tiền cọc' : 'Trả tiền cọc',
+      amount: Math.abs(depositAmt)
+    })
   }
 
   const adjustmentAmt = invoice.adjustment_amount || 0
   if (adjustmentAmt !== 0) {
     lines.push({
-      label: adjustmentAmt > 0
-        ? `Cộng thêm${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`
-        : `Giảm trừ${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`,
-      amount: Math.abs(adjustmentAmt),
+      label:
+        adjustmentAmt > 0
+          ? `Cộng thêm${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`
+          : `Giảm trừ${invoice.adjustment_note ? ` (${invoice.adjustment_note})` : ''}`,
+      amount: Math.abs(adjustmentAmt)
     })
   }
 
@@ -292,7 +328,10 @@ const renderDetailExportLine = (detail?: string): string => {
   if (!detail) return ''
   return detail
     .split('\n')
-    .map((line, index) => `<div class="${index === 0 ? 'line-detail-main' : 'line-detail-sub'}">${escapeHtml(line)}</div>`)
+    .map(
+      (line, index) =>
+        `<div class="${index === 0 ? 'line-detail-main' : 'line-detail-sub'}">${escapeHtml(line)}</div>`
+    )
     .join('')
 }
 
@@ -302,7 +341,7 @@ const buildInvoiceDetailExportHtml = (
   tenant: Tenant | undefined,
   settings: AppSettings,
   logoSrc: string,
-  logoMarkSrc: string,
+  logoMarkSrc: string
 ): string => {
   const displayName = tenant?.full_name || room?.tenant_name || 'Khách thuê'
   const displayPhone = tenant?.phone || room?.tenant_phone || ''
@@ -313,15 +352,17 @@ const buildInvoiceDetailExportHtml = (
   const tenantShortName = getShortName(displayName)
   const label = getInvoiceLabel(invoice)
   const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
-  const wordsText = invoice.total_amount < 0
-    ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
-    : numberToWords(invoice.total_amount)
+  const wordsText =
+    invoice.total_amount < 0
+      ? `Hoàn ${numberToWords(Math.abs(invoice.total_amount)).toLowerCase()}`
+      : numberToWords(invoice.total_amount)
   const dueDate = invoice.due_date ? fmtDate(invoice.due_date) : null
   const note = cleanInvoiceNote(invoice.note)
   const lines = buildDetailExportLines(invoice, room)
-  const transferDes = remaining > 0 && settings.account_no && settings.bank_id
-    ? buildInvoiceTransferDescription(invoice, room?.name)
-    : ''
+  const transferDes =
+    remaining > 0 && settings.account_no && settings.bank_id
+      ? buildInvoiceTransferDescription(invoice, room?.name)
+      : ''
 
   return `<!doctype html>
 <html>
@@ -472,13 +513,17 @@ const buildInvoiceDetailExportHtml = (
               <tr><th>STT</th><th>Nội dung</th><th>Chi tiết</th><th>Thành tiền</th></tr>
             </thead>
             <tbody>
-              ${lines.map((line, idx) => `
+              ${lines
+                .map(
+                  (line, idx) => `
                 <tr>
                   <td>${idx + 1}</td>
                   <td class="item-label">${escapeHtml(line.label)}</td>
                   <td>${renderDetailExportLine(line.detail)}</td>
                   <td class="amount">${formatVND(line.amount)}đ</td>
-                </tr>`).join('')}
+                </tr>`
+                )
+                .join('')}
             </tbody>
           </table>
         </div>
@@ -491,17 +536,25 @@ const buildInvoiceDetailExportHtml = (
             <span class="words-label">Bằng chữ:</span>
             <span class="words">${escapeHtml(wordsText)}</span>
           </div>
-          ${invoice.paid_amount > 0 ? `
+          ${
+            invoice.paid_amount > 0
+              ? `
             <div class="paid-row">
               <span>Số tiền đã thanh toán</span>
               <span>${formatVND(invoice.paid_amount)}đ</span>
             </div>
-            ${remaining > 0 ? `
+            ${
+              remaining > 0
+                ? `
               <div class="remain-row">
                 <span>Số tiền còn lại</span>
                 <span>${formatVND(remaining)}đ</span>
-              </div>` : ''}
-          ` : ''}
+              </div>`
+                : ''
+            }
+          `
+              : ''
+          }
         </div>
         <div class="section signature">
           <div>
@@ -518,7 +571,9 @@ const buildInvoiceDetailExportHtml = (
           </div>
         </div>
         ${note ? `<div class="section note"><span class="bold">Ghi chú:</span> ${escapeHtml(note)}</div>` : ''}
-        ${transferDes ? `
+        ${
+          transferDes
+            ? `
           <div class="qr">
             <div class="qr-box"><img src="https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id || '')}&acc=${encodeURIComponent(settings.account_no || '')}&amount=${encodeURIComponent(String(remaining))}&des=${encodeURIComponent(transferDes)}" alt="VietQR" /></div>
             <div class="qr-info">
@@ -532,7 +587,9 @@ const buildInvoiceDetailExportHtml = (
               <div class="qr-hint">Khách có thể tự nhập số tiền chuyển, giữ nguyên nội dung chuyển khoản.</div>
               <div class="qr-des">Nội dung: <span class="bold">${escapeHtml(transferDes)}</span></div>
             </div>
-          </div>` : ''}
+          </div>`
+            : ''
+        }
         <div class="footer">
           <span>AN KHANG HOME</span>
           <span>${escapeHtml(propertyAddress || '-')}</span>
@@ -546,7 +603,7 @@ const buildInvoiceDetailExportHtml = (
 }
 
 const fmtDate = (d: string) =>
-  new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 const fmtDateTime = (d: string) =>
   new Date(d).toLocaleString('vi-VN', {
@@ -554,235 +611,284 @@ const fmtDateTime = (d: string) =>
     minute: '2-digit',
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
-  });
+    year: 'numeric'
+  })
 
 function getInvoiceLabel(invoice: Invoice): string {
-  if (invoice.is_settlement) return 'Hóa đơn tất toán hợp đồng';
-  if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc';
-  if (invoice.billing_reason === 'deposit_collect' || isDepositOnlyInvoice(invoice)) return 'Thu tiền cọc';
-  if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên';
-  if (invoice.billing_reason === 'contract_end') return 'Tất toán hợp đồng';
-  return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`;
+  if (invoice.is_settlement) return 'Hóa đơn tất toán hợp đồng'
+  if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc'
+  if (invoice.billing_reason === 'deposit_collect' || isDepositOnlyInvoice(invoice))
+    return 'Thu tiền cọc'
+  if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên'
+  if (invoice.billing_reason === 'contract_end') return 'Tất toán hợp đồng'
+  return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`
 }
 
 /** Lấy khoảng thời gian kỳ hóa đơn từ dữ liệu đã lưu */
-function getBillingPeriod(invoice: Invoice, _room: Room | undefined): { start: string; end: string } | null {
-  if (!invoice.billing_period_start || !invoice.billing_period_end) return null;
-  const monthEnd = new Date(invoice.year, invoice.month, 0).toISOString().split('T')[0];
-  const savedEnd = new Date(invoice.billing_period_end);
+function getBillingPeriod(
+  invoice: Invoice,
+  _room: Room | undefined
+): { start: string; end: string } | null {
+  if (!invoice.billing_period_start || !invoice.billing_period_end) return null
+  const monthEnd = new Date(invoice.year, invoice.month, 0).toISOString().split('T')[0]
+  const savedEnd = new Date(invoice.billing_period_end)
   const isMonthlyInvoice =
     !invoice.is_settlement &&
     !isDepositOnlyInvoice(invoice) &&
     invoice.billing_reason !== 'deposit_collect' &&
     invoice.billing_reason !== 'deposit_refund' &&
-    invoice.billing_reason !== 'contract_end';
+    invoice.billing_reason !== 'contract_end'
   const savedEndIsInsideInvoiceMonth =
     !Number.isNaN(savedEnd.getTime()) &&
     savedEnd.getFullYear() === invoice.year &&
     savedEnd.getMonth() + 1 === invoice.month &&
-    invoice.billing_period_end < monthEnd;
+    invoice.billing_period_end < monthEnd
   return {
     start: invoice.billing_period_start,
-    end: isMonthlyInvoice && savedEndIsInsideInvoiceMonth ? monthEnd : invoice.billing_period_end,
-  };
+    end: isMonthlyInvoice && savedEndIsInsideInvoiceMonth ? monthEnd : invoice.billing_period_end
+  }
 }
 
 export const InvoicesTab: React.FC<{
-  currentUser?: AppUser | null;
-  openSePaySyncSignal?: number;
-  onSePaySyncSignalHandled?: () => void;
+  currentUser?: AppUser | null
+  openSePaySyncSignal?: number
+  onSePaySyncSignalHandled?: () => void
 }> = ({ currentUser, openSePaySyncSignal = 0, onSePaySyncSignalHandled }) => {
-  const isAdmin = currentUser?.role === 'admin';
-  const queryClient = useQueryClient();
-  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
-  const { data: invoices = [], isLoading } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
+  const INVOICE_PAGE_SIZE = 50
+  const isAdmin = currentUser?.role === 'admin'
+  const queryClient = useQueryClient()
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [showSePaySync, setShowSePaySync] = useState(false)
+  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
+  const {
+    data: invoicePages,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery({
+    queryKey: ['invoices', 'month', selectedYear, selectedMonth],
+    queryFn: ({ pageParam }) =>
+      getInvoices({
+        month: selectedMonth,
+        year: selectedYear,
+        limit: INVOICE_PAGE_SIZE,
+        offset: pageParam
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length < INVOICE_PAGE_SIZE ? undefined : allPages.length * INVOICE_PAGE_SIZE
+  })
+  const invoices = useMemo(
+    () => invoicePages?.pages.flatMap((page) => page) || [],
+    [invoicePages]
+  )
+  const loadingAllPagesRef = useRef<Promise<void> | null>(null)
+  const loadAllInvoicePages = async (): Promise<void> => {
+    if (loadingAllPagesRef.current) return loadingAllPagesRef.current
+    const loadPromise = (async () => {
+    let more = Boolean(hasNextPage)
+    while (more) {
+      const result = await fetchNextPage()
+      more = Boolean(result.hasNextPage)
+    }
+    })()
+    loadingAllPagesRef.current = loadPromise
+    try {
+      await loadPromise
+    } finally {
+      loadingAllPagesRef.current = null
+    }
+  }
+  const { data: invoiceMonthCounts = {} } = useQuery({
+    queryKey: ['invoiceMonthCounts'],
+    queryFn: getInvoiceMonthCounts,
+    staleTime: 60_000
+  })
+  const { data: invoiceMonthSummary } = useQuery({
+    queryKey: ['invoiceMonthSummary', selectedYear, selectedMonth],
+    queryFn: () => getInvoiceMonthSummary(selectedMonth, selectedYear),
+    staleTime: 60_000
+  })
+  const { data: sepayInvoices = [] } = useQuery({
+    queryKey: ['invoices', 'sepay'],
+    queryFn: () => getInvoices(),
+    enabled: showSePaySync,
+    staleTime: 15_000
+  })
 
-  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants });
-  const { data: appSettings = {}, isLoading: isSettingsLoading } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings });
+  const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
+  const { data: appSettings = {}, isLoading: isSettingsLoading } = useQuery({
+    queryKey: ['appSettings'],
+    queryFn: getAppSettings
+  })
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [sortOrder, setSortOrder] = useState<'room_asc' | 'room_desc' | 'amount_desc' | 'newest'>('newest');
-  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-  const [showSePaySync, setShowSePaySync] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortOrder, setSortOrder] = useState<'room_asc' | 'room_desc' | 'amount_desc' | 'newest'>(
+    'newest'
+  )
+  const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null)
 
   useEffect(() => {
     if (openSePaySyncSignal > 0) {
-      setShowSePaySync(true);
-      onSePaySyncSignalHandled?.();
+      setShowSePaySync(true)
+      onSePaySyncSignalHandled?.()
     }
-  }, [openSePaySyncSignal, onSePaySyncSignalHandled]);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [bulkExporting, setBulkExporting] = useState(false);
-  const [bulkExportMessage, setBulkExportMessage] = useState('');
+  }, [openSePaySyncSignal, onSePaySyncSignalHandled])
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [bulkExporting, setBulkExporting] = useState(false)
+  const [bulkExportMessage, setBulkExportMessage] = useState('')
 
   const deleteMutation = useMutation({
     mutationFn: deleteInvoice,
-    onSuccess: (cancelledInvoice, id) => {
-      queryClient.setQueryData<Invoice[]>(['invoices'], (prev = []) =>
-        prev.map((invoice) =>
-          invoice.id === id
-            ? {
-              ...invoice,
-              payment_status: 'cancelled',
-              note: invoice.note ? `${invoice.note}\n[Đã hủy phiếu]` : '[Đã hủy phiếu]',
-            }
-            : invoice
-        )
-      );
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
+    onSuccess: (cancelledInvoice) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['invoiceMonthCounts'] })
+      queryClient.invalidateQueries({ queryKey: ['invoiceMonthSummary', selectedYear, selectedMonth] })
       if (cancelledInvoice?.room_id) {
-        queryClient.invalidateQueries({ queryKey: ['invoices', cancelledInvoice.room_id] });
+        queryClient.invalidateQueries({ queryKey: ['invoices', cancelledInvoice.room_id] })
       }
-      queryClient.invalidateQueries({ queryKey: ['rooms'] });
-      queryClient.invalidateQueries({ queryKey: ['contracts'] });
-      queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
-      setDeletingId(null);
-      setDeleteError(null);
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
+      setDeletingId(null)
+      setDeleteError(null)
     },
     onError: (err: Error) => {
-      setDeleteError(err.message);
-    },
-  });
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
-  const menuRef = useRef<HTMLDivElement>(null);
+      setDeleteError(err.message)
+    }
+  })
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+  const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpenMenuId(null);
+        setOpenMenuId(null)
       }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   // Multi-select filter dạng checkbox
-  const [filters, setFilters] = useState({ paid: false, unpaid: true, partial: false, settlement: false, cancelled: false });
+  const [filters, setFilters] = useState({
+    paid: false,
+    unpaid: true,
+    partial: false,
+    settlement: false,
+    cancelled: false
+  })
 
-  const toggleFilter = (key: keyof typeof filters) =>
-    setFilters(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleFilter = (key: keyof typeof filters) => {
+    setFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+    void loadAllInvoicePages()
+  }
 
   const monthYearOptions = useMemo(() => {
-    const options: { month: number; year: number }[] = [];
-    const now = new Date();
+    const options: { month: number; year: number }[] = []
+    const now = new Date()
     for (let i = 0; i < 12; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      options.push({ month: date.getMonth() + 1, year: date.getFullYear() });
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      options.push({ month: date.getMonth() + 1, year: date.getFullYear() })
     }
-    return options;
-  }, []);
+    return options
+  }, [])
 
   const monthInvoices = useMemo(
-    () => invoices.filter(inv => inv.month === selectedMonth && inv.year === selectedYear),
+    () => invoices.filter((inv) => inv.month === selectedMonth && inv.year === selectedYear),
     [invoices, selectedMonth, selectedYear]
-  );
+  )
 
   const roomById = useMemo(() => {
-    const map = new Map<string, (typeof rooms)[number]>();
-    for (const room of rooms) map.set(room.id, room);
-    return map;
-  }, [rooms]);
+    const map = new Map<string, (typeof rooms)[number]>()
+    for (const room of rooms) map.set(room.id, room)
+    return map
+  }, [rooms])
 
   const tenantById = useMemo(() => {
-    const map = new Map<string, (typeof tenants)[number]>();
-    for (const tenant of tenants) map.set(tenant.id, tenant);
-    return map;
-  }, [tenants]);
-
-  const invoiceCountByMonth = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const invoice of invoices) {
-      const key = `${invoice.year}-${invoice.month}`;
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return map;
-  }, [invoices]);
+    const map = new Map<string, (typeof tenants)[number]>()
+    for (const tenant of tenants) map.set(tenant.id, tenant)
+    return map
+  }, [tenants])
 
   const statusCounts = useMemo(() => {
-    const counts = { paid: 0, unpaid: 0, partial: 0, settlement: 0, merged: 0, cancelled: 0 };
-    for (const invoice of monthInvoices) {
-      if (invoice.is_settlement) counts.settlement++;
-      if (invoice.payment_status === 'merged') counts.merged++;
-      if (invoice.payment_status === 'cancelled') counts.cancelled++;
-      if (invoice.is_settlement) continue;
-      if (invoice.payment_status === 'paid') counts.paid++;
-      if (invoice.payment_status === 'unpaid') counts.unpaid++;
-      if (invoice.payment_status === 'partial') counts.partial++;
+    const counts = invoiceMonthSummary || {
+      total: 0,
+      paid: 0,
+      unpaid: 0,
+      partial: 0,
+      settlement: 0,
+      merged: 0,
+      cancelled: 0
     }
-    return counts;
-  }, [monthInvoices]);
+    if (invoiceMonthSummary) return counts
+    for (const invoice of monthInvoices) {
+      if (invoice.is_settlement) counts.settlement++
+      if (invoice.payment_status === 'merged') counts.merged++
+      if (invoice.payment_status === 'cancelled') counts.cancelled++
+      if (invoice.is_settlement) continue
+      if (invoice.payment_status === 'paid') counts.paid++
+      if (invoice.payment_status === 'unpaid') counts.unpaid++
+      if (invoice.payment_status === 'partial') counts.partial++
+    }
+    return counts
+  }, [invoiceMonthSummary, monthInvoices])
 
   const filteredInvoices = useMemo(() => {
-    const normalizedSearch = searchQuery.toLowerCase();
-    const result = monthInvoices.filter(inv => {
+    const normalizedSearch = searchQuery.toLowerCase()
+    const result = monthInvoices.filter((inv) => {
       // Hóa đơn đã hủy hợp đồng
-      if (inv.payment_status === 'cancelled') return filters.cancelled;
+      if (inv.payment_status === 'cancelled') return filters.cancelled
       // Hóa đơn tất toán đã xong chỉ hiện khi bật filter Tất toán.
       // Nếu còn phải thu/hoàn thì vẫn hiện trong luồng Chưa thu mặc định.
       if (inv.is_settlement) {
-        const total = Number(inv.total_amount || 0);
-        const paid = Number(inv.paid_amount || 0);
-        const hasPendingSettlementWork = total < 0 ? paid > total : total > paid;
-        return filters.settlement || (filters.unpaid && hasPendingSettlementWork);
+        const total = Number(inv.total_amount || 0)
+        const paid = Number(inv.paid_amount || 0)
+        const hasPendingSettlementWork = total < 0 ? paid > total : total > paid
+        return filters.settlement || (filters.unpaid && hasPendingSettlementWork)
       }
       // Hóa đơn đã gộp (merged): luôn hiện nếu settlement bật
-      if (inv.payment_status === 'merged') return filters.settlement;
+      if (inv.payment_status === 'merged') return filters.settlement
       // Hóa đơn thường
-      if (inv.payment_status === 'paid' && !filters.paid) return false;
-      if (inv.payment_status === 'unpaid' && !filters.unpaid) return false;
-      if (inv.payment_status === 'partial' && !filters.partial) return false;
-      const roomName = roomById.get(inv.room_id)?.name || '';
-      return roomName.toLowerCase().includes(normalizedSearch);
-    });
+      if (inv.payment_status === 'paid' && !filters.paid) return false
+      if (inv.payment_status === 'unpaid' && !filters.unpaid) return false
+      if (inv.payment_status === 'partial' && !filters.partial) return false
+      const roomName = roomById.get(inv.room_id)?.name || ''
+      return roomName.toLowerCase().includes(normalizedSearch)
+    })
     return result.sort((a, b) => {
-      const roomA = roomById.get(a.room_id)?.name || '';
-      const roomB = roomById.get(b.room_id)?.name || '';
-      if (sortOrder === 'room_asc') return roomA.localeCompare(roomB);
-      if (sortOrder === 'room_desc') return roomB.localeCompare(roomA);
-      if (sortOrder === 'amount_desc') return b.total_amount - a.total_amount;
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-  }, [monthInvoices, filters, roomById, searchQuery, sortOrder]);
+      const roomA = roomById.get(a.room_id)?.name || ''
+      const roomB = roomById.get(b.room_id)?.name || ''
+      if (sortOrder === 'room_asc') return roomA.localeCompare(roomB)
+      if (sortOrder === 'room_desc') return roomB.localeCompare(roomA)
+      if (sortOrder === 'amount_desc') return b.total_amount - a.total_amount
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [monthInvoices, filters, roomById, searchQuery, sortOrder])
 
   const filteredInvoiceSummary = useMemo(() => {
-    let count = 0;
-    let total = 0;
-    let paid = 0;
-    let remaining = 0;
+    let count = 0
+    let total = 0
+    let paid = 0
+    let remaining = 0
     for (const invoice of filteredInvoices) {
-      if (invoice.payment_status === 'cancelled') continue;
-      count++;
-      total += invoice.total_amount;
-      paid += invoice.paid_amount;
-      remaining += Math.max(0, invoice.total_amount - invoice.paid_amount);
+      if (invoice.payment_status === 'cancelled') continue
+      count++
+      total += invoice.total_amount
+      paid += invoice.paid_amount
+      remaining += Math.max(0, invoice.total_amount - invoice.paid_amount)
     }
-    return { count, total, paid, remaining };
-  }, [filteredInvoices]);
-
-  const unpaidInvoicesToExport = useMemo(
-    () =>
-      monthInvoices.filter(
-        (invoice) =>
-          invoice.payment_status === 'unpaid' &&
-          !invoice.is_settlement &&
-          !isInvoiceExported(invoice)
-      ),
-    [monthInvoices]
-  );
+    return { count, total, paid, remaining }
+  }, [filteredInvoices])
 
   const handleBulkExportUnpaid = async () => {
-    if (bulkExporting) return;
-    if (unpaidInvoicesToExport.length === 0) {
-      setBulkExportMessage('Không có hóa đơn chưa thu nào cần xuất trong tháng này.')
-      return
-    }
+    if (bulkExporting) return
 
     setBulkExporting(true)
     setBulkExportMessage('')
@@ -790,18 +896,39 @@ export const InvoicesTab: React.FC<{
     let lastPath = ''
 
     try {
+      // Export is an explicit heavy action: fetch the complete month, not only loaded pages.
+      const exportInvoices = (await getInvoices({ month: selectedMonth, year: selectedYear })).filter(
+        (invoice) =>
+          invoice.payment_status === 'unpaid' &&
+          !invoice.is_settlement &&
+          !isInvoiceExported(invoice)
+      )
+      if (exportInvoices.length === 0) {
+        setBulkExportMessage('Không có hóa đơn chưa thu nào cần xuất trong tháng này.')
+        return
+      }
+
       const saveToDownloads = window.api.invoice.saveImageToDownloads
       if (typeof saveToDownloads !== 'function') {
-        throw new Error('Chức năng xuất vào Downloads vừa được cập nhật. Vui lòng tắt app và mở lại để nạp bản mới.')
+        throw new Error(
+          'Chức năng xuất vào Downloads vừa được cập nhật. Vui lòng tắt app và mở lại để nạp bản mới.'
+        )
       }
 
       const logoSrc = await getImageDataUrl(logoNgang)
       const logoMarkSrc = await getImageDataUrl(logoMark)
 
-      for (const invoice of unpaidInvoicesToExport) {
+      for (const invoice of exportInvoices) {
         const room = roomById.get(invoice.room_id)
         const tenant = tenantById.get(invoice.tenant_id)
-        const html = buildInvoiceDetailExportHtml(invoice, room, tenant, appSettings, logoSrc, logoMarkSrc)
+        const html = buildInvoiceDetailExportHtml(
+          invoice,
+          room,
+          tenant,
+          appSettings,
+          logoSrc,
+          logoMarkSrc
+        )
         const roomName = (room?.name || 'phong').replace(/\s+/g, '-')
         const fileName = `hoa-don-${roomName}-T${String(invoice.month).padStart(2, '0')}-${invoice.year}.jpg`
         const result = await saveToDownloads({ html, fileName })
@@ -816,7 +943,9 @@ export const InvoicesTab: React.FC<{
       }
 
       await queryClient.invalidateQueries({ queryKey: ['invoices'] })
-      setBulkExportMessage(`Đã xuất ${exported} hóa đơn chưa thu vào Downloads${lastPath ? ` (${lastPath})` : ''}.`)
+      setBulkExportMessage(
+        `Đã xuất ${exported} hóa đơn chưa thu vào Downloads${lastPath ? ` (${lastPath})` : ''}.`
+      )
     } catch (err) {
       setBulkExportMessage(err instanceof Error ? err.message : 'Không thể xuất hóa đơn hàng loạt.')
     } finally {
@@ -827,7 +956,6 @@ export const InvoicesTab: React.FC<{
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-
         {/* Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-start gap-3">
@@ -845,7 +973,8 @@ export const InvoicesTab: React.FC<{
               disabled={isSettingsLoading}
               className="flex items-center gap-2 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <i className="fa-solid fa-rotate"></i><span>Đồng bộ SePay</span>
+              <i className="fa-solid fa-rotate"></i>
+              <span>Đồng bộ SePay</span>
             </button>
             <button
               onClick={handleBulkExportUnpaid}
@@ -853,10 +982,12 @@ export const InvoicesTab: React.FC<{
               className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
               title="Xuất toàn bộ hóa đơn chưa thu của tháng đang chọn vào Downloads"
             >
-              <i className="fa-solid fa-print"></i><span>{bulkExporting ? 'Đang xuất...' : 'Xuất HĐ'}</span>
+              <i className="fa-solid fa-print"></i>
+              <span>{bulkExporting ? 'Đang xuất...' : 'Xuất HĐ'}</span>
             </button>
             <button className="flex items-center gap-2 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium text-sm transition">
-              <i className="fa-solid fa-file-export"></i><span>Xuất excel</span>
+              <i className="fa-solid fa-file-export"></i>
+              <span>Xuất excel</span>
             </button>
           </div>
         </div>
@@ -870,24 +1001,32 @@ export const InvoicesTab: React.FC<{
         {/* Month Tabs */}
         <div className="px-4 pt-3 overflow-x-auto border-b border-gray-100">
           <div className="flex gap-1.5 pb-0 min-w-max">
-            {monthYearOptions.map(opt => {
-              const isActive = selectedMonth === opt.month && selectedYear === opt.year;
-              const count = invoiceCountByMonth.get(`${opt.year}-${opt.month}`) || 0;
+            {monthYearOptions.map((opt) => {
+              const isActive = selectedMonth === opt.month && selectedYear === opt.year
+              const count = invoiceMonthCounts[`${opt.year}-${opt.month}`] || 0
               return (
                 <button
                   key={`${opt.month}-${opt.year}`}
-                  onClick={() => { setSelectedMonth(opt.month); setSelectedYear(opt.year); }}
-                  className={`relative px-4 py-2 rounded-t-lg font-medium text-sm transition-colors flex items-center gap-1.5 ${isActive ? 'bg-green-100 text-green-700 border-b-2 border-green-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
-                    }`}
+                  onClick={() => {
+                    setSelectedMonth(opt.month)
+                    setSelectedYear(opt.year)
+                  }}
+                  className={`relative px-4 py-2 rounded-t-lg font-medium text-sm transition-colors flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-green-100 text-green-700 border-b-2 border-green-600'
+                      : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+                  }`}
                 >
                   T.{opt.month} {opt.year}
                   {count > 0 && (
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'}`}>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-green-600 text-white' : 'bg-gray-300 text-gray-600'}`}
+                    >
                       {count}
                     </span>
                   )}
                 </button>
-              );
+              )
             })}
           </div>
         </div>
@@ -904,11 +1043,36 @@ export const InvoicesTab: React.FC<{
 
           {/* Checkboxes */}
           {[
-            { key: 'paid' as const, label: 'Đã thu', count: statusCounts.paid, color: 'text-emerald-700' },
-            { key: 'unpaid' as const, label: 'Chưa thu', count: statusCounts.unpaid, color: 'text-orange-600' },
-            { key: 'partial' as const, label: 'Đang nợ', count: statusCounts.partial, color: 'text-red-600' },
-            { key: 'settlement' as const, label: 'Tất toán', count: statusCounts.settlement, color: 'text-purple-600' },
-            { key: 'cancelled' as const, label: 'Đã hủy HĐ', count: statusCounts.cancelled, color: 'text-gray-500' },
+            {
+              key: 'paid' as const,
+              label: 'Đã thu',
+              count: statusCounts.paid,
+              color: 'text-emerald-700'
+            },
+            {
+              key: 'unpaid' as const,
+              label: 'Chưa thu',
+              count: statusCounts.unpaid,
+              color: 'text-orange-600'
+            },
+            {
+              key: 'partial' as const,
+              label: 'Đang nợ',
+              count: statusCounts.partial,
+              color: 'text-red-600'
+            },
+            {
+              key: 'settlement' as const,
+              label: 'Tất toán',
+              count: statusCounts.settlement,
+              color: 'text-purple-600'
+            },
+            {
+              key: 'cancelled' as const,
+              label: 'Đã hủy HĐ',
+              count: statusCounts.cancelled,
+              color: 'text-gray-500'
+            }
           ].map(({ key, label, count, color }) => (
             <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
               <input
@@ -918,7 +1082,11 @@ export const InvoicesTab: React.FC<{
                 className="w-3.5 h-3.5 accent-green-600"
               />
               <span className="text-xs text-gray-600">{label}</span>
-              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 ${color}`}>{count}</span>
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 ${color}`}
+              >
+                {count}
+              </span>
             </label>
           ))}
 
@@ -927,7 +1095,10 @@ export const InvoicesTab: React.FC<{
           {/* Sort */}
           <select
             value={sortOrder}
-            onChange={e => setSortOrder(e.target.value as typeof sortOrder)}
+            onChange={(e) => {
+              setSortOrder(e.target.value as typeof sortOrder)
+              void loadAllInvoicePages()
+            }}
             className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 outline-none focus:border-green-400"
           >
             <option value="room_asc">Thứ tự phòng tăng dần</option>
@@ -942,7 +1113,10 @@ export const InvoicesTab: React.FC<{
               type="text"
               placeholder="Tìm tên phòng..."
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                if (e.target.value.trim()) void loadAllInvoicePages()
+              }}
               className="w-44 text-xs border border-gray-200 rounded-lg pl-3 pr-8 py-1.5 bg-white outline-none focus:border-green-400"
             />
             <i className="fa-solid fa-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
@@ -982,48 +1156,76 @@ export const InvoicesTab: React.FC<{
                 </tr>
               ) : (
                 filteredInvoices.map((invoice) => {
-                  const room = roomById.get(invoice.room_id);
-                  const isPaid = invoice.payment_status === 'paid';
-                  const isPartial = invoice.payment_status === 'partial';
-                  const isCancelled = invoice.payment_status === 'cancelled';
-                  const exported = isInvoiceExported(invoice);
-                  const remaining = invoice.total_amount - invoice.paid_amount;
-                  const elecWaterCost = invoice.electric_cost + invoice.water_cost;
-                  const depositAmt = invoice.deposit_amount || 0;
-                  const adjustmentAmt = invoice.adjustment_amount || 0;
-                  const period = getBillingPeriod(invoice, room);
-                  const label = getInvoiceLabel(invoice);
+                  const room = roomById.get(invoice.room_id)
+                  const isPaid = invoice.payment_status === 'paid'
+                  const isPartial = invoice.payment_status === 'partial'
+                  const isCancelled = invoice.payment_status === 'cancelled'
+                  const exported = isInvoiceExported(invoice)
+                  const remaining = invoice.total_amount - invoice.paid_amount
+                  const elecWaterCost = invoice.electric_cost + invoice.water_cost
+                  const depositAmt = invoice.deposit_amount || 0
+                  const adjustmentAmt = invoice.adjustment_amount || 0
+                  const period = getBillingPeriod(invoice, room)
+                  const label = getInvoiceLabel(invoice)
 
-                  const isSettlement = !!invoice.is_settlement;
-                  const isMerged = invoice.payment_status === 'merged';
+                  const isSettlement = !!invoice.is_settlement
+                  const isMerged = invoice.payment_status === 'merged'
                   return (
                     <tr
                       key={invoice.id}
-                      className={`transition hover:brightness-95 ${isCancelled ? 'bg-gray-50 opacity-60' :
-                        isSettlement ? 'bg-purple-50/60' :
-                          isMerged ? 'bg-gray-50' :
-                            isPaid ? 'bg-emerald-50/60' : 'bg-white'
-                        }`}
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: '0 92px' }}
+                      className={`transition hover:brightness-95 ${
+                        isCancelled
+                          ? 'bg-gray-50 opacity-60'
+                          : isSettlement
+                            ? 'bg-purple-50/60'
+                            : isMerged
+                              ? 'bg-gray-50'
+                              : isPaid
+                                ? 'bg-emerald-50/60'
+                                : 'bg-white'
+                      }`}
                     >
                       {/* Color dot */}
                       <td className="px-3 py-3 text-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs mx-auto shadow-sm ${isCancelled ? 'bg-gray-400' :
-                          isSettlement ? 'bg-gradient-to-br from-purple-500 to-indigo-500' :
-                            isMerged ? 'bg-gray-400' :
-                              isPaid ? 'bg-gradient-to-br from-emerald-400 to-green-500' :
-                                isPartial ? 'bg-yellow-400' : 'bg-orange-400'
-                          }`}>
-                          <i className={`fa-solid ${isCancelled ? 'fa-ban' :
-                            isSettlement ? 'fa-door-closed' :
-                              isMerged ? 'fa-layer-group' :
-                                isPaid ? 'fa-check' : isPartial ? 'fa-hourglass-half' : 'fa-clock'
-                            }`}></i>
+                        <div
+                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs mx-auto shadow-sm ${
+                            isCancelled
+                              ? 'bg-gray-400'
+                              : isSettlement
+                                ? 'bg-gradient-to-br from-purple-500 to-indigo-500'
+                                : isMerged
+                                  ? 'bg-gray-400'
+                                  : isPaid
+                                    ? 'bg-gradient-to-br from-emerald-400 to-green-500'
+                                    : isPartial
+                                      ? 'bg-yellow-400'
+                                      : 'bg-orange-400'
+                          }`}
+                        >
+                          <i
+                            className={`fa-solid ${
+                              isCancelled
+                                ? 'fa-ban'
+                                : isSettlement
+                                  ? 'fa-door-closed'
+                                  : isMerged
+                                    ? 'fa-layer-group'
+                                    : isPaid
+                                      ? 'fa-check'
+                                      : isPartial
+                                        ? 'fa-hourglass-half'
+                                        : 'fa-clock'
+                            }`}
+                          ></i>
                         </div>
                       </td>
 
                       {/* Tên phòng */}
                       <td className="px-3 py-3">
-                        <div className="font-bold text-gray-800">{room?.name || 'Phòng đã xóa'}</div>
+                        <div className="font-bold text-gray-800">
+                          {room?.name || 'Phòng đã xóa'}
+                        </div>
                         <div className="text-[11px] text-gray-400 mt-0.5">{label}</div>
                         <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
                           <i className="fa-regular fa-clock text-[9px]"></i>
@@ -1032,14 +1234,16 @@ export const InvoicesTab: React.FC<{
                             minute: '2-digit',
                             day: '2-digit',
                             month: '2-digit',
-                            year: 'numeric',
+                            year: 'numeric'
                           })}
                         </div>
                       </td>
 
                       {/* Tiền phòng + date range */}
                       <td className="px-3 py-3 text-right">
-                        <div className="font-semibold text-gray-800 tabular-nums">{formatVND(invoice.room_cost)} đ</div>
+                        <div className="font-semibold text-gray-800 tabular-nums">
+                          {formatVND(invoice.room_cost)} đ
+                        </div>
                         {period && (
                           <div className="text-[10px] text-green-600 mt-0.5 tabular-nums">
                             [{fmtDate(period.start)} - {fmtDate(period.end)}]
@@ -1049,11 +1253,17 @@ export const InvoicesTab: React.FC<{
 
                       {/* Điện nước */}
                       <td className="px-3 py-3 text-right">
-                        <div className="font-semibold text-gray-700 tabular-nums">{formatVND(elecWaterCost)} đ</div>
+                        <div className="font-semibold text-gray-700 tabular-nums">
+                          {formatVND(elecWaterCost)} đ
+                        </div>
                         {elecWaterCost > 0 && (
                           <div className="text-[10px] text-gray-400 space-y-0.5 mt-0.5">
-                            {invoice.electric_cost > 0 && <div>Điện: {formatVND(invoice.electric_cost)}</div>}
-                            {invoice.water_cost > 0 && <div>Nước: {formatVND(invoice.water_cost)}</div>}
+                            {invoice.electric_cost > 0 && (
+                              <div>Điện: {formatVND(invoice.electric_cost)}</div>
+                            )}
+                            {invoice.water_cost > 0 && (
+                              <div>Nước: {formatVND(invoice.water_cost)}</div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -1062,11 +1272,16 @@ export const InvoicesTab: React.FC<{
                       <td className="px-3 py-3 text-right">
                         {depositAmt !== 0 ? (
                           <div>
-                            <span className={`font-semibold tabular-nums ${depositAmt < 0 ? 'text-blue-600' : 'text-gray-700'}`}>
-                              {depositAmt < 0 ? '-' : '+'}{formatVND(Math.abs(depositAmt))} đ
+                            <span
+                              className={`font-semibold tabular-nums ${depositAmt < 0 ? 'text-blue-600' : 'text-gray-700'}`}
+                            >
+                              {depositAmt < 0 ? '-' : '+'}
+                              {formatVND(Math.abs(depositAmt))} đ
                             </span>
                             {isSettlement && depositAmt < 0 && (
-                              <div className="text-[10px] text-blue-500 font-medium mt-0.5">Hoàn cọc</div>
+                              <div className="text-[10px] text-blue-500 font-medium mt-0.5">
+                                Hoàn cọc
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -1078,11 +1293,19 @@ export const InvoicesTab: React.FC<{
                       <td className="px-3 py-3 text-right">
                         {adjustmentAmt !== 0 ? (
                           <div>
-                            <span className={`font-semibold tabular-nums ${adjustmentAmt < 0 ? 'text-red-500' : 'text-orange-600'}`}>
-                              {adjustmentAmt < 0 ? '-' : '+'}{formatVND(Math.abs(adjustmentAmt))} đ
+                            <span
+                              className={`font-semibold tabular-nums ${adjustmentAmt < 0 ? 'text-red-500' : 'text-orange-600'}`}
+                            >
+                              {adjustmentAmt < 0 ? '-' : '+'}
+                              {formatVND(Math.abs(adjustmentAmt))} đ
                             </span>
                             {isSettlement && adjustmentAmt > 0 && invoice.adjustment_note && (
-                              <div className="text-[10px] text-orange-500 font-medium mt-0.5 max-w-[100px] truncate" title={invoice.adjustment_note}>{invoice.adjustment_note}</div>
+                              <div
+                                className="text-[10px] text-orange-500 font-medium mt-0.5 max-w-[100px] truncate"
+                                title={invoice.adjustment_note}
+                              >
+                                {invoice.adjustment_note}
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -1099,18 +1322,26 @@ export const InvoicesTab: React.FC<{
                             </div>
                             {invoice.paid_amount > 0 && (
                               <div className="text-[10px] text-emerald-600 mt-0.5 italic">
-                                Đã hoàn<br />
-                                <span className="font-bold tabular-nums">{formatVND(invoice.paid_amount)} đ</span>
+                                Đã hoàn
+                                <br />
+                                <span className="font-bold tabular-nums">
+                                  {formatVND(invoice.paid_amount)} đ
+                                </span>
                               </div>
                             )}
                           </div>
                         ) : (
                           <div>
-                            <div className="font-bold text-gray-800 text-base tabular-nums">{formatVND(invoice.total_amount)} đ</div>
+                            <div className="font-bold text-gray-800 text-base tabular-nums">
+                              {formatVND(invoice.total_amount)} đ
+                            </div>
                             {invoice.paid_amount > 0 && (
                               <div className="text-[10px] text-emerald-600 mt-0.5 italic">
-                                Số tiền đã thu<br />
-                                <span className="font-bold tabular-nums">{formatVND(invoice.paid_amount)} đ</span>
+                                Số tiền đã thu
+                                <br />
+                                <span className="font-bold tabular-nums">
+                                  {formatVND(invoice.paid_amount)} đ
+                                </span>
                               </div>
                             )}
                           </div>
@@ -1124,7 +1355,9 @@ export const InvoicesTab: React.FC<{
                             Hoàn {formatVND(Math.abs(invoice.total_amount))} đ
                           </span>
                         ) : remaining > 0 ? (
-                          <span className="font-bold text-red-500 tabular-nums">{formatVND(remaining)} đ</span>
+                          <span className="font-bold text-red-500 tabular-nums">
+                            {formatVND(remaining)} đ
+                          </span>
                         ) : (
                           <span className="font-bold text-emerald-600">0 đ</span>
                         )}
@@ -1170,9 +1403,14 @@ export const InvoicesTab: React.FC<{
                       <td className="px-3 py-3 text-center">
                         <button
                           onClick={(e) => {
-                            const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                            setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
-                            setOpenMenuId(openMenuId === invoice.id ? null : invoice.id);
+                            const rect = (
+                              e.currentTarget as HTMLButtonElement
+                            ).getBoundingClientRect()
+                            setMenuPos({
+                              top: rect.bottom + 4,
+                              right: window.innerWidth - rect.right
+                            })
+                            setOpenMenuId(openMenuId === invoice.id ? null : invoice.id)
                           }}
                           className="text-gray-400 hover:text-gray-600 transition w-7 h-7 rounded hover:bg-gray-100 flex items-center justify-center mx-auto"
                         >
@@ -1180,34 +1418,52 @@ export const InvoicesTab: React.FC<{
                         </button>
                       </td>
                     </tr>
-                  );
+                  )
                 })
               )}
             </tbody>
           </table>
         </div>
 
+        {hasNextPage && (
+          <div className="flex items-center justify-center gap-3 border-t border-gray-100 bg-white px-4 py-3">
+            <span className="text-xs text-gray-500">
+              Đã tải {invoices.length}/{invoiceMonthCounts[`${selectedYear}-${selectedMonth}`] || invoices.length} hóa đơn
+            </span>
+            <button
+              type="button"
+              onClick={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50 disabled:cursor-wait disabled:opacity-60"
+            >
+              {isFetchingNextPage ? 'Đang tải...' : 'Tải thêm'}
+            </button>
+          </div>
+        )}
+
         {/* Footer Stats */}
         {filteredInvoices.length > 0 && (
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 grid grid-cols-4 gap-4 text-center">
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Tổng hóa đơn</div>
+              <div className="text-xs text-gray-500 mb-0.5">
+                Tổng hóa đơn{hasNextPage ? ' (đã tải)' : ''}
+              </div>
               <div className="font-bold text-gray-800">{filteredInvoiceSummary.count}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Tổng tiền</div>
+              <div className="text-xs text-gray-500 mb-0.5">Tổng tiền{hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-blue-600 tabular-nums">
                 {formatVND(filteredInvoiceSummary.total)} đ
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Đã thu</div>
+              <div className="text-xs text-gray-500 mb-0.5">Đã thu{hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-emerald-600 tabular-nums">
                 {formatVND(filteredInvoiceSummary.paid)} đ
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Còn thu</div>
+              <div className="text-xs text-gray-500 mb-0.5">Còn thu{hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-red-500 tabular-nums">
                 {formatVND(filteredInvoiceSummary.remaining)} đ
               </div>
@@ -1215,66 +1471,83 @@ export const InvoicesTab: React.FC<{
           </div>
         )}
       </div>
-      {openMenuId && (() => {
-        const invoice = filteredInvoices.find(i => i.id === openMenuId);
-        if (!invoice) return null;
-        const isPaidMenu = invoice.payment_status === 'paid';
-        const isRefundMenu = Number(invoice.total_amount || 0) < 0 || Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0) < 0;
-        const canEditInvoice = (invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0) || (isPaidMenu && isAdmin);
-        const canDeleteInvoice = !isPaidMenu || isAdmin;
-        return (
-          <div
-            ref={menuRef}
-            style={{ top: menuPos.top, right: menuPos.right }}
-            className="fixed z-[200] w-44 rounded-xl border border-gray-200 bg-white shadow-xl py-1 text-sm"
-          >
-            <button
-              onClick={() => { setViewingInvoice(invoice); setOpenMenuId(null); }}
-              className="flex w-full items-center gap-2 px-4 py-2 text-green-700 hover:bg-green-50 font-semibold"
+      {openMenuId &&
+        (() => {
+          const invoice = filteredInvoices.find((i) => i.id === openMenuId)
+          if (!invoice) return null
+          const isPaidMenu = invoice.payment_status === 'paid'
+          const isRefundMenu =
+            Number(invoice.total_amount || 0) < 0 ||
+            Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0) < 0
+          const canEditInvoice =
+            (invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0) ||
+            (isPaidMenu && isAdmin)
+          const canDeleteInvoice = !isPaidMenu || isAdmin
+          return (
+            <div
+              ref={menuRef}
+              style={{ top: menuPos.top, right: menuPos.right }}
+              className="fixed z-[200] w-44 rounded-xl border border-gray-200 bg-white shadow-xl py-1 text-sm"
             >
-              <i className="fa-solid fa-file-invoice w-4"></i>Xem chi tiết
-            </button>
-            {!isPaidMenu && (
               <button
-                onClick={() => { setPayingInvoice(invoice); setOpenMenuId(null); }}
-                className="flex w-full items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 font-semibold"
+                onClick={() => {
+                  setViewingInvoice(invoice)
+                  setOpenMenuId(null)
+                }}
+                className="flex w-full items-center gap-2 px-4 py-2 text-green-700 hover:bg-green-50 font-semibold"
               >
-                <i className="fa-solid fa-money-bill-wave w-4"></i>{isRefundMenu ? 'Hoàn tiền' : 'Thu tiền'}
+                <i className="fa-solid fa-file-invoice w-4"></i>Xem chi tiết
               </button>
-            )}
-            <button
-              onClick={() => {
-                if (!canEditInvoice) return;
-                setEditingInvoice(invoice);
-                setOpenMenuId(null);
-              }}
-              disabled={!canEditInvoice}
-              className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canEditInvoice ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 cursor-not-allowed'}`}
-              title={canEditInvoice ? 'Sửa hóa đơn' : 'Đã thu tiền — chỉ admin mới sửa được'}
-            >
-              <i className="fa-solid fa-pen-to-square w-4"></i>
-              {canEditInvoice ? 'Sửa hóa đơn' : 'Đã khóa'}
-            </button>
-            <button
-              onClick={() => {
-                if (!canDeleteInvoice) return;
-                setDeletingId(invoice.id); setDeleteError(null); setOpenMenuId(null);
-              }}
-              disabled={!canDeleteInvoice}
-              className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canDeleteInvoice ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed'}`}
-              title={canDeleteInvoice ? 'Hủy phiếu thu' : 'Đã thu tiền — chỉ admin mới hủy được'}
-            >
-              <i className="fa-solid fa-ban w-4"></i>
-              {canDeleteInvoice ? 'Hủy phiếu' : 'Đã khóa'}
-            </button>
-          </div>
-        );
-      })()}
+              {!isPaidMenu && (
+                <button
+                  onClick={() => {
+                    setPayingInvoice(invoice)
+                    setOpenMenuId(null)
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-emerald-700 hover:bg-emerald-50 font-semibold"
+                >
+                  <i className="fa-solid fa-money-bill-wave w-4"></i>
+                  {isRefundMenu ? 'Hoàn tiền' : 'Thu tiền'}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (!canEditInvoice) return
+                  setEditingInvoice(invoice)
+                  setOpenMenuId(null)
+                }}
+                disabled={!canEditInvoice}
+                className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canEditInvoice ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 cursor-not-allowed'}`}
+                title={canEditInvoice ? 'Sửa hóa đơn' : 'Đã thu tiền — chỉ admin mới sửa được'}
+              >
+                <i className="fa-solid fa-pen-to-square w-4"></i>
+                {canEditInvoice ? 'Sửa hóa đơn' : 'Đã khóa'}
+              </button>
+              <button
+                onClick={() => {
+                  if (!canDeleteInvoice) return
+                  setDeletingId(invoice.id)
+                  setDeleteError(null)
+                  setOpenMenuId(null)
+                }}
+                disabled={!canDeleteInvoice}
+                className={`flex w-full items-center gap-2 px-4 py-2 font-semibold ${canDeleteInvoice ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 cursor-not-allowed'}`}
+                title={canDeleteInvoice ? 'Hủy phiếu thu' : 'Đã thu tiền — chỉ admin mới hủy được'}
+              >
+                <i className="fa-solid fa-ban w-4"></i>
+                {canDeleteInvoice ? 'Hủy phiếu' : 'Đã khóa'}
+              </button>
+            </div>
+          )
+        })()}
 
       {deletingId && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !deleteMutation.isPending && !deleteError) deleteMutation.mutate(deletingId); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !deleteMutation.isPending && !deleteError)
+              deleteMutation.mutate(deletingId)
+          }}
           tabIndex={-1}
           ref={(el) => el?.focus()}
         >
@@ -1285,7 +1558,9 @@ export const InvoicesTab: React.FC<{
               </div>
               <div>
                 <h3 className="font-bold text-gray-900">Hủy phiếu thu?</h3>
-                <p className="text-xs text-gray-500">Phiếu sẽ chuyển sang trạng thái đã hủy để giữ lịch sử đối chiếu.</p>
+                <p className="text-xs text-gray-500">
+                  Phiếu sẽ chuyển sang trạng thái đã hủy để giữ lịch sử đối chiếu.
+                </p>
               </div>
             </div>
             {deleteError && (
@@ -1296,7 +1571,10 @@ export const InvoicesTab: React.FC<{
             )}
             <div className="flex gap-3">
               <button
-                onClick={() => { setDeletingId(null); setDeleteError(null); }}
+                onClick={() => {
+                  setDeletingId(null)
+                  setDeleteError(null)
+                }}
                 className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
               >
                 Hủy
@@ -1331,26 +1609,27 @@ export const InvoicesTab: React.FC<{
 
       {showSePaySync && !isSettingsLoading && (
         <SePaySyncModal
-          invoices={invoices}
+          invoices={sepayInvoices}
           rooms={rooms}
           onClose={() => setShowSePaySync(false)}
         />
       )}
 
-      {viewingInvoice && (() => {
-        const vRoom = roomById.get(viewingInvoice.room_id);
-        const vTenant = tenantById.get(viewingInvoice.tenant_id);
-        return (
-          <InvoiceDetailModal
-            invoice={viewingInvoice}
-            room={vRoom}
-            tenantName={vTenant?.full_name}
-            tenantPhone={vTenant?.phone}
-            settings={appSettings}
-            onClose={() => setViewingInvoice(null)}
-          />
-        );
-      })()}
+      {viewingInvoice &&
+        (() => {
+          const vRoom = roomById.get(viewingInvoice.room_id)
+          const vTenant = tenantById.get(viewingInvoice.tenant_id)
+          return (
+            <InvoiceDetailModal
+              invoice={viewingInvoice}
+              room={vRoom}
+              tenantName={vTenant?.full_name}
+              tenantPhone={vTenant?.phone}
+              settings={appSettings}
+              onClose={() => setViewingInvoice(null)}
+            />
+          )
+        })()}
     </div>
-  );
-};
+  )
+}

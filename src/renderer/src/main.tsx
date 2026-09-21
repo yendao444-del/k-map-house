@@ -9,6 +9,15 @@ import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react
 
 installGlobalSoundEffects()
 
+function loadIconStylesheet(): void {
+  if (document.querySelector('link[data-font-awesome]')) return
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
+  link.dataset.fontAwesome = 'true'
+  document.head.appendChild(link)
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -35,3 +44,6 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>
 )
+
+// Keep the icon CDN out of the critical rendering path; icons fill in after the shell mounts.
+window.setTimeout(loadIconStylesheet, 0)

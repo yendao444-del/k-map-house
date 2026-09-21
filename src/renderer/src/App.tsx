@@ -7,8 +7,7 @@ import {
   Bell,
   Box,
   ClipboardList,
-  BarChart3,
-  Sparkles
+  BarChart3
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
@@ -107,10 +106,22 @@ const SettingsTab = lazy(() =>
 const BusinessReport = lazy(() =>
   import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport }))
 )
-const AiAnalysisTab = lazy(() =>
-  import('./components/AiAnalysisTab').then((module) => ({ default: module.AiAnalysisTab }))
-)
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
+
+function usePageVisible(): boolean {
+  const [isVisible, setIsVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible'
+  )
+
+  useEffect(() => {
+    const handleVisibilityChange = () => setIsVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  return isVisible
+}
+
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const hasInvoiceBalance = (invoice: Pick<Invoice, 'payment_status' | 'total_amount' | 'paid_amount'>): boolean => {
   if (invoice.payment_status !== 'unpaid' && invoice.payment_status !== 'partial') return false
@@ -130,7 +141,6 @@ type AppTab =
   | 'invoices'
   | 'assets'
   | 'contracts'
-  | 'ai-analysis'
   | 'tenants'
   | 'reports'
   | 'settings'
@@ -1279,17 +1289,26 @@ const ConfirmDeleteWithHistoryModal = ({
 
 const App: React.FC = () => {
   const queryClient = useQueryClient()
+  const isPageVisible = usePageVisible()
+  const wasPageVisible = React.useRef(isPageVisible)
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [passwordRecovery, setPasswordRecovery] = useState(isPasswordRecoveryRedirect)
   const canLoadData = authReady && Boolean(currentUser)
 
-  const { data: rooms = [], isLoading } = useQuery({
+  const {
+    data: rooms = [],
+    isLoading,
+    isError: roomsLoadFailed,
+    error: roomsLoadError,
+    refetch: refetchRooms
+  } = useQuery({
     queryKey: ['rooms'],
     queryFn: getRooms,
     enabled: canLoadData,
-    refetchOnWindowFocus: true,
-    refetchInterval: 30_000
+    refetchOnWindowFocus: false,
+    refetchInterval: isPageVisible ? 60_000 : false,
+    refetchIntervalInBackground: false
   })
   const { data: serviceZones = [] } = useQuery({
     queryKey: ['serviceZones'],
@@ -1300,9 +1319,23 @@ const App: React.FC = () => {
     queryKey: ['invoices'],
     queryFn: getInvoices,
     enabled: canLoadData,
-    refetchOnWindowFocus: true,
-    refetchInterval: 30_000
+    refetchOnWindowFocus: false,
+    refetchInterval: isPageVisible ? 60_000 : false,
+    refetchIntervalInBackground: false
   })
+
+  useEffect(() => {
+    const becameVisible = isPageVisible && !wasPageVisible.current
+    wasPageVisible.current = isPageVisible
+    if (!becameVisible) return
+
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['sepayBackgroundTransactions'], refetchType: 'active' })
+    ])
+  }, [isPageVisible, queryClient])
+
   const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({
     queryKey: ['activeContracts'],
     queryFn: getActiveContracts,
@@ -1403,7 +1436,7 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<AppTab>('rooms')
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
-  const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance'>('finance')
+  const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance' | 'debt'>('finance')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
   const [detailRoomInitialTab, setDetailRoomInitialTab] = useState<
@@ -1822,11 +1855,11 @@ const App: React.FC = () => {
     SepayBackgroundTransaction[]
   >({
     queryKey: ['sepayBackgroundTransactions', Boolean(sepayTokenStatus?.configured)],
-    enabled: Boolean(currentUser && sepayTokenStatus?.configured),
-    refetchInterval: 15_000,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
-    staleTime: 10_000,
+    enabled: Boolean(currentUser && sepayTokenStatus?.configured && isPageVisible),
+    refetchInterval: isPageVisible ? 60_000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
     queryFn: async () => {
       const res = (await fetchSepayTransactions()) as SepayBackgroundFetchResult
       if (!res.ok || Number(res.data?.status) !== 200) {
@@ -2496,7 +2529,7 @@ const App: React.FC = () => {
           />
         )}
         {/* Header Menu */}
-        <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#00462F] bg-[#005B3C] px-4 pr-40 font-sans text-white shadow-md">
+        <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#06483D] bg-[#075244] px-4 pr-40 font-sans text-white shadow-md">
           <div className="app-no-drag flex min-w-0 items-center space-x-4">
             <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
@@ -2524,7 +2557,7 @@ const App: React.FC = () => {
                     }}
                     className={`flex shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-[#005B3C] text-white'
+                        ? 'bg-[#075244] text-white'
                         : 'border-transparent text-white hover:bg-white/5'
                     }`}
                     style={{ borderBottomColor: isActive ? sapoGreen : 'transparent' }}
@@ -2543,33 +2576,13 @@ const App: React.FC = () => {
                   }}
                   className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
                     activeTab === 'reports'
-                      ? 'bg-[#005B3C] text-white'
+                      ? 'bg-[#075244] text-white'
                       : 'border-transparent text-white hover:bg-white/5'
                   }`}
                   style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
                 >
                   <BarChart3 size={18} className="text-white" />
                   <span className="text-white">Báo cáo</span>
-                </button>
-              </div>
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClick()
-                    requestActiveTab('ai-analysis')
-                  }}
-                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
-                    activeTab === 'ai-analysis'
-                      ? 'bg-[#005B3C] text-white'
-                      : 'border-transparent text-white hover:bg-white/5'
-                  }`}
-                  style={{
-                    borderBottomColor: activeTab === 'ai-analysis' ? sapoGreen : 'transparent'
-                  }}
-                >
-                  <Sparkles size={18} className="text-white" />
-                  <span className="text-white">Phân tích AI</span>
                 </button>
               </div>
             </nav>
@@ -2772,11 +2785,16 @@ const App: React.FC = () => {
             style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
           >
             {[
-              { id: 'cashflow' as const, icon: 'fa-wallet', label: 'Thu / Chi' },
+              { id: 'cashflow' as const, icon: 'fa-wallet', label: 'Giao Dịch' },
               {
                 id: 'finance' as const,
                 icon: 'fa-money-bill-trend-up',
                 label: 'Báo cáo kinh doanh'
+              },
+              {
+                id: 'debt' as const,
+                icon: 'fa-coins',
+                label: 'Nợ'
               }
             ].map((item) => {
               const isActive = activeTab === 'reports' && reportSubTab === item.id
@@ -3008,6 +3026,25 @@ const App: React.FC = () => {
                               message="Đang tải danh sách phòng..."
                               className="min-h-[45vh]"
                             />
+                          </td>
+                        </tr>
+                      ) : roomsLoadFailed ? (
+                        <tr>
+                          <td colSpan={12} className="px-6 py-12 text-center">
+                            <i className="fa-solid fa-triangle-exclamation mb-3 block text-2xl text-amber-500" />
+                            <p className="font-semibold text-gray-700">Không tải được danh sách phòng</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {roomsLoadError instanceof Error
+                                ? roomsLoadError.message
+                                : 'Kiểm tra kết nối và thử lại.'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void refetchRooms()}
+                              className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark"
+                            >
+                              Thử lại
+                            </button>
                           </td>
                         </tr>
                       ) : (
@@ -4198,15 +4235,8 @@ const App: React.FC = () => {
             <Suspense fallback={<TabLoading />}>
               <BusinessReport
                 currentUser={currentUser}
-                initialTab={reportSubTab === 'cashflow' ? 'cashflow' : 'overview'}
+                initialTab={reportSubTab === 'cashflow' ? 'cashflow' : reportSubTab === 'debt' ? 'debt' : 'overview'}
                 onNavigateToInvoices={() => requestActiveTab('invoices')}
-              />
-            </Suspense>
-          ) : activeTab === 'ai-analysis' ? (
-            <Suspense fallback={<TabLoading />}>
-              <AiAnalysisTab
-                propertyAddress={appSettings.property_address?.trim() || ''}
-                onNavigateToRooms={() => requestActiveTab('rooms')}
               />
             </Suspense>
           ) : activeTab === 'tenants' ? (

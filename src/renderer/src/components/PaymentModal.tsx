@@ -57,7 +57,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const { data: contracts = [], isFetching: contractsFetching } = useQuery({
     queryKey: ['contracts'],
     queryFn: db.getContracts,
-    staleTime: 0,
+    staleTime: 15_000,
     refetchOnMount: 'always',
     enabled: shouldCheckAssetWorkflow,
   });

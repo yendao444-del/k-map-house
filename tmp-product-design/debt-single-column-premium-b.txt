@@ -1,0 +1,11 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, showing Reports > Nợ. Follow a strict one-column vertical statement layout: exactly four full-width rows stacked vertically in a single premium panel. Do not show four horizontal metric columns, cards, history, tables, charts, or any content block below the panel.
+
+Use a sophisticated Vietcombank-inspired banking style: dark green navigation shell, bright white page, soft gray hairline rules, dark ink text, emerald values, muted amber offset indicator, subtle mint closing state, and generous whitespace. Keep the existing AN KHANG HOME navigation and Nợ selected. No gradients, decorative illustrations, A/B/C labels, percentages, or action buttons.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Heading "Công nợ" with date "Tính đến 19/09/2026" at the upper right. Below, one wide statement panel titled "Theo dõi khoản nợ". The panel must contain exactly these four stacked rows, each spanning the full width:
+1. Tổng nợ — 400.000.000 đ — Nghĩa vụ ban đầu
+2. Đã trả — 18.000.000 đ — Tiền thực tế đã chuyển
+3. Tôi nợ — 2.000.000 đ — Khoản dịch vụ cấn trừ
+4. Còn lại — 380.000.000 đ — Số tiền còn phải trả
+
+Use ample vertical padding, crisp row rhythm, a thin divider between every row, and a stronger closing treatment on Còn lại: pale mint fill, emerald amount, and a slim green left border. Keep all supporting copy minimal and aligned. The four-row vertical panel is the complete primary UI.

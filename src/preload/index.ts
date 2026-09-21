@@ -57,6 +57,9 @@ const api = {
     ): Promise<{ ok: boolean; audioBase64?: string; error?: string }> =>
       ipcRenderer.invoke('tts:synthesizePayment', amount)
   },
+  perf: {
+    getMetrics: (): Promise<unknown> => ipcRenderer.invoke('perf:getMetrics')
+  },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),

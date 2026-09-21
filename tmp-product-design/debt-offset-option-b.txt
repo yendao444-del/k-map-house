@@ -1,0 +1,14 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, showing the Reports > Nợ (Debt) tab. This is a visual design concept only, not code.
+
+Use a trustworthy Vietnamese bank-inspired visual language similar to Vietcombank: white canvas, deep green header accents, subtle mint highlight, clear borders and typography, no gradients or decorative imagery. Keep the design professional, calm, and easy to understand for a non-technical operator. Preserve the existing AN KHANG HOME dashboard language from the attached references.
+
+Target dimensions: 1440 x 1024 desktop admin dashboard.
+
+Design direction: payment-detail workflow. Show the current debt balance for "An Khang Home" and a prominent open detail panel titled "Ghi nhận trả nợ tháng 09/2026". The form must explain the settlement in three visually distinct accounting lines:
+- Số phải trả kỳ này: 20.000.000 đ
+- Giá trị dịch vụ đối trừ: 2.000.000 đ
+- Số tiền thực chuyển: 18.000.000 đ
+
+Show the arithmetic clearly with an equals line: "20.000.000 đ - 2.000.000 đ = 18.000.000 đ" and a confirmation button "Lưu giao dịch trả nợ". Include fields for ngày trả, nội dung đối trừ, phương thức chuyển khoản, and ghi chú. Beside or below it, show a slim "Lịch sử đã trả" table with date, gross amount, offset amount, actual transfer, and remaining balance. Include a small note that the 2.000.000 đ offset is not cash transferred but still reduces the outstanding debt. Keep one primary action and one supporting action; do not crowd the screen.
+
+Use realistic Vietnamese currency formatting and dates anchored to 19/09/2026. No phone frame, no browser chrome, no decorative charts, no unreadable microtext.

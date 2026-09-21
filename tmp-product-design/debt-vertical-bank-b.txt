@@ -1,0 +1,11 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning Reports > Nợ. The required interaction is a vertical financial report, not a horizontal summary strip and not the A/B/C business-results layout. The report must have four stacked rows: Tổng nợ, Đã trả, Tôi nợ, Còn lại.
+
+Use a premium Vietcombank-inspired banking interface: bright white canvas, deep green navigation, emerald action button, mint highlight only for the final balance, neutral hairline rules, aligned accounting columns, understated typography, and generous whitespace. Keep the existing AN KHANG HOME shell with Reports > Nợ selected. Avoid gradients, charts, illustrations, percentage chips, and generic metric cards.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Heading "Theo dõi công nợ" and date control "Tính đến 19/09/2026". The main surface is a single tall statement table titled "Tổng hợp công nợ" with columns "HẠNG MỤC", "SỐ TIỀN", "CHI TIẾT". Stack these four rows vertically:
+1. Tổng nợ | 400.000.000 đ | Nợ ban đầu
+2. Đã trả | -18.000.000 đ | Chuyển khoản tháng 09/2026
+3. Tôi nợ | -2.000.000 đ | Cấn trừ phí dịch vụ tháng 09/2026
+4. Còn lại | 380.000.000 đ | Số tiền còn phải trả
+
+The Còn lại row should look like a bank statement closing balance: mint background, emerald value, stronger divider. The Tôi nợ row should use a small amber "Cấn trừ" label, clearly explaining that it reduces the debt without being a bank transfer. Under the table show the formula "Còn lại = Tổng nợ - Đã trả - Tôi nợ" and the concrete calculation. Include an expandable chevron on rows Đã trả and Tôi nợ, a primary button "Ghi nhận trả nợ", and a separate lower history table with columns Ngày, Nội dung, Đã trả, Tôi nợ, Còn lại.

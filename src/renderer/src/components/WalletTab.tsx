@@ -327,7 +327,7 @@ export function WalletTab({
           </label>
         </div>
 
-        <section className="relative flex h-[218px] overflow-hidden rounded-2xl bg-[#005B3C] shadow-[0_12px_28px_rgba(0,91,60,0.16)]">
+        <section className="relative flex h-[218px] overflow-hidden rounded-2xl bg-[#075244] shadow-[0_8px_24px_rgba(7,82,68,0.14)]">
           <img
             src={walletHeroGreen}
             alt=""

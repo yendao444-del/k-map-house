@@ -1,0 +1,11 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, showing the Reports > Nợ tab. The design must be extremely simple: show only four separate summary columns and no history table, no detail table, no charts, no secondary sections, no expandable content in the main view.
+
+Use a premium Vietnamese bank-app visual language inspired by Vietcombank: white background, deep forest-green navigation, emerald accent, subtle pale mint highlight, fine vertical dividers, precise accounting typography, and generous whitespace. Keep AN KHANG HOME navigation and Reports > Nợ active. Do not use the A/B/C business-results hierarchy and do not add generic KPI cards.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Page title "Theo dõi công nợ", subtitle "An Khang Home", and a compact date selector "Tính đến ngày 19/09/2026". Immediately below, show one clean unified summary panel containing exactly four individually separated vertical columns in a single horizontal row:
+1. Tổng nợ — 400.000.000 đ
+2. Đã trả — 18.000.000 đ
+3. Tôi nợ — 2.000.000 đ
+4. Còn lại — 380.000.000 đ
+
+Each column must be visually independent with its own label, amount, and a short one-line descriptor: "Tổng nghĩa vụ", "Đã chuyển khoản", "Cấn trừ dịch vụ", "Số dư hiện tại". Use dark navy for Total, emerald for Đã trả, restrained amber for Tôi nợ, and pale mint background plus emerald amount for Còn lại. Use clear vertical separator rules between columns. Do not show formula, history, table, buttons, or any other content below. The four columns are the entire primary content and should feel like a premium bank account summary.

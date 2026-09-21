@@ -20,7 +20,7 @@ import {
   type Invoice
 } from '../lib/db'
 
-const COLORS = ['#10b981', '#2563eb', '#f59e0b', '#f97316', '#0ea5e9', '#64748b']
+const COLORS = ['#0faf7a', '#2563eb', '#d99116', '#e67824', '#2497c9', '#64748b']
 const fmt = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 
 type ExpenseItem = {
@@ -518,9 +518,9 @@ export function OverviewTab({
                       type="monotone"
                       dataKey="revenue"
                       name="Doanh thu"
-                      stroke="#10b981"
+                      stroke="#0faf7a"
                       strokeWidth={3}
-                      fill="#10b981"
+                      fill="#0faf7a"
                       fillOpacity={0.08}
                     />
                     <Area

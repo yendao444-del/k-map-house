@@ -1,0 +1,13 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning the Reports > Nợ tab. The key requirement is a horizontal banking summary strip, not an A/B/C financial statement and not a detail-first screen.
+
+Use a premium Vietnamese bank-app visual language inspired by Vietcombank: white canvas, deep forest-green navigation, #007A53 primary actions, pale mint success states, thin gray dividers, exact right-aligned VND figures, compact labels, and restrained elevation. Keep AN KHANG HOME navigation and Reports > Nợ selected. No gradients, charts, illustrations, or colorful dashboard cards.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Page title: "Công nợ". Date control: "Tính đến ngày 19/09/2026". Under the title, make the hero element one single horizontal four-column strip with equal-width columns and clear separators:
+1. "Tổng nợ" — 400.000.000 đ
+2. "Đã trả nợ" — 20.000.000 đ
+3. "Nợ khác" — 0 đ
+4. "Còn lại" — 380.000.000 đ
+
+The four columns must read left-to-right like a bank account summary, with "Còn lại" highlighted in mint/green and the other values in dark navy or muted green. Do not use A/B/C labels, percentages, or stacked metric cards.
+
+Below the horizontal strip, show a practical bank ledger table titled "Lịch sử trả nợ" with columns Ngày, Nội dung, Tổng trả, Đối trừ, Thực chuyển, Còn lại. The selected row for 19/09/2026 shows 20.000.000 đ total, 2.000.000 đ offset, 18.000.000 đ transfer, and 380.000.000 đ remaining. Add one concise green reconciliation line below the selected row: "20.000.000 đ - 2.000.000 đ = 18.000.000 đ" and one primary button "Ghi nhận trả nợ". Keep the screen spacious and unmistakably horizontal.

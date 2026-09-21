@@ -150,6 +150,19 @@ function normalizeVietnamPhone(phone: string): string {
   return digits
 }
 
+async function waitForWebContentsReady(
+  webContents: Electron.WebContents,
+  timeoutMs = 1500
+): Promise<void> {
+  const ready = webContents.executeJavaScript(`
+    (async () => {
+      if (document.fonts?.ready) await document.fonts.ready
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    })()
+  `)
+  await Promise.race([ready, new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))])
+}
+
 function setupZaloHandlers(): void {
   ipcMain.removeHandler('zalo:send')
 
@@ -183,7 +196,7 @@ function setupZaloHandlers(): void {
       writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
       try {
         await captureWindow.loadFile(htmlPath)
-        await new Promise((resolve) => setTimeout(resolve, 1800))
+        await waitForWebContentsReady(captureWindow.webContents)
         const image = await captureWindow.webContents.capturePage()
         writeFileSync(imagePath, image.toPNG())
         clipboard.writeImage(nativeImage.createFromPath(imagePath))
@@ -228,7 +241,7 @@ function setupInvoiceHandlers(): void {
 
     try {
       await captureWindow.loadFile(htmlPath)
-      await new Promise((resolve) => setTimeout(resolve, 1200))
+      await waitForWebContentsReady(captureWindow.webContents)
 
       const contentSize = (await captureWindow.webContents.executeJavaScript(`
         (() => {
@@ -265,7 +278,7 @@ function setupInvoiceHandlers(): void {
       )
 
       captureWindow.setContentSize(captureWidth, captureHeight)
-      await new Promise((resolve) => setTimeout(resolve, 220))
+      await waitForWebContentsReady(captureWindow.webContents, 300)
 
       const actualBounds = captureWindow.getContentBounds()
       const viewportWidth = Math.max(1, actualBounds.width)
@@ -283,7 +296,7 @@ function setupInvoiceHandlers(): void {
             document.body.style.margin = '0'
           })()
         `)
-        await new Promise((resolve) => setTimeout(resolve, 180))
+        await waitForWebContentsReady(captureWindow.webContents, 300)
       }
 
       const image = await captureWindow.webContents.capturePage({
@@ -378,7 +391,7 @@ function setupInvoiceHandlers(): void {
 
         try {
           await captureWindow.loadFile(htmlPath)
-          await new Promise((resolve) => setTimeout(resolve, 1200))
+          await waitForWebContentsReady(captureWindow.webContents)
 
           const contentSize = (await captureWindow.webContents.executeJavaScript(`
           (() => {
@@ -415,7 +428,7 @@ function setupInvoiceHandlers(): void {
           )
 
           captureWindow.setContentSize(captureWidth, captureHeight)
-          await new Promise((resolve) => setTimeout(resolve, 220))
+          await waitForWebContentsReady(captureWindow.webContents, 300)
 
           // On some displays, Electron caps hidden-window height to the work area.
           // If content is taller than the capturable viewport, scale it down to avoid clipping.
@@ -435,7 +448,7 @@ function setupInvoiceHandlers(): void {
               document.body.style.margin = '0'
             })()
           `)
-            await new Promise((resolve) => setTimeout(resolve, 180))
+            await waitForWebContentsReady(captureWindow.webContents, 300)
           }
 
           const image = await captureWindow.webContents.capturePage({
@@ -515,7 +528,7 @@ function setupContractHandlers(): void {
 
         try {
           await pdfWindow.loadFile(htmlPath)
-          await new Promise((resolve) => setTimeout(resolve, 1000))
+          await waitForWebContentsReady(pdfWindow.webContents, 1200)
           const pdfBuffer = await pdfWindow.webContents.printToPDF({
             pageSize: 'A4',
             printBackground: true,
@@ -1027,6 +1040,34 @@ function setupTtsHandlers(): void {
   })
 }
 
+function setupPerformanceHandlers(): void {
+  ipcMain.removeHandler('perf:getMetrics')
+  ipcMain.handle('perf:getMetrics', async (event) => {
+    const senderWindow = BrowserWindow.fromWebContents(event.sender)
+    const processes = app.getAppMetrics()
+    const senderPid = senderWindow?.webContents.getOSProcessId()
+    const senderMetric = senderPid
+      ? processes.find((metric) => metric.pid === senderPid)
+      : undefined
+
+    return {
+      capturedAt: new Date().toISOString(),
+      sender: senderWindow
+        ? {
+            processId: senderWindow.webContents.getOSProcessId(),
+            memory: senderMetric?.memory
+          }
+        : undefined,
+      processes: processes.map((metric) => ({
+        type: metric.type,
+        pid: metric.pid,
+        cpu: metric.cpu,
+        memory: metric.memory
+      }))
+    }
+  })
+}
+
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 function createWindow(): void {
@@ -1136,6 +1177,7 @@ app.whenReady().then(() => {
   setupInvoiceHandlers()
   setupContractHandlers()
   setupTtsHandlers()
+  setupPerformanceHandlers()
   // Privileged Supabase and SePay operations run through the authenticated Edge Function.
   registerUpdateHandlers()
   const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()

@@ -1,0 +1,11 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning the Reports > Nợ tab. Follow a horizontal bank-account overview pattern. Do not use the A/B/C financial-results layout and do not make the detail panel the hero.
+
+Use a Vietcombank-inspired banking UI: white surfaces, deep green header, emerald accent, pale mint fill only for the remaining balance, hairline borders, quiet labels, and clean accounting typography. Keep the existing AN KHANG HOME shell and Reports > Nợ tab. No gradients, illustrations, charts, percentage columns, or generic card grids.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Title "Theo dõi công nợ" with a compact date selector "Tính đến 19/09/2026". The dominant section immediately below is a single horizontal summary row spanning the page, divided into exactly four columns:
+- Tổng nợ: 400.000.000 đ
+- Đã trả nợ: 20.000.000 đ
+- Nợ khác: 0 đ
+- Còn lại: 380.000.000 đ
+
+Style these as one unified bank statement band with separators, not four floating cards. Make Còn lại the only mint-highlighted column. Under it, place a full-width transaction table titled "Các giao dịch gần đây" with date, reference, total repayment, service offset, actual bank transfer, and outstanding balance. Put a right-aligned action "Ghi nhận trả nợ" in the table header. The latest row must visibly show 20.000.000 đ - 2.000.000 đ = 18.000.000 đ. Keep details concise and audit-friendly.

@@ -186,6 +186,22 @@ interface TtsAPI {
   ) => Promise<{ ok: boolean; audioBase64?: string; error?: string }>
 }
 
+interface PerfAPI {
+  getMetrics: () => Promise<{
+    capturedAt: string
+    sender?: {
+      processId: number
+      memory?: unknown
+    }
+    processes: Array<{
+      type: string
+      pid: number
+      cpu: unknown
+      memory: unknown
+    }>
+  }>
+}
+
 declare global {
   interface Window {
     electron: {
@@ -199,6 +215,7 @@ declare global {
       zalo: ZaloAPI
       invoice: InvoiceAPI
       tts: TtsAPI
+      perf: PerfAPI
       update: UpdateAPI
     }
   }

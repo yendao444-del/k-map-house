@@ -23,7 +23,18 @@ import {
 import type { ReportPeriod } from './BusinessReport'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
-const todayIso = () => new Date().toISOString().split('T')[0]
+const dateKey = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+const nextLocalDay = (date: Date) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + 1)
+  return next
+}
+const todayIso = () => dateKey(new Date())
 
 const formatDateToDDMMYYYY = (date: Date | string | number) => {
   if (!date) return ''
@@ -699,9 +710,17 @@ export function CashFlowTab({
   period?: ReportPeriod
 } = {}) {
   const queryClient = useQueryClient()
+  const cashRange = period?.start && period?.end
+    ? {
+        startDate: dateKey(period.start),
+        endDate: dateKey(period.end),
+        endDateExclusive: dateKey(nextLocalDay(period.end))
+      }
+    : undefined
+  const cashRangeKey = cashRange ? `${cashRange.startDate}:${cashRange.endDate}` : 'all'
   const { data: transactions = [] } = useQuery({
-    queryKey: ['cashTransactions'],
-    queryFn: getCashTransactions
+    queryKey: ['cashTransactions', 'range', cashRangeKey],
+    queryFn: () => getCashTransactions(cashRange || {})
   })
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
@@ -881,7 +900,7 @@ export function CashFlowTab({
               <i className="fa-solid fa-wallet"></i>
             </div>
             <div>
-              <h2 className="text-lg font-black text-[#12372A]">Thu / Chi</h2>
+              <h2 className="text-lg font-black text-[#12372A]">Giao Dịch</h2>
               <p className="text-xs text-gray-500">
                 Khoản thu được lấy tự động từ tab Hóa đơn theo từng lần thu; tại đây bạn quản lý
                 thêm các chứng từ chi và khoản thu khác.
@@ -893,7 +912,7 @@ export function CashFlowTab({
             className="flex items-center gap-2 rounded-lg bg-[#008F5A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#006B4F]"
           >
             <i className="fa-solid fa-plus"></i>
-            Thêm thu/chi
+            Thêm giao dịch
           </button>
         </div>
 
@@ -950,7 +969,7 @@ export function CashFlowTab({
             onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}
             className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 outline-none focus:border-green-400"
           >
-            <option value="all">Tất cả thu/chi</option>
+            <option value="all">Tất cả giao dịch</option>
             <option value="income">Chỉ thu</option>
             <option value="expense">Chỉ chi</option>
           </select>

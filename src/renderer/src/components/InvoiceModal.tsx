@@ -76,7 +76,7 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const { data: latestRoom } = useQuery({
     queryKey: ['room', room.id],
     queryFn: () => getRoom(room.id),
-    staleTime: 0
+    staleTime: 15_000
   })
   const billingRoom = latestRoom || room
 
@@ -88,14 +88,14 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const { data: existingInvoices = [], isFetching: invoicesFetching } = useQuery({
     queryKey: ['invoices', room.id],
     queryFn: () => getInvoicesByRoom(room.id),
-    staleTime: 0,
+    staleTime: 15_000,
     refetchOnMount: 'always'
   })
 
   const { data: contracts = [], isFetching: contractsFetching } = useQuery({
     queryKey: ['contracts'],
     queryFn: getContracts,
-    staleTime: 0,
+    staleTime: 15_000,
     refetchOnMount: 'always'
   })
 

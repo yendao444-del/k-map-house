@@ -1,0 +1,13 @@
+Create a refined, luxury-grade production UI concept for AN KHANG HOME, a Vietnamese room-rental management system, showing Reports > Nợ. This is a revision of the selected single-column concept. Preserve its exact composition: one wide vertical statement panel with exactly four stacked rows and no secondary content.
+
+Target dimensions: 1440 x 1024 desktop admin dashboard. Keep the AN KHANG HOME deep green navigation shell, active Reports > Nợ navigation, page title "Công nợ", and date control "Tính đến 19/09/2026". The main content must be only one elegant panel titled "Theo dõi khoản nợ".
+
+The four full-width rows, in order, are exactly:
+1. Tổng nợ — 400.000.000 đ — Nghĩa vụ ban đầu
+2. Đã trả — 18.000.000 đ — Tiền thực tế đã chuyển
+3. Tôi nợ — 2.000.000 đ — Khoản dịch vụ cấn trừ
+4. Còn lại — 380.000.000 đ — Số tiền còn phải trả
+
+Make the visual quality feel like a premium private-banking dashboard: exceptional whitespace, a restrained warm-white canvas, deep ink/navy text, sophisticated forest-green #006B4F accents, one very subtle mint-tinted closing row, hairline separators, carefully tuned vertical rhythm, understated rounded corners, and a gentle shadow/elevation around the single panel. Use a high-quality modern Vietnamese sans-serif with a refined numeral style. Align all currency values to the same right edge; make the labels and descriptors optically balanced.
+
+Improve the selected concept with these details: a slim green accent rule on the left of the Còn lại row; a barely visible green wash that fades toward white; a small emerald circular indicator beside Đã trả; a tiny muted amber indicator beside Tôi nợ; an elegant panel header with a compact caption "Số dư được cập nhật theo ngày". Keep these accents quiet and bank-grade. Do not add icons that look playful, do not add charts, buttons, formulas, percentages, history, cards, A/B/C labels, or any content below the four-row panel. The page should feel intentionally sparse, expensive, calm, and trustworthy.

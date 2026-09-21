@@ -1,0 +1,12 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning the Reports > Nợ tab. Use the attached screenshot as the primary structural reference: a clean financial statement table titled "Chi tiết theo khoản" with expandable A/B/C rows, right-aligned amounts, percentages, subtle separators, and a light premium surface.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Preserve the existing AN KHANG HOME navigation and deep teal header, but make the debt report feel more premium with refined spacing, elegant typography, soft ivory background, deep navy text, emerald totals, and restrained mint highlights. No gradients, no decorative illustrations, no noisy dashboard cards.
+
+Build a focused screen with a title "Chi tiết công nợ" and a date selector "Tính đến ngày 19/09/2026". The main content should be one large, highly polished accounting table with columns "HẠNG MỤC", "SỐ TIỀN", "% TỔNG NỢ". Use this exact hierarchy and data:
+- A. Tổng nợ phải thu — 400.000.000 đ — 100%
+- B. Đã xử lý kỳ này — -20.000.000 đ — 5%
+  - Chuyển khoản thực tế — -18.000.000 đ — 4,5%
+  - Đối trừ dịch vụ — -2.000.000 đ — 0,5%
+- C. Còn phải thu (A - B) — 380.000.000 đ — 95%
+
+Make row C the premium outcome row with a soft mint tint and stronger bottom rule. Make row B expandable and show the two subrows. Add a small plain-language helper below the B section: "20.000.000 đ được xử lý = 18.000.000 đ chuyển khoản + 2.000.000 đ đối trừ dịch vụ". Include one subtle primary action "Ghi nhận trả nợ" near the heading. Use realistic Vietnamese number formatting, aligned decimals, and a compact status label "Đang theo dõi". No charts and no extra feature inventory.

@@ -627,7 +627,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
             </div>
             <div>
               <h2 className="text-[15px] font-bold text-gray-800">Số dư ban đầu</h2>
-              <p className="mt-0.5 text-[12px] text-gray-500">Điểm xuất phát để tính tồn quỹ hiện tại trong tab Thu / Chi.</p>
+              <p className="mt-0.5 text-[12px] text-gray-500">Điểm xuất phát để tính tồn quỹ hiện tại trong tab Giao Dịch.</p>
             </div>
           </div>
         </div>

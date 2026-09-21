@@ -14,12 +14,21 @@ files:
   - '!.planning/**/*'
   - '!_tmp_min_pkg/**/*'
   - '!.update-check-latest/**/*'
+  - '!tmp-product-design/**/*'
+  - '!design-references/**/*'
+  - '!_backups/**/*'
+  - '!_backup_work/**/*'
   - '!LOGO/**/*'
   - '!RAG/**/*'
   - '!phase/**/*'
   - '!node_modules/**/*.map'
+  - '!node_modules/**/@types/**/*'
+  - '!node_modules/**/{README,CHANGELOG,CHANGELOG.*}.md'
+  - '!node_modules/**/*.md'
+  - '!node_modules/**/*.markdown'
   - '!node_modules/**/*.{ts,tsx,mts,cts,tsbuildinfo}'
   - '!node_modules/**/{test,tests,__tests__,docs,example,examples}/**/*'
+  - '!node_modules/**/{skills,storybook,stories,coverage,benchmarks,benchmark,fixtures}/**/*'
   - '!node_modules/**/*.snap'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!electron.vite.config.*.mjs'
@@ -28,9 +37,12 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tsconfig.web.tsbuildinfo}'
   - '!*.{bat,sql,code-workspace}'
   - '!{_tmp_min_app.js,debug_json.js,demo_doi_soat.html,download_vehicles.js,extract_from_view_file.js,find_creation.js,find_full_backup.js,find_lines.js,getfont.js,restore_html.js,]}'
-asar: false
+asar: true
 asarUnpack:
   - resources/**
+electronLanguages:
+  - vi
+  - en
 extraFiles:
   - from: node_modules/electron/dist/resources.pak
     to: .

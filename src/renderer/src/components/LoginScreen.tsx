@@ -266,8 +266,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
 
   return (
     <main className="relative flex min-h-screen overflow-y-auto bg-[#003d35] text-white" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        @media (max-height: 950px) {
+      <style>{`@media (max-height: 950px) {
           .login-hero { margin-bottom: 14px; padding-bottom: 0; }
           .login-hero .login-logo { height: 58px; width: 70px; border-radius: 18px; }
           .login-hero h2 { margin-top: 12px; font-size: 31px; }

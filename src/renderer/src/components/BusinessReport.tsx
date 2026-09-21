@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState, useRef, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
@@ -20,6 +20,7 @@ import {
 } from '../lib/db'
 import { CashFlowTab } from './CashFlowTab'
 import { OverviewTab } from './OverviewTab'
+import { DebtReport } from './DebtReport'
 
 type InvoiceDrillType =
   | 'roomMonthly'
@@ -117,6 +118,12 @@ const iso = (date: Date) => {
   return `${y}-${m}-${d}`
 }
 
+const nextLocalDay = (date: Date) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + 1)
+  return next
+}
+
 const parseIsoDate = (value: string) => {
   const [year, month, day] = value.split('-').map(Number)
   if (!year || !month || !day) return new Date()
@@ -211,8 +218,8 @@ function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
         )
       })}
 
-      <path d={linePath('revenue')} fill="none" stroke="#00a859" strokeWidth="3" />
-      <path d={linePath('expense')} fill="none" stroke="#ef6b62" strokeWidth="2.5" />
+      <path d={linePath('revenue')} fill="none" stroke="#0faf7a" strokeWidth="3" />
+      <path d={linePath('expense')} fill="none" stroke="#d94b5f" strokeWidth="2.5" />
 
       {data.map((item, index) => (
         <g key={item.key}>
@@ -220,7 +227,7 @@ function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
             cx={x(index)}
             cy={y(item.revenue)}
             r="4"
-            fill="#00a859"
+            fill="#0faf7a"
             stroke="white"
             strokeWidth="2"
           >
@@ -230,7 +237,7 @@ function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
             cx={x(index)}
             cy={y(item.expense)}
             r="3.5"
-            fill="#ef6b62"
+            fill="#d94b5f"
             stroke="white"
             strokeWidth="2"
           >
@@ -527,19 +534,15 @@ export function BusinessReport({
 }: {
   currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
-  initialTab?: 'overview' | 'cashflow'
+  initialTab?: 'overview' | 'cashflow' | 'debt'
 } = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
-  const { data: cashTransactions = [] } = useQuery({
-    queryKey: ['cashTransactions'],
-    queryFn: getCashTransactions
-  })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility'
+    'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
   >(initialTab)
 
   useEffect(() => {
@@ -703,6 +706,21 @@ export function BusinessReport({
     }
   }, [endDate, periodMode, selectedDate, startDate])
 
+  // Limit ledger payload to the selected report range; "all time" keeps the legacy full-history view.
+  const cashRange = period.start && period.end
+    ? {
+        startDate: iso(period.start),
+        endDate: iso(period.end),
+        endDateExclusive: iso(nextLocalDay(period.end))
+      }
+    : undefined
+  const cashRangeKey = cashRange ? `${cashRange.startDate}:${cashRange.endDate}` : 'all'
+  const { data: cashTransactions = [] } = useQuery({
+    queryKey: ['cashTransactions', 'range', cashRangeKey],
+    queryFn: () => getCashTransactions(cashRange || {}),
+    placeholderData: keepPreviousData
+  })
+
   const filteredInvoices = useMemo(
     () =>
       invoices.filter((invoice) => {
@@ -722,6 +740,9 @@ export function BusinessReport({
       }),
     [cashTransactions, period]
   )
+
+  // Báo cáo Nợ là sổ nhập thủ công, không lấy số liệu từ hóa đơn hoặc giao dịch vận hành.
+  const debtSummary = useMemo(() => ({ totalDebt: 0, paid: 0, offset: 0 }), [])
 
   const utilityCashInPaymentPeriod = useMemo(
     () =>
@@ -1293,24 +1314,24 @@ export function BusinessReport({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f5f6f8] p-5 space-y-4">
+    <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-5 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             <i className="fa-solid fa-chart-pie mr-2"></i>Tổng quát
           </button>
           <button
             onClick={() => setActiveTab('pnl')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             <i className="fa-solid fa-table-list mr-2"></i>Kết quả kinh doanh
           </button>
           <button
             onClick={() => setActiveTab('deposit')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
             {depositSummary.pendingCount > 0 && (
@@ -1321,15 +1342,21 @@ export function BusinessReport({
           </button>
           <button
             onClick={() => setActiveTab('cashflow')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
-            <i className="fa-solid fa-wallet mr-2"></i>Thu / Chi
+            <i className="fa-solid fa-wallet mr-2"></i>Giao Dịch
           </button>
           <button
             onClick={() => setActiveTab('utility')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'utility' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'utility' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
           >
             <i className="fa-solid fa-right-left mr-2"></i>Điện / Nước
+          </button>
+          <button
+            onClick={() => setActiveTab('debt')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'debt' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            <i className="fa-solid fa-coins mr-2"></i>Nợ
           </button>
         </div>
 
@@ -1341,7 +1368,11 @@ export function BusinessReport({
               className="flex items-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm rounded-xl px-3 py-2 text-xs font-bold text-slate-700 transition cursor-pointer select-none"
             >
               <i className="fa-regular fa-calendar text-primary text-sm"></i>
-              <span>{activePresetLabel}</span>
+              <span>
+                {activeTab === 'debt'
+                  ? `Tính đến ${new Intl.DateTimeFormat('vi-VN').format(new Date())}`
+                  : activePresetLabel}
+              </span>
               <i className="fa-solid fa-chevron-down text-[10px] text-slate-400 ml-1"></i>
             </button>
 
@@ -1480,12 +1511,15 @@ export function BusinessReport({
             )}
           </div>
 
-          <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 text-slate-500 font-semibold text-xs shrink-0 select-none">
-            <i className="fa-regular fa-calendar-check text-slate-400 text-sm"></i>
-            <span>{periodSummary}</span>
-          </div>
+          {activeTab !== 'debt' && (
+            <>
+              <div className="h-5 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 text-slate-500 font-semibold text-xs shrink-0 select-none">
+                <i className="fa-regular fa-calendar-check text-slate-400 text-sm"></i>
+                <span>{periodSummary}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1497,6 +1531,13 @@ export function BusinessReport({
           currentUser={currentUser}
           onNavigateToInvoices={onNavigateToInvoices}
           period={period}
+        />
+      )}
+
+      {activeTab === 'debt' && (
+        <DebtReport
+          summary={debtSummary}
+          isAdmin={currentUser?.role === 'admin'}
         />
       )}
 
@@ -1658,7 +1699,7 @@ export function BusinessReport({
                     Lợi nhuận thực
                   </div>
                   <div
-                    className={`my-3 text-[clamp(30px,3vw,46px)] leading-none font-black tracking-[-1.4px] tabular-nums ${pnl.netProfit >= 0 ? 'text-[#00a859]' : 'text-[#e53935]'}`}
+                    className={`my-3 text-[clamp(30px,3vw,46px)] leading-none font-black tracking-[-1.4px] tabular-nums ${pnl.netProfit >= 0 ? 'text-[#0faf7a]' : 'text-[#d94b5f]'}`}
                   >
                     {pnl.netProfit < 0 ? '−' : ''}
                     {fmt(Math.abs(pnl.netProfit))} đ
@@ -1692,10 +1733,10 @@ export function BusinessReport({
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-xs font-semibold text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
-                    <i className="h-[3px] w-5 rounded-full bg-[#00a859]"></i>Doanh thu
+                    <i className="h-[3px] w-5 rounded-full bg-[#0faf7a]"></i>Doanh thu
                   </span>
                   <span className="inline-flex items-center gap-1.5">
-                    <i className="h-[3px] w-5 rounded-full bg-[#ef6b62]"></i>Chi phí phát sinh
+                    <i className="h-[3px] w-5 rounded-full bg-[#d94b5f]"></i>Chi phí phát sinh
                   </span>
                 </div>
                 <div className="mt-1 h-[142px]">
@@ -1709,7 +1750,7 @@ export function BusinessReport({
                 {
                   label: 'Doanh thu thực thu',
                   value: pnl.operatingRevenue,
-                  tone: 'text-[#00a859]',
+                  tone: 'text-[#0faf7a]',
                   suffix: '100%'
                 },
                 {
@@ -1721,13 +1762,13 @@ export function BusinessReport({
                 {
                   label: 'Chi phí vận hành',
                   value: pnl.operatingCost,
-                  tone: 'text-[#e53935]',
+                  tone: 'text-[#d94b5f]',
                   suffix: `${pnl.operatingRevenue ? ((pnl.operatingCost / pnl.operatingRevenue) * 100).toFixed(1) : '0.0'}%`
                 },
                 {
                   label: 'Lợi nhuận thực',
                   value: pnl.netProfit,
-                  tone: pnl.netProfit >= 0 ? 'text-[#00a859]' : 'text-[#e53935]',
+                  tone: pnl.netProfit >= 0 ? 'text-[#0faf7a]' : 'text-[#d94b5f]',
                   suffix: `${pnl.margin.toFixed(1)}%`
                 }
               ].map((metric, index) => (

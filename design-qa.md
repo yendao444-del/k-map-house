@@ -47,6 +47,120 @@ final result: blocked
 
 ---
 
+# Design QA — Báo cáo → Nợ demo alignment
+
+- Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-889fd7b3-ba52-4bcb-bdf3-19a829e29a01.png`
+- Implementation target: `src/renderer/src/components/DebtReport.tsx`
+- Intended state: Báo cáo → Nợ, expanded transaction sections
+
+## Changes
+
+- Reworked the debt summary into three stacked sections matching the reference hierarchy: Tổng nợ, Đã thanh toán, and Chi phí cấn trừ.
+- Added the light-blue transaction tables, compact pagination controls, detail actions, semantic amount colors, and the pale-green Còn lại footer.
+- Kept the existing add-transaction modal, local persistence, detail modal, and collapse/expand behavior intact.
+
+## Verification
+
+- `npm run typecheck:web` passed.
+- `npm run lint -- --no-cache` passed.
+- Browser preview launched successfully, but the rendered app is gated by its login screen, so an authenticated same-viewport comparison could not be captured.
+
+final result: blocked
+
+---
+
+# Design QA — Nợ label and collapsed reference alignment
+
+- Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-873b02bc-5be9-40e6-919f-064443a31e17.png`
+- Implementation target: `src/renderer/src/components/DebtReport.tsx`
+- Intended viewport: 1465 × 909 desktop Electron window, 1× density
+- State: Báo cáo → Nợ, all history rows collapsed
+
+## Changes
+
+- Replaced `Đã trả` with `Đã thanh toán`.
+- Replaced `Tôi nợ` with `Chi phí cấn trừ`.
+- Replaced `Còn lại` with `Còn phải trả`.
+- Updated transaction type labels, detail popup labels, helper copy, and add-transaction select labels.
+- Preserved the reference's collapsed four-row table state while retaining the expanded history/pagination/detail interactions.
+
+## Verification
+
+- `npm run typecheck:web` passed.
+- `npm run build` passed.
+- Authenticated browser screenshot comparison remains blocked because the local preview opens at login without credentials.
+
+final result: blocked
+
+---
+
+# Functional follow-up — Nợ có lịch sử giao dịch
+
+- The four report rows remain summary rows; the only visible action is the single `Thêm giao dịch` button in the section header.
+- Clicking `Tổng nợ`, `Đã trả`, or `Tôi nợ` expands an inline history area using the same drill-down pattern as the business report.
+- `Tôi nợ` requires a reason; the reason is displayed beside each history entry.
+- All entries store type, amount, reason, and timestamp in local storage and update the summary totals immediately.
+- `Còn lại` remains a calculated result and is not editable or expandable.
+- Typecheck and production build passed after the change.
+
+final result: blocked
+
+---
+
+# Functional follow-up — Nợ nhập liệu
+
+- `Tổng nợ` now has `Thiết lập`, which replaces the current total.
+- `Đã trả` and `Tôi nợ` now have `Ghi nhận`, which adds an amount to the current value.
+- `Còn lại` remains computed only: `Tổng nợ - Đã trả - Tôi nợ`.
+- Values persist in renderer `localStorage` under `an-khang-debt-summary` until the Supabase debt tables are introduced.
+- Modal validation rejects empty, zero, and non-numeric amounts.
+
+final result: blocked
+
+---
+
+# Design QA — Nợ theo style Báo cáo kết quả kinh doanh
+
+- Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-76187907-37ab-4a34-906e-e23944fa5ebf.png` plus the selected Nợ direction in `tmp-product-design/debt-single-column-premium-v2.png`
+- Implementation screenshot: unavailable; the local renderer is currently gated by authentication in the browser preview
+- Intended viewport: desktop Electron report view, 1× density
+- State: Báo cáo → Nợ, with the existing report tab/filter shell visible
+
+## Full-view comparison evidence
+
+The Nợ screen now follows the existing “Chi tiết theo khoản” report language: a compact bordered section, uppercase table header, aligned amount column, explanatory column, subtle hover treatment, and a double-border emerald result row. The visual target and implementation source were inspected, but an authenticated rendered screenshot could not be captured without credentials.
+
+## Focused-region comparison evidence
+
+The four required rows were checked in source: Tổng nợ, Đã trả, Tôi nợ, and Còn lại. No history table or secondary panel is rendered. The implementation keeps the same four-row information architecture and uses semantic emerald/amber markers.
+
+## Findings
+
+- [P2] Final browser-rendered comparison is blocked by authentication.
+  - Location: Báo cáo → Nợ.
+  - Evidence: source visual is available; localhost preview opens the product login state.
+  - Impact: exact desktop spacing and responsive wrapping cannot be validated from a rendered authenticated capture.
+  - Fix: capture the authenticated report screen when the app session is available and compare at the target viewport.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing report typography, bold table hierarchy, and tabular VND amounts are reused.
+- Spacing and layout rhythm: report card padding, table row rhythm, and double-border result treatment match the existing business-report pattern.
+- Colors and visual tokens: slate table chrome, emerald positive states, amber offset marker, and pale emerald result row are used.
+- Image quality and asset fidelity: no new raster assets are required; existing Font Awesome icons are reused.
+- Copy and content: exactly four debt items remain visible; no history or extra content is shown.
+
+## Comparison history
+
+- Initial Nợ implementation: standalone premium banking panel.
+- Feedback pass: converted the panel to the existing business-report detail-table style while keeping the four-item debt model.
+- Build pass: `npm run typecheck:web` and `npm run build` passed.
+- Final capture: blocked at login in the browser preview.
+
+final result: blocked
+
+---
+
 # Design QA — Left menu Trung tâm Phân tích AI
 
 - Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-adc30e2b-9282-4346-92cc-2df84b3eceb4.png`

@@ -1,0 +1,8 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning the Reports > Nợ tab. The layout must be horizontal and summary-first: four bank-style columns across the top, followed by a clean reconciliation table. Do not reproduce the Kết quả kinh doanh A/B/C hierarchy.
+
+Use a premium Vietcombank-inspired style: deep green navigation, bright white content, thin neutral dividers, dark navy typography, emerald numbers for paid/remaining amounts, pale green selected state, and no decorative gradients or charts. Keep AN KHANG HOME navigation and the Nợ tab active.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Page heading "Công nợ An Khang Home" and date filter "19/09/2026". The central hero is a single horizontal account summary band with four columns, in exactly this order and wording:
+"Tổng nợ" 400.000.000 đ | "Đã trả nợ" 20.000.000 đ | "Nợ khác" 0 đ | "Còn lại" 380.000.000 đ
+
+Below, show a compact bank-style breakdown for the latest settlement, still horizontally aligned: "Phải trả 20.000.000 đ" → "Đối trừ 2.000.000 đ" → "Thực chuyển 18.000.000 đ". Then show a clean history table with columns Ngày, Diễn giải, Phải trả, Đối trừ, Thực chuyển, Số dư. Include a green status "Đã đối soát" and one primary action "Ghi nhận trả nợ". The summary band is the hero; details support it. Keep the page calm, premium, and very easy to scan.

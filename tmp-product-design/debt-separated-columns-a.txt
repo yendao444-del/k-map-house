@@ -1,0 +1,10 @@
+Create a realistic production-quality desktop web app screen for AN KHANG HOME, a Vietnamese room-rental management system, redesigning Reports > Nợ. Use the attached screenshot as the primary layout reference. The screenshot's red annotations indicate three separate stacked sections that must remain visually distinct: a top account header and summary, a middle recent-transactions table, and a bottom totals band. Do not merge them into one continuous card.
+
+Use a premium Vietnamese bank-app visual language inspired by Vietcombank: white surfaces, deep forest green shell, emerald primary action, soft mint highlight only for positive/current values, thin gray dividers, precise accounting typography, and calm spacing. Keep AN KHANG HOME navigation and the Nợ tab active. No gradients, charts, illustrations, or A/B/C statement labels.
+
+Target dimensions: 1440 x 1024 desktop dashboard. Build the screen with these exact separated regions:
+1. TOP REGION: page title "Theo dõi công nợ", subtitle, date selector "Tính đến 19/09/2026", and a separate summary panel containing four clearly separated vertical columns: "Tổng nợ" 400.000.000 đ, "Đã trả nợ" 20.000.000 đ, "Nợ khác" 0 đ, "Còn lại" 380.000.000 đ. Each column should read as its own bank-style column with ample padding and vertical rules. Highlight only Còn lại with a pale mint background.
+2. MIDDLE REGION: a separate bordered panel titled "Các giao dịch gần đây" with a right-aligned button "Ghi nhận trả nợ". Use a clean ledger table with columns Ngày, Tham chiếu, Tổng trả nợ, Đối trừ dịch vụ, Thực chuyển, Dư nợ. Show the 19/09/2026 row with 20.000.000 đ, 2.000.000 đ, 18.000.000 đ, 380.000.000 đ and status "Đã đối soát".
+3. BOTTOM REGION: a separate footer summary panel with three clearly separated columns: "Tổng nghĩa vụ đã ghi nhận" 420.000.000 đ, "Đã trả" 40.000.000 đ, "Còn phải thu" 380.000.000 đ. Keep it visually independent from the table above.
+
+Make all three regions feel like a premium banking operations page with clear whitespace between them. The four top columns must be individually legible, not collapsed into a single text line.

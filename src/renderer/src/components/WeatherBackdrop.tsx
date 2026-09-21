@@ -55,16 +55,25 @@ const weatherSceneOptions: Array<{
 
 function PrecipitationCanvas({ kind }: { kind: WeatherKind }): React.JSX.Element | null {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [reducedMotion, setReducedMotion] = useState(false)
 
   useEffect(() => {
-    if (!['drizzle', 'rain', 'storm', 'snow'].includes(kind)) return undefined
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updatePreference = () => setReducedMotion(mediaQuery.matches)
+    updatePreference()
+    mediaQuery.addEventListener('change', updatePreference)
+    return () => mediaQuery.removeEventListener('change', updatePreference)
+  }, [])
+
+  useEffect(() => {
+    if (reducedMotion || !['drizzle', 'rain', 'storm', 'snow'].includes(kind)) return undefined
     const canvas = canvasRef.current
     if (!canvas) return undefined
 
     const context = canvas.getContext('2d')
     if (!context) return undefined
 
-    let frameId = 0
+    let frameId: number | null = null
     let lastFrame = 0
     let width = 0
     let height = 0
@@ -106,9 +115,11 @@ function PrecipitationCanvas({ kind }: { kind: WeatherKind }): React.JSX.Element
       }).sort((first, second) => first.lineWidth - second.lineWidth)
     }
 
+    const shouldAnimate = () => !document.hidden && document.hasFocus()
+
     const draw = (time: number) => {
       frameId = window.requestAnimationFrame(draw)
-      if (document.hidden || time - lastFrame < 33) return
+      if (!shouldAnimate() || time - lastFrame < 50) return
       lastFrame = time
       context.clearRect(0, 0, width, height)
 
@@ -137,17 +148,38 @@ function PrecipitationCanvas({ kind }: { kind: WeatherKind }): React.JSX.Element
       context.globalAlpha = 1
     }
 
+    const stop = () => {
+      if (frameId === null) return
+      window.cancelAnimationFrame(frameId)
+      frameId = null
+    }
+    const start = () => {
+      if (frameId !== null || !shouldAnimate()) return
+      lastFrame = 0
+      frameId = window.requestAnimationFrame(draw)
+    }
+    const handleVisibilityChange = () => {
+      if (shouldAnimate()) start()
+      else stop()
+    }
+
     resize()
     const resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(canvas)
-    frameId = window.requestAnimationFrame(draw)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleVisibilityChange)
+    window.addEventListener('blur', handleVisibilityChange)
+    start()
     return () => {
       resizeObserver.disconnect()
-      window.cancelAnimationFrame(frameId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleVisibilityChange)
+      window.removeEventListener('blur', handleVisibilityChange)
+      stop()
     }
-  }, [kind])
+  }, [kind, reducedMotion])
 
-  if (!['drizzle', 'rain', 'storm', 'snow'].includes(kind)) return null
+  if (reducedMotion || !['drizzle', 'rain', 'storm', 'snow'].includes(kind)) return null
   return <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
 }
 
@@ -167,6 +199,7 @@ function AtmosphericEffect({ weather }: { weather: WeatherSnapshot }): React.JSX
   return (
     <div className="pointer-events-none absolute inset-0 z-[3] overflow-hidden" aria-hidden="true">
       <style>{`
+        @media (prefers-reduced-motion: reduce) { .weather-motion { animation: none !important; } }
         @keyframes weather-cloud-drift { from { transform: translate3d(-10%, 0, 0); } to { transform: translate3d(12%, 0, 0); } }
         @keyframes weather-cloud-bank { 0% { transform: translate3d(-7%, 0, 0) scale(1); } 50% { transform: translate3d(1%, -2%, 0) scale(1.04); } 100% { transform: translate3d(8%, 1%, 0) scale(1.01); } }
         @keyframes weather-fog-flow { 0% { transform: translate3d(-12%, 0, 0) scaleX(1.05); } 50% { transform: translate3d(1%, -4px, 0) scaleX(1.1); } 100% { transform: translate3d(13%, 2px, 0) scaleX(1.04); } }
@@ -296,9 +329,16 @@ export function WeatherBackdrop({
     }
 
     refresh()
-    const intervalId = window.setInterval(refresh, WEATHER_REFRESH_MS)
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') refresh()
+    }, WEATHER_REFRESH_MS)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
       window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       activeController?.abort()
     }
   }, [])
