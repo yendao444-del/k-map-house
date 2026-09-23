@@ -59,6 +59,28 @@ body {
   font-family: var(--font-base);
 }
 
+.account-form-input {
+  height: 2.75rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgb(226 232 240);
+  background: #fff;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  color: rgb(51 65 85);
+  outline: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.account-form-input::placeholder {
+  color: rgb(148 163 184);
+}
+
+.account-form-input:focus {
+  border-color: #0faf7a;
+  box-shadow: 0 0 0 4px rgb(15 175 122 / 0.1);
+}
+
 /* ===== GLOBAL SCROLLBAR (Apple / Enterprise UI Style) ===== */
 ::-webkit-scrollbar {
   width: 7px;

@@ -8,8 +8,7 @@ import {
   Box,
   ClipboardList,
   BarChart3,
-  WalletCards,
-  TrendingUp
+  WalletCards
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
@@ -111,13 +110,8 @@ const BusinessReport = lazy(() =>
 const WalletTab = lazy(() =>
   import('./components/WalletTab').then((module) => ({ default: module.WalletTab }))
 )
-const FundsTab = lazy(() =>
-  import('./components/FundsTab').then((module) => ({ default: module.FundsTab }))
-)
-const PortfolioWalletView = lazy(() =>
-  import('./components/portfolio/PortfolioWalletView').then((module) => ({
-    default: module.PortfolioWalletView
-  }))
+const InvestmentsTab = lazy(() =>
+  import('./components/InvestmentsTab').then((module) => ({ default: module.InvestmentsTab }))
 )
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
 
@@ -4391,11 +4385,9 @@ const App: React.FC = () => {
                 />
               ) : financeSubTab === 'investments' ? (
                 <Suspense fallback={<TabLoading />}>
-                  <PortfolioWalletView />
+                  <InvestmentsTab />
                 </Suspense>
-              ) : financeSubTab === 'funds' ? (
-                <FundsTab />
-              ) : financeSubTab === 'overview' ? (
+              ) : (
                 <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-6">
                   <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
                     <h1 className="text-xl font-black text-slate-900">Tổng quan tài chính</h1>
@@ -4403,26 +4395,6 @@ const App: React.FC = () => {
                       Màn hình tài chính đang được chuẩn bị để kết nối với sổ giao dịch và số dư
                       thực tế.
                     </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-6">
-                  <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                        <TrendingUp size={24} />
-                      </div>
-                      <div>
-                        <h1 className="text-xl font-black text-slate-900">Hũ tài chính</h1>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Phân bổ tiền theo mục đích sử dụng và kế hoạch vận hành.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
-                      Tính năng này đang được chuẩn bị. Các giao dịch sẽ được ghi nhận trong sổ Tài
-                      chính và tổng hợp tại Báo cáo.
-                    </div>
                   </div>
                 </div>
               )}

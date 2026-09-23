@@ -154,6 +154,12 @@ export function WalletTab({
   const totalBalance = bankBalance + cashBalance
   const safeTotal = Math.max(0, totalBalance)
   const availableBalance = safeTotal
+  const safeBankBalance = Math.max(0, bankBalance)
+  const safeCashBalance = Math.max(0, cashBalance)
+  const bankPercent =
+    availableBalance > 0 ? ((safeBankBalance / availableBalance) * 100).toFixed(1) : '0'
+  const cashPercent =
+    availableBalance > 0 ? ((safeCashBalance / availableBalance) * 100).toFixed(1) : '0'
   const copyWalletValue = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value)
@@ -237,35 +243,36 @@ export function WalletTab({
     transferMutation.mutate({ amount, direction: transferDirection })
   }
   return (
-    <div className="flex-1 overflow-y-auto bg-[#F5F9F7] p-4">
-      <div className="mx-auto flex min-w-[1120px] max-w-[1540px] flex-col gap-4">
-        <div className="order-1 flex items-center justify-between">
+    <div className="flex-1 overflow-y-auto bg-[#F5F9F7] p-4 sm:p-5">
+      <div className="mx-auto flex w-full min-w-0 max-w-[1540px] flex-col gap-4">
+        {/* Top Header */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#008F68]">
-              Tài sản thanh khoản
+              Tài chính · Dòng tiền
             </div>
-            <h1 className="mt-1 text-2xl font-black tracking-tight text-[#12372A]">Ví tiền</h1>
-            <p className="mt-1 text-xs text-slate-500">
+            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#12372A]">Ví tiền</h1>
+            <p className="mt-0.5 text-xs text-slate-500">
               Quản lý số dư ngân hàng, tiền mặt và luân chuyển giữa các ví.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {onOpenInvestments && (
               <button
                 type="button"
                 onClick={onOpenInvestments}
-                className="flex h-10 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 text-xs font-black text-[#008F68] shadow-sm transition hover:bg-emerald-50"
+                className="flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3.5 text-xs font-black text-[#008F68] shadow-sm transition hover:bg-emerald-50"
               >
-                <PieChart size={16} />
+                <PieChart size={15} />
                 Danh mục đầu tư
               </button>
             )}
-            <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm">
-              <CalendarDays size={16} className="text-[#007A4D]" />
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm">
+              <CalendarDays size={15} className="text-[#007A4D]" />
               <select
                 value={selectedMonth}
                 onChange={(event) => setSelectedMonth(event.target.value)}
-                className="bg-transparent outline-none"
+                className="cursor-pointer bg-transparent outline-none"
                 aria-label="Chọn tháng xem ví"
               >
                 <option value="all">Toàn thời gian</option>
@@ -279,244 +286,303 @@ export function WalletTab({
                   )
                 })}
               </select>
-              <ChevronDown size={14} className="text-slate-400" />
+              <ChevronDown size={13} className="text-slate-400" />
             </label>
             <button
               type="button"
-              onClick={onRecordTransaction}
-              className="flex h-10 items-center gap-2 rounded-lg bg-[#008F68] px-4 text-xs font-black text-white shadow-sm transition hover:bg-[#007653]"
+              onClick={() => setTransferOpen(true)}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 text-xs font-black text-[#00775C] shadow-sm transition hover:bg-emerald-100/70"
             >
-              <CirclePlus size={16} />
-              Thêm giao dịch
+              <ArrowUpRight size={14} />
+              Chuyển giữa các ví
             </button>
-          </div>
-        </div>
-        <section className="relative order-2 overflow-hidden rounded-2xl bg-[#00775C] p-6 text-white shadow-[0_12px_30px_rgba(0,119,92,.16)]">
-          <div className="pointer-events-none absolute -right-24 -top-32 h-72 w-72 rounded-full border border-white/10 shadow-[0_0_0_28px_rgba(255,255,255,.04),0_0_0_56px_rgba(255,255,255,.025)]" />
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.12em] text-white/75">
-                Tiền hiện có
-              </div>
-              <div className="mt-2 flex items-center gap-3">
-                <div className="text-4xl font-black tracking-tight tabular-nums">
-                  {showBalance ? formatVND(availableBalance) : '••••••••••'}
-                </div>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#41D59B]/20 px-3 py-1.5 text-[11px] font-black text-[#C5FFE5]">
-                  <CheckCircle2 size={14} />
-                  Khớp sổ sách
-                </span>
-              </div>
-              <div className="mt-2 text-xs text-white/65">
-                {selectedMonth === 'all'
-                  ? 'Cập nhật theo toàn bộ sổ giao dịch'
-                  : `Cập nhật theo giao dịch trong ${selectedMonth.slice(5)}/${selectedMonth.slice(0, 4)}`}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowBalance((value) => !value)}
-              className="rounded-lg border border-white/25 bg-white/10 p-2.5 text-white hover:bg-white/20"
-              aria-label="Ẩn hiện số dư"
-            >
-              {showBalance ? <Eye size={18} /> : <EyeOff size={18} />}
-            </button>
-          </div>
-        </section>
-        <section className="order-5 rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-base font-black text-[#12372A]">
-              <WalletCards size={19} className="text-[#008F68]" />
-              Tiền đang nằm ở đâu?
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setTransferOpen(true)}
-                className="flex items-center gap-2 rounded-lg bg-[#008F68] px-3 py-2 text-xs font-black text-white hover:bg-[#007653]"
-              >
-                <ArrowUpRight size={14} />
-                Chuyển giữa các ví
-              </button>
-              <button
-                type="button"
-                onClick={onReconcile}
-                className="flex items-center gap-2 rounded-lg border border-emerald-200 px-3 py-2 text-xs font-black text-[#008F68] hover:bg-emerald-50"
-              >
-                <RefreshCw size={14} />
-                Đối soát ngay
-              </button>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => setSelectedWallet('bank')}
-              onDoubleClick={() => copyWalletValue(accountNo, 'Số tài khoản')}
-              title="Double-click để sao chép số tài khoản"
-              className={`rounded-xl border p-4 text-left transition ${selectedWallet === 'bank' ? 'border-[#17A673] bg-[#F3FCF8] shadow-[0_0_0_3px_rgba(23,166,115,.1)]' : 'border-slate-200 bg-white hover:border-emerald-200'}`}
-            >
-              <div className="flex items-start justify-between">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#DDF8EC] text-[#008F68]">
-                  <Landmark size={21} />
-                </span>
-                <MoreHorizontal size={17} className="text-slate-400" />
-              </div>
-              <div className="mt-3 text-sm font-black text-[#12372A]">
-                {bankName} · {accountNo}
-              </div>
-              <div className="mt-1 text-[11px] text-slate-500">
-                {appSettings?.bank_id && appSettings.account_no
-                  ? 'Tài khoản nhận tiền · Đồng bộ qua Sepay'
-                  : 'Chưa cấu hình tài khoản nhận tiền'}
-              </div>
-              <div className="mt-3 text-xl font-black tabular-nums text-[#12372A]">
-                {formatVND(Math.max(0, bankBalance))}
-              </div>
-              <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-[#008F68]">
-                <CheckCircle2 size={13} />
-                {appSettings?.bank_id && appSettings.account_no ? 'Đang hoạt động' : 'Cần cấu hình'}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedWallet('cash')}
-              onDoubleClick={() =>
-                copyWalletValue(String(Math.max(0, cashBalance)), 'Số dư tiền mặt')
-              }
-              title="Double-click để sao chép số dư tiền mặt"
-              className={`rounded-xl border p-4 text-left transition ${selectedWallet === 'cash' ? 'border-[#F4B641] bg-[#FFFBF4] shadow-[0_0_0_3px_rgba(244,182,65,.12)]' : 'border-slate-200 bg-white hover:border-amber-200'}`}
-            >
-              <div className="flex items-start justify-between">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF0DB] text-[#D27B20]">
-                  <Banknote size={21} />
-                </span>
-                <MoreHorizontal size={17} className="text-slate-400" />
-              </div>
-              <div className="mt-3 text-sm font-black text-[#12372A]">Tiền mặt tại quỹ</div>
-              <div className="mt-1 text-[11px] text-slate-500">Tiền mặt · Cập nhật thủ công</div>
-              <div className="mt-3 text-xl font-black tabular-nums text-[#12372A]">
-                {formatVND(Math.max(0, cashBalance))}
-              </div>
-              <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-[#D27B20]">
-                <CheckCircle2 size={13} />
-                Đang hoạt động
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={onRecordTransaction}
-              className="flex min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-emerald-200 bg-[#FBFEFC] text-[#008F68] transition hover:bg-emerald-50"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E2F8EE]">
-                <Plus size={21} />
-              </span>
-              <span className="mt-3 text-sm font-black">Thêm ví hoặc tài khoản</span>
-              <span className="mt-1 text-[10px] text-slate-400">
-                Ngân hàng · Tiền mặt · Ví điện tử
-              </span>
-            </button>
-          </div>
-        </section>
-        <section className="order-6 flex items-center justify-between gap-4 rounded-xl border border-amber-200 bg-[#FFF9ED] px-5 py-3.5">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <ReceiptText size={16} />
-            </div>
-            <div>
-              <div className="text-xs font-black text-[#7B5311]">
-                Khoản chuyển khoản không qua Sepay hoặc tiền mặt?
-              </div>
-              <div className="mt-1 text-[11px] leading-5 text-[#99773A]">
-                Ghi nhận thủ công trong Giao dịch, chọn đúng phương thức để số dư được cộng vào ngân
-                hàng hoặc quỹ tiền mặt.
-              </div>
-            </div>
-          </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <button
               type="button"
               onClick={onSyncSepay}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-black text-[#8B5E13] hover:bg-amber-50"
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-amber-300 bg-[#FFFDF5] px-3.5 text-xs font-black text-[#8B5E13] shadow-sm transition hover:bg-amber-100/60"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={13} />
               Đồng bộ / xử lý Sepay
             </button>
             <button
               type="button"
               onClick={onRecordTransaction}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3 py-2 text-[11px] font-black text-[#8B5E13] hover:bg-amber-50"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#008F68] px-3.5 text-xs font-black text-white shadow-sm transition hover:bg-[#007653]"
             >
-              <CirclePlus size={14} />
+              <CirclePlus size={15} />
               Ghi nhận thủ công
+            </button>
+            <button
+              type="button"
+              onClick={onReconcile}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <RefreshCw size={13} className="text-[#008F68]" />
+              Đối soát ngay
+            </button>
+          </div>
+        </div>
+
+        {/* 1. MỤC TIỀN ĐANG NẰM Ở ĐÂU - LÊN ĐẦU TIÊN THEO YÊU CẦU */}
+        <section className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E8F8F0] text-[#008F68]">
+                <WalletCards size={18} />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-[#12372A]">Tiền đang nằm ở đâu?</h2>
+                <p className="text-[11px] text-slate-400">Số dư tại từng tài khoản ngân hàng và quỹ tiền mặt</p>
+              </div>
+            </div>
+
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
+              <CheckCircle2 size={13} className="text-emerald-600" />
+              Khớp sổ sách
+            </span>
+          </div>
+
+          {/* BANNER SỐ DƯ KHẢ DỤNG TO RÕ RÀNG */}
+          <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#006e53] via-[#005e46] to-[#014936] p-5 sm:p-6 text-white shadow-lg shadow-emerald-950/10">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
+                  <WalletCards size={16} />
+                  <span>Số dư khả dụng</span>
+                  <span className="text-emerald-300/60">•</span>
+                  <span className="text-[11px] font-bold normal-case text-emerald-100/80">Tổng tài sản thanh khoản</span>
+                </div>
+                <div className="mt-2.5 flex items-baseline gap-3">
+                  <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums text-white drop-shadow-sm">
+                    {showBalance ? formatVND(availableBalance) : '••••••••••'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowBalance((v) => !v)}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-emerald-200 transition hover:bg-white/20 hover:text-white"
+                    title={showBalance ? 'Ẩn số dư' : 'Hiện số dư'}
+                    aria-label="Ẩn hiện số dư"
+                  >
+                    {showBalance ? <Eye size={18} /> : <EyeOff size={18} />}
+                  </button>
+                </div>
+                <div className="mt-2 text-xs text-emerald-100/70">
+                  {selectedMonth === 'all'
+                    ? 'Cập nhật theo toàn bộ sổ giao dịch thực tế'
+                    : `Cập nhật theo giao dịch trong ${selectedMonth.slice(5)}/${selectedMonth.slice(0, 4)}`}
+                </div>
+              </div>
+
+              {/* Tỷ trọng phân bổ nhanh 2 ví */}
+              <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+                <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">
+                    Ngân hàng ({bankPercent}%)
+                  </div>
+                  <div className="mt-0.5 text-base sm:text-lg font-black tabular-nums text-white">
+                    {showBalance ? formatVND(safeBankBalance) : '••••••••••'}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-200">
+                    Tiền mặt ({cashPercent}%)
+                  </div>
+                  <div className="mt-0.5 text-base sm:text-lg font-black tabular-nums text-white">
+                    {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Lưới các thẻ ví */}
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+            {/* Thẻ Ngân hàng */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedWallet('bank')}
+              onDoubleClick={() => copyWalletValue(accountNo, 'Số tài khoản')}
+              title="Click để chọn · Double-click để sao chép số tài khoản"
+              className={`group relative flex flex-col justify-between rounded-xl border p-4 text-left transition cursor-pointer ${
+                selectedWallet === 'bank'
+                  ? 'border-[#17A673] bg-[#F3FCF8] shadow-[0_0_0_3px_rgba(23,166,115,.1)]'
+                  : 'border-slate-200 bg-white hover:border-emerald-200 hover:shadow-sm'
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#DDF8EC] text-[#008F68] shadow-sm">
+                    <Landmark size={20} />
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        copyWalletValue(accountNo, 'Số tài khoản')
+                      }}
+                      title="Sao chép số tài khoản"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <i className="fa-regular fa-copy text-xs"></i>
+                    </button>
+                    <MoreHorizontal size={16} className="text-slate-400" />
+                  </div>
+                </div>
+                <div className="mt-3 truncate text-sm font-black text-[#12372A]">
+                  {bankName} · {accountNo}
+                </div>
+                <div className="mt-0.5 text-[11px] text-slate-500">
+                  {appSettings?.bank_id && appSettings.account_no
+                    ? 'Tài khoản nhận tiền · Đồng bộ qua Sepay'
+                    : 'Chưa cấu hình tài khoản nhận tiền'}
+                </div>
+                <div className="mt-3 text-2xl font-black tabular-nums text-[#12372A]">
+                  {showBalance ? formatVND(safeBankBalance) : '••••••••••'}
+                </div>
+              </div>
+              <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold text-[#008F68]">
+                  <CheckCircle2 size={13} />
+                  {appSettings?.bank_id && appSettings.account_no ? 'Đang hoạt động' : 'Cần cấu hình'}
+                </div>
+                <span className="font-bold text-slate-500">{bankPercent}% tổng ví</span>
+              </div>
+            </div>
+
+            {/* Thẻ Tiền mặt tại quỹ */}
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedWallet('cash')}
+              onDoubleClick={() => copyWalletValue(String(safeCashBalance), 'Số dư tiền mặt')}
+              title="Click để chọn · Double-click để sao chép số dư"
+              className={`group relative flex flex-col justify-between rounded-xl border p-4 text-left transition cursor-pointer ${
+                selectedWallet === 'cash'
+                  ? 'border-[#F4B641] bg-[#FFFBF4] shadow-[0_0_0_3px_rgba(244,182,65,.12)]'
+                  : 'border-slate-200 bg-white hover:border-amber-200 hover:shadow-sm'
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF0DB] text-[#D27B20] shadow-sm">
+                    <Banknote size={20} />
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        copyWalletValue(String(safeCashBalance), 'Số dư tiền mặt')
+                      }}
+                      title="Sao chép số dư"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <i className="fa-regular fa-copy text-xs"></i>
+                    </button>
+                    <MoreHorizontal size={16} className="text-slate-400" />
+                  </div>
+                </div>
+                <div className="mt-3 text-sm font-black text-[#12372A]">Tiền mặt tại quỹ</div>
+                <div className="mt-0.5 text-[11px] text-slate-500">Tiền mặt · Cập nhật thủ công</div>
+                <div className="mt-3 text-2xl font-black tabular-nums text-[#12372A]">
+                  {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
+                </div>
+              </div>
+              <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
+                <div className="flex items-center gap-1.5 font-bold text-[#D27B20]">
+                  <CheckCircle2 size={13} />
+                  Đang hoạt động
+                </div>
+                <span className="font-bold text-slate-500">{cashPercent}% tổng ví</span>
+              </div>
+            </div>
+
+            {/* Thẻ Thêm ví hoặc tài khoản */}
+            <button
+              type="button"
+              onClick={onRecordTransaction}
+              className="group flex min-h-[160px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-200 bg-[#FBFEFC] p-4 text-[#008F68] transition hover:border-emerald-300 hover:bg-emerald-50/50"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E2F8EE] shadow-sm transition group-hover:scale-105">
+                <Plus size={20} />
+              </span>
+              <span className="mt-3 text-sm font-black">Thêm ví hoặc tài khoản</span>
+              <span className="mt-0.5 text-[10px] text-slate-400">
+                Ngân hàng · Tiền mặt · Ví điện tử
+              </span>
             </button>
           </div>
         </section>
-        <section className="order-3 overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div className="flex items-center gap-2 text-base font-black text-[#12372A]">
-                <ReceiptText size={19} className="text-[#008F68]" />
-                Biến động gần đây
-              </div>
-              <button
-                type="button"
-                onClick={onRecordTransaction}
-                className="flex items-center gap-1 text-xs font-black text-[#008F68]"
-              >
-                Xem tất cả <ChevronRight size={14} />
-              </button>
+
+        {/* 2. MỤC BIẾN ĐỘNG GẦN ĐÂY */}
+        <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <div className="flex items-center gap-2 text-base font-black text-[#12372A]">
+              <ReceiptText size={18} className="text-[#008F68]" />
+              Biến động gần đây
             </div>
-            <div className="border-b border-slate-100 px-4 py-3">
-              <label className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50">
-                <Search size={14} className="ml-3 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Tìm giao dịch..."
-                  className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none placeholder:text-slate-400"
-                />
-              </label>
+            <button
+              type="button"
+              onClick={onRecordTransaction}
+              className="inline-flex items-center gap-1 text-xs font-black text-[#008F68] transition hover:text-[#007653]"
+            >
+              Xem tất cả <ChevronRight size={14} />
+            </button>
+          </div>
+          <div className="border-b border-slate-100 px-4 py-2.5">
+            <label className="flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50">
+              <Search size={14} className="ml-3 text-slate-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm giao dịch..."
+                className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none placeholder:text-slate-400"
+              />
+            </label>
+          </div>
+          {isLoading ? (
+            <div className="flex h-44 items-center justify-center text-xs font-bold text-[#008F68]">
+              <i className="fa-solid fa-spinner fa-spin mr-2"></i> Đang tổng hợp ví...
             </div>
-            {isLoading ? (
-              <div className="flex h-56 items-center justify-center text-xs font-bold text-[#008F68]">
-                Đang tổng hợp ví...
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {filteredRows.slice(0, 5).map((row) => (
-                  <div
-                    key={row.id}
-                    className="grid grid-cols-[34px_1fr_auto] items-center gap-3 px-5 py-3"
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {filteredRows.slice(0, 5).map((row) => (
+                <div
+                  key={row.id}
+                  className="grid grid-cols-[34px_1fr_auto] items-center gap-3 px-5 py-3 transition hover:bg-slate-50/50"
+                >
+                  <span
+                    className={`flex h-8 w-8 items-center justify-center rounded-full ${row.type === 'income' ? 'bg-emerald-50 text-[#008F68]' : 'bg-red-50 text-[#E04444]'}`}
                   >
-                    <span
-                      className={`flex h-8 w-8 items-center justify-center rounded-full ${row.type === 'income' ? 'bg-emerald-50 text-[#008F68]' : 'bg-red-50 text-[#E04444]'}`}
-                    >
-                      {row.type === 'income' ? (
-                        <ArrowDownLeft size={16} />
-                      ) : (
-                        <ArrowUpRight size={16} />
-                      )}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="truncate text-xs font-black text-[#12372A]">{row.title}</div>
-                      <div className="truncate text-[10px] text-slate-500">
-                        {formatDate(row.date)} ·{' '}
-                        {row.paymentMethod === 'cash'
-                          ? 'Tiền mặt tại quỹ'
-                          : `${bankName} · ${accountNo}`}
-                      </div>
-                    </div>
-                    <div
-                      className={`text-xs font-black tabular-nums ${row.type === 'income' ? 'text-[#008F68]' : 'text-[#E04444]'}`}
-                    >
-                      {row.type === 'income' ? '+' : '−'}
-                      {formatVND(row.amount)}
+                    {row.type === 'income' ? (
+                      <ArrowDownLeft size={16} />
+                    ) : (
+                      <ArrowUpRight size={16} />
+                    )}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-black text-[#12372A]">{row.title}</div>
+                    <div className="truncate text-[10px] text-slate-500">
+                      {formatDate(row.date)} ·{' '}
+                      {row.paymentMethod === 'cash'
+                        ? 'Tiền mặt tại quỹ'
+                        : `${bankName} · ${accountNo}`}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div
+                    className={`text-xs font-black tabular-nums ${row.type === 'income' ? 'text-[#008F68]' : 'text-[#E04444]'}`}
+                  >
+                    {row.type === 'income' ? '+' : '−'}
+                    {formatVND(row.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
+
         {copiedMessage && (
           <div className="fixed bottom-5 left-1/2 z-[140] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-xl">
             <i className="fa-solid fa-check mr-2 text-emerald-300" />

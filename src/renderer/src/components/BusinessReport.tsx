@@ -1590,7 +1590,11 @@ export function BusinessReport({
       )}
 
       {activeTab === 'debt' && (
-        <DebtReport summary={debtSummary} isAdmin={currentUser?.role === 'admin'} />
+        <DebtReport
+          summary={debtSummary}
+          canCreate={Boolean(currentUser)}
+          isAdmin={currentUser?.role === 'admin'}
+        />
       )}
 
       {activeTab === 'deposit' && (

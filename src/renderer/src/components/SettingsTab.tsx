@@ -2,13 +2,21 @@ import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowUpDown,
+  CalendarDays,
   CheckCircle2,
   Filter,
+  KeyRound,
   Layers3,
+  LockKeyhole,
   MoreVertical,
+  PencilLine,
   Plus,
+  Power,
   RefreshCcw,
   Search,
+  ShieldCheck,
+  UserRound,
+  UsersRound,
   X,
   XCircle
 } from 'lucide-react'
@@ -1117,6 +1125,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState(currentUser.id)
 
   const editMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { full_name: string } }) =>
@@ -1174,115 +1183,153 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
     })
   }, [searchTerm, sortBy, statusFilter, users])
 
+  const selectedUser =
+    users.find((user) => user.id === selectedUserId) || filteredUsers[0] || users[0] || null
+
+  useEffect(() => {
+    if (selectedUser && selectedUser.id !== selectedUserId) {
+      setSelectedUserId(selectedUser.id)
+    }
+  }, [selectedUser, selectedUserId])
+
   const totalUsers = users.length
   const activeUsers = users.filter((user) => user.status === 'active').length
-  const adminUsers = users.filter((user) => user.role === 'admin').length
 
   return (
     <>
-      <div className="app-system-font flex min-h-full flex-col bg-[#f5f7fb]">
-        <div className="border-b border-slate-200 bg-white px-6 py-5 md:px-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="app-system-font min-h-full bg-[radial-gradient(circle_at_top_right,rgba(15,175,122,0.08),transparent_30%),#f7faf9] px-5 py-5 md:px-7 md:py-6">
+        <div className="mx-auto max-w-[1500px]">
+          <div className="mb-5 grid gap-4 xl:grid-cols-[minmax(320px,1fr)_minmax(540px,0.9fr)] xl:items-end">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-[#00558d]">
-                Quản trị tài khoản
+              <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-400">
+                <span>Cài đặt</span>
+                <span>/</span>
+                <span className="text-slate-600">Tài khoản</span>
               </div>
-              <h3 className="mt-2 text-xl font-black text-slate-900">Tài khoản hệ thống</h3>
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">
-                Quản lý người dùng nội bộ, phân quyền truy cập và thao tác bảo mật ngay trong một màn
-                hình.
-              </p>
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e7f8f2] text-[#087f6b] shadow-[inset_0_0_0_1px_rgba(15,175,122,0.08)]">
+                  <UserRound size={25} strokeWidth={2.2} />
+                </div>
+                <div>
+                  <h3 className="text-[28px] font-black tracking-[-0.04em] text-[#10233f]">Tài khoản</h3>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    Quản lý quyền truy cập và bảo mật tài khoản trong hệ thống.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="grid min-w-[280px] grid-cols-3 gap-3">
-              <AccountMetricCard label="Tổng tài khoản" value={String(totalUsers)} tone="slate" />
-              <AccountMetricCard label="Đang hoạt động" value={String(activeUsers)} tone="emerald" />
-              <AccountMetricCard label="Quản trị viên" value={String(adminUsers)} tone="blue" />
+
+            <div className="grid grid-cols-3 gap-3">
+              <AccountMetricCard
+                label="Tổng tài khoản"
+                value={String(totalUsers).padStart(2, '0')}
+                tone="blue"
+                icon={<UsersRound size={20} />}
+              />
+              <AccountMetricCard
+                label="Đang hoạt động"
+                value={String(activeUsers).padStart(2, '0')}
+                tone="emerald"
+                icon={<CheckCircle2 size={20} />}
+              />
+              <AccountMetricCard
+                label="Đã khóa"
+                value={String(totalUsers - activeUsers).padStart(2, '0')}
+                tone="rose"
+                icon={<LockKeyhole size={20} />}
+              />
             </div>
           </div>
-        </div>
 
-        <div className="flex-1 p-6 md:p-8">
-          <div className="mx-auto max-w-[1440px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_45px_-28px_rgba(15,23,42,0.25)]">
-            <div className="border-b border-slate-100 bg-white px-6 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
+          {usersError && (
+            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700">
+              {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
+            </div>
+          )}
+
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
+            <section className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.35)]">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-base font-black text-[#10233f]">Danh sách tài khoản</h4>
+                    <p className="mt-1 text-xs text-slate-400">Chọn một tài khoản để xem chi tiết và thao tác nhanh.</p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddForm((current) => !current)}
+                    className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white shadow-sm transition ${
+                      showAddForm
+                        ? 'bg-slate-700 hover:bg-slate-800'
+                        : 'bg-[#00656b] hover:bg-[#00545a]'
+                    }`}
+                  >
+                    {showAddForm ? <X size={16} /> : <Plus size={17} />}
+                    {showAddForm ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}
+                  </button>
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_auto_auto_auto]">
                   <div className="relative">
-                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Tìm theo tên, username hoặc vai trò..."
-                      className="h-10 w-[320px] rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                      placeholder="Tìm kiếm tài khoản..."
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#0faf7a] focus:ring-4 focus:ring-[#0faf7a]/10"
                     />
                   </div>
-                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    <Filter size={14} />
+                  <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                    <Filter size={15} />
                     <select
                       value={statusFilter}
-                      onChange={(event) =>
-                        setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')
-                      }
+                      onChange={(event) => setStatusFilter(event.target.value as 'all' | 'active' | 'inactive')}
                       className="bg-transparent pr-2 outline-none"
                     >
-                      <option value="all">Tất cả trạng thái</option>
+                      <option value="all">Tất cả</option>
                       <option value="active">Đang hoạt động</option>
                       <option value="inactive">Đã vô hiệu hóa</option>
                     </select>
-                  </div>
+                  </label>
                   <button
                     onClick={() =>
                       setSortBy((current) =>
                         current === 'name' ? 'username' : current === 'username' ? 'role' : 'name'
                       )
                     }
-                    className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+                    className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                    title="Đổi cách sắp xếp"
                   >
-                    <ArrowUpDown size={14} />
-                    {sortBy === 'name'
-                      ? 'Sắp xếp: Họ tên'
-                      : sortBy === 'username'
-                        ? 'Sắp xếp: Username'
-                        : 'Sắp xếp: Vai trò'}
+                    <ArrowUpDown size={15} />
+                    {sortBy === 'name' ? 'Họ tên' : sortBy === 'username' ? 'Username' : 'Vai trò'}
                   </button>
-                </div>
-
-                <div className="flex items-center gap-2">
                   <button
                     onClick={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-primary"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-[#0faf7a]/30 hover:bg-[#eaf8f3] hover:text-[#087f6b]"
                     title="Làm mới danh sách"
                   >
                     <RefreshCcw size={16} />
                   </button>
-                  <button
-                    onClick={() => setShowAddForm((current) => !current)}
-                    className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white transition ${showAddForm ? 'bg-rose-500 hover:bg-rose-600' : 'bg-[#00558d] hover:bg-[#004470]'
-                      }`}
-                  >
-                    {showAddForm ? <XCircle size={16} /> : <Plus size={16} />}
-                    {showAddForm ? 'Đóng biểu mẫu' : 'Thêm tài khoản'}
-                  </button>
                 </div>
               </div>
-            </div>
 
-            {usersError && (
-              <div className="border-b border-rose-100 bg-rose-50 px-6 py-4 text-sm text-rose-700">
-                {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
-              </div>
-            )}
-
-            {showAddForm && (
-              <div className="border-b border-slate-100 bg-[linear-gradient(135deg,#f8fbff_0%,#ffffff_100%)] px-6 py-6">
+              {showAddForm && (
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault()
+                  onSubmit={(event) => {
+                    event.preventDefault()
                     createUserMutation.mutate(newUserForm)
                   }}
-                  className="mx-auto max-w-4xl rounded-[24px] border border-slate-200 bg-white p-6 shadow-sm"
+                  className="border-b border-slate-100 bg-[#f8fbfa] px-5 py-5"
                 >
-                  <div className="mb-5 text-sm font-bold text-[#00558d]">Tạo tài khoản mới</div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-black text-[#10233f]">Tạo tài khoản mới</div>
+                      <div className="mt-1 text-xs text-slate-400">Cấp quyền truy cập cho nhân sự mới.</div>
+                    </div>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e7f8f2] text-[#087f6b]">
+                      <UserRound size={17} />
+                    </div>
+                  </div>
 
                   {createUserMutation.error && (
                     <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -1292,75 +1339,67 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-600">
-                        Email <span className="text-rose-500">*</span>
-                      </label>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <AccountFormField label="Email" required>
                       <input
                         type="email"
                         required
                         value={newUserForm.email}
-                        onChange={(e) => setNewUserForm((f) => ({ ...f, email: e.target.value }))}
+                        onChange={(event) => setNewUserForm((form) => ({ ...form, email: event.target.value }))}
                         placeholder="example@email.com"
-                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                        className="account-form-input"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-600">
-                        Username <span className="text-slate-400 font-normal">(để đăng nhập)</span>
-                      </label>
+                    </AccountFormField>
+                    <AccountFormField label="Username">
                       <input
                         type="text"
                         value={newUserForm.username}
-                        onChange={(e) => setNewUserForm((f) => ({ ...f, username: e.target.value.replace(/\s/g, '').toLowerCase() }))}
+                        onChange={(event) =>
+                          setNewUserForm((form) => ({
+                            ...form,
+                            username: event.target.value.replace(/\s/g, '').toLowerCase()
+                          }))
+                        }
                         placeholder="vd: kimngan"
-                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                        className="account-form-input"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-600">
-                        Mật khẩu <span className="text-rose-500">*</span>
-                      </label>
+                    </AccountFormField>
+                    <AccountFormField label="Mật khẩu" required>
                       <input
                         type="password"
                         required
                         minLength={6}
                         value={newUserForm.password}
-                        onChange={(e) => setNewUserForm((f) => ({ ...f, password: e.target.value }))}
+                        onChange={(event) => setNewUserForm((form) => ({ ...form, password: event.target.value }))}
                         placeholder="Tối thiểu 6 ký tự"
-                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                        className="account-form-input"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-600">
-                        Họ tên <span className="text-rose-500">*</span>
-                      </label>
+                    </AccountFormField>
+                    <AccountFormField label="Họ tên" required>
                       <input
                         type="text"
                         required
                         value={newUserForm.full_name}
-                        onChange={(e) => setNewUserForm((f) => ({ ...f, full_name: e.target.value }))}
+                        onChange={(event) => setNewUserForm((form) => ({ ...form, full_name: event.target.value }))}
                         placeholder="Nguyễn Văn A"
-                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                        className="account-form-input"
                       />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs font-bold text-slate-600">Vai trò</label>
+                    </AccountFormField>
+                    <AccountFormField label="Vai trò">
                       <select
                         value={newUserForm.role}
-                        onChange={(e) =>
-                          setNewUserForm((f) => ({ ...f, role: e.target.value as UserRole }))
+                        onChange={(event) =>
+                          setNewUserForm((form) => ({ ...form, role: event.target.value as UserRole }))
                         }
-                        className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+                        className="account-form-input"
                       >
                         <option value="user">Người dùng</option>
                         <option value="admin">Quản trị viên</option>
                       </select>
-                    </div>
+                    </AccountFormField>
                   </div>
 
-                  <div className="mt-6 flex items-center justify-end gap-3">
+                  <div className="mt-4 flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -1368,153 +1407,141 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                         setNewUserForm({ email: '', username: '', password: '', full_name: '', role: 'user' })
                         createUserMutation.reset()
                       }}
-                      className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
                     >
                       Hủy
                     </button>
                     <button
                       type="submit"
                       disabled={createUserMutation.isPending}
-                      className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#004470] disabled:opacity-60"
+                      className="rounded-xl bg-[#00656b] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00545a] disabled:opacity-60"
                     >
                       {createUserMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
                     </button>
                   </div>
                 </form>
-              </div>
-            )}
+              )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/90 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    <th className="px-4 py-3">Tài khoản</th>
-                    <th className="px-4 py-3">Vai trò</th>
-                    <th className="px-4 py-3">Trạng thái</th>
-                    <th className="px-4 py-3">Đăng nhập</th>
-                    <th className="px-4 py-3 text-right">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {isLoading && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-400">
-                        <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[45vh]" />
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-[#f7f9fa] text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      <th className="px-5 py-3.5">Tài khoản</th>
+                      <th className="px-4 py-3.5">Vai trò</th>
+                      <th className="px-4 py-3.5">Trạng thái</th>
+                      <th className="px-4 py-3.5">Đăng nhập</th>
+                      <th className="px-4 py-3.5 text-right">Thao tác</th>
                     </tr>
-                  )}
-                  {!isLoading && filteredUsers.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-14 text-center">
-                        <div className="mx-auto max-w-md">
-                          <div className="text-base font-bold text-slate-700">
-                            Không có tài khoản phù hợp
-                          </div>
-                          <div className="mt-2 text-sm text-slate-500">
-                            Hãy đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái để xem thêm dữ liệu.
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {filteredUsers.map((user) => {
-                    const isUpdatingStatus =
-                      statusMutation.isPending && statusMutation.variables?.userId === user.id
-                    const isUpdatingRole =
-                      roleMutation.isPending && roleMutation.variables?.userId === user.id
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {isLoading && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-400">
+                          <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[38vh]" />
+                        </td>
+                      </tr>
+                    )}
+                    {!isLoading && filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-16 text-center">
+                          <div className="font-bold text-slate-700">Không có tài khoản phù hợp</div>
+                          <div className="mt-2 text-sm text-slate-400">Thử thay đổi từ khóa hoặc bộ lọc trạng thái.</div>
+                        </td>
+                      </tr>
+                    )}
+                    {filteredUsers.map((user) => {
+                      const isSelected = selectedUser?.id === user.id
+                      const isUpdatingRole =
+                        roleMutation.isPending && roleMutation.variables?.userId === user.id
 
-                    return (
-                      <tr key={user.id} className="group bg-white transition hover:bg-slate-50/80">
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-black text-slate-700">
-                              {accountUserInitials(user)}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="truncate text-sm font-black text-[#00558d]">@{user.username}</span>
-                                {user.id === currentUser.id && (
-                                  <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-600">Tôi</span>
-                                )}
+                      return (
+                        <tr
+                          key={user.id}
+                          onClick={() => setSelectedUserId(user.id)}
+                          className={`cursor-pointer transition ${
+                            isSelected
+                              ? 'bg-[linear-gradient(90deg,rgba(15,175,122,0.11),rgba(15,175,122,0.035))]'
+                              : 'bg-white hover:bg-slate-50/80'
+                          }`}
+                        >
+                          <td className="px-5 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${accountAvatarTone(user.id)}`}>
+                                {accountUserInitials(user)}
                               </div>
-                              <div className="truncate text-sm text-slate-600">{user.full_name}</div>
-                              <div className="text-xs text-slate-400">{user.email || ''}</div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate text-sm font-black text-[#10233f]">{user.full_name}</span>
+                                  {user.id === currentUser.id && (
+                                    <span className="rounded-full bg-[#e7f8f2] px-2 py-0.5 text-[10px] font-black text-[#087f6b]">Tôi</span>
+                                  )}
+                                </div>
+                                <div className="mt-0.5 truncate text-xs text-slate-400">{user.email || `@${user.username}`}</div>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <select
-                            value={user.role}
-                            onChange={(event) =>
-                              roleMutation.mutate({
-                                userId: user.id,
-                                role: event.target.value as UserRole
-                              })
-                            }
-                            disabled={isUpdatingRole}
-                            className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
-                          >
-                            <option value="user">Người dùng</option>
-                            <option value="admin">Quản trị viên</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-bold ${user.status === 'active'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'bg-slate-100 text-slate-500'
-                              }`}
-                          >
-                            <CheckCircle2 size={14} />
-                            {user.status === 'active' ? 'Hoạt động' : 'Vô hiệu hóa'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="text-sm text-slate-700">
-                            {user.last_login_at
-                              ? accountFormatDateTime(user.last_login_at)
-                              : <span className="text-slate-400">Chưa đăng nhập</span>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() =>
-                                statusMutation.mutate({
-                                  userId: user.id,
-                                  status: user.status === 'active' ? 'inactive' : 'active'
-                                })
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <select
+                              value={user.role}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) =>
+                                roleMutation.mutate({ userId: user.id, role: event.target.value as UserRole })
                               }
-                              disabled={isUpdatingStatus}
-                              className={`rounded-xl px-3 py-2 text-xs font-bold transition ${user.status === 'active'
-                                ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                } disabled:cursor-not-allowed disabled:opacity-60`}
+                              disabled={isUpdatingRole}
+                              className={`h-8 max-w-[145px] cursor-pointer appearance-none rounded-lg border-0 px-3 text-xs font-bold outline-none transition focus:ring-4 disabled:opacity-60 ${
+                                user.role === 'admin'
+                                  ? 'bg-[#fff1d9] text-[#9a5b00] focus:ring-amber-100'
+                                  : 'bg-[#eaf2ff] text-[#2864b7] focus:ring-blue-100'
+                              }`}
                             >
-                              {user.status === 'active' ? 'Vô hiệu' : 'Kích hoạt'}
-                            </button>
-                            <div className="relative">
+                              <option value="user">Người dùng</option>
+                              <option value="admin">Quản trị viên</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${
+                              user.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700'
+                                : 'bg-rose-50 text-rose-600'
+                            }`}>
+                              <span className={`h-2 w-2 rounded-full ${user.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                              {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3.5 text-sm text-slate-500">
+                            {user.last_login_at ? accountFormatDateTime(user.last_login_at) : 'Chưa đăng nhập'}
+                          </td>
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="relative inline-block">
                               <button
-                                onClick={(e) => {
+                                onClick={(event) => {
+                                  event.stopPropagation()
                                   if (openMenuId === user.id) {
                                     setOpenMenuId(null)
                                     setMenuAnchor(null)
                                   } else {
-                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                                    setMenuAnchor({ top: rect.bottom, bottom: window.innerHeight - rect.top, right: window.innerWidth - rect.right })
+                                    const rect = event.currentTarget.getBoundingClientRect()
+                                    setMenuAnchor({
+                                      top: rect.bottom,
+                                      bottom: window.innerHeight - rect.top,
+                                      right: window.innerWidth - rect.right
+                                    })
                                     setOpenMenuId(user.id)
                                   }
                                 }}
-                                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-[#0faf7a]/30 hover:text-[#087f6b]"
+                                title="Thao tác tài khoản"
                               >
                                 <MoreVertical size={16} />
                               </button>
                               {openMenuId === user.id && menuAnchor && (
                                 <div
-                                  className="fixed z-[9999] w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
-                                  style={menuAnchor.top + 176 < window.innerHeight
-                                    ? { top: menuAnchor.top + 4, right: menuAnchor.right }
-                                    : { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }}
+                                  className="fixed z-[9999] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-left shadow-xl"
+                                  style={
+                                    menuAnchor.top + 176 < window.innerHeight
+                                      ? { top: menuAnchor.top + 4, right: menuAnchor.right }
+                                      : { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
+                                  }
                                 >
                                   <button
                                     onClick={() => {
@@ -1522,9 +1549,9 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                       setEditingUser(user)
                                       setOpenMenuId(null)
                                     }}
-                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                                   >
-                                    Sửa thông tin
+                                    <PencilLine size={15} /> Sửa thông tin
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1532,45 +1559,146 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                       setNewPassword('')
                                       setOpenMenuId(null)
                                     }}
-                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 hover:bg-slate-50"
+                                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                                   >
-                                    Đổi mật khẩu
+                                    <KeyRound size={15} /> Đổi mật khẩu
                                   </button>
-                                  <div className="border-t border-slate-100" />
+                                  <div className="my-1 border-t border-slate-100" />
                                   <button
                                     onClick={() => {
                                       setDeletingUser(user)
                                       setOpenMenuId(null)
                                     }}
-                                    className="flex w-full items-center gap-3 px-4 py-3 text-sm text-rose-600 hover:bg-rose-50"
+                                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-rose-600 hover:bg-rose-50"
                                   >
-                                    Xóa tài khoản
+                                    <XCircle size={15} /> Xóa tài khoản
                                   </button>
                                 </div>
                               )}
                             </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between border-t border-slate-100 bg-white px-6 py-4 text-sm text-slate-500">
-              <span>
-                Hiển thị {filteredUsers.length} / {totalUsers} tài khoản
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                  Đang hoạt động: {activeUsers}
-                </span>
-                <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600">
-                  Admin: {adminUsers}
-                </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-            </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-sm text-slate-400">
+                <span>Hiển thị {filteredUsers.length} trong {totalUsers} tài khoản</span>
+                <div className="flex items-center gap-2">
+                  <button disabled className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-300">‹</button>
+                  <button className="h-9 min-w-9 rounded-xl bg-[#00656b] px-3 font-bold text-white shadow-sm">1</button>
+                  <button disabled className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-300">›</button>
+                </div>
+              </div>
+            </section>
+
+            <aside className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.35)] xl:sticky xl:top-0">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div>
+                  <h4 className="text-base font-black text-[#10233f]">Chi tiết tài khoản</h4>
+                  <p className="mt-1 text-xs text-slate-400">Thông tin và bảo mật</p>
+                </div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-400">
+                  <ShieldCheck size={17} />
+                </div>
+              </div>
+
+              {selectedUser ? (
+                <div className="p-5">
+                  <div className="flex flex-col items-center text-center">
+                    <div className={`flex h-24 w-24 items-center justify-center rounded-full text-3xl font-black shadow-[0_12px_30px_-20px_rgba(15,23,42,0.5)] ${accountAvatarTone(selectedUser.id)}`}>
+                      {accountUserInitials(selectedUser)}
+                    </div>
+                    <h5 className="mt-4 text-lg font-black text-[#10233f]">{selectedUser.full_name}</h5>
+                    <div className="mt-1 max-w-full truncate text-sm text-slate-400">
+                      {selectedUser.email || `@${selectedUser.username}`}
+                    </div>
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                        selectedUser.role === 'admin'
+                          ? 'bg-[#fff1d9] text-[#9a5b00]'
+                          : 'bg-[#eaf2ff] text-[#2864b7]'
+                      }`}>
+                        <ShieldCheck size={13} /> {accountRoleLabel(selectedUser.role)}
+                      </span>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                        selectedUser.status === 'active'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-rose-50 text-rose-600'
+                      }`}>
+                        <span className={`h-2 w-2 rounded-full ${selectedUser.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                        {selectedUser.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="my-5 h-px bg-slate-100" />
+
+                  <div className="space-y-4">
+                    <AccountDetailRow
+                      icon={<CalendarDays size={17} />}
+                      label="Đăng nhập gần nhất"
+                      value={selectedUser.last_login_at ? accountFormatDateTime(selectedUser.last_login_at) : 'Chưa đăng nhập'}
+                    />
+                    <AccountDetailRow
+                      icon={<CalendarDays size={17} />}
+                      label="Ngày tạo tài khoản"
+                      value={accountFormatDate(selectedUser.created_at)}
+                    />
+                    <AccountDetailRow
+                      icon={<ShieldCheck size={17} />}
+                      label="Quyền hệ thống"
+                      value={selectedUser.role === 'admin' ? 'Toàn quyền quản trị' : 'Quyền người dùng'}
+                      valueClassName={selectedUser.role === 'admin' ? 'text-[#9a5b00]' : 'text-[#087f6b]'}
+                    />
+                  </div>
+
+                  <div className="my-5 h-px bg-slate-100" />
+
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={() => {
+                        setEditForm({ full_name: selectedUser.full_name })
+                        setEditingUser(selectedUser)
+                      }}
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00656b] text-sm font-bold text-white shadow-sm transition hover:bg-[#00545a]"
+                    >
+                      <PencilLine size={16} /> Sửa thông tin
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPasswordUser(selectedUser)
+                        setNewPassword('')
+                      }}
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#00656b] bg-white text-sm font-bold text-[#00656b] transition hover:bg-[#eaf8f3]"
+                    >
+                      <KeyRound size={16} /> Đổi mật khẩu
+                    </button>
+                    <button
+                      onClick={() =>
+                        statusMutation.mutate({
+                          userId: selectedUser.id,
+                          status: selectedUser.status === 'active' ? 'inactive' : 'active'
+                        })
+                      }
+                      disabled={statusMutation.isPending && statusMutation.variables?.userId === selectedUser.id}
+                      className={`flex h-11 w-full items-center justify-center gap-2 rounded-xl border bg-white text-sm font-bold transition disabled:opacity-60 ${
+                        selectedUser.status === 'active'
+                          ? 'border-rose-300 text-rose-600 hover:bg-rose-50'
+                          : 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                      }`}
+                    >
+                      <Power size={16} />
+                      {selectedUser.status === 'active' ? 'Vô hiệu hóa' : 'Kích hoạt tài khoản'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="px-6 py-16 text-center text-sm text-slate-400">Chưa có tài khoản để hiển thị.</div>
+              )}
+            </aside>
           </div>
         </div>
       </div>
@@ -1684,25 +1812,90 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
 const AccountMetricCard = ({
   label,
   value,
-  tone
+  tone,
+  icon
 }: {
   label: string
   value: string
-  tone: 'slate' | 'emerald' | 'blue'
+  tone: 'slate' | 'emerald' | 'blue' | 'rose'
+  icon: React.ReactNode
 }): React.JSX.Element => {
   const toneClass =
     tone === 'emerald'
       ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-      : tone === 'blue'
+    : tone === 'blue'
         ? 'border-blue-100 bg-blue-50 text-blue-700'
-        : 'border-slate-200 bg-slate-50 text-slate-700'
+        : tone === 'rose'
+          ? 'border-rose-100 bg-rose-50 text-rose-600'
+          : 'border-slate-200 bg-slate-50 text-slate-700'
+
+  const iconClass =
+    tone === 'emerald'
+      ? 'bg-emerald-100/80'
+      : tone === 'blue'
+        ? 'bg-blue-100/80'
+        : tone === 'rose'
+          ? 'bg-rose-100/80'
+          : 'bg-slate-100'
 
   return (
-    <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">{label}</div>
-      <div className="mt-2 text-2xl font-black">{value}</div>
+    <div className={`flex min-h-[84px] items-center gap-3 rounded-2xl border px-3.5 py-3 ${toneClass}`}>
+      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>{icon}</div>
+      <div className="min-w-0">
+        <div className="truncate text-[11px] font-bold opacity-70">{label}</div>
+        <div className="mt-0.5 text-2xl font-black tracking-[-0.04em]">{value}</div>
+      </div>
     </div>
   )
+}
+
+const AccountFormField = ({
+  label,
+  required,
+  children
+}: {
+  label: string
+  required?: boolean
+  children: React.ReactNode
+}): React.JSX.Element => (
+  <label className="flex min-w-0 flex-col gap-1.5">
+    <span className="text-xs font-bold text-slate-600">
+      {label} {required && <span className="text-rose-500">*</span>}
+    </span>
+    {children}
+  </label>
+)
+
+const AccountDetailRow = ({
+  icon,
+  label,
+  value,
+  valueClassName = 'text-[#10233f]'
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  valueClassName?: string
+}): React.JSX.Element => (
+  <div className="flex items-start gap-3">
+    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#eef5f3] text-[#087f6b]">{icon}</div>
+    <div className="min-w-0">
+      <div className="text-xs text-slate-400">{label}</div>
+      <div className={`mt-0.5 truncate text-sm font-bold ${valueClassName}`}>{value}</div>
+    </div>
+  </div>
+)
+
+function accountAvatarTone(id: string): string {
+  const tones = [
+    'bg-[#d9f5ec] text-[#087f6b]',
+    'bg-[#e3edff] text-[#2864b7]',
+    'bg-[#eee5ff] text-[#6a45cb]',
+    'bg-[#fff0d8] text-[#a66000]',
+    'bg-[#ffe4e8] text-[#c14a63]'
+  ]
+  const index = Array.from(id).reduce((sum, char) => sum + char.charCodeAt(0), 0) % tones.length
+  return tones[index]
 }
 
 function accountRoleLabel(role: UserRole): string {
@@ -1727,6 +1920,13 @@ function accountFormatDateTime(value?: string): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function accountFormatDate(value?: string): string {
+  if (!value) return 'Chưa cập nhật'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Chưa cập nhật'
+  return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export const UpdateSettings = (): React.JSX.Element => {

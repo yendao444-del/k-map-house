@@ -104,9 +104,11 @@ const readStoredEntries = (): DebtEntry[] => {
 
 export function DebtReport({
   summary = { totalDebt: 0, paid: 0, offset: 0 },
+  canCreate = false,
   isAdmin = false
 }: {
   summary?: DebtSummary
+  canCreate?: boolean
   isAdmin?: boolean
 }): ReactElement {
   const [storedEntries] = useState<DebtEntry[]>(readStoredEntries)
@@ -219,7 +221,7 @@ export function DebtReport({
   }
 
   const openEditor = (key: EditableKey) => {
-    if (!isAdmin) return
+    if (!canCreate || (key === 'totalDebt' && !isAdmin)) return
     setEditing(key)
     setEditingEntryId(null)
     setAmount('')
@@ -331,7 +333,7 @@ export function DebtReport({
 
   const submitEditor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!isAdmin) return
+    if (!canCreate || (editing === 'totalDebt' && !isAdmin) || (editingEntryId && !isAdmin)) return
     const normalizedAmount = amount.trim().replace(/[.\s,]/g, '')
     const parsed = Number(normalizedAmount)
     if (
@@ -711,16 +713,7 @@ export function DebtReport({
           <div className="flex items-center gap-2">
             <h2 className="text-[15px] font-black text-[#132e62]">Tăng trưởng nợ</h2>
           </div>
-          {isAdmin && (hasLockedOpeningDebt ? (
-            <button
-              type="button"
-              onClick={() => openEditor('paid')}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
-            >
-              <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
-              Thêm giao dịch
-            </button>
-          ) : (
+          {isAdmin && !hasLockedOpeningDebt ? (
             <button
               type="button"
               onClick={openOpeningDebtSetup}
@@ -729,7 +722,16 @@ export function DebtReport({
               <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
               Thiết lập nợ gốc
             </button>
-          ))}
+          ) : canCreate ? (
+            <button
+              type="button"
+              onClick={() => openEditor('paid')}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
+            >
+              <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
+              Thêm giao dịch
+            </button>
+          ) : null}
         </div>
 
         {/* Chỉ số tóm tắt trên đầu biểu đồ */}
@@ -1050,7 +1052,9 @@ export function DebtReport({
                     }
                   ].map((item) => {
                     const isCurrent = editing === item.key
-                    const isLockedDebt = item.key === 'totalDebt' && values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup
+                    const isLockedDebt =
+                      item.key === 'totalDebt' &&
+                      (!isAdmin || (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup))
                     return (
                       <button
                         key={item.key}

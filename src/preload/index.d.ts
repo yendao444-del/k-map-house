@@ -18,6 +18,11 @@ interface DbAPI {
   getPath: () => Promise<string>
 }
 
+interface InvestmentAPI {
+  read: () => Promise<unknown>
+  write: (data: unknown) => Promise<boolean>
+}
+
 type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'
 type MarketSourceState = 'success' | 'blocked' | 'error' | 'unsupported'
 
@@ -211,6 +216,7 @@ declare global {
     }
     api: {
       db: DbAPI
+      investment: InvestmentAPI
       marketData: MarketDataAPI
       zalo: ZaloAPI
       invoice: InvoiceAPI

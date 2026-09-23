@@ -125,6 +125,75 @@ function setupDBHandlers(): void {
   ipcMain.handle('db:getPath', () => getDBPath())
 }
 
+type InvestmentStore = {
+  holdings?: Array<{ category?: string; symbol?: string }>
+  transactions?: Array<{ assetSymbol?: string }>
+  priceQuotes?: Array<{ assetSymbol?: string }>
+  portfolioSnapshots?: unknown[]
+  categoryTargets?: Record<string, number>
+}
+
+function getInvestmentPath(): string {
+  return join(app.getPath('userData'), 'investment-portfolio.json')
+}
+
+function getLegacyInvestmentPath(): string {
+  return join(app.getPath('appData'), 'com.ncpc.dbyfinance', 'portfolio-data.json')
+}
+
+function withoutCrypto(data: InvestmentStore): InvestmentStore {
+  const cryptoSymbols = new Set(
+    (data.holdings || [])
+      .filter((item) => item.category === 'crypto')
+      .map((item) => String(item.symbol || '').toUpperCase())
+  )
+  return {
+    holdings: (data.holdings || []).filter((item) => item.category !== 'crypto'),
+    transactions: (data.transactions || []).filter(
+      (item) => !cryptoSymbols.has(String(item.assetSymbol || '').toUpperCase())
+    ),
+    priceQuotes: (data.priceQuotes || []).filter(
+      (item) => !cryptoSymbols.has(String(item.assetSymbol || '').toUpperCase())
+    ),
+    portfolioSnapshots: data.portfolioSnapshots || [],
+    categoryTargets: Object.fromEntries(
+      Object.entries(data.categoryTargets || {}).filter(([key]) => key !== 'crypto')
+    )
+  }
+}
+
+function readInvestmentStore(): { data: InvestmentStore; importedFrom?: string } {
+  const target = getInvestmentPath()
+  let source = target
+  let importedFrom: string | undefined
+  if (!existsSync(target) && existsSync(getLegacyInvestmentPath())) {
+    source = getLegacyInvestmentPath()
+    importedFrom = source
+  }
+  if (!existsSync(source)) return { data: { holdings: [], transactions: [], portfolioSnapshots: [] } }
+  try {
+    const data = withoutCrypto(JSON.parse(readFileSync(source, 'utf-8')) as InvestmentStore)
+    if (importedFrom) {
+      mkdirSync(app.getPath('userData'), { recursive: true })
+      writeFileSync(target, JSON.stringify(data, null, 2), 'utf-8')
+    }
+    return { data, importedFrom }
+  } catch {
+    return { data: { holdings: [], transactions: [], portfolioSnapshots: [] } }
+  }
+}
+
+function setupInvestmentHandlers(): void {
+  ipcMain.removeHandler('investment:read')
+  ipcMain.removeHandler('investment:write')
+  ipcMain.handle('investment:read', () => readInvestmentStore())
+  ipcMain.handle('investment:write', (_event, data: InvestmentStore) => {
+    mkdirSync(app.getPath('userData'), { recursive: true })
+    writeFileSync(getInvestmentPath(), JSON.stringify(withoutCrypto(data), null, 2), 'utf-8')
+    return true
+  })
+}
+
 function setupMarketDataHandlers(): void {
   ipcMain.removeHandler('marketData:getSnapshot')
   ipcMain.removeHandler('marketData:scanMarket')
@@ -1172,6 +1241,7 @@ app.whenReady().then(() => {
   }
 
   setupDBHandlers()
+  setupInvestmentHandlers()
   setupMarketDataHandlers()
   setupZaloHandlers()
   setupInvoiceHandlers()

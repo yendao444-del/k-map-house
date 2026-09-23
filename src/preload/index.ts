@@ -12,6 +12,10 @@ const api = {
     write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('db:write', data),
     getPath: (): Promise<string> => ipcRenderer.invoke('db:getPath')
   },
+  investment: {
+    read: (): Promise<unknown> => ipcRenderer.invoke('investment:read'),
+    write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('investment:write', data)
+  },
   marketData: {
     getSnapshot: (propertyAddress?: string): Promise<unknown> =>
       ipcRenderer.invoke('marketData:getSnapshot', propertyAddress),
