@@ -7,7 +7,9 @@ import {
   Bell,
   Box,
   ClipboardList,
-  BarChart3
+  BarChart3,
+  WalletCards,
+  TrendingUp
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
@@ -106,6 +108,17 @@ const SettingsTab = lazy(() =>
 const BusinessReport = lazy(() =>
   import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport }))
 )
+const WalletTab = lazy(() =>
+  import('./components/WalletTab').then((module) => ({ default: module.WalletTab }))
+)
+const FundsTab = lazy(() =>
+  import('./components/FundsTab').then((module) => ({ default: module.FundsTab }))
+)
+const PortfolioWalletView = lazy(() =>
+  import('./components/portfolio/PortfolioWalletView').then((module) => ({
+    default: module.PortfolioWalletView
+  }))
+)
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
 
 function usePageVisible(): boolean {
@@ -123,7 +136,9 @@ function usePageVisible(): boolean {
 }
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
-const hasInvoiceBalance = (invoice: Pick<Invoice, 'payment_status' | 'total_amount' | 'paid_amount'>): boolean => {
+const hasInvoiceBalance = (
+  invoice: Pick<Invoice, 'payment_status' | 'total_amount' | 'paid_amount'>
+): boolean => {
   if (invoice.payment_status !== 'unpaid' && invoice.payment_status !== 'partial') return false
 
   const total = Number(invoice.total_amount || 0)
@@ -142,6 +157,7 @@ type AppTab =
   | 'assets'
   | 'contracts'
   | 'tenants'
+  | 'finance'
   | 'reports'
   | 'settings'
 type PendingAssetReceive = { roomId: string; roomName: string }
@@ -1332,7 +1348,10 @@ const App: React.FC = () => {
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'active' }),
       queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'active' }),
-      queryClient.invalidateQueries({ queryKey: ['sepayBackgroundTransactions'], refetchType: 'active' })
+      queryClient.invalidateQueries({
+        queryKey: ['sepayBackgroundTransactions'],
+        refetchType: 'active'
+      })
     ])
   }, [isPageVisible, queryClient])
 
@@ -1436,7 +1455,12 @@ const App: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<AppTab>('rooms')
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
-  const [reportSubTab, setReportSubTab] = useState<'cashflow' | 'finance' | 'debt'>('finance')
+  const [reportSubTab, setReportSubTab] = useState<
+    'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
+  >('overview')
+  const [financeSubTab, setFinanceSubTab] = useState<
+    'overview' | 'wallet' | 'investments' | 'funds' | 'debt'
+  >('overview')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
   const [detailRoomInitialTab, setDetailRoomInitialTab] = useState<
@@ -1504,11 +1528,25 @@ const App: React.FC = () => {
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
-  const [reportMenuPosition] = useState({ top: 0, left: 0 })
+  const [isFinanceMenuOpen, setIsFinanceMenuOpen] = useState(false)
+  const [financeMenuPosition, setFinanceMenuPosition] = useState({ top: 56, left: 0 })
+  const [reportMenuPosition, setReportMenuPosition] = useState({ top: 56, left: 0 })
   const notificationMenuRef = React.useRef<HTMLDivElement | null>(null)
   const accountMenuRef = React.useRef<HTMLDivElement | null>(null)
   const reportDropdownRef = React.useRef<HTMLDivElement | null>(null)
+  const financeMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const financeMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reportMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const reportMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const notificationCountRef = React.useRef<number | null>(null)
+
+  useEffect(
+    () => () => {
+      if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+      if (financeMenuCloseTimerRef.current) clearTimeout(financeMenuCloseTimerRef.current)
+    },
+    []
+  )
 
   const handleAssetReceivePendingChange = React.useCallback(
     (pending: PendingAssetReceive | null) => {
@@ -2567,12 +2605,118 @@ const App: React.FC = () => {
                   </button>
                 )
               })}
-              <div className="relative shrink-0">
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
+                  if (financeMenuCloseTimerRef.current)
+                    clearTimeout(financeMenuCloseTimerRef.current)
+                  const rect = financeMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsFinanceMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  financeMenuCloseTimerRef.current = setTimeout(
+                    () => setIsFinanceMenuOpen(false),
+                    180
+                  )
+                }}
+              >
                 <button
                   type="button"
+                  ref={financeMenuButtonRef}
                   onClick={() => {
                     playClick()
-                    requestActiveTab('reports')
+                    const rect = financeMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) {
+                      setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    }
+                    setIsFinanceMenuOpen(true)
+                    setIsReportMenuOpen(false)
+                  }}
+                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                    activeTab === 'finance'
+                      ? 'bg-[#075244] text-white'
+                      : 'border-transparent text-white hover:bg-white/5'
+                  }`}
+                  style={{ borderBottomColor: activeTab === 'finance' ? sapoGreen : 'transparent' }}
+                  aria-expanded={isFinanceMenuOpen}
+                >
+                  <WalletCards size={18} className="text-white" />
+                  <span className="text-white">Tài chính</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
+                </button>
+                {isFinanceMenuOpen && (
+                  <div
+                    onMouseEnter={() => {
+                      if (financeMenuCloseTimerRef.current)
+                        clearTimeout(financeMenuCloseTimerRef.current)
+                    }}
+                    onMouseLeave={() => setIsFinanceMenuOpen(false)}
+                    className="fixed z-[120] min-w-[210px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    style={{ top: financeMenuPosition.top, left: financeMenuPosition.left }}
+                  >
+                    {[
+                      {
+                        id: 'overview' as const,
+                        icon: 'fa-chart-pie',
+                        label: 'Tổng quan tài chính'
+                      },
+                      { id: 'wallet' as const, icon: 'fa-wallet', label: 'Ví' },
+                      { id: 'investments' as const, icon: 'fa-arrow-trend-up', label: 'Đầu tư' },
+                      { id: 'funds' as const, icon: 'fa-layer-group', label: 'Hũ tài chính' },
+                      { id: 'debt' as const, icon: 'fa-coins', label: 'Công nợ' },
+                      { id: 'cashflow' as const, icon: 'fa-receipt', label: 'Giao dịch' }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          playClick()
+                          if (item.id === 'cashflow') {
+                            setReportSubTab(item.id)
+                            requestActiveTab('reports')
+                          } else if (item.id === 'debt') {
+                            setFinanceSubTab('debt')
+                            requestActiveTab('finance')
+                          } else {
+                            setFinanceSubTab(item.id)
+                            requestActiveTab('finance')
+                          }
+                          setIsFinanceMenuOpen(false)
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+                      >
+                        <i className={`fa-solid ${item.icon} w-4 text-center`} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
+                  if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+                  const rect = reportMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsReportMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  reportMenuCloseTimerRef.current = setTimeout(
+                    () => setIsReportMenuOpen(false),
+                    180
+                  )
+                }}
+              >
+                <button
+                  type="button"
+                  ref={reportMenuButtonRef}
+                  onClick={() => {
+                    playClick()
+                    setIsFinanceMenuOpen(false)
+                    const rect = reportMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    setIsReportMenuOpen(true)
                   }}
                   className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
                     activeTab === 'reports'
@@ -2580,9 +2724,11 @@ const App: React.FC = () => {
                       : 'border-transparent text-white hover:bg-white/5'
                   }`}
                   style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
+                  aria-expanded={isReportMenuOpen}
                 >
                   <BarChart3 size={18} className="text-white" />
                   <span className="text-white">Báo cáo</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
                 </button>
               </div>
             </nav>
@@ -2694,10 +2840,7 @@ const App: React.FC = () => {
               </button>
 
               {isAccountMenuOpen && (
-                <div
-                  className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300"
-                  style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}
-                >
+                <div className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300">
                   {/* User Info Card */}
                   <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
                     {/* Decorative backgrounds */}
@@ -2781,21 +2924,18 @@ const App: React.FC = () => {
         {isReportMenuOpen && (
           <div
             ref={reportDropdownRef}
+            onMouseEnter={() => {
+              if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+            }}
+            onMouseLeave={() => setIsReportMenuOpen(false)}
             className="fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
             style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
           >
             {[
-              { id: 'cashflow' as const, icon: 'fa-wallet', label: 'Giao Dịch' },
-              {
-                id: 'finance' as const,
-                icon: 'fa-money-bill-trend-up',
-                label: 'Báo cáo kinh doanh'
-              },
-              {
-                id: 'debt' as const,
-                icon: 'fa-coins',
-                label: 'Nợ'
-              }
+              { id: 'overview' as const, icon: 'fa-chart-pie', label: 'Tổng quan' },
+              { id: 'pnl' as const, icon: 'fa-table-list', label: 'Kết quả kinh doanh' },
+              { id: 'deposit' as const, icon: 'fa-vault', label: 'Quản lý cọc' },
+              { id: 'utility' as const, icon: 'fa-right-left', label: 'Điện / Nước' }
             ].map((item) => {
               const isActive = activeTab === 'reports' && reportSubTab === item.id
               return (
@@ -3032,7 +3172,9 @@ const App: React.FC = () => {
                         <tr>
                           <td colSpan={12} className="px-6 py-12 text-center">
                             <i className="fa-solid fa-triangle-exclamation mb-3 block text-2xl text-amber-500" />
-                            <p className="font-semibold text-gray-700">Không tải được danh sách phòng</p>
+                            <p className="font-semibold text-gray-700">
+                              Không tải được danh sách phòng
+                            </p>
                             <p className="mt-1 text-xs text-gray-500">
                               {roomsLoadError instanceof Error
                                 ? roomsLoadError.message
@@ -3952,21 +4094,15 @@ const App: React.FC = () => {
                                   )
 
                                 const unpaidFirstMonthInvoice = currentTenantInvoices.find(
-                                  (i) =>
-                                    i.is_first_month &&
-                                    hasInvoiceBalance(i)
+                                  (i) => i.is_first_month && hasInvoiceBalance(i)
                                 )
 
                                 const roomInvoice =
                                   unpaidFirstMonthInvoice ||
                                   roomMonthInvoices.find(
-                                    (i) =>
-                                      i.is_first_month &&
-                                      hasInvoiceBalance(i)
+                                    (i) => i.is_first_month && hasInvoiceBalance(i)
                                   ) ||
-                                  roomMonthInvoices.find(
-                                    (i) => hasInvoiceBalance(i)
-                                  ) ||
+                                  roomMonthInvoices.find((i) => hasInvoiceBalance(i)) ||
                                   roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
                                   null
 
@@ -4097,9 +4233,7 @@ const App: React.FC = () => {
                                   return btnReceiveRoom
                                 }
 
-                                if (
-                                  hasInvoiceBalance(roomInvoice)
-                                ) {
+                                if (hasInvoiceBalance(roomInvoice)) {
                                   if (room.status === 'ending') {
                                     return (
                                       <td className="px-4 py-3 text-center">
@@ -4231,11 +4365,73 @@ const App: React.FC = () => {
             <Suspense fallback={<TabLoading />}>
               <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
             </Suspense>
+          ) : activeTab === 'finance' ? (
+            <Suspense fallback={<TabLoading />}>
+              {financeSubTab === 'debt' ? (
+                <BusinessReport
+                  currentUser={currentUser}
+                  initialTab="debt"
+                  onNavigateToInvoices={() => requestActiveTab('invoices')}
+                />
+              ) : financeSubTab === 'wallet' ? (
+                <WalletTab
+                  onRecordTransaction={() => {
+                    setReportSubTab('cashflow')
+                    requestActiveTab('reports')
+                  }}
+                  onReconcile={() => {
+                    setReportSubTab('cashflow')
+                    requestActiveTab('reports')
+                  }}
+                  onSyncSepay={() => {
+                    setSepaySyncOpenSignal((value) => value + 1)
+                    requestActiveTab('invoices')
+                  }}
+                  onOpenInvestments={() => setFinanceSubTab('investments')}
+                />
+              ) : financeSubTab === 'investments' ? (
+                <Suspense fallback={<TabLoading />}>
+                  <PortfolioWalletView />
+                </Suspense>
+              ) : financeSubTab === 'funds' ? (
+                <FundsTab />
+              ) : financeSubTab === 'overview' ? (
+                <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-6">
+                  <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                    <h1 className="text-xl font-black text-slate-900">Tổng quan tài chính</h1>
+                    <p className="mt-2 text-sm text-slate-500">
+                      Màn hình tài chính đang được chuẩn bị để kết nối với sổ giao dịch và số dư
+                      thực tế.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-6">
+                  <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                        <TrendingUp size={24} />
+                      </div>
+                      <div>
+                        <h1 className="text-xl font-black text-slate-900">Hũ tài chính</h1>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Phân bổ tiền theo mục đích sử dụng và kế hoạch vận hành.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+                      Tính năng này đang được chuẩn bị. Các giao dịch sẽ được ghi nhận trong sổ Tài
+                      chính và tổng hợp tại Báo cáo.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Suspense>
           ) : activeTab === 'reports' ? (
             <Suspense fallback={<TabLoading />}>
               <BusinessReport
                 currentUser={currentUser}
-                initialTab={reportSubTab === 'cashflow' ? 'cashflow' : reportSubTab === 'debt' ? 'debt' : 'overview'}
+                initialTab={reportSubTab}
                 onNavigateToInvoices={() => requestActiveTab('invoices')}
               />
             </Suspense>

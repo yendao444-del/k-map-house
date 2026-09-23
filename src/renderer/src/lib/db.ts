@@ -583,6 +583,39 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
     created_at: ''
   },
   {
+    id: 'default-debt-repayment',
+    value: 'debt_repayment',
+    name: 'Trả nợ',
+    type: 'expense',
+    icon: 'fa-hand-holding-dollar',
+    color: 'rose',
+    is_default: true,
+    sort_order: 80,
+    created_at: ''
+  },
+  {
+    id: 'default-family-living',
+    value: 'family_living',
+    name: 'Sinh hoạt gia đình',
+    type: 'expense',
+    icon: 'fa-house-user',
+    color: 'amber',
+    is_default: true,
+    sort_order: 90,
+    created_at: ''
+  },
+  {
+    id: 'default-tuition',
+    value: 'tuition',
+    name: 'Tiền học',
+    type: 'expense',
+    icon: 'fa-graduation-cap',
+    color: 'cyan',
+    is_default: true,
+    sort_order: 100,
+    created_at: ''
+  },
+  {
     id: 'default-other-expense',
     value: 'other_expense',
     name: 'Chi phí khác',
@@ -590,7 +623,7 @@ export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
     icon: 'fa-receipt',
     color: 'slate',
     is_default: true,
-    sort_order: 80,
+    sort_order: 110,
     created_at: ''
   },
   {
@@ -2290,18 +2323,25 @@ export async function getCashTransactions(
   return data || []
 }
 
-const validateCashTransactionRoom = (
+const validateCashTransactionTarget = (
   data: Pick<Partial<CashTransaction>, 'type' | 'category' | 'room_id'>
 ) => {
   if (data.type === 'expense' && data.category === 'maintenance' && !data.room_id?.trim()) {
     throw new Error('Vui lòng gắn phòng cho khoản chi bảo trì / sửa chữa.')
+  }
+  if (
+    data.type === 'expense' &&
+    (data.category === 'electric' || data.category === 'water') &&
+    !/^building:\d+$/i.test(data.room_id?.trim() || '')
+  ) {
+    throw new Error('Vui lòng gắn tòa cho khoản chi điện / nước.')
   }
 }
 
 export const createCashTransaction = async (
   data: Partial<CashTransaction>
 ): Promise<CashTransaction> => {
-  validateCashTransactionRoom(data)
+  validateCashTransactionTarget(data)
   const newTx = {
     ...data,
     id: createEntityId('tx'),
@@ -2321,7 +2361,7 @@ export const updateCashTransaction = async (
   const current = (await safeQuery(() =>
     supabase.from('cash_transactions').select('type,category,room_id').eq('id', id).single()
   )) as Pick<CashTransaction, 'type' | 'category' | 'room_id'>
-  validateCashTransactionRoom({ ...current, ...updates })
+  validateCashTransactionTarget({ ...current, ...updates })
   const result = await safeQuery(() =>
     supabase
       .from('cash_transactions')

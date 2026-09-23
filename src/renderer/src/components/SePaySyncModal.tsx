@@ -1,6 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchSepayTransactions, recordInvoicePayment, type Invoice, type Room } from '../lib/db'
+import {
+  createCashTransaction,
+  fetchSepayTransactions,
+  getCashTransactions,
+  recordInvoicePayment,
+  type Invoice,
+  type Room
+} from '../lib/db'
 import { buildInvoiceTransferDescription, normalizeTransferText } from '../lib/invoiceTransfer'
 import { playPayment } from '../lib/sound'
 import { LogoLoading } from './LogoLoading'
@@ -54,7 +61,9 @@ interface InvoiceCodeInfo {
 const formatVND = (v: number): string => new Intl.NumberFormat('vi-VN').format(v)
 
 const fmtDate = (d?: string): string =>
-  d ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
+  d
+    ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : ''
 
 const getInvoiceTitle = (invoice: Invoice): string => {
   if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc'
@@ -73,6 +82,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
   const [successCount, setSuccessCount] = useState(0)
   const [rawTxs, setRawTxs] = useState<SepayTransaction[]>([])
   const [processingTxKeys, setProcessingTxKeys] = useState<string[]>([])
+  const [recordedTxKeys, setRecordedTxKeys] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
 
   const roomNameById = useMemo(() => {
@@ -96,7 +106,12 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
   const invoiceCodeInfos = useMemo<InvoiceCodeInfo[]>(
     () =>
       invoices
-        .filter((inv) => inv.payment_status !== 'cancelled' && inv.payment_status !== 'merged' && Number(inv.total_amount || 0) > 0)
+        .filter(
+          (inv) =>
+            inv.payment_status !== 'cancelled' &&
+            inv.payment_status !== 'merged' &&
+            Number(inv.total_amount || 0) > 0
+        )
         .map((invoice) => {
           const roomName = roomNameById.get(invoice.room_id) || ''
           const code = buildInvoiceTransferDescription(invoice, roomName)
@@ -121,7 +136,8 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
   const transactionDiagnostics = useMemo(() => {
     return rawTxs.map((tx) => {
       const amount = Number(tx.amount_in)
-      const accountLabel = [tx.account_name, tx.bank_brand_name].filter(Boolean).join(' - ') || 'Tài khoản nhận'
+      const accountLabel =
+        [tx.account_name, tx.bank_brand_name].filter(Boolean).join(' - ') || 'Tài khoản nhận'
       const accountNumber = tx.account_number || tx.sub_account || ''
       const normalizedContent = normalizeTransferText(tx.transaction_content || '')
       const pendingCodeMatches = pendingCodeInfos.filter((info) =>
@@ -189,7 +205,9 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
 
       const relatedInfo = pendingCodeMatches[0] || allCodeMatches[0] || pendingByRoom[0]
       const relatedInvoice = relatedInfo?.invoice
-      const relatedRoom = relatedInfo?.room || (relatedInvoice ? rooms.find((room) => room.id === relatedInvoice.room_id) : roomMatch)
+      const relatedRoom =
+        relatedInfo?.room ||
+        (relatedInvoice ? rooms.find((room) => room.id === relatedInvoice.room_id) : roomMatch)
       const relatedRoomName = relatedInfo?.roomName || relatedRoom?.name || roomMatch?.name || ''
       const tenantName = relatedRoom?.tenant_name || ''
       const tenantPhone = relatedRoom?.tenant_phone || ''
@@ -215,7 +233,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
         invoiceTitle,
         periodText,
         transferCode,
-        remaining: relatedInfo?.remaining,
+        remaining: relatedInfo?.remaining
       }
     })
   }, [invoiceCodeInfos, pendingCodeInfos, rawTxs, rooms])
@@ -314,11 +332,7 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
           invoice: inv,
           transaction: tx,
           matchType:
-            Math.abs(amount - needToPay) < 1
-              ? 'exact'
-              : amount < needToPay
-                ? 'partial'
-                : 'over'
+            Math.abs(amount - needToPay) < 1 ? 'exact' : amount < needToPay ? 'partial' : 'over'
         })
       })
 
@@ -374,6 +388,37 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
     }
   })
 
+  const recordBankReceiptMutation = useMutation({
+    mutationFn: async (tx: SepayTransaction) => {
+      const txKey = tx.reference_number || tx.id
+      const existing = await getCashTransactions()
+      if (txKey && existing.some((item) => item.note?.includes(`Ref: ${txKey}`))) {
+        throw new Error('Giao dịch này đã được ghi vào sổ ngân hàng.')
+      }
+      return createCashTransaction({
+        type: 'income',
+        category: 'other_income',
+        transaction_date: tx.transaction_date || new Date().toISOString(),
+        amount: Number(tx.amount_in) || 0,
+        payment_method: 'transfer',
+        note: `Tiền vào ngân hàng chưa ghép hóa đơn qua Sepay: ${tx.transaction_content || 'Không có nội dung'}${txKey ? ` (Ref: ${txKey})` : ''}`
+      })
+    },
+    onMutate: (tx) => {
+      const txKey = tx.reference_number || tx.id
+      if (txKey) setProcessingTxKeys((prev) => (prev.includes(txKey) ? prev : [...prev, txKey]))
+    },
+    onSuccess: (_, tx) => {
+      const txKey = tx.reference_number || tx.id
+      if (txKey) setRecordedTxKeys((prev) => [...prev, txKey])
+      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
+    },
+    onSettled: (_, __, tx) => {
+      const txKey = tx?.reference_number || tx?.id
+      if (txKey) setProcessingTxKeys((prev) => prev.filter((key) => key !== txKey))
+    }
+  })
+
   return (
     <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -407,12 +452,17 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
             <div className="flex flex-col items-center justify-center py-12 text-center opacity-70">
               <i className="fa-solid fa-clipboard-check text-5xl text-emerald-400 mb-4"></i>
               <h3 className="text-lg font-bold text-gray-800">Không có giao dịch chờ xử lý</h3>
-              <p className="text-gray-500 text-sm mt-1">Lịch sử SePay hiện không có khoản tiền khớp đủ điều kiện strict.</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Lịch sử SePay hiện không có khoản tiền khớp đủ điều kiện strict.
+              </p>
 
               {rawTxs.length > 0 && (
                 <div className="mt-6 w-full space-y-3 text-left">
                   <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-                    <label htmlFor="sepay-transaction-search" className="mb-2 block text-xs font-black uppercase tracking-wide text-blue-700">
+                    <label
+                      htmlFor="sepay-transaction-search"
+                      className="mb-2 block text-xs font-black uppercase tracking-wide text-blue-700"
+                    >
                       Tìm giao dịch SePay
                     </label>
                     <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-3 shadow-sm focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100">
@@ -453,103 +503,155 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                       </div>
                     </div>
                     <div className="space-y-2">
-                      {displayedTxDiagnostics.map(({
-                        tx,
-                        amount,
-                        accountLabel,
-                        accountNumber,
-                        status,
-                        title,
-                        detail,
-                        roomName,
-                        tenantName,
-                        tenantPhone,
-                        invoiceTitle,
-                        periodText,
-                        transferCode,
-                        remaining,
-                      }) => (
-                        <div
-                          key={tx.id}
-                          className={`rounded-lg border px-3 py-2 ${
-                            status === 'ok'
-                              ? 'border-emerald-200 bg-emerald-50'
-                              : status === 'warn'
-                                ? 'border-amber-200 bg-amber-50'
-                                : 'border-slate-200 bg-slate-50'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                {roomName && (
-                                  <span className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-emerald-700 border border-emerald-100">
-                                    {roomName}
+                      {displayedTxDiagnostics.map(
+                        ({
+                          tx,
+                          amount,
+                          accountLabel,
+                          accountNumber,
+                          status,
+                          title,
+                          detail,
+                          roomName,
+                          tenantName,
+                          tenantPhone,
+                          invoiceTitle,
+                          periodText,
+                          transferCode,
+                          remaining
+                        }) => (
+                          <div
+                            key={tx.id}
+                            className={`rounded-lg border px-3 py-2 ${
+                              status === 'ok'
+                                ? 'border-emerald-200 bg-emerald-50'
+                                : status === 'warn'
+                                  ? 'border-amber-200 bg-amber-50'
+                                  : 'border-slate-200 bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {roomName && (
+                                    <span className="rounded-lg bg-white px-2 py-0.5 text-[11px] font-black text-emerald-700 border border-emerald-100">
+                                      {roomName}
+                                    </span>
+                                  )}
+                                  {tenantName && (
+                                    <span className="font-bold text-slate-800">{tenantName}</span>
+                                  )}
+                                  {tenantPhone && (
+                                    <span className="text-[11px] font-semibold text-slate-500">
+                                      {tenantPhone}
+                                    </span>
+                                  )}
+                                  <span className="font-black text-slate-900">
+                                    {formatVND(amount)} đ
                                   </span>
-                                )}
-                                {tenantName && <span className="font-bold text-slate-800">{tenantName}</span>}
-                                {tenantPhone && <span className="text-[11px] font-semibold text-slate-500">{tenantPhone}</span>}
-                                <span className="font-black text-slate-900">{formatVND(amount)} đ</span>
-                                <span
-                                  className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-                                    status === 'ok'
-                                      ? 'bg-emerald-600 text-white'
-                                      : status === 'warn'
-                                        ? 'bg-amber-500 text-white'
-                                        : 'bg-slate-300 text-slate-700'
-                                  }`}
-                                >
-                                  {title}
-                                </span>
-                              </div>
-                              <div className="mt-1 break-all rounded bg-white/70 px-2 py-1 font-mono text-[11px] text-slate-600">
-                                {tx.transaction_content || 'Không có nội dung'}
-                              </div>
-                              {(invoiceTitle || periodText || transferCode) && (
-                                <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
-                                  {invoiceTitle && (
-                                    <div>
-                                      <span className="font-semibold text-slate-500">Hóa đơn:</span>{' '}
-                                      <span className="font-bold text-slate-800">{invoiceTitle}</span>
-                                    </div>
-                                  )}
-                                  {periodText && (
-                                    <div>
-                                      <span className="font-semibold text-slate-500">Kỳ thu:</span>{' '}
-                                      <span className="font-bold text-slate-800">{periodText}</span>
-                                    </div>
-                                  )}
-                                  {typeof remaining === 'number' && (
-                                    <div>
-                                      <span className="font-semibold text-slate-500">Còn thu:</span>{' '}
-                                      <span className="font-bold text-red-600">{formatVND(remaining)} đ</span>
-                                    </div>
-                                  )}
-                                  {transferCode && (
-                                    <div>
-                                      <span className="font-semibold text-slate-500">Mã CK:</span>{' '}
-                                      <span className="font-mono font-bold text-blue-700">{transferCode}</span>
-                                    </div>
-                                  )}
+                                  <span
+                                    className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
+                                      status === 'ok'
+                                        ? 'bg-emerald-600 text-white'
+                                        : status === 'warn'
+                                          ? 'bg-amber-500 text-white'
+                                          : 'bg-slate-300 text-slate-700'
+                                    }`}
+                                  >
+                                    {title}
+                                  </span>
                                 </div>
-                              )}
-                              <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
-                                <span>Người nhận: {accountLabel}</span>
-                                {accountNumber && <span>STK: {accountNumber}</span>}
+                                <div className="mt-1 break-all rounded bg-white/70 px-2 py-1 font-mono text-[11px] text-slate-600">
+                                  {tx.transaction_content || 'Không có nội dung'}
+                                </div>
+                                {(invoiceTitle || periodText || transferCode) && (
+                                  <div className="mt-2 grid gap-1 text-[11px] text-slate-600 sm:grid-cols-2">
+                                    {invoiceTitle && (
+                                      <div>
+                                        <span className="font-semibold text-slate-500">
+                                          Hóa đơn:
+                                        </span>{' '}
+                                        <span className="font-bold text-slate-800">
+                                          {invoiceTitle}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {periodText && (
+                                      <div>
+                                        <span className="font-semibold text-slate-500">
+                                          Kỳ thu:
+                                        </span>{' '}
+                                        <span className="font-bold text-slate-800">
+                                          {periodText}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {typeof remaining === 'number' && (
+                                      <div>
+                                        <span className="font-semibold text-slate-500">
+                                          Còn thu:
+                                        </span>{' '}
+                                        <span className="font-bold text-red-600">
+                                          {formatVND(remaining)} đ
+                                        </span>
+                                      </div>
+                                    )}
+                                    {transferCode && (
+                                      <div>
+                                        <span className="font-semibold text-slate-500">Mã CK:</span>{' '}
+                                        <span className="font-mono font-bold text-blue-700">
+                                          {transferCode}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold text-slate-500">
+                                  <span>Người nhận: {accountLabel}</span>
+                                  {accountNumber && <span>STK: {accountNumber}</span>}
+                                </div>
+                                <div className="mt-1 text-[11px] font-semibold text-slate-600">
+                                  {detail}
+                                </div>
+                                {status !== 'ok' && (
+                                  <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2">
+                                    <span className="text-[10px] font-semibold text-amber-800">
+                                      Giao dịch đã vào ngân hàng nhưng chưa được gắn hóa đơn.
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => recordBankReceiptMutation.mutate(tx)}
+                                      disabled={
+                                        processingTxKeys.includes(tx.reference_number || tx.id) ||
+                                        recordedTxKeys.includes(tx.reference_number || tx.id)
+                                      }
+                                      className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1.5 text-[10px] font-black text-white transition hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                      {recordedTxKeys.includes(tx.reference_number || tx.id)
+                                        ? 'Đã ghi sổ ngân hàng'
+                                        : 'Ghi vào sổ ngân hàng'}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                              <div className="mt-1 text-[11px] font-semibold text-slate-600">{detail}</div>
-                            </div>
-                            <div className="shrink-0 text-[10px] text-slate-400">
-                              {tx.transaction_date ? new Date(tx.transaction_date).toLocaleDateString('vi-VN') : ''}
+                              <div className="shrink-0 text-[10px] text-slate-400">
+                                {tx.transaction_date
+                                  ? new Date(tx.transaction_date).toLocaleDateString('vi-VN')
+                                  : ''}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      )}
                       {displayedTxDiagnostics.length === 0 && (
                         <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
                           <i className="fa-solid fa-magnifying-glass mb-2 text-2xl text-slate-300" />
-                          <div className="text-sm font-bold text-slate-600">Không tìm thấy giao dịch phù hợp</div>
-                          <div className="mt-1 text-xs text-slate-400">Thử nhập mã giao dịch, mã chuyển khoản hoặc số phòng.</div>
+                          <div className="text-sm font-bold text-slate-600">
+                            Không tìm thấy giao dịch phù hợp
+                          </div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            Thử nhập mã giao dịch, mã chuyển khoản hoặc số phòng.
+                          </div>
                         </div>
                       )}
                     </div>
@@ -561,14 +663,25 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {pendingCodeInfos.map((info) => (
-                        <div key={info.invoice.id} className="rounded-lg bg-white px-3 py-2 text-xs shadow-sm">
-                          <div className="font-bold text-slate-800">{info.roomName || 'Phòng ?'}</div>
-                          <div className="mt-0.5 font-mono text-[11px] text-emerald-700">{info.code}</div>
-                          <div className="mt-0.5 text-[11px] text-slate-400">Còn thu {formatVND(info.remaining)} đ</div>
+                        <div
+                          key={info.invoice.id}
+                          className="rounded-lg bg-white px-3 py-2 text-xs shadow-sm"
+                        >
+                          <div className="font-bold text-slate-800">
+                            {info.roomName || 'Phòng ?'}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[11px] text-emerald-700">
+                            {info.code}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">
+                            Còn thu {formatVND(info.remaining)} đ
+                          </div>
                         </div>
                       ))}
                       {pendingCodeInfos.length === 0 && (
-                        <div className="text-xs font-semibold text-emerald-700">Không còn hóa đơn nào đang chờ thu.</div>
+                        <div className="text-xs font-semibold text-emerald-700">
+                          Không còn hóa đơn nào đang chờ thu.
+                        </div>
                       )}
                     </div>
                   </div>
@@ -577,21 +690,30 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
 
               {false && rawTxs.length > 0 && (
                 <div className="mt-6 text-left border border-gray-200 rounded-lg p-4 bg-white w-full">
-                  <div className="text-xs font-bold text-gray-500 mb-2">DEBUG: 5 GIAO DỊCH GẦN NHẤT TỪ SEPAY</div>
+                  <div className="text-xs font-bold text-gray-500 mb-2">
+                    DEBUG: 5 GIAO DỊCH GẦN NHẤT TỪ SEPAY
+                  </div>
                   <ul className="text-xs text-gray-600 space-y-2">
                     {rawTxs.slice(0, 5).map((tx) => (
                       <li key={tx.id} className="border-b border-gray-100 pb-2">
-                        <span className="text-blue-600 font-mono">[{tx.amount_in.split('.')[0]}đ]</span>
-                        <span className="ml-2 bg-gray-100 px-1 rounded font-mono">&quot;{tx.transaction_content}&quot;</span>
+                        <span className="text-blue-600 font-mono">
+                          [{tx.amount_in.split('.')[0]}đ]
+                        </span>
+                        <span className="ml-2 bg-gray-100 px-1 rounded font-mono">
+                          &quot;{tx.transaction_content}&quot;
+                        </span>
                       </li>
                     ))}
                   </ul>
-                  <div className="text-xs font-bold text-gray-500 mt-4 mb-2">TRANSFER CODE đang chờ thu:</div>
+                  <div className="text-xs font-bold text-gray-500 mt-4 mb-2">
+                    TRANSFER CODE đang chờ thu:
+                  </div>
                   <ul className="text-xs text-gray-600 space-y-1">
                     {pendingInvoices.map((inv) => (
                       <li key={inv.id} className="font-mono text-emerald-600">
-                        {roomNameById.get(inv.room_id) || 'Phòng ?'}:{' '}
-                        &quot;{buildInvoiceTransferDescription(inv, roomNameById.get(inv.room_id) || '')}&quot;
+                        {roomNameById.get(inv.room_id) || 'Phòng ?'}: &quot;
+                        {buildInvoiceTransferDescription(inv, roomNameById.get(inv.room_id) || '')}
+                        &quot;
                       </li>
                     ))}
                   </ul>
@@ -600,7 +722,9 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-sm font-semibold text-gray-600 mb-2">Phát hiện {matches.length} giao dịch khớp mã hóa đơn:</div>
+              <div className="text-sm font-semibold text-gray-600 mb-2">
+                Phát hiện {matches.length} giao dịch khớp mã hóa đơn:
+              </div>
               {matches.map((match) => {
                 const actual = Number(match.transaction.amount_in)
                 const invoice = match.invoice
@@ -610,9 +734,10 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                 const tenantPhone = room?.tenant_phone || ''
                 const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
                 const transferCode = buildInvoiceTransferDescription(invoice, roomName)
-                const periodText = invoice.billing_period_start && invoice.billing_period_end
-                  ? `${fmtDate(invoice.billing_period_start)} - ${fmtDate(invoice.billing_period_end)}`
-                  : `T.${String(invoice.month).padStart(2, '0')}/${invoice.year}`
+                const periodText =
+                  invoice.billing_period_start && invoice.billing_period_end
+                    ? `${fmtDate(invoice.billing_period_start)} - ${fmtDate(invoice.billing_period_end)}`
+                    : `T.${String(invoice.month).padStart(2, '0')}/${invoice.year}`
                 const txKey = match.transaction.reference_number || match.transaction.id
                 const isProcessing = Boolean(txKey && processingTxKeys.includes(txKey))
                 return (
@@ -627,7 +752,11 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                             {roomName}
                           </span>
                           <span className="font-bold text-gray-800">{tenantName}</span>
-                          {tenantPhone && <span className="text-xs font-semibold text-gray-500">{tenantPhone}</span>}
+                          {tenantPhone && (
+                            <span className="text-xs font-semibold text-gray-500">
+                              {tenantPhone}
+                            </span>
+                          )}
                           <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-mono border border-gray-200">
                             Ref: {match.transaction.reference_number}
                           </span>
@@ -636,7 +765,9 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                         <div className="grid gap-1.5 text-xs text-slate-600 sm:grid-cols-2">
                           <div>
                             <span className="font-semibold text-slate-500">Hóa đơn:</span>{' '}
-                            <span className="font-bold text-slate-800">{getInvoiceTitle(invoice)}</span>
+                            <span className="font-bold text-slate-800">
+                              {getInvoiceTitle(invoice)}
+                            </span>
                           </div>
                           <div>
                             <span className="font-semibold text-slate-500">Kỳ thu:</span>{' '}
@@ -648,13 +779,18 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                           </div>
                           <div>
                             <span className="font-semibold text-slate-500">Mã CK:</span>{' '}
-                            <span className="font-mono font-bold text-blue-700">{transferCode}</span>
+                            <span className="font-mono font-bold text-blue-700">
+                              {transferCode}
+                            </span>
                           </div>
                         </div>
                         <div className="mt-2 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 border border-slate-100">
-                          {match.transaction.transaction_content || 'Không có nội dung chuyển khoản'}
+                          {match.transaction.transaction_content ||
+                            'Không có nội dung chuyển khoản'}
                         </div>
-                        <div className={`mt-2 text-xs font-bold ${match.matchType === 'exact' ? 'text-green-600' : 'text-amber-600'}`}>
+                        <div
+                          className={`mt-2 text-xs font-bold ${match.matchType === 'exact' ? 'text-green-600' : 'text-amber-600'}`}
+                        >
                           {match.matchType === 'exact'
                             ? 'Khớp mã và đúng số tiền. Có thể chốt phiếu.'
                             : match.matchType === 'partial'
@@ -666,7 +802,9 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                       <div className="flex flex-col gap-2 shrink-0 justify-center">
                         <button
                           onClick={() => updateMutation.mutate({ match })}
-                          disabled={updateMutation.isPending || isProcessing || match.matchType === 'over'}
+                          disabled={
+                            updateMutation.isPending || isProcessing || match.matchType === 'over'
+                          }
                           className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-xs font-bold transition shadow-sm border border-emerald-600 disabled:opacity-50"
                         >
                           {match.matchType === 'exact'
@@ -680,6 +818,52 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
                   </div>
                 )
               })}
+              {transactionDiagnostics.some((item) => item.status !== 'ok') && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                  <div className="mb-3 text-sm font-black text-amber-900">
+                    Giao dịch ngân hàng chưa ghép hóa đơn
+                  </div>
+                  <div className="space-y-2">
+                    {transactionDiagnostics
+                      .filter((item) => item.status !== 'ok')
+                      .slice(0, 8)
+                      .map((item) => {
+                        const txKey = item.tx.reference_number || item.tx.id
+                        const isRecorded = recordedTxKeys.includes(txKey)
+                        return (
+                          <div
+                            key={item.tx.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="font-black text-slate-900">
+                                  {formatVND(item.amount)} đ
+                                </span>
+                                <span className="font-bold text-amber-800">{item.title}</span>
+                              </div>
+                              <div className="mt-1 truncate font-mono text-[10px] text-slate-500">
+                                {item.tx.transaction_content || 'Không có nội dung'}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => recordBankReceiptMutation.mutate(item.tx)}
+                              disabled={processingTxKeys.includes(txKey) || isRecorded}
+                              className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-[10px] font-black text-white hover:bg-amber-700 disabled:opacity-50"
+                            >
+                              {isRecorded ? 'Đã ghi sổ' : 'Ghi sổ ngân hàng'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                  </div>
+                  <div className="mt-3 text-[11px] font-semibold leading-5 text-amber-800">
+                    Ghi sổ ngân hàng chỉ cập nhật số dư, không tự đánh dấu hóa đơn đã thanh toán.
+                    Bạn có thể ghép hóa đơn sau khi kiểm tra.
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -688,7 +872,8 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
           <div className="text-sm font-medium text-gray-500">
             {successCount > 0 ? (
               <span className="text-emerald-600 mr-2">
-                <i className="fa-solid fa-check-circle mr-1"></i>Đã chốt thành công: {successCount} hóa đơn
+                <i className="fa-solid fa-check-circle mr-1"></i>Đã chốt thành công: {successCount}{' '}
+                hóa đơn
               </span>
             ) : null}
           </div>

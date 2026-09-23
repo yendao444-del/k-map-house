@@ -3,6 +3,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
+  getAppSettings,
   getContracts,
   getInvoices,
   getInvoicePaymentRecords,
@@ -70,7 +71,16 @@ type UtilityInvoiceRow = {
   waterPending: number
 }
 
-type PnlSection = 'revenue' | 'opex' | 'result'
+type PnlSection = 'revenue' | 'opex' | 'result' | 'cashAdjustments'
+
+const NON_OPERATING_EXPENSE_CATEGORIES = new Set<CashTransactionCategory>([
+  'family_living',
+  'tuition',
+  'debt_repayment'
+])
+
+const isOperatingExpenseCategory = (category: CashTransactionCategory) =>
+  !NON_OPERATING_EXPENSE_CATEGORIES.has(category)
 
 type PnlRow = {
   key: string
@@ -427,6 +437,15 @@ const getBuildingKeyFromCash = (item: CashTransaction) => {
   return 'Chưa rõ tòa'
 }
 
+const getCashTargetLabel = (item: CashTransaction, roomById: Map<string, { name: string }>) => {
+  const buildingToken = (item.room_id || '').match(/^building:(\d+)$/i)?.[1]
+  if (buildingToken) return `Tòa ${buildingToken}`
+  if (item.room_id) return roomById.get(item.room_id)?.name || 'Không rõ'
+  return item.category === 'electric' || item.category === 'water'
+    ? 'Không gắn tòa'
+    : 'Không gắn phòng'
+}
+
 type UtilityBuildingRow = {
   building: string
   electricRevenue: number
@@ -534,9 +553,14 @@ export function BusinessReport({
 }: {
   currentUser?: AppUser | null
   onNavigateToInvoices?: () => void
-  initialTab?: 'overview' | 'cashflow' | 'debt'
+  initialTab?: 'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
 } = {}) {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
+  const { data: walletTransactions = [] } = useQuery({
+    queryKey: ['cashTransactions'],
+    queryFn: getCashTransactions
+  })
+  const { data: appSettings } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: tenants = [] } = useQuery({ queryKey: ['tenants'], queryFn: getTenants })
   const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts })
@@ -707,13 +731,14 @@ export function BusinessReport({
   }, [endDate, periodMode, selectedDate, startDate])
 
   // Limit ledger payload to the selected report range; "all time" keeps the legacy full-history view.
-  const cashRange = period.start && period.end
-    ? {
-        startDate: iso(period.start),
-        endDate: iso(period.end),
-        endDateExclusive: iso(nextLocalDay(period.end))
-      }
-    : undefined
+  const cashRange =
+    period.start && period.end
+      ? {
+          startDate: iso(period.start),
+          endDate: iso(period.end),
+          endDateExclusive: iso(nextLocalDay(period.end))
+        }
+      : undefined
   const cashRangeKey = cashRange ? `${cashRange.startDate}:${cashRange.endDate}` : 'all'
   const { data: cashTransactions = [] } = useQuery({
     queryKey: ['cashTransactions', 'range', cashRangeKey],
@@ -784,7 +809,14 @@ export function BusinessReport({
 
   const pnl = useMemo(() => {
     const sumExpense = expenseCategories.reduce(
-      (sum, item) => sum + (expenseByCategory.get(item.value) || 0),
+      (sum, item) =>
+        sum + (isOperatingExpenseCategory(item.value) ? expenseByCategory.get(item.value) || 0 : 0),
+      0
+    )
+    const nonOperatingExpense = expenseCategories.reduce(
+      (sum, item) =>
+        sum +
+        (!isOperatingExpenseCategory(item.value) ? expenseByCategory.get(item.value) || 0 : 0),
       0
     )
     const cashIncome = filteredCash
@@ -802,6 +834,7 @@ export function BusinessReport({
       cashCollected,
       operatingRevenue,
       operatingCost: sumExpense,
+      nonOperatingExpense,
       netProfit,
       margin,
       invoiceCount: filteredInvoices.length,
@@ -822,11 +855,11 @@ export function BusinessReport({
       addAmount(item.record.payment_date || item.record.created_at, 'revenue', item.record.amount)
     }
     for (const item of filteredCash) {
-      addAmount(
-        item.transaction_date || item.created_at,
-        item.type === 'income' ? 'revenue' : 'expense',
-        item.amount
-      )
+      if (item.type === 'income') {
+        addAmount(item.transaction_date || item.created_at, 'revenue', item.amount)
+      } else if (isOperatingExpenseCategory(item.category)) {
+        addAmount(item.transaction_date || item.created_at, 'expense', item.amount)
+      }
     }
 
     const activityDates = [...totals.keys()].sort()
@@ -856,15 +889,30 @@ export function BusinessReport({
     return points
   }, [filteredCash, invoiceCashRows, period.end, period.start])
 
-  const expenseRows: PnlRow[] = expenseCategories.map((item) => ({
-    key: `expense-${item.value}`,
-    label: item.label,
-    amount: -(expenseByCategory.get(item.value) || 0),
-    section: 'opex',
-    cashType: 'expense',
-    cashCategory: item.value,
-    indent: true
-  }))
+  const expenseRows: PnlRow[] = expenseCategories
+    .filter((item) => isOperatingExpenseCategory(item.value))
+    .map((item) => ({
+      key: `expense-${item.value}`,
+      label: item.label,
+      amount: -(expenseByCategory.get(item.value) || 0),
+      section: 'opex',
+      cashType: 'expense',
+      cashCategory: item.value,
+      indent: true
+    }))
+
+  const nonOperatingExpenseRows: PnlRow[] = expenseCategories
+    .filter((item) => !isOperatingExpenseCategory(item.value))
+    .map((item) => ({
+      key: `non-operating-${item.value}`,
+      label: item.label,
+      amount: -(expenseByCategory.get(item.value) || 0),
+      section: 'cashAdjustments' as const,
+      cashType: 'expense' as const,
+      cashCategory: item.value,
+      indent: true,
+      color: 'text-amber-700'
+    }))
 
   const rows: PnlRow[] = [
     {
@@ -907,7 +955,20 @@ export function BusinessReport({
       section: 'result',
       total: true,
       color: pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'
-    }
+    },
+    ...(pnl.nonOperatingExpense > 0
+      ? [
+          {
+            key: 'cashAdjustments',
+            label: 'D. Khoản chi ngoài kết quả kinh doanh',
+            amount: -pnl.nonOperatingExpense,
+            section: 'cashAdjustments' as const,
+            group: true,
+            color: 'text-amber-700'
+          },
+          ...nonOperatingExpenseRows
+        ]
+      : [])
   ]
 
   const visibleRows = rows.filter(
@@ -996,6 +1057,44 @@ export function BusinessReport({
     }),
     [depositRows, pendingRefundRows]
   )
+
+  // Mirror the Wallet tab's cash position so the deposit report uses the same source of truth.
+  const walletPosition = useMemo(() => {
+    const openingDate = appSettings?.opening_balance_date || ''
+    let bank = Number(appSettings?.opening_balance_bank || 0)
+    let cash = Number(appSettings?.opening_balance_cash || 0)
+
+    invoices
+      .filter(
+        (invoice) =>
+          invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged'
+      )
+      .flatMap(getInvoicePaymentRecords)
+      .forEach((record) => {
+        const date = record.payment_date || record.created_at
+        if (openingDate && date < openingDate) return
+        const amount = Number(record.amount || 0)
+        if (record.payment_method === 'cash') cash += amount
+        else bank += amount
+      })
+
+    walletTransactions.forEach((transaction) => {
+      const date = transaction.transaction_date || transaction.created_at
+      if (openingDate && date < openingDate) return
+      const amount =
+        transaction.type === 'income'
+          ? Number(transaction.amount || 0)
+          : -Number(transaction.amount || 0)
+      if (transaction.payment_method === 'cash') cash += amount
+      else bank += amount
+    })
+
+    return { bank, cash, total: bank + cash }
+  }, [appSettings, invoices, walletTransactions])
+
+  const walletBalance = Math.max(0, walletPosition.total)
+  const reservedDeposit = depositSummary.totalHeld + depositSummary.pendingRefund
+  const availableBalance = walletBalance - reservedDeposit
 
   // Computed values for utility reconciliation (Điện / Nước đối soát)
   const utilityData = useMemo(() => {
@@ -1315,52 +1414,8 @@ export function BusinessReport({
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-5 space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'overview' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-chart-pie mr-2"></i>Tổng quát
-          </button>
-          <button
-            onClick={() => setActiveTab('pnl')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'pnl' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-table-list mr-2"></i>Kết quả kinh doanh
-          </button>
-          <button
-            onClick={() => setActiveTab('deposit')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'deposit' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-vault mr-2"></i>Quản lý cọc
-            {depositSummary.pendingCount > 0 && (
-              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-black">
-                {depositSummary.pendingCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('cashflow')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'cashflow' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-wallet mr-2"></i>Giao Dịch
-          </button>
-          <button
-            onClick={() => setActiveTab('utility')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'utility' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-right-left mr-2"></i>Điện / Nước
-          </button>
-          <button
-            onClick={() => setActiveTab('debt')}
-            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'debt' ? 'bg-emerald-50 text-primary border border-emerald-200 shadow-none' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-          >
-            <i className="fa-solid fa-coins mr-2"></i>Nợ
-          </button>
-        </div>
-
-        <div ref={dropdownRef} className="ml-auto flex items-center gap-2">
+      <div className="flex justify-end">
+        <div ref={dropdownRef} className="flex items-center gap-2">
           <div className="relative">
             <button
               type="button"
@@ -1535,40 +1590,68 @@ export function BusinessReport({
       )}
 
       {activeTab === 'debt' && (
-        <DebtReport
-          summary={debtSummary}
-          isAdmin={currentUser?.role === 'admin'}
-        />
+        <DebtReport summary={debtSummary} isAdmin={currentUser?.role === 'admin'} />
       )}
 
       {activeTab === 'deposit' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                Đang giữ cọc
-              </p>
-              <p className="text-2xl font-black text-emerald-700">
-                {fmt(depositSummary.totalHeld)} đ
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                {depositSummary.activeCount} phòng đang thuê
-              </p>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-sky-50" />
+              <div className="relative">
+                <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <i className="fa-solid fa-wallet text-sky-600" />
+                  Số dư hiện tại
+                </div>
+                <p className="text-2xl font-black tabular-nums text-slate-900">
+                  {fmt(walletBalance)} đ
+                </p>
+                <p className="mt-1 text-xs text-slate-400">Theo số dư thực tế trong Ví tiền</p>
+              </div>
             </div>
+
+            <div className="relative overflow-hidden rounded-xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
+              <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-amber-100/80" />
+              <div className="relative">
+                <div className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-700">
+                  <i className="fa-solid fa-shield-halved" />
+                  Cọc đang nắm giữ
+                </div>
+                <p className="text-2xl font-black tabular-nums text-amber-800">
+                  {fmt(depositSummary.totalHeld)} đ
+                </p>
+                <p className="mt-1 text-xs text-amber-700/70">
+                  {depositSummary.activeCount} phòng đang thuê
+                  {depositSummary.pendingRefund > 0 &&
+                    ` · ${fmt(depositSummary.pendingRefund)} đ chờ hoàn`}
+                </p>
+              </div>
+            </div>
+
             <div
-              className={`bg-white rounded-xl border shadow-sm p-5 ${depositSummary.pendingCount > 0 ? 'border-red-200' : 'border-slate-200'}`}
+              className={`relative overflow-hidden rounded-xl border p-5 shadow-sm ${availableBalance >= 0 ? 'border-emerald-200 bg-emerald-50/70' : 'border-red-200 bg-red-50/70'}`}
             >
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-1">
-                Chờ hoàn cọc
-              </p>
-              <p
-                className={`text-2xl font-black ${depositSummary.pendingCount > 0 ? 'text-red-600' : 'text-slate-400'}`}
-              >
-                {fmt(depositSummary.pendingRefund)} đ
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                {depositSummary.pendingCount} hợp đồng đã kết thúc
-              </p>
+              <div
+                className={`absolute -right-8 -top-8 h-24 w-24 rounded-full ${availableBalance >= 0 ? 'bg-emerald-100/80' : 'bg-red-100/80'}`}
+              />
+              <div className="relative">
+                <div
+                  className={`mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider ${availableBalance >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                >
+                  <i className="fa-solid fa-coins" />
+                  Số dư khả dụng
+                </div>
+                <p
+                  className={`text-2xl font-black tabular-nums ${availableBalance >= 0 ? 'text-emerald-800' : 'text-red-700'}`}
+                >
+                  {fmt(availableBalance)} đ
+                </p>
+                <p
+                  className={`mt-1 text-xs ${availableBalance >= 0 ? 'text-emerald-700/70' : 'text-red-700/70'}`}
+                >
+                  Sau khi trừ cọc đang giữ và khoản chờ hoàn
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1913,7 +1996,7 @@ export function BusinessReport({
                       <thead className="bg-white sticky top-0 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-100">
                         <tr>
                           <th className="text-left px-5 py-3">Ngày</th>
-                          <th className="text-left px-5 py-3">Phòng</th>
+                          <th className="text-left px-5 py-3">Phòng / Tòa</th>
                           <th className="text-left px-5 py-3">Khách thuê</th>
                           <th className="text-left px-5 py-3">Loại phiếu</th>
                           <th className="text-right px-5 py-3">Giá trị hạng mục</th>
@@ -2055,9 +2138,7 @@ export function BusinessReport({
                               {categoryLabel(item.category, expenseCategories)}
                             </td>
                             <td className="px-5 py-3 text-slate-600">
-                              {item.room_id
-                                ? roomById.get(item.room_id)?.name || 'Không rõ'
-                                : 'Không gắn phòng'}
+                              {getCashTargetLabel(item, roomById)}
                             </td>
                             <td
                               className={`px-5 py-3 text-right font-black tabular-nums ${item.type === 'income' ? 'text-emerald-700' : 'text-red-600'}`}
@@ -2084,7 +2165,6 @@ export function BusinessReport({
           )}
         </>
       )}
-
 
       {activeTab === 'utility' && (
         <div className="space-y-5 animate-fade-in">
@@ -2214,13 +2294,22 @@ export function BusinessReport({
               <table className="w-full min-w-[1120px] text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                    <th rowSpan={2} className="w-[180px] border-r border-slate-200 px-6 py-4 text-left">
+                    <th
+                      rowSpan={2}
+                      className="w-[180px] border-r border-slate-200 px-6 py-4 text-left"
+                    >
                       Tòa
                     </th>
-                    <th colSpan={3} className="border-r border-slate-200 px-4 py-3 text-center text-amber-700">
+                    <th
+                      colSpan={3}
+                      className="border-r border-slate-200 px-4 py-3 text-center text-amber-700"
+                    >
                       <i className="fa-solid fa-bolt mr-2"></i>Điện dịch vụ
                     </th>
-                    <th colSpan={3} className="border-r border-slate-200 px-4 py-3 text-center text-sky-700">
+                    <th
+                      colSpan={3}
+                      className="border-r border-slate-200 px-4 py-3 text-center text-sky-700"
+                    >
                       <i className="fa-solid fa-droplet mr-2"></i>Nước sinh hoạt
                     </th>
                     <th rowSpan={2} className="w-[175px] px-5 py-4 text-center">
@@ -2295,8 +2384,11 @@ export function BusinessReport({
                           <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-500">
                             {fmt(row.electricExpense)} đ
                           </td>
-                          <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {electricDelta >= 0 ? '+' : ''}{fmt(electricDelta)} đ
+                          <td
+                            className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${electricDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                          >
+                            {electricDelta >= 0 ? '+' : ''}
+                            {fmt(electricDelta)} đ
                           </td>
                           <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-700">
                             {fmt(waterIncome)} đ
@@ -2304,11 +2396,17 @@ export function BusinessReport({
                           <td className="px-4 py-4 text-right font-bold tabular-nums text-slate-500">
                             {fmt(row.waterExpense)} đ
                           </td>
-                          <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {waterDelta >= 0 ? '+' : ''}{fmt(waterDelta)} đ
+                          <td
+                            className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${waterDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                          >
+                            {waterDelta >= 0 ? '+' : ''}
+                            {fmt(waterDelta)} đ
                           </td>
-                          <td className={`px-5 py-4 text-right font-black tabular-nums ${totalDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            {totalDelta >= 0 ? '+' : ''}{fmt(totalDelta)} đ
+                          <td
+                            className={`px-5 py-4 text-right font-black tabular-nums ${totalDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                          >
+                            {totalDelta >= 0 ? '+' : ''}
+                            {fmt(totalDelta)} đ
                           </td>
                         </tr>
 
@@ -2318,7 +2416,9 @@ export function BusinessReport({
                               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                                 <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
                                   <div>
-                                    <p className="text-xs font-black text-slate-800">Chi tiết {row.building}</p>
+                                    <p className="text-xs font-black text-slate-800">
+                                      Chi tiết {row.building}
+                                    </p>
                                     <p className="mt-0.5 text-[10px] font-medium text-slate-500">
                                       Đối chiếu số tiền điện nước theo phòng
                                     </p>
@@ -2343,8 +2443,12 @@ export function BusinessReport({
                                     <tbody className="divide-y divide-slate-100">
                                       {detailRows.map((item) => (
                                         <tr key={item.invoiceId} className="hover:bg-slate-50">
-                                          <td className="px-4 py-3 font-black text-slate-800">{item.roomName}</td>
-                                          <td className="px-4 py-3 text-slate-600">{item.tenantName}</td>
+                                          <td className="px-4 py-3 font-black text-slate-800">
+                                            {item.roomName}
+                                          </td>
+                                          <td className="px-4 py-3 text-slate-600">
+                                            {item.tenantName}
+                                          </td>
                                           <td className="px-3 py-3 text-right tabular-nums text-amber-700">
                                             {fmt(item.electricUsage)} kWh
                                           </td>
@@ -2364,7 +2468,10 @@ export function BusinessReport({
                                       ))}
                                       {detailRows.length === 0 && (
                                         <tr>
-                                          <td colSpan={7} className="px-4 py-8 text-center text-slate-400">
+                                          <td
+                                            colSpan={7}
+                                            className="px-4 py-8 text-center text-slate-400"
+                                          >
                                             Không có hóa đơn điện nước trong kỳ cho tòa này.
                                           </td>
                                         </tr>
@@ -2402,8 +2509,11 @@ export function BusinessReport({
                     <td className="px-4 py-4 text-right font-black tabular-nums text-slate-700">
                       {fmt(utilityData.electricExpense)} đ
                     </td>
-                    <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {utilityData.electricProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.electricProjectedDelta)} đ
+                    <td
+                      className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
+                      {utilityData.electricProjectedDelta >= 0 ? '+' : ''}
+                      {fmt(utilityData.electricProjectedDelta)} đ
                     </td>
                     <td className="px-4 py-4 text-right font-black tabular-nums text-slate-900">
                       {fmt(utilityData.waterRevenue + utilityData.waterPending)} đ
@@ -2411,11 +2521,18 @@ export function BusinessReport({
                     <td className="px-4 py-4 text-right font-black tabular-nums text-slate-700">
                       {fmt(utilityData.waterExpense)} đ
                     </td>
-                    <td className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {utilityData.waterProjectedDelta >= 0 ? '+' : ''}{fmt(utilityData.waterProjectedDelta)} đ
+                    <td
+                      className={`border-r border-slate-200 px-4 py-4 text-right font-black tabular-nums ${utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
+                      {utilityData.waterProjectedDelta >= 0 ? '+' : ''}
+                      {fmt(utilityData.waterProjectedDelta)} đ
                     </td>
-                    <td className={`px-5 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? '+' : ''}
+                    <td
+                      className={`px-5 py-4 text-right font-black tabular-nums ${utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}
+                    >
+                      {utilityData.electricProjectedDelta + utilityData.waterProjectedDelta >= 0
+                        ? '+'
+                        : ''}
                       {fmt(utilityData.electricProjectedDelta + utilityData.waterProjectedDelta)} đ
                     </td>
                   </tr>
@@ -2427,7 +2544,6 @@ export function BusinessReport({
       )}
 
       {activeTab === 'utility' && showLegacyUtilityReport && (
-
         <div className="space-y-6">
           {/* SECTION TITLE */}
           <div>

@@ -4,10 +4,12 @@ import {
   ArrowUpDown,
   CheckCircle2,
   Filter,
+  Layers3,
   MoreVertical,
   Plus,
   RefreshCcw,
   Search,
+  X,
   XCircle
 } from 'lucide-react'
 import {
@@ -115,14 +117,19 @@ function isAsciiUpperName(name: string): boolean {
 }
 
 function buildVietQrPreviewUrl(bankId: string, accountNo: string, accountName: string): string {
-  const url = new URL('https://qr.sepay.vn/img');
-  url.searchParams.append('bank', bankId);
-  url.searchParams.append('acc', accountNo);
-  url.searchParams.append('template', 'compact');
-  url.searchParams.append('amount', '0');
-  url.searchParams.append('des', 'DBY HOME');
-  url.searchParams.append('name', accountName);
-  return url.toString();
+  const params = new URLSearchParams({ amount: '0', addInfo: 'DBY HOME', accountName })
+  return `https://img.vietqr.io/image/${encodeURIComponent(bankId)}-${encodeURIComponent(accountNo)}-compact.png?${params.toString()}`
+}
+
+function buildVietQrFallbackUrl(bankId: string, accountNo: string, accountName: string): string {
+  const url = new URL('https://qr.sepay.vn/img')
+  url.searchParams.append('bank', bankId)
+  url.searchParams.append('acc', accountNo)
+  url.searchParams.append('template', 'compact')
+  url.searchParams.append('amount', '0')
+  url.searchParams.append('des', 'DBY HOME')
+  url.searchParams.append('name', accountName)
+  return url.toString()
 }
 
 const GeneralSettingsSafe = (): React.JSX.Element => {
@@ -354,6 +361,16 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     }
   }
 
+  const infoComplete = Boolean(
+    infoSettings.property_name &&
+    infoSettings.property_owner_name &&
+    infoSettings.property_owner_phone &&
+    infoSettings.property_address
+  )
+  const paymentComplete = Boolean(settings.bank_id && settings.account_no && settings.account_name)
+  const balanceComplete = Boolean(settings.opening_balance_date)
+  const completedGroups = [infoComplete, paymentComplete, balanceComplete].filter(Boolean).length
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -363,365 +380,204 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 pb-20 p-2 md:p-6">
-
-      {/* 1. Thông tin chung */}
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
-        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-100 text-orange-600 shadow-inner">
-              <i className="fa-solid fa-house-chimney" />
-            </div>
-            <div>
-              <h2 className="text-[15px] font-bold text-gray-800">Thông tin nhà trọ</h2>
-              <p className="mt-0.5 text-[12px] text-gray-500">Cấu hình thông tin in trên hóa đơn, biên nhận.</p>
-            </div>
+    <div className="mx-auto max-w-6xl space-y-4 p-3 pb-20 md:p-6 md:pb-20">
+      <header className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
+            <i className="fa-solid fa-house text-[10px]" />
+            <span>Thông tin chung</span>
           </div>
+          <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-900">Cấu hình hệ thống</h1>
+          <p className="mt-1 text-xs text-slate-500">
+            Thiết lập thông tin nhà trọ, tài khoản nhận tiền và số dư đầu kỳ để hệ thống hoạt động chính xác.
+          </p>
         </div>
-
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
-            <Field
-              label="Tên nhà trọ"
-              value={settings.property_name || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, property_name: value }))}
-              inputRef={propertyNameInputRef}
-            />
-            <Field
-              label="Người đại diện thu"
-              value={settings.property_owner_name || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_name: value }))}
-            />
-            <Field
-              label="SĐT người đại diện"
-              value={settings.property_owner_phone || ''}
-              onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_phone: value }))}
-            />
-            <div className="md:col-span-2">
-              <Field
-                label="Địa chỉ nhà trọ"
-                value={settings.property_address || ''}
-                onChange={(value) => setSettings((prev) => ({ ...prev, property_address: value }))}
-              />
-            </div>
-          </div>
-
-          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
-            <div className="h-5">
-              {savedInfo && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
-                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
-                </span>
-              )}
-              {infoError && !savedInfo && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
-                  <i className="fa-solid fa-triangle-exclamation" /> {infoError}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSettings((prev) => ({ ...prev, ...initialInfoSettings }))}
-                disabled={!hasInfoChanges || savingInfo}
-                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleSaveInfo}
-                disabled={!hasInfoChanges || savingInfo}
-                className="flex items-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-orange-500/20 transition hover:bg-orange-700 disabled:opacity-50"
-              >
-                {savingInfo ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
-                Lưu cấu hình
-              </button>
-            </div>
-          </div>
+        <div className="flex items-center gap-3 self-start rounded-full border border-emerald-100 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 lg:self-auto">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          {completedGroups === 3 ? 'Đã đồng bộ' : `${completedGroups}/3 nhóm đã hoàn thiện`}
         </div>
+      </header>
+
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-3">
+        {[
+          { number: 1, label: 'Thông tin nhà trọ', complete: infoComplete, color: 'emerald' },
+          { number: 2, label: 'Tài khoản nhận tiền', complete: paymentComplete, color: 'violet' },
+          { number: 3, label: 'Số dư đầu kỳ', complete: balanceComplete, color: 'blue' }
+        ].map((step) => (
+          <div key={step.number} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.complete
+              ? step.color === 'emerald' ? 'bg-emerald-700 text-white' : step.color === 'violet' ? 'bg-violet-600 text-white' : 'bg-blue-600 text-white'
+              : 'bg-slate-100 text-slate-500'
+              }`}>
+              {step.complete ? <i className="fa-solid fa-check" /> : step.number}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-bold text-slate-700">{step.label}</div>
+              <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-100">
+                <div className={`h-full rounded-full ${step.complete
+                  ? step.color === 'emerald' ? 'w-full bg-emerald-500' : step.color === 'violet' ? 'w-full bg-violet-500' : 'w-full bg-blue-500'
+                  : 'w-1/3 bg-slate-300'
+                  }`} />
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* 2. Cài đặt thanh toán */}
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
-        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600 shadow-inner">
-              <i className="fa-solid fa-money-check-dollar" />
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white px-5 py-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <i className="fa-solid fa-building" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-black text-slate-900">1. Thông tin nhà trọ</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">Cấu hình thông tin cơ bản hiển thị trên hóa đơn và biên nhận.</p>
+          </div>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+            <Field label="Tên nhà trọ" value={settings.property_name || ''} onChange={(value) => setSettings((prev) => ({ ...prev, property_name: value }))} inputRef={propertyNameInputRef} />
+            <Field label="Người đại diện thu" value={settings.property_owner_name || ''} onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_name: value }))} />
+            <Field label="SĐT người đại diện" value={settings.property_owner_phone || ''} onChange={(value) => setSettings((prev) => ({ ...prev, property_owner_phone: value }))} />
+            <Field className="md:col-span-2" label="Địa chỉ nhà trọ" value={settings.property_address || ''} onChange={(value) => setSettings((prev) => ({ ...prev, property_address: value }))} />
+          </div>
+          <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-h-5 text-xs">
+              {savedInfo && <span className="font-semibold text-emerald-600"><i className="fa-solid fa-circle-check mr-1.5" />Đã lưu thành công</span>}
+              {infoError && !savedInfo && <span className="font-semibold text-red-500"><i className="fa-solid fa-triangle-exclamation mr-1.5" />{infoError}</span>}
             </div>
-            <div>
-              <h2 className="text-[15px] font-bold text-gray-800">Tài khoản nhận tiền</h2>
-              <p className="mt-0.5 text-[12px] text-gray-500">Cấu hình VietQR để hiển thị lên hóa đơn gửi khách.</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSettings((prev) => ({ ...prev, ...initialInfoSettings }))} disabled={!hasInfoChanges || savingInfo} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
+              <button onClick={handleSaveInfo} disabled={!hasInfoChanges || savingInfo} className="flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-900/10 transition hover:bg-emerald-800 disabled:opacity-40">
+                {savingInfo ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Lưu cấu hình
+              </button>
             </div>
           </div>
         </div>
+      </section>
 
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                <i className="fa-solid fa-building-columns text-gray-300" style={{ fontSize: 10 }} />
-                Ngân hàng
-              </label>
-              <div className="relative" ref={bankDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowBankDropdown((v) => !v)}
-                  className="flex w-full items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-left transition-all hover:border-violet-300 focus:border-violet-400 focus:outline-none focus:ring-3 focus:ring-violet-100"
-                >
-                  {settings.bank_id ? (() => {
-                    const bank = bankOptions.find((b) => b.id === settings.bank_id)
-                    return (
-                      <>
-                        <span className="flex h-6 w-8 shrink-0 items-center justify-center rounded bg-violet-100 text-[10px] font-bold text-violet-700">
-                          {settings.bank_id.slice(0, 3)}
-                        </span>
-                        <span className="flex-1 text-[13px] text-gray-800">{bank?.label ?? settings.bank_id}</span>
-                      </>
-                    )
-                  })() : (
-                    <span className="flex-1 text-[13px] text-gray-400">Chọn ngân hàng...</span>
-                  )}
-                  <i className={`fa-solid fa-chevron-down text-[10px] text-gray-400 transition-transform duration-200 ${showBankDropdown ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showBankDropdown && (
-                  <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-gray-100 bg-white shadow-xl shadow-gray-200/60">
-                    <div className="max-h-56 overflow-y-auto py-1">
-                      {bankOptions.map((bank) => (
-                        <button
-                          key={bank.id}
-                          type="button"
-                          onClick={() => { setSettings((prev) => ({ ...prev, bank_id: bank.id, account_name: '' })); setShowBankDropdown(false) }}
-                          className={`flex w-full items-center gap-3 px-3.5 py-2 text-left transition-colors hover:bg-violet-50 ${settings.bank_id === bank.id ? 'bg-violet-50' : ''}`}
-                        >
-                          <span className={`flex h-6 w-8 shrink-0 items-center justify-center rounded text-[10px] font-bold ${settings.bank_id === bank.id ? 'bg-violet-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                            {bank.id.slice(0, 3)}
-                          </span>
-                          <span className="flex-1 text-[13px] text-gray-700">{bank.label}</span>
-                          {settings.bank_id === bank.id && (
-                            <i className="fa-solid fa-check text-[11px] text-violet-500" />
-                          )}
-                        </button>
-                      ))}
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-violet-100 bg-gradient-to-r from-violet-50 to-white px-5 py-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+            <i className="fa-solid fa-money-check-dollar" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-black text-slate-900">2. Tài khoản nhận tiền</h2>
+            <p className="mt-0.5 text-[11px] text-slate-500">Cấu hình VietQR để hiển thị lên hóa đơn gửi khách.</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_230px]">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngân hàng</label>
+                <div className="relative" ref={bankDropdownRef}>
+                  <button type="button" onClick={() => setShowBankDropdown((value) => !value)} className="flex w-full items-center gap-2.5 rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm transition hover:border-violet-300 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-100">
+                    {settings.bank_id ? (() => {
+                      const bank = bankOptions.find((item) => item.id === settings.bank_id)
+                      return <><span className="flex h-6 min-w-9 items-center justify-center rounded-md bg-violet-100 px-2 text-[10px] font-black text-violet-700">{settings.bank_id.slice(0, 3)}</span><span className="flex-1 text-slate-800">{bank?.label ?? settings.bank_id}</span></>
+                    })() : <span className="flex-1 text-slate-400">Chọn ngân hàng...</span>}
+                    <i className={`fa-solid fa-chevron-down text-[10px] text-slate-400 transition ${showBankDropdown ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showBankDropdown && (
+                    <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl">
+                      <div className="max-h-56 overflow-y-auto py-1">
+                        {bankOptions.map((bank) => (
+                          <button key={bank.id} type="button" onClick={() => { setSettings((prev) => ({ ...prev, bank_id: bank.id, account_name: '' })); setShowBankDropdown(false) }} className={`flex w-full items-center gap-3 px-3.5 py-2 text-left text-sm hover:bg-violet-50 ${settings.bank_id === bank.id ? 'bg-violet-50' : ''}`}>
+                            <span className={`flex h-6 w-9 items-center justify-center rounded text-[10px] font-black ${settings.bank_id === bank.id ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{bank.id.slice(0, 3)}</span>
+                            <span className="flex-1 text-slate-700">{bank.label}</span>
+                            {settings.bank_id === bank.id && <i className="fa-solid fa-check text-xs text-violet-600" />}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                <i className="fa-solid fa-hashtag text-gray-300" style={{ fontSize: 10 }} />
-                Số VA SePay
-              </label>
-              <input
-                type="text"
-                value={settings.account_no || ''}
-                onChange={(e) => setSettings((prev) => ({ ...prev, account_no: e.target.value }))}
-                placeholder="VD: 96247Q3PE9"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-              <i className="fa-solid fa-id-card text-gray-300" style={{ fontSize: 10 }} />
-              Chủ tài khoản
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={settings.account_name || ''}
-                onChange={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value, false) }))}
-                onBlur={(e) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(e.target.value) }))}
-                placeholder="Nhập đúng tên chủ tài khoản"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] uppercase text-gray-800 placeholder-gray-300 outline-none transition-all focus:border-violet-400 focus:bg-white focus:ring-3 focus:ring-violet-100"
-              />
-            </div>
-            <p className="text-[11px] text-gray-400">Nhập đúng tên người nhận. Số VA lấy từ trang quản trị SePay, không dùng STK ngân hàng gốc.</p>
-          </div>
-
-          <div className="flex flex-col gap-1.5 mt-2">
-            <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-              <i className="fa-solid fa-key text-gray-300" style={{ fontSize: 10 }} />
-              SePay API Token (Dùng để đồng bộ hóa đơn tự động)
-            </label>
-            <input
-              type="password"
-              value={settings.sepay_api_token || ''}
-              onChange={(e) => setSettings((prev) => ({ ...prev, sepay_api_token: e.target.value }))}
-              placeholder="Để trống nếu không muốn thay đổi token"
-              className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 placeholder-gray-300 transition-all focus:border-violet-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-violet-100"
-            />
-            <p className="text-[11px] text-gray-400">Khóa API lấy từ trang Quản trị SePay để kết nối phần mềm.</p>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-violet-100 bg-violet-50/70 px-4 py-2.5">
-            <i className="fa-solid fa-qrcode text-sm text-violet-400" />
-            <span className="text-[11px] font-medium text-violet-600">
-              Thông tin tài khoản sẽ hiển thị trên <strong>mã QR thanh toán</strong> của hóa đơn.
-            </span>
-          </div>
-
-          {qrPreviewUrl && (
-            <div className="rounded-2xl border border-violet-100 bg-white p-4">
-              <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold text-violet-700">
-                <i className="fa-solid fa-qrcode" />
-                Mã QR quét thử
-              </div>
-              <div className="flex flex-col items-center gap-3 md:flex-row md:items-start">
-                <img
-                  src={qrPreviewUrl}
-                  alt="QR thanh toán"
-                  className="h-56 w-56 rounded-xl border border-gray-200 bg-white p-2 md:h-64 md:w-64"
-                  onError={() => setQrPreviewError('Không tạo được QR. Vui lòng kiểm tra lại ngân hàng hoặc số tài khoản.')}
-                />
-                <div className="text-[11px] text-gray-500">
-                  <p>Quét thử bằng app ngân hàng để kiểm tra người nhận trước khi gửi cho khách.</p>
-                  {qrPreviewError && <p className="mt-2 text-rose-500">{qrPreviewError}</p>}
+                  )}
                 </div>
               </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Số VA SePay</label>
+                <input type="text" value={settings.account_no || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_no: event.target.value }))} placeholder="VD: 96247Q3PE9" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+              </div>
             </div>
-          )}
-
-          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
-            <div className="h-5">
-              {savedPayment && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
-                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
-                </span>
-              )}
-              {paymentError && !savedPayment && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
-                  <i className="fa-solid fa-triangle-exclamation" /> {paymentError}
-                </span>
-              )}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Chủ tài khoản</label>
+              <input type="text" value={settings.account_name || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value, false) }))} onBlur={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value) }))} placeholder="Nhập đúng tên chủ tài khoản" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm uppercase outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+              <p className="text-[11px] text-slate-400">Nhập đúng tên người nhận. Số VA lấy từ trang quản trị SePay, không dùng STK ngân hàng gốc.</p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSettings((prev) => ({ ...prev, ...initialPaymentSettings }))}
-                disabled={!hasPaymentChanges || savingPayment}
-                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleSavePayment}
-                disabled={!hasPaymentChanges || savingPayment}
-                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-violet-500/20 transition hover:bg-violet-700 disabled:opacity-50"
-              >
-                {savingPayment ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
-                Lưu cài đặt
-              </button>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">SePay API Token</label>
+              <input type="password" value={settings.sepay_api_token || ''} onChange={(event) => setSettings((prev) => ({ ...prev, sepay_api_token: event.target.value }))} placeholder="Để trống nếu không muốn thay đổi token" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+              <p className="text-[11px] text-slate-400">Dùng để kết nối SePay và đồng bộ hóa đơn tự động.</p>
+            </div>
+            <div className="flex items-center gap-2.5 rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-[11px] font-semibold text-violet-700">
+              <i className="fa-solid fa-qrcode" /> Thông tin tài khoản sẽ hiển thị trên mã QR thanh toán của hóa đơn.
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* 3. Số dư ban đầu */}
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
-        <div className="flex flex-col border-b border-gray-50/80 bg-gray-50/30 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 shadow-inner">
-              <i className="fa-solid fa-wallet" />
-            </div>
-            <div>
-              <h2 className="text-[15px] font-bold text-gray-800">Số dư ban đầu</h2>
-              <p className="mt-0.5 text-[12px] text-gray-500">Điểm xuất phát để tính tồn quỹ hiện tại trong tab Giao Dịch.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5 space-y-4">
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 md:grid-cols-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                <i className="fa-solid fa-calendar-day text-gray-300" style={{ fontSize: 10 }} />
-                Ngày bắt đầu tính
-              </label>
-              <input
-                type="date"
-                value={settings.opening_balance_date || ''}
-                onChange={(e) => setSettings((prev) => ({ ...prev, opening_balance_date: e.target.value }))}
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] text-gray-800 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                <i className="fa-solid fa-money-bill-wave text-gray-300" style={{ fontSize: 10 }} />
-                Tiền mặt (VNĐ)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={settings.opening_balance_cash != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_cash) : ''}
-                onChange={(e) => {
-                  const raw = Number(e.target.value.replace(/\D/g, ''))
-                  setSettings((prev) => ({ ...prev, opening_balance_cash: isNaN(raw) ? 0 : raw }))
+          <aside className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-violet-100 bg-violet-50/50 p-4 text-center">
+            <div className="mb-3 text-xs font-black text-violet-700">Xem trước mã QR thanh toán</div>
+            {qrPreviewUrl ? (
+              <img
+                src={qrPreviewUrl}
+                alt="QR thanh toán"
+                className="h-40 w-40 rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+                onLoad={() => setQrPreviewError('')}
+                onError={(event) => {
+                  const image = event.currentTarget
+                  if (!image.dataset.fallbackApplied && settings.bank_id && settings.account_no && settings.account_name) {
+                    image.dataset.fallbackApplied = 'true'
+                    image.src = buildVietQrFallbackUrl(settings.bank_id, settings.account_no, settings.account_name)
+                    return
+                  }
+                  setQrPreviewError('Không tạo được QR. Vui lòng kiểm tra lại ngân hàng hoặc số tài khoản.')
                 }}
-                placeholder="0"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] font-bold tabular-nums text-gray-800 placeholder-gray-300 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
               />
+            ) : (
+              <div className="flex h-40 w-40 flex-col items-center justify-center rounded-xl border border-dashed border-violet-200 bg-white text-violet-300">
+                <i className="fa-solid fa-qrcode text-4xl" /><span className="mt-2 text-[10px] font-bold">Chưa đủ thông tin</span>
+              </div>
+            )}
+            <p className="mt-3 text-[10px] leading-4 text-slate-500">Quét thử bằng ứng dụng ngân hàng trước khi gửi hóa đơn.</p>
+            {qrPreviewError && <p className="mt-2 text-[10px] text-rose-500">{qrPreviewError}</p>}
+          </aside>
+          <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 lg:col-span-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-h-5 text-xs">
+              {savedPayment && <span className="font-semibold text-emerald-600"><i className="fa-solid fa-circle-check mr-1.5" />Đã lưu thành công</span>}
+              {paymentError && !savedPayment && <span className="font-semibold text-red-500"><i className="fa-solid fa-triangle-exclamation mr-1.5" />{paymentError}</span>}
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-1.5 text-[11px] font-semibold text-gray-500">
-                <i className="fa-solid fa-building-columns text-gray-300" style={{ fontSize: 10 }} />
-                Ngân hàng (VNĐ)
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                value={settings.opening_balance_bank != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_bank) : ''}
-                onChange={(e) => {
-                  const raw = Number(e.target.value.replace(/\D/g, ''))
-                  setSettings((prev) => ({ ...prev, opening_balance_bank: isNaN(raw) ? 0 : raw }))
-                }}
-                placeholder="0"
-                className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-[13px] font-bold tabular-nums text-gray-800 placeholder-gray-300 transition-all focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-3 focus:ring-emerald-100"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5">
-            <i className="fa-solid fa-circle-info text-sm text-emerald-400" />
-            <span className="text-[11px] font-medium text-emerald-600">
-              Nhập số tiền thực tế đang có tại <strong>ngày bắt đầu tính</strong>. Hệ thống sẽ cộng/trừ các giao dịch phát sinh sau đó để ra tồn quỹ hiện tại.
-            </span>
-          </div>
-
-          <div className="mt-5 flex items-center justify-between border-t border-gray-50 pt-4">
-            <div className="h-5">
-              {savedBalance && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-emerald-600">
-                  <i className="fa-solid fa-circle-check" /> Đã lưu thành công!
-                </span>
-              )}
-              {balanceError && !savedBalance && (
-                <span className="flex items-center gap-1.5 text-[12px] font-medium text-red-500">
-                  <i className="fa-solid fa-triangle-exclamation" /> {balanceError}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSettings((prev) => ({ ...prev, ...initialBalanceSettings }))}
-                disabled={!hasBalanceChanges || savingBalance}
-                className="rounded-xl border border-gray-200 px-4 py-2.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleSaveBalance}
-                disabled={!hasBalanceChanges || savingBalance}
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-[13px] font-bold text-white shadow-md shadow-emerald-500/20 transition hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {savingBalance ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />}
-                Lưu cài đặt
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSettings((prev) => ({ ...prev, ...initialPaymentSettings }))} disabled={!hasPaymentChanges || savingPayment} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
+              <button onClick={handleSavePayment} disabled={!hasPaymentChanges || savingPayment} className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-900/10 transition hover:bg-violet-700 disabled:opacity-40">
+                {savingPayment ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Lưu tài khoản
               </button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><i className="fa-solid fa-wallet" /></div>
+          <div><h2 className="text-[15px] font-black text-slate-900">3. Số dư đầu kỳ</h2><p className="mt-0.5 text-[11px] text-slate-500">Thiết lập số dư ban đầu để đối soát thu chi chính xác.</p></div>
+        </div>
+        <div className="space-y-4 p-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngày bắt đầu</label><input type="date" value={settings.opening_balance_date || ''} onChange={(event) => setSettings((prev) => ({ ...prev, opening_balance_date: event.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
+            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Tiền mặt (VNĐ)</label><input type="text" inputMode="numeric" value={settings.opening_balance_cash != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_cash) : ''} onChange={(event) => { const raw = Number(event.target.value.replace(/\D/g, '')); setSettings((prev) => ({ ...prev, opening_balance_cash: isNaN(raw) ? 0 : raw })) }} placeholder="0" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold tabular-nums outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
+            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngân hàng (VNĐ)</label><input type="text" inputMode="numeric" value={settings.opening_balance_bank != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_bank) : ''} onChange={(event) => { const raw = Number(event.target.value.replace(/\D/g, '')); setSettings((prev) => ({ ...prev, opening_balance_bank: isNaN(raw) ? 0 : raw })) }} placeholder="0" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold tabular-nums outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
+          </div>
+          <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-medium leading-5 text-blue-700"><i className="fa-solid fa-circle-info mt-1" /><span>Nhập số tiền thực tế đang có tại <strong>ngày bắt đầu</strong>. Hệ thống sẽ cộng/trừ các giao dịch phát sinh sau đó để tính tồn quỹ hiện tại.</span></div>
+          <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-h-5 text-xs">
+              {savedBalance && <span className="font-semibold text-emerald-600"><i className="fa-solid fa-circle-check mr-1.5" />Đã lưu thành công</span>}
+              {balanceError && !savedBalance && <span className="font-semibold text-red-500"><i className="fa-solid fa-triangle-exclamation mr-1.5" />{balanceError}</span>}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setSettings((prev) => ({ ...prev, ...initialBalanceSettings }))} disabled={!hasBalanceChanges || savingBalance} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
+              <button onClick={handleSaveBalance} disabled={!hasBalanceChanges || savingBalance} className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-900/10 transition hover:bg-blue-700 disabled:opacity-40">{savingBalance ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Lưu số dư</button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
@@ -730,29 +586,18 @@ const ServiceZonesSettings = (): React.JSX.Element => {
   const queryClient = useQueryClient()
   const { data: serviceZones = [] } = useQuery({ queryKey: ['serviceZones'], queryFn: getServiceZones })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
-  const [editingZone, setEditingZone] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState<Partial<ServiceZone>>({})
-  const [isAdding, setIsAdding] = useState(false)
-  const [newZone, setNewZone] = useState<Partial<ServiceZone>>({
-    name: '',
-    electric_price: 3500,
-    water_price: 20000,
-    internet_price: 100000,
-    cleaning_price: 20000
-  })
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
+  const [drawerMode, setDrawerMode] = useState<'view' | 'edit'>('edit')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roomFilter, setRoomFilter] = useState<'all' | 'assigned' | 'unassigned'>('all')
+  const [sortByRooms, setSortByRooms] = useState(false)
+  const [draft, setDraft] = useState<Partial<ServiceZone>>({})
 
   const createMutation = useMutation({
     mutationFn: createServiceZone,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
-      setIsAdding(false)
-      setNewZone({
-        name: '',
-        electric_price: 3500,
-        water_price: 20000,
-        internet_price: 100000,
-        cleaning_price: 20000
-      })
+      closeDrawer()
     }
   })
 
@@ -761,8 +606,7 @@ const ServiceZonesSettings = (): React.JSX.Element => {
       updateServiceZone(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
-      setEditingZone(null)
-      setEditForm({})
+      closeDrawer()
     }
   })
 
@@ -774,103 +618,289 @@ const ServiceZonesSettings = (): React.JSX.Element => {
     }
   })
 
-  const roomCount = (zoneId: string) => rooms.filter((room) => room.service_zone_id === zoneId).length
+  const roomCount = (zoneId: string): number => rooms.filter((room) => room.service_zone_id === zoneId).length
+
+  const selectedZone = serviceZones.find((zone) => zone.id === selectedZoneId) || null
+  const selectedRooms = selectedZone ? rooms.filter((room) => room.service_zone_id === selectedZone.id) : []
+  const totalAssignedRooms = rooms.filter((room) => room.service_zone_id).length
+  const latestZone = serviceZones.reduce<ServiceZone | null>((latest, zone) => {
+    if (!latest) return zone
+    return new Date(zone.created_at).getTime() > new Date(latest.created_at).getTime() ? zone : latest
+  }, null)
+  const formatZoneDate = (value?: string): string => {
+    if (!value) return 'Chưa cập nhật'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return 'Chưa cập nhật'
+    const today = new Date()
+    const isToday = date.toDateString() === today.toDateString()
+    return isToday ? 'Hôm nay' : new Intl.DateTimeFormat('vi-VN').format(date)
+  }
+
+  const filteredZones = [...serviceZones]
+    .filter((zone) => zone.name.toLowerCase().includes(searchTerm.trim().toLowerCase()))
+    .filter((zone) => {
+      const count = roomCount(zone.id)
+      return roomFilter === 'all' || (roomFilter === 'assigned' ? count > 0 : count === 0)
+    })
+    .sort((a, b) => (sortByRooms ? roomCount(b.id) - roomCount(a.id) : a.name.localeCompare(b.name, 'vi')))
+
+  function closeDrawer(): void {
+    setSelectedZoneId(null)
+    setDrawerMode('edit')
+    setDraft({})
+  }
+
+  function openAddDrawer(): void {
+    setSelectedZoneId(null)
+    setDrawerMode('edit')
+    setDraft({
+      name: '',
+      electric_price: 3500,
+      water_price: 20000,
+      internet_price: 100000,
+      cleaning_price: 20000
+    })
+  }
+
+  function openZoneDrawer(zone: ServiceZone, mode: 'view' | 'edit'): void {
+    setSelectedZoneId(zone.id)
+    setDrawerMode(mode)
+    setDraft({ ...zone })
+  }
+
+  function saveDraft(): void {
+    if (!draft.name?.trim()) return
+    const updates = {
+      name: draft.name.trim(),
+      electric_price: Number(draft.electric_price || 0),
+      water_price: Number(draft.water_price || 0),
+      internet_price: Number(draft.internet_price || 0),
+      cleaning_price: Number(draft.cleaning_price || 0)
+    }
+    if (selectedZoneId) {
+      updateMutation.mutate({ id: selectedZoneId, updates })
+    } else {
+      createMutation.mutate(updates)
+    }
+  }
 
   return (
-    <div className="flex min-h-full flex-col">
-      <div className="flex items-center justify-between border-b border-gray-100 p-6 md:p-8">
-        <div>
-          <h3 className="text-lg font-bold text-gray-800">Vùng bảng giá</h3>
-          <p className="mt-1 text-sm text-gray-500">Quản lý giá điện, nước, internet và rác theo từng vùng.</p>
+    <div className="min-h-full bg-white">
+      <div className="border-b border-slate-100 px-5 py-6 md:px-8 md:py-7">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-2xl font-black tracking-[-0.03em] text-slate-900">Vùng giá dịch vụ</h3>
+            <p className="mt-1 text-sm text-slate-500">Quản lý giá điện, nước, internet và rác theo từng vùng.</p>
+          </div>
+          <button
+            onClick={openAddDrawer}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-dark"
+          >
+            <Plus size={17} />
+            Thêm vùng giá
+          </button>
         </div>
-        <button
-          onClick={() => setIsAdding(true)}
-          className="rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-primary/20 transition hover:bg-primary-dark"
-        >
-          Thêm vùng giá
-        </button>
       </div>
 
-      <div className="flex-1 p-6 md:p-8">
-        <div className="overflow-hidden rounded-xl border border-gray-200">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
+      <div className="space-y-5 p-5 md:p-8">
+        <div className="grid gap-3 md:grid-cols-3">
+          <ZoneSummary icon={<Layers3 size={19} />} value={`${serviceZones.length}`} label="vùng giá" tone="emerald" />
+          <ZoneSummary icon={<i className="fa-solid fa-users text-[17px]" />} value={`${totalAssignedRooms}`} label="phòng áp dụng" tone="blue" />
+          <ZoneSummary icon={<i className="fa-regular fa-clock text-[17px]" />} value={formatZoneDate(latestZone?.created_at)} label="cập nhật gần nhất" tone="amber" />
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex-1 lg:max-w-xl">
+            <Search size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Tìm kiếm vùng giá..."
+              className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
+              <Filter size={15} />
+              <select value={roomFilter} onChange={(event) => setRoomFilter(event.target.value as typeof roomFilter)} className="bg-transparent pr-2 outline-none">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="assigned">Có phòng áp dụng</option>
+                <option value="unassigned">Chưa gán phòng</option>
+              </select>
+            </label>
+            <button
+              onClick={() => setSortByRooms((current) => !current)}
+              className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              <i className="fa-solid fa-arrow-down-wide-short text-xs" />
+              {sortByRooms ? 'Nhiều phòng trước' : 'Theo tên vùng'}
+            </button>
+            <button
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['serviceZones'] })}
+              title="Làm mới danh sách"
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-primary"
+            >
+              <RefreshCcw size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="min-w-[980px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
               <tr>
-                <th className="px-5 py-4">Tên vùng</th>
-                <th className="px-5 py-4">Điện</th>
-                <th className="px-5 py-4">Nước</th>
-                <th className="px-5 py-4">Internet</th>
-                <th className="px-5 py-4">Rác</th>
-                <th className="px-5 py-4 text-center">Phòng</th>
-                <th className="px-5 py-4 text-right">Thao tác</th>
+                <th className="px-4 py-4">Tên vùng</th>
+                <th className="px-4 py-4">Tiền điện</th>
+                <th className="px-4 py-4">Tiền nước</th>
+                <th className="px-4 py-4">Internet</th>
+                <th className="px-4 py-4">Rác</th>
+                <th className="px-4 py-4">Phòng áp dụng</th>
+                <th className="px-4 py-4">Cập nhật</th>
+                <th className="px-4 py-4 text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {isAdding && (
-                <ZoneRowEditor
-                  values={newZone}
-                  onChange={setNewZone}
-                  onCancel={() => setIsAdding(false)}
-                  onSave={() => createMutation.mutate(newZone)}
-                  saving={createMutation.isPending}
-                />
-              )}
-              {serviceZones.map((zone) =>
-                editingZone === zone.id ? (
-                  <ZoneRowEditor
-                    key={zone.id}
-                    values={editForm}
-                    onChange={setEditForm}
-                    onCancel={() => {
-                      setEditingZone(null)
-                      setEditForm({})
-                    }}
-                    onSave={() => updateMutation.mutate({ id: zone.id, updates: editForm })}
-                    saving={updateMutation.isPending}
-                  />
-                ) : (
-                  <tr key={zone.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-4 font-bold text-gray-800">{zone.name}</td>
-                    <td className="px-5 py-4">{formatNumber(zone.electric_price)}</td>
-                    <td className="px-5 py-4">{formatNumber(zone.water_price)}</td>
-                    <td className="px-5 py-4">{formatNumber(zone.internet_price)}</td>
-                    <td className="px-5 py-4">{formatNumber(zone.cleaning_price)}</td>
-                    <td className="px-5 py-4 text-center">
-                      <span className="rounded-md bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-700">
-                        {roomCount(zone.id)}
-                      </span>
+            <tbody className="divide-y divide-slate-100">
+              {filteredZones.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-16 text-center">
+                    <div className="mx-auto flex max-w-xs flex-col items-center">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"><Search size={20} /></div>
+                      <p className="mt-3 text-sm font-bold text-slate-700">Không tìm thấy vùng giá</p>
+                      <p className="mt-1 text-xs text-slate-400">Thử đổi từ khóa hoặc bộ lọc để xem lại danh sách.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredZones.map((zone) => {
+                const count = roomCount(zone.id)
+                return (
+                  <tr key={zone.id} className="group transition hover:bg-emerald-50/40">
+                    <td className="px-4 py-4 font-bold text-slate-800">{zone.name}</td>
+                    <PriceCell value={zone.electric_price} unit="đ/kWh" />
+                    <PriceCell value={zone.water_price} unit="đ/m³" />
+                    <PriceCell value={zone.internet_price} unit="đ/tháng" />
+                    <PriceCell value={zone.cleaning_price} unit="đ/phòng" />
+                    <td className="px-4 py-4">
+                      <button onClick={() => openZoneDrawer(zone, 'view')} className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 transition hover:bg-blue-100">
+                        {count} phòng
+                      </button>
                     </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => {
-                            setEditingZone(zone.id)
-                            setEditForm(zone)
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-blue-500 transition hover:bg-blue-50"
-                        >
-                          <i className="fa-solid fa-pen"></i>
-                        </button>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                        <div>
+                          <div className="text-xs font-bold text-emerald-700">Đang áp dụng</div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">{formatZoneDate(zone.created_at)}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end gap-3 text-xs font-bold">
+                        <button onClick={() => openZoneDrawer(zone, 'edit')} className="text-blue-600 transition hover:text-blue-800">Sửa</button>
+                        <button onClick={() => openZoneDrawer(zone, 'view')} className="text-blue-600 transition hover:text-blue-800">Xem phòng</button>
                         {zone.id !== 'zone-1' && (
                           <button
-                            onClick={() => deleteMutation.mutate(zone.id)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-rose-500 transition hover:bg-rose-50"
+                            onClick={() => {
+                              if (window.confirm(`Xóa vùng giá “${zone.name}”?`)) deleteMutation.mutate(zone.id)
+                            }}
+                            className="text-rose-500 transition hover:text-rose-700"
                           >
-                            <i className="fa-solid fa-trash"></i>
+                            Xóa
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
                 )
-              )}
+              })}
             </tbody>
           </table>
         </div>
       </div>
+
+      {(selectedZone || !selectedZoneId && draft.name !== undefined) && (
+        <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/20" onMouseDown={(event) => event.target === event.currentTarget && closeDrawer()}>
+          <aside className="flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">{selectedZone ? (drawerMode === 'edit' ? 'Chỉnh sửa' : 'Chi tiết') : 'Tạo mới'}</div>
+                <h4 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-900">{selectedZone ? 'Chỉnh sửa vùng giá' : 'Thêm vùng giá'}</h4>
+              </div>
+              <button onClick={closeDrawer} aria-label="Đóng" className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X size={18} /></button>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-6">
+              <label className="block text-xs font-bold text-slate-600">
+                Tên vùng
+                <input disabled={drawerMode === 'view'} value={draft.name || ''} onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-70" />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ZonePriceInput label="Tiền điện" unit="đ/kWh" value={draft.electric_price} disabled={drawerMode === 'view'} onChange={(value) => setDraft((prev) => ({ ...prev, electric_price: value }))} />
+                <ZonePriceInput label="Tiền nước" unit="đ/m³" value={draft.water_price} disabled={drawerMode === 'view'} onChange={(value) => setDraft((prev) => ({ ...prev, water_price: value }))} />
+                <ZonePriceInput label="Internet" unit="đ/tháng" value={draft.internet_price} disabled={drawerMode === 'view'} onChange={(value) => setDraft((prev) => ({ ...prev, internet_price: value }))} />
+                <ZonePriceInput label="Rác" unit="đ/phòng" value={draft.cleaning_price} disabled={drawerMode === 'view'} onChange={(value) => setDraft((prev) => ({ ...prev, cleaning_price: value }))} />
+              </div>
+              <label className="block text-xs font-bold text-slate-600">
+                Ngày áp dụng
+                <input type="date" defaultValue={new Date().toISOString().slice(0, 10)} disabled={drawerMode === 'view'} className="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:opacity-70" />
+              </label>
+              <div className="border-t border-slate-100 pt-5">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold text-slate-700">Phòng áp dụng ({selectedRooms.length})</div>
+                  {selectedZone && <button onClick={() => openZoneDrawer(selectedZone, 'view')} className="text-xs font-bold text-blue-600">Xem tất cả</button>}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedRooms.length > 0 ? selectedRooms.map((room) => <span key={room.id} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600">{room.name}</span>) : <span className="text-xs text-slate-400">Chưa có phòng nào được gán.</span>}
+                </div>
+              </div>
+              {selectedZone && drawerMode === 'view' && <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-700">Mức giá này đang được dùng cho {selectedRooms.length} phòng. Hãy kiểm tra tác động trước khi thay đổi.</div>}
+            </div>
+
+            <div className="border-t border-slate-100 px-6 py-5">
+              {drawerMode === 'view' ? (
+                <button onClick={() => setDrawerMode('edit')} className="h-11 w-full rounded-xl bg-primary text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-dark">Chỉnh sửa vùng này</button>
+              ) : (
+                <div className="flex gap-3">
+                  <button onClick={closeDrawer} className="h-11 flex-1 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 transition hover:bg-slate-50">Hủy</button>
+                  <button onClick={saveDraft} disabled={!draft.name?.trim() || createMutation.isPending || updateMutation.isPending} className="h-11 flex-[1.5] rounded-xl bg-primary text-sm font-bold text-white shadow-lg shadow-primary/20 transition hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-50">{createMutation.isPending || updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}</button>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
     </div>
   )
 }
+
+const ZoneSummary = ({ icon, value, label, tone }: { icon: React.ReactNode; value: string; label: string; tone: 'emerald' | 'blue' | 'amber' }): React.JSX.Element => {
+  const tones = {
+    emerald: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-blue-50 text-blue-600',
+    amber: 'bg-amber-50 text-amber-600'
+  }
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <div className={`flex h-11 w-11 items-center justify-center rounded-full ${tones[tone]}`}>{icon}</div>
+      <div><div className="text-xl font-black text-slate-900">{value}</div><div className="text-xs font-medium text-slate-500">{label}</div></div>
+    </div>
+  )
+}
+
+const PriceCell = ({ value, unit }: { value: number; unit: string }): React.JSX.Element => (
+  <td className="px-4 py-4 text-sm font-semibold tabular-nums text-slate-700">
+    {formatNumber(value)} <span className="text-xs font-medium text-slate-400">{unit}</span>
+  </td>
+)
+
+const ZonePriceInput = ({ label, unit, value, disabled, onChange }: { label: string; unit: string; value?: number; disabled?: boolean; onChange: (value: number) => void }): React.JSX.Element => (
+  <label className="block text-xs font-bold text-slate-600">
+    {label}
+    <div className="mt-2 flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-primary focus-within:bg-white focus-within:ring-4 focus-within:ring-primary/10">
+      <input type="number" min={0} disabled={disabled} value={value ?? ''} onChange={(event) => onChange(Number(event.target.value || 0))} className="min-w-0 flex-1 bg-transparent px-3 text-sm text-slate-700 outline-none disabled:cursor-not-allowed disabled:opacity-70" />
+      <span className="flex items-center border-l border-slate-200 px-3 text-xs font-semibold text-slate-500">{unit}</span>
+    </div>
+  </label>
+)
 
 const UsersSettings = (): React.JSX.Element => {
   const queryClient = useQueryClient()
@@ -2187,68 +2217,6 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   )
 }
 
-
-const ZoneRowEditor = ({
-  values,
-  onChange,
-  onCancel,
-  onSave,
-  saving
-}: {
-  values: Partial<ServiceZone>
-  onChange: React.Dispatch<React.SetStateAction<Partial<ServiceZone>>>
-  onCancel: () => void
-  onSave: () => void
-  saving: boolean
-}): React.JSX.Element => (
-  <tr className="bg-blue-50/30">
-    {(['name', 'electric_price', 'water_price', 'internet_price', 'cleaning_price'] as const).map(
-      (field) => {
-        const isNameField = field === 'name'
-        const fieldValue = values[field]
-        const inputValue = !isNameField && fieldValue === 0 ? '' : fieldValue ?? ''
-
-        return (
-          <td key={field} className="px-5 py-3">
-            <input
-              type={isNameField ? 'text' : 'number'}
-              value={inputValue}
-              onChange={(event) =>
-                onChange((prev) => ({
-                  ...prev,
-                  [field]: isNameField
-                    ? event.target.value
-                    : event.target.value === ''
-                      ? undefined
-                      : Number(event.target.value)
-                }))
-              }
-              className="w-full rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm outline-none focus:border-primary"
-            />
-          </td>
-        )
-      }
-    )}
-    <td className="px-5 py-3 text-center text-gray-400">-</td>
-    <td className="px-5 py-3 text-right">
-      <div className="flex justify-end gap-2">
-        <button
-          onClick={onCancel}
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500"
-        >
-          <i className="fa-solid fa-xmark"></i>
-        </button>
-        <button
-          onClick={onSave}
-          disabled={saving}
-          className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
-        >
-          {saving ? 'Đang lưu...' : 'Lưu'}
-        </button>
-      </div>
-    </td>
-  </tr>
-)
 
 const Field = ({
   label,

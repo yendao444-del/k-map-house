@@ -10,7 +10,6 @@ import {
   getAssetSnapshotsByRoomIds,
   getRoomAssets,
   getRooms,
-  getVehicles,
   updateRoomAsset,
   type AssetSnapshot,
   type Room,
@@ -485,33 +484,33 @@ const RoomAssetPanel: React.FC<{
   if (isLoading) return <LogoLoading className="flex-1 p-8" />;
 
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden bg-[#f8fafb]">
-      <div className="shrink-0 border-b border-slate-100 bg-white px-6 py-5">
-        <div className="flex items-stretch gap-6">
-          <img src={roomInteriorImage} alt={`Không gian ${room.name}`} className="h-32 w-56 rounded-2xl object-cover shadow-sm" />
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f8fafb]">
+      <div className="shrink-0 border-b border-slate-100 bg-white px-5 py-3">
+        <div className="flex min-h-0 items-stretch gap-5">
+          <img src={roomInteriorImage} alt={`Không gian ${room.name}`} className="h-28 w-48 rounded-2xl object-cover shadow-sm" />
           <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-slate-400">
               <i className="fa-solid fa-couch text-primary"></i>
               TÀI SẢN PHÒNG
             </div>
-            <h3 className="text-3xl font-extrabold tracking-tight text-slate-900">{room.name}</h3>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+            <h3 className="text-2xl font-extrabold tracking-tight text-slate-900">{room.name}</h3>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
               <span><i className="fa-solid fa-boxes-stacked mr-1.5 text-primary"></i>{assets.length} tài sản</span>
               <span className="inline-flex items-center gap-1.5 text-emerald-700"><span className="h-2 w-2 rounded-full bg-emerald-500"></span>{hasMoveInHistory ? 'Đang sử dụng' : 'Sẵn sàng nhận phòng'}</span>
               {moveOutSnaps.length > 0 && <span>Đã đối chiếu trả phòng</span>}
               {handoverDone && <span>Đã bàn giao</span>}
             </div>
-            <div className="mt-4 inline-flex w-fit items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            <div className="mt-2 inline-flex w-fit items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-sm text-emerald-800">
               <i className="fa-solid fa-circle-check text-emerald-600"></i>
               {assets.length > 0 ? `Đã có đủ ${assets.length} tài sản để theo dõi` : 'Chưa có tài sản trong phòng'}
             </div>
           </div>
-          <div className="flex w-56 shrink-0 flex-col justify-center gap-2">
+          <div className="flex w-52 shrink-0 flex-col justify-center gap-1.5">
           <button
             data-tour="move-in-btn"
             onClick={openMoveIn}
             disabled={hasMoveInHistory}
-            className={`rounded-xl border px-3.5 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed ${hasMoveInHistory ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-primary bg-primary text-white shadow-sm shadow-primary/30 hover:bg-primary-dark'}`}
+            className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${hasMoveInHistory ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-primary bg-primary text-white shadow-sm shadow-primary/30 hover:bg-primary-dark'}`}
           >
             <i className={`fa-solid ${hasMoveInHistory ? 'fa-check-circle' : 'fa-arrow-right-to-bracket'} mr-1.5`}></i>
             {hasMoveInHistory ? 'Đã nhận phòng' : 'Chốt nhận phòng'}
@@ -520,7 +519,7 @@ const RoomAssetPanel: React.FC<{
             data-tour="move-out-btn"
             onClick={openMoveOut}
             disabled={!assetsLocked}
-            className={`rounded-xl border px-3.5 py-2.5 text-sm font-bold transition disabled:cursor-not-allowed ${!assetsLocked ? 'opacity-40' : moveOutSnaps.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+            className={`rounded-xl border px-3 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${!assetsLocked ? 'opacity-40' : moveOutSnaps.length > 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
           >
             <i className={`fa-solid ${moveOutSnaps.length > 0 ? 'fa-check-circle' : 'fa-arrow-right-from-bracket'} mr-1.5`}></i>
             {moveOutSnaps.length > 0 ? 'Đã trả phòng' : 'Khách trả phòng'}
@@ -529,7 +528,7 @@ const RoomAssetPanel: React.FC<{
             data-tour="add-asset-btn"
             onClick={() => !canAdjustAssets && setModal('add')}
             disabled={canAdjustAssets}
-            className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <i className={`fa-solid ${canAdjustAssets ? 'fa-lock' : 'fa-plus'} mr-1.5`}></i>
             Thêm
@@ -537,7 +536,7 @@ const RoomAssetPanel: React.FC<{
           {canAdjustAssets && (
             <button
               onClick={() => openAdjustModal()}
-              className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm font-bold text-amber-700 transition hover:bg-amber-100"
+              className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700 transition hover:bg-amber-100"
             >
               <i className="fa-solid fa-file-pen mr-1.5"></i>
               Điều chỉnh
@@ -547,8 +546,8 @@ const RoomAssetPanel: React.FC<{
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-5 py-4">
+        <div className="mb-3 flex shrink-0 items-center justify-between">
           <div>
             <h4 className="text-lg font-extrabold text-slate-900">Tài sản trong phòng</h4>
             <p className="mt-0.5 text-sm text-slate-400">Theo dõi số lượng và tình trạng thiết bị theo từng phòng</p>
@@ -572,94 +571,114 @@ const RoomAssetPanel: React.FC<{
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            {assets.map((asset) => {
-              const snapIn = moveInSnaps.find((s) => s.room_asset_id === asset.id);
-              const snapOut = moveOutSnaps.find((s) => s.room_asset_id === asset.id);
-              const latest = snapOut || snapIn;
-              const bad = latest?.condition === 'broken' || latest?.condition === 'missing';
-              const image = assetImage(asset.name);
-              const currentCondition = conditionLabels[latest?.condition || 'good'] || conditionLabels.good;
-              return (
-                <div
-                  key={asset.id}
-                  className={`min-h-[236px] rounded-2xl relative flex flex-col overflow-hidden transition duration-300 ${(snapOut && snapOut.deduction > 0) ? 'bg-white border-2 border-rose-200 shadow-lg shadow-rose-100/50'
-                    : (snapOut && bad) ? 'bg-white border border-red-200 shadow-md'
-                      : (snapOut) ? 'bg-white border border-indigo-100 shadow-sm'
-                        : (snapIn) ? 'bg-white border border-gray-200 hover:border-blue-200 hover:shadow-lg group/card'
-                          : 'bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200 group/card'
-                    }`}
-                  style={{ padding: '0.875rem' }}
-                >
-                  {/* Hành động nhanh gom gọn */}
-                  <div className={`absolute top-2.5 right-2.5 flex gap-1 z-30 transition ${snapIn && !snapOut && !bad ? 'opacity-0 group-hover/card:opacity-100' : (!snapIn ? 'opacity-0 group-hover/card:opacity-100' : '')}`}>
-                    {canAdjustAssets ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openAdjustModal(asset);
-                        }}
-                        title="Điều chỉnh sau chốt nhận"
-                        className="w-7 h-7 rounded-full bg-amber-50 text-amber-500 hover:bg-amber-100 flex items-center justify-center transition"
-                      >
-                        <i className="fa-solid fa-file-pen text-[10px]"></i>
-                      </button>
-                    ) : (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); setEditId(asset.id); setEditName(asset.name); }} title="Sửa" className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-100 flex items-center justify-center transition"><i className="fa-solid fa-pen text-[10px]"></i></button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(asset); }} title="Xóa" className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-100 flex items-center justify-center transition"><i className="fa-solid fa-xmark text-[10px]"></i></button>
-                      </>
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-4 custom-scrollbar">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3.5">
+              {assets.map((asset) => {
+                const snapIn = moveInSnaps.find((s) => s.room_asset_id === asset.id);
+                const snapOut = moveOutSnaps.find((s) => s.room_asset_id === asset.id);
+                const latest = snapOut || snapIn;
+                const bad = latest?.condition === 'broken' || latest?.condition === 'missing';
+                const image = assetImage(asset.name);
+                const currentCondition = conditionLabels[latest?.condition || 'good'] || conditionLabels.good;
+                return (
+                  <div
+                    key={asset.id}
+                    className={`group/card relative flex flex-col justify-between rounded-2xl bg-white p-3.5 transition duration-200 ${(snapOut && snapOut.deduction > 0) ? 'border-2 border-rose-200 shadow-lg shadow-rose-100/50'
+                      : (snapOut && bad) ? 'border border-red-200 shadow-md'
+                        : (snapOut) ? 'border border-indigo-100 shadow-sm'
+                          : (snapIn) ? 'border border-gray-200 hover:border-blue-200 hover:shadow-lg'
+                            : 'border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-200'
+                      }`}
+                  >
+                    {/* Hành động nhanh gom gọn */}
+                    <div className={`absolute top-2.5 right-2.5 flex gap-1 z-30 transition ${snapIn && !snapOut && !bad ? 'opacity-0 group-hover/card:opacity-100' : (!snapIn ? 'opacity-0 group-hover/card:opacity-100' : '')}`}>
+                      {canAdjustAssets ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAdjustModal(asset);
+                          }}
+                          title="Điều chỉnh sau chốt nhận"
+                          className="w-7 h-7 rounded-full bg-amber-50 text-amber-500 hover:bg-amber-100 flex items-center justify-center transition"
+                        >
+                          <i className="fa-solid fa-file-pen text-[10px]"></i>
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); setEditId(asset.id); setEditName(asset.name); }} title="Sửa" className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-100 flex items-center justify-center transition"><i className="fa-solid fa-pen text-[10px]"></i></button>
+                          <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(asset); }} title="Xóa" className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-100 flex items-center justify-center transition"><i className="fa-solid fa-xmark text-[10px]"></i></button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Badge đền bù / Cờ hoàn tất */}
+                    {(snapOut && snapOut.deduction > 0) && (
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-sm z-20 whitespace-nowrap">
+                        ĐỀN BÙ: {formatVND(snapOut.deduction)}đ
+                      </div>
                     )}
-                  </div>
+                    {(snapOut && snapOut.deduction === 0 && !bad) && (
+                      <div className="absolute top-3 right-3"><i className="fa-solid fa-shield-heart text-indigo-300 text-lg"></i></div>
+                    )}
 
-                  {/* Badge đền bù / Cờ hoàn tất */}
-                  {(snapOut && snapOut.deduction > 0) && (
-                    <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-red-500 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-sm z-20 whitespace-nowrap">
-                      ĐỀN BÙ: {formatVND(snapOut.deduction)}đ
+                    {/* Vùng thân card: Ảnh + Tên + Số lượng */}
+                    <div>
+                      <div className={`mb-2.5 flex h-24 sm:h-28 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-50/80 p-2 ${(snapOut && snapOut.deduction > 0) ? 'text-orange-500'
+                        : bad ? 'text-red-500'
+                          : 'text-slate-500'
+                        }`}>
+                        {image ? (
+                          <img
+                            src={image}
+                            alt={asset.name}
+                            className="h-full w-full object-contain p-1 drop-shadow-sm transition-transform duration-200 group-hover/card:scale-105"
+                          />
+                        ) : (
+                          <i className={`fa-solid ${assetIcon(asset.name)} text-3xl drop-shadow-sm`}></i>
+                        )}
+                      </div>
+                      <div className="min-w-0 text-left">
+                        {editId === asset.id ? (
+                          <input
+                            autoFocus
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => {
+                              if (editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } });
+                              else setEditId(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } });
+                              if (e.key === 'Escape') setEditId(null);
+                            }}
+                            className="w-full text-sm font-bold text-blue-700 bg-transparent border-b border-blue-400 outline-none p-0 focus:ring-0"
+                          />
+                        ) : (
+                          <h3 className="truncate text-sm font-bold text-slate-800" title={asset.name}>
+                            {asset.name}
+                          </h3>
+                        )}
+                        <div className="mt-1 flex items-center justify-between text-xs">
+                          <span className="text-slate-400 font-medium">Số lượng</span>
+                          <span className="font-bold text-slate-700">SL: {asset.quantity}</span>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                  {(snapOut && snapOut.deduction === 0 && !bad) && (
-                    <div className="absolute top-3 right-3"><i className="fa-solid fa-shield-heart text-indigo-300 text-lg"></i></div>
-                  )}
 
-                  {/* Vùng Header */}
-                  <div className="mb-3 flex flex-1 flex-col">
-                    <div className={`mb-3 flex h-[148px] w-full items-center justify-center overflow-hidden rounded-xl bg-white ${(snapOut && snapOut.deduction > 0) ? 'text-orange-500'
-                      : bad ? 'text-red-500'
-                        : 'text-slate-500'
-                      }`}>
-                      {image ? (
-                        <img
-                          src={image}
-                          alt={asset.name}
-                          className="h-full w-full scale-110 object-contain p-1 drop-shadow-sm"
-                        />
-                      ) : (
-                        <i className={`fa-solid ${assetIcon(asset.name)} text-3xl drop-shadow-sm`}></i>
-                      )}
-                    </div>
-                    <div className="min-w-0 text-left">
-                      {editId === asset.id ? (
-                        <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} onBlur={() => { if (editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); else setEditId(null); }} onKeyDown={e => { if (e.key === 'Enter' && editName.trim()) updateMut.mutate({ id: asset.id, updates: { name: editName.trim() } }); if (e.key === 'Escape') setEditId(null); }} className="w-full text-base font-extrabold text-blue-700 bg-transparent border-b border-blue-400 outline-none p-0 focus:ring-0" />
-                      ) : (
-                        <h3 className="w-full truncate text-[15px] font-extrabold leading-snug text-slate-900" title={asset.name}>{asset.name}</h3>
-                      )}
-                      <p className="mt-1 text-xs font-bold text-slate-400">SL: {asset.quantity}</p>
+                    {/* Vùng Footer: Tình trạng */}
+                    <div className="relative z-10 mt-3 pt-2.5 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
+                        <span className="text-[11px]">Tình trạng</span>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${currentCondition.color}`} title={currentCondition.label}>
+                          <i className="fa-solid fa-circle text-[6px]"></i>
+                          <span>{currentCondition.label}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Vùng Thông tin (Timeline) */}
-                  <div className="relative z-10 mt-auto w-full" onClick={e => e.stopPropagation()}>
-                    <div className="flex h-9 items-center justify-between rounded-lg bg-slate-50 px-3 text-xs font-semibold text-slate-400">
-                      <span>Tình trạng</span>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-bold ${currentCondition.color}`} title={currentCondition.label}>
-                        <i className="fa-solid fa-circle text-[7px]"></i>{currentCondition.label}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -671,7 +690,7 @@ const RoomAssetPanel: React.FC<{
               <h3 className="font-bold text-gray-900 text-lg">Thêm tài sản</h3>
               <button data-tour="add-asset-close" onClick={() => setModal(null)} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"><i className="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div className="space-y-6 p-6">
+            <div className="space-y-6 p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
               <div data-tour="asset-select-area" className="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4">
                 {assetTemplates.map((name) => {
                   const selected = !!selectedAssets[name];
@@ -1086,7 +1105,6 @@ export const AssetsTab: React.FC<{
 }> = ({ initialRoomId, onReceivePendingChange, guideMode, guideRoomId, onGuideHandled }) => {
   const { data: rooms = [], isLoading } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
   const { data: allAssets = [] } = useQuery({ queryKey: ['allRoomAssets'], queryFn: getAllRoomAssets });
-  const { data: allVehicles = [] } = useQuery({ queryKey: ['vehicles'], queryFn: getVehicles });
   const occupiedRoomIds = rooms
     .filter((room) => room.status === 'occupied' || room.status === 'ending')
     .map((room) => room.id);
@@ -1176,10 +1194,9 @@ export const AssetsTab: React.FC<{
               const selected = room.id === selectedRoomId;
               const errCount = getErrorCount(room.id);
               const assetCount = allAssets.filter((asset) => asset.room_id === room.id).length;
-              const vehicleCount = allVehicles.filter((v) => v.room_id === room.id).length;
               const isOccupied = room.status === 'occupied' || room.status === 'ending';
-              const hasNoVehicles = isOccupied && vehicleCount === 0;
               const needsReceive = !isMoveInSnapshotsLoading && isOccupied && assetCount > 0 && !roomsWithMoveInSnapshot.has(room.id);
+              const hasReceivedAssets = !isMoveInSnapshotsLoading && isOccupied && assetCount > 0 && roomsWithMoveInSnapshot.has(room.id);
               return (
                 <button
                   key={room.id}
@@ -1197,20 +1214,20 @@ export const AssetsTab: React.FC<{
                     <div className="text-xs text-gray-400">
                       {assetCount > 0 ? `${assetCount} tài sản` : 'Chưa có tài sản'}
                       {needsReceive ? (
-                        <span className="ml-1 font-bold text-orange-600">• Chưa nhận phòng</span>
-                      ) : hasNoVehicles ? (
-                        <span className="ml-1 font-medium text-amber-500">• Chưa có xe</span>
+                        <span className="ml-1 font-bold text-orange-600">• Chưa nhận tài sản</span>
+                      ) : hasReceivedAssets ? (
+                        <span className="ml-1 font-semibold text-emerald-600">• Đã nhận tài sản</span>
                       ) : null}
                     </div>
                   </div>
                   {errCount > 0 && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">{errCount}</span>}
                   {needsReceive && errCount === 0 ? (
-                    <span title="Chưa chốt nhận phòng" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] text-white shadow-sm">
+                    <span title="Chưa nhận tài sản" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[11px] text-white shadow-sm">
                       <i className="fa-solid fa-clipboard-list"></i>
                     </span>
-                  ) : hasNoVehicles && errCount === 0 ? (
-                    <span title="Chưa đăng ký phương tiện" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 text-[11px] text-white">
-                      <i className="fa-solid fa-motorcycle"></i>
+                  ) : hasReceivedAssets && errCount === 0 ? (
+                    <span title="Đã nhận tài sản" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] text-emerald-600">
+                      <i className="fa-solid fa-check"></i>
                     </span>
                   ) : null}
                 </button>
@@ -1227,14 +1244,11 @@ export const AssetsTab: React.FC<{
               <button onClick={() => setSubTab('assets')} className={`flex items-center gap-1.5 border-b-2 pb-3 text-base font-bold transition-colors ${subTab === 'assets' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                 <i className="fa-solid fa-couch"></i> Thiết bị phòng
                 {selectedRoomNeedsReceive && (
-                  <span title="Chưa chốt nhận phòng" className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">!</span>
+                  <span title="Chưa nhận tài sản" className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">!</span>
                 )}
               </button>
               <button onClick={() => confirmPendingReceive(() => setSubTab('vehicles'))} className={`border-b-2 pb-3 text-base font-bold transition-colors flex items-center gap-1.5 ${subTab === 'vehicles' ? 'border-primary text-primary' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                 <i className="fa-solid fa-motorcycle"></i> Phương tiện
-                {selectedRoom && (selectedRoom.status === 'occupied' || selectedRoom.status === 'ending') && allVehicles.filter((v) => v.room_id === selectedRoom.id).length === 0 && (
-                  <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[11px] font-bold text-white">!</span>
-                )}
               </button>
             </div>
             <div className="relative flex flex-1 flex-col overflow-hidden">

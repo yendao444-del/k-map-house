@@ -54,7 +54,9 @@ const toCategoryOptions = (categories: ExpenseCategory[]): CategoryOption[] =>
   categories.map((item) => ({ value: item.value, label: item.name, type: item.type }))
 
 const categoryLabel = (category: CashTransactionCategory, options: CategoryOption[]) =>
-  options.find((item) => item.value === category)?.label || 'Khác'
+  category === 'wallet_transfer'
+    ? 'Chuyển giữa các ví'
+    : options.find((item) => item.value === category)?.label || 'Khác'
 
 const isUtilityBuildingCategory = (category?: string) =>
   category === 'electric' || category === 'water'
@@ -430,6 +432,7 @@ function CashTransactionModal({
 
   const isBuildingTarget = isExpense && isUtilityBuildingCategory(category)
   const requiresRoom = isExpense && category === 'maintenance'
+  const requiresBuilding = isBuildingTarget
 
   React.useEffect(() => {
     const nextCategory =
@@ -451,6 +454,10 @@ function CashTransactionModal({
     const roomId = String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '').trim()
     if (amount <= 0) {
       setError('Số tiền phải lớn hơn 0.')
+      return
+    }
+    if (requiresBuilding && !/^building:\d+$/i.test(roomId)) {
+      setError('Vui lòng gắn tòa cho khoản chi điện / nước.')
       return
     }
     if (requiresRoom && !roomId) {
@@ -562,7 +569,7 @@ function CashTransactionModal({
             <div className="grid grid-cols-2">
               <div className="p-4 space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Nhóm
+                  Khoản mục
                 </p>
                 <select
                   key={type}
@@ -608,11 +615,15 @@ function CashTransactionModal({
               <div className="p-4 space-y-1 border-l border-slate-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   {isBuildingTarget ? 'Gắn tòa' : 'Gắn phòng'}
-                  {requiresRoom && <span className="ml-1 text-red-500">*</span>}
+                  {(requiresRoom || requiresBuilding) && (
+                    <span className="ml-1 text-red-500">*</span>
+                  )}
                 </p>
                 {isBuildingTarget ? (
                   <select
                     name="building_id"
+                    required={requiresBuilding}
+                    aria-required={requiresBuilding}
                     defaultValue={
                       getBuildingLabelFromToken(transaction?.room_id)
                         ? transaction?.room_id || ''
@@ -635,9 +646,7 @@ function CashTransactionModal({
                     aria-required={requiresRoom}
                     className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                   >
-                    <option value="">
-                      {requiresRoom ? 'Chọn phòng' : 'Không gắn phòng'}
-                    </option>
+                    <option value="">{requiresRoom ? 'Chọn phòng' : 'Không gắn phòng'}</option>
                     {rooms.map((room) => (
                       <option key={room.id} value={room.id}>
                         {room.name}
@@ -710,13 +719,14 @@ export function CashFlowTab({
   period?: ReportPeriod
 } = {}) {
   const queryClient = useQueryClient()
-  const cashRange = period?.start && period?.end
-    ? {
-        startDate: dateKey(period.start),
-        endDate: dateKey(period.end),
-        endDateExclusive: dateKey(nextLocalDay(period.end))
-      }
-    : undefined
+  const cashRange =
+    period?.start && period?.end
+      ? {
+          startDate: dateKey(period.start),
+          endDate: dateKey(period.end),
+          endDateExclusive: dateKey(nextLocalDay(period.end))
+        }
+      : undefined
   const cashRangeKey = cashRange ? `${cashRange.startDate}:${cashRange.endDate}` : 'all'
   const { data: transactions = [] } = useQuery({
     queryKey: ['cashTransactions', 'range', cashRangeKey],
@@ -772,10 +782,10 @@ export function CashFlowTab({
   )
 
   const totalIncome = filtered
-    .filter((item) => item.type === 'income')
+    .filter((item) => item.type === 'income' && item.category !== 'wallet_transfer')
     .reduce((sum, item) => sum + item.amount, 0)
   const totalExpense = filtered
-    .filter((item) => item.type === 'expense')
+    .filter((item) => item.type === 'expense' && item.category !== 'wallet_transfer')
     .reduce((sum, item) => sum + item.amount, 0)
 
   const openingDate = appSettings?.opening_balance_date || ''
@@ -1123,7 +1133,7 @@ export function CashFlowTab({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center gap-2">
-                        {item.source === 'manual' ? (
+                        {item.source === 'manual' && item.category !== 'wallet_transfer' ? (
                           <>
                             <button
                               onClick={() => requestEdit(item)}
@@ -1145,7 +1155,11 @@ export function CashFlowTab({
                         ) : (
                           <button
                             type="button"
-                            title="Dòng này lấy tự động từ lịch sử thanh toán hóa đơn."
+                            title={
+                              item.category === 'wallet_transfer'
+                                ? 'Giao dịch chuyển giữa các ví được khóa để giữ cân bằng hai ví.'
+                                : 'Dòng này lấy tự động từ lịch sử thanh toán hóa đơn.'
+                            }
                             className="w-8 h-8 rounded-lg border border-gray-200 text-gray-400 cursor-default"
                           >
                             <i className="fa-solid fa-ellipsis"></i>

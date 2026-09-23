@@ -265,7 +265,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
   }
 
   return (
-    <main className="relative flex min-h-screen overflow-y-auto bg-[#003d35] text-white" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+    <main className="relative flex min-h-screen overflow-y-auto bg-[#003d35] text-white">
       <style>{`@media (max-height: 950px) {
           .login-hero { margin-bottom: 14px; padding-bottom: 0; }
           .login-hero .login-logo { height: 58px; width: 70px; border-radius: 18px; }
@@ -311,9 +311,18 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
             <p className="mt-4 text-[13px] font-medium text-slate-500">Nhẹ việc quản lý · Vững vàng vận hành</p>
           </div>
 
-          <div className="login-secure-note mb-6 flex items-center gap-3 rounded-[14px] border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-left">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#d9f6ea] text-[#008461]"><i className="fa-solid fa-house-circle-check text-[17px]" aria-hidden="true" /></span>
-            <p className="text-[12px] font-medium leading-5 text-slate-500"><span className="block text-[14px] font-extrabold text-[#006a50]">Trọ an khang · Chủ nhà an tâm</span>Phòng, hợp đồng và dòng tiền luôn trong tầm tay</p>
+          <div className="login-secure-note mb-5 flex items-center gap-2.5 rounded-xl border border-emerald-100/80 bg-gradient-to-r from-emerald-50/70 to-teal-50/30 px-3.5 py-2 text-left">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[#008461]">
+              <i className="fa-solid fa-house-circle-check text-[13px]" aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-bold text-[#006a50] leading-snug">
+                Trọ an khang · Chủ nhà an tâm
+              </span>
+              <span className="block text-[11px] font-medium text-slate-400 leading-snug">
+                Phòng, hợp đồng và dòng tiền luôn trong tầm tay
+              </span>
+            </div>
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit}>

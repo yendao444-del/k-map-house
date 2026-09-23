@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
+  getAppSettings,
   getCashTransactions,
   getInvoicePaymentRecords,
   getInvoices,
@@ -301,6 +302,7 @@ export function OverviewTab({
     queryKey: ['cashTransactions'],
     queryFn: getCashTransactions
   })
+  const { data: appSettings } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const [selectedExpense, setSelectedExpense] = useState<ExpenseItem | null>(null)
   const categories = useMemo(
@@ -311,6 +313,32 @@ export function OverviewTab({
     () => calcMetrics(invoices, transactions, categories, period.start, period.end),
     [categories, invoices, period.end, period.start, transactions]
   )
+  const cashPosition = useMemo(() => {
+    const openingDate = appSettings?.opening_balance_date || ''
+    let bank = Number(appSettings?.opening_balance_bank || 0)
+    let cash = Number(appSettings?.opening_balance_cash || 0)
+
+    invoices
+      .filter((invoice) => !['cancelled', 'merged'].includes(invoice.payment_status))
+      .flatMap(getInvoicePaymentRecords)
+      .forEach((record) => {
+        const date = record.payment_date || record.created_at
+        if (openingDate && date < openingDate) return
+        const amount = Number(record.amount || 0)
+        if (record.payment_method === 'cash') cash += amount
+        else bank += amount
+      })
+
+    transactions.forEach((transaction) => {
+      const date = transaction.transaction_date || transaction.created_at
+      if (openingDate && date < openingDate) return
+      const amount = transaction.type === 'income' ? Number(transaction.amount || 0) : -Number(transaction.amount || 0)
+      if (transaction.payment_method === 'cash') cash += amount
+      else bank += amount
+    })
+
+    return { bank, cash, total: bank + cash }
+  }, [appSettings, invoices, transactions])
   const priorRange = useMemo(
     () => previousRange(period.start, period.end),
     [period.end, period.start]
@@ -401,7 +429,6 @@ export function OverviewTab({
   }
   const revenueTrend = prior ? change(current.totalRevenue, prior.totalRevenue) : null
   const expenseTrend = prior ? change(current.totalExpense, prior.totalExpense) : null
-  const balanceTrend = prior ? change(current.balance, prior.balance) : null
 
   const handleDownload = () => {
     const rows = [
@@ -410,7 +437,7 @@ export function OverviewTab({
       ['Chỉ tiêu', 'Số tiền'],
       ['Tổng doanh thu', current.totalRevenue],
       ['Tổng chi phí', current.totalExpense],
-      ['Số dư hiện tại', current.balance],
+      ['Tiền hiện có', cashPosition.total],
       [],
       ['Chi phí theo danh mục', 'Số tiền', 'Tỷ trọng'],
       ...expenses.map((item) => [item.label, item.value, `${item.pct.toFixed(1)}%`])
@@ -460,20 +487,25 @@ export function OverviewTab({
           <div className="grid gap-6 lg:grid-cols-[minmax(230px,0.72fr)_minmax(0,1.5fr)] lg:items-center">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.08em] text-slate-700">
-                Số dư hiện tại
+                Tiền hiện có
               </p>
               <p
                 className={`mt-4 whitespace-nowrap text-[38px] font-black leading-none tracking-tight tabular-nums sm:text-[44px] ${
-                  current.balance >= 0 ? 'text-slate-950' : 'text-rose-600'
+                  cashPosition.total >= 0 ? 'text-slate-950' : 'text-rose-600'
                 }`}
               >
-                {fmt(current.balance)} đ
+                {fmt(cashPosition.total)} đ
               </p>
-              <div className="mt-4">
-                <TrendBadge value={balanceTrend} />
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold tabular-nums">
+                <span className="rounded-lg bg-slate-100 px-3 py-2 text-slate-600">
+                  Ngân hàng: {fmt(cashPosition.bank)} đ
+                </span>
+                <span className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
+                  Tiền mặt: {fmt(cashPosition.cash)} đ
+                </span>
               </div>
               <p className="mt-6 text-sm font-bold text-slate-500 tabular-nums">
-                {fmt(current.totalRevenue)} đ&nbsp; - &nbsp;{fmt(current.totalExpense)} đ
+                Dòng tiền kỳ này: {fmt(current.totalRevenue - current.totalExpense)} đ
               </p>
             </div>
             <div className="min-w-0">

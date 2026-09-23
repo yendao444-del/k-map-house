@@ -47,6 +47,52 @@ final result: blocked
 
 ---
 
+# Design QA — Tài chính → Hũ tài chính, phương án 1 lọ thủy tinh
+
+- Source visual truth: `G:\PHONG TRO\app\tmp-product-design\visual-jars-glass-sol.png` (1487 × 1058)
+- Implementation screenshot: `G:\PHONG TRO\app\tmp-product-design\funds-implementation-1600x1000.png` (1600 × 1000)
+- CSS viewport / density: 1600 × 1000, desktop, 1×
+- State: `Tài chính → Hũ tài chính`, Sinh hoạt selected; no transaction data in preview
+
+## Full-view comparison evidence
+
+The rendered `FundsTab` now owns the glass-jar experience and is mounted from the `funds` finance sub-tab. The five raster jar assets appear in one desktop row after the available-balance card, with the selected state, internal-allocation disclaimer, and recent-activity section visible below. The implementation preserves the existing emerald product shell language while removing the jar experience from `Ví tiền`.
+
+## Focused-region comparison evidence
+
+The jar region was inspected at 1600 × 1000. Each jar uses a real generated raster asset, the labels remain readable over the liquid, and the selected border/detail row updates when `Trả nợ` is clicked. The activity search field and empty state are visible and usable.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain for the selected Hũ tài chính surface.
+- [P3] The global green navigation bar is supplied by the authenticated application shell rather than the isolated component capture; the finance sub-tab is wired through the existing shell menu.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing product typography and compact Vietnamese hierarchy are preserved; jar labels use bold, tabular VND amounts.
+- Spacing and layout rhythm: balance → jar grid → selected detail → recent activity follows the source composition with desktop five-column spacing.
+- Colors and visual tokens: emerald, coral, and amber glass assets map to the source palette; selection uses the existing brand-green focus treatment.
+- Image quality and asset fidelity: all five jar visuals use generated raster assets at `src/renderer/src/assets/financial-jar-*.png`; no CSS/SVG jar drawings are used.
+- Copy and content: `Sinh hoạt`, `Trả nợ`, `Bảo trì`, `Dự phòng`, `Tái đầu tư`, and “Phân bổ nội bộ — không phải chi phí” are present.
+
+## Primary interactions tested
+
+- Finance menu routes `Hũ tài chính` to `FundsTab`.
+- Clicking `Trả nợ` updates `aria-pressed` and the selected detail panel to `Hũ Trả nợ`.
+- Month filter and recent-activity search render as native interactive controls.
+- Console check found only a Vite HMR websocket warning from the temporary preview session; no component runtime error.
+
+## Implementation checklist
+
+- [x] Move the jar UI out of `Ví tiền`.
+- [x] Mount the UI under `Tài chính → Hũ tài chính`.
+- [x] Preserve `Ví tiền` for wallet balances and wallet transfers.
+- [x] Capture and inspect the rendered desktop state.
+
+final result: passed
+
+---
+
 # Design QA — Báo cáo → Nợ demo alignment
 
 - Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-889fd7b3-ba52-4bcb-bdf3-19a829e29a01.png`

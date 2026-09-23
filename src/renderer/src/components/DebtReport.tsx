@@ -74,6 +74,12 @@ const transactionLabel = (entry: DebtEntry): string => {
   return entry.reason || 'Đối tác nợ An Khang'
 }
 
+const isAdditionalDebtEntry = (entry: DebtEntry): boolean =>
+  entry.type === 'totalDebt' && entry.amount > 0 && entry.reason.trim() === 'Vay thêm'
+
+const canDeleteDebtEntry = (entry: DebtEntry): boolean =>
+  entry.type !== 'totalDebt' || isAdditionalDebtEntry(entry)
+
 const isImportedBusinessEntry = (entry: Partial<DebtEntry>): boolean =>
   String(entry.id || '').startsWith('invoice-') || String(entry.reason || '').startsWith('Tự động thu qua SePay')
 
@@ -266,12 +272,12 @@ export function DebtReport({
   }
 
   const removeEntry = (entry: DebtEntry) => {
-    if (!isAdmin || entry.type === 'totalDebt') return
+    if (!isAdmin || !canDeleteDebtEntry(entry)) return
     setPendingDelete(entry)
   }
 
   const confirmRemoveEntry = () => {
-    if (!isAdmin || !pendingDelete || pendingDelete.type === 'totalDebt') return
+    if (!isAdmin || !pendingDelete || !canDeleteDebtEntry(pendingDelete)) return
     const entry = pendingDelete
     localEditRef.current = true
     setEntries((current) => current.filter((item) => item.id !== entry.id))
@@ -605,7 +611,7 @@ export function DebtReport({
                                 className={`group border-t border-slate-50 bg-slate-50/40 text-[12.5px] transition-colors hover:bg-slate-100/60 ${
                                   isAdmin && entry.type !== 'totalDebt' ? 'cursor-pointer' : ''
                                 }`}
-                                title={isAdmin && entry.type !== 'totalDebt' ? 'Nhấp để chỉnh sửa giao dịch này' : 'Nợ gốc được khóa'}
+                                title={isAdmin && entry.type !== 'totalDebt' ? 'Nhấp để chỉnh sửa giao dịch này' : isAdditionalDebtEntry(entry) ? 'Nghĩa vụ vay thêm: chỉ được xóa sau khi xác nhận' : 'Nợ gốc được khóa'}
                               >
                                 <td className="py-2.5 pl-12 pr-4">
                                   <div className="flex items-center gap-2">
@@ -628,24 +634,26 @@ export function DebtReport({
                                     <span className="text-[12px] font-medium text-slate-700">
                                       {entry.reason || transactionLabel(entry)}
                                     </span>
-                                    {entry.type === 'totalDebt' ? (
+                                    {entry.type === 'totalDebt' && !isAdditionalDebtEntry(entry) ? (
                                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400" title="Nợ gốc được khóa, không thể sửa hoặc xóa">
                                         <i className="fa-solid fa-lock text-[10px]" /> Khóa
                                       </span>
                                     ) : isAdmin && (
                                       <div className="inline-flex items-center gap-1.5 opacity-30 transition-opacity group-hover:opacity-100">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            openEntryEditor(entry)
-                                          }}
-                                          className="text-slate-400 hover:text-sky-600 transition-colors"
-                                          title="Sửa"
-                                          aria-label="Sửa"
-                                        >
-                                          <i className="fa-solid fa-pen-to-square text-[10.5px]" />
-                                        </button>
+                                        {entry.type !== 'totalDebt' && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              openEntryEditor(entry)
+                                            }}
+                                            className="text-slate-400 hover:text-sky-600 transition-colors"
+                                            title="Sửa"
+                                            aria-label="Sửa"
+                                          >
+                                            <i className="fa-solid fa-pen-to-square text-[10.5px]" />
+                                          </button>
+                                        )}
                                         <button
                                           type="button"
                                           onClick={(e) => {
@@ -903,9 +911,13 @@ export function DebtReport({
                 <i className="fa-solid fa-trash-can" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-[16px] font-black text-[#17345f]">Xóa giao dịch?</h3>
+                <h3 className="text-[16px] font-black text-[#17345f]">
+                  {pendingDelete.type === 'totalDebt' ? 'Xóa nghĩa vụ vay thêm?' : 'Xóa giao dịch?'}
+                </h3>
                 <p className="mt-1 text-[12px] leading-5 text-slate-500">
-                  Giao dịch này sẽ bị xóa khỏi lịch sử và số dư công nợ sẽ được cập nhật.
+                  {pendingDelete.type === 'totalDebt'
+                    ? 'Khoản vay thêm này sẽ bị xóa khỏi lịch sử và tổng nợ sẽ được trừ lại. Vui lòng xác nhận.'
+                    : 'Giao dịch này sẽ bị xóa khỏi lịch sử và số dư công nợ sẽ được cập nhật.'}
                 </p>
               </div>
               <button
@@ -935,7 +947,7 @@ export function DebtReport({
                 onClick={confirmRemoveEntry}
                 className="rounded-xl bg-rose-600 px-4 py-2.5 text-[12px] font-black text-white shadow-sm transition hover:bg-rose-700"
               >
-                Xóa giao dịch
+                {pendingDelete.type === 'totalDebt' ? 'Xóa nghĩa vụ vay thêm' : 'Xóa giao dịch'}
               </button>
             </div>
           </div>
