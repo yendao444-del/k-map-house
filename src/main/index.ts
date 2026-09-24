@@ -13,6 +13,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerUpdateHandlers } from './update-handlers'
 import { startTelegramUltraViewerBot } from './telegram-ultraviewer'
+import { reportTelegramError } from './telegram-reporter'
 import {
   crawlPhongTro123,
   getMarketSnapshot,
@@ -75,10 +76,12 @@ function writeDebugLog(scope: string, details?: unknown): void {
 
 process.on('uncaughtException', (error) => {
   writeCrashLog('uncaughtException', error)
+  void reportTelegramError('uncaughtException', { message: error instanceof Error ? error.message : error })
 })
 
 process.on('unhandledRejection', (error) => {
   writeCrashLog('unhandledRejection', error)
+  void reportTelegramError('unhandledRejection', { message: error instanceof Error ? error.message : error })
 })
 
 function getDBPath(): string {
@@ -1188,6 +1191,7 @@ function createWindow(): void {
 
   mainWindow.on('unresponsive', () => {
     writeCrashLog('window:unresponsive', { version: app.getVersion() })
+    void reportTelegramError('window-unresponsive')
   })
 
   mainWindow.webContents.on('did-start-loading', () => {
@@ -1209,6 +1213,7 @@ function createWindow(): void {
           errorDescription,
           validatedURL
         })
+        void reportTelegramError('did-fail-load', { errorCode, errorDescription, validatedURL })
       }
     }
   )
@@ -1218,6 +1223,11 @@ function createWindow(): void {
       version: app.getVersion(),
       url: mainWindow.webContents.getURL(),
       ...details
+    })
+    void reportTelegramError('renderer-crash', {
+      reason: details.reason,
+      exitCode: details.exitCode,
+      url: mainWindow.webContents.getURL()
     })
     if (details.reason === 'clean-exit' || rendererCrashDialogOpen || mainWindow.isDestroyed()) return
     rendererCrashDialogOpen = true
@@ -1249,6 +1259,11 @@ function createWindow(): void {
       sourceId: details.sourceId,
       lineNumber: details.lineNumber
     })
+    void reportTelegramError('renderer-console-error', {
+      message: details.message,
+      sourceId: details.sourceId,
+      lineNumber: details.lineNumber
+    })
   })
 
   mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
@@ -1258,6 +1273,7 @@ function createWindow(): void {
       error: error.message,
       stack: error.stack
     })
+    void reportTelegramError('preload-error', { preloadPath, message: error.message, stack: error.stack })
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -1323,6 +1339,7 @@ app.whenReady().then(() => {
 
 app.on('child-process-gone', (_event, details) => {
   writeCrashLog('app:child-process-gone', { version: app.getVersion(), ...details })
+  void reportTelegramError('child-process-gone', details as unknown as Record<string, unknown>)
 })
 
 app.on('window-all-closed', () => {

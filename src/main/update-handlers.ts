@@ -19,6 +19,7 @@ import { get } from 'http'
 import { get as httpsGet, request as httpsRequest } from 'https'
 import { cpus } from 'os'
 import { dirname, join, relative } from 'path'
+import { reportTelegramError } from './telegram-reporter'
 
 interface ReleaseAsset {
   name: string
@@ -562,6 +563,7 @@ async function runAutoUpdateCheck(): Promise<void> {
       sendToRenderer('update:available', silentData)
     }
   } catch (error) {
+    void reportTelegramError('update-check-failed', { message: error instanceof Error ? error.message : error })
     sendToRenderer('update:status', {
       status: 'error',
       message: error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.',
@@ -773,6 +775,7 @@ export function registerUpdateHandlers(): void {
       }
       return { success: true, data }
     } catch (error) {
+      void reportTelegramError('update-check-failed', { message: error instanceof Error ? error.message : error })
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Kiểm tra cập nhật thất bại.'
@@ -785,6 +788,7 @@ export function registerUpdateHandlers(): void {
       const data = await installLatestUpdate()
       return { success: true, data }
     } catch (error) {
+      void reportTelegramError('update-install-failed', { message: error instanceof Error ? error.message : error })
       sendToRenderer('update:status', {
         status: 'error',
         message: error instanceof Error ? error.message : 'Cập nhật thất bại.'

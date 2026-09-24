@@ -203,6 +203,7 @@ export function DebtReport({
   const baseTotal = values.totalDebt || 1
   const totalSettled = values.paid + values.offset
   const hasLockedOpeningDebt = entries.some((entry) => entry.type === 'totalDebt' && entry.amount > 0)
+  const canIncreaseDebt = canCreate && (isAdmin || (values.totalDebt > 0 && hasLockedOpeningDebt))
   const pendingDebtResult = pendingDebtChange
     ? pendingDebtChange.mode === 'opening'
       ? pendingDebtChange.amount
@@ -221,7 +222,7 @@ export function DebtReport({
   }
 
   const openEditor = (key: EditableKey) => {
-    if (!canCreate || (key === 'totalDebt' && !isAdmin)) return
+    if (!canCreate || (key === 'totalDebt' && !canIncreaseDebt)) return
     setEditing(key)
     setEditingEntryId(null)
     setAmount('')
@@ -233,10 +234,11 @@ export function DebtReport({
     setIsCustomReason(false)
     setDebtAdjustmentMode(null)
     setIsOpeningSetup(false)
+    if (key === 'totalDebt' && values.totalDebt > 0) setDebtAdjustmentMode('increase')
   }
 
   const openDebtAdjustment = () => {
-    if (!isAdmin || values.totalDebt <= 0) return
+    if (!canIncreaseDebt || values.totalDebt <= 0) return
     setEditing('totalDebt')
     setEditingEntryId(null)
     setDebtAdjustmentMode('increase')
@@ -294,7 +296,8 @@ export function DebtReport({
   }
 
   const confirmDebtChange = () => {
-    if (!isAdmin || !pendingDebtChange) return
+    if (!canCreate || !pendingDebtChange) return
+    if (!isAdmin && pendingDebtChange.mode !== 'increase') return
     const signedAmount = pendingDebtChange.mode === 'decrease' ? -pendingDebtChange.amount : pendingDebtChange.amount
     const nextTotal = pendingDebtChange.mode === 'opening'
       ? pendingDebtChange.amount
@@ -333,7 +336,7 @@ export function DebtReport({
 
   const submitEditor = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!canCreate || (editing === 'totalDebt' && !isAdmin) || (editingEntryId && !isAdmin)) return
+    if (!canCreate || (editing === 'totalDebt' && !canIncreaseDebt) || (editingEntryId && !isAdmin)) return
     const normalizedAmount = amount.trim().replace(/[.\s,]/g, '')
     const parsed = Number(normalizedAmount)
     if (
@@ -347,6 +350,7 @@ export function DebtReport({
 
     if (editing === 'totalDebt' && !editingEntryId) {
       const mode: DebtChangeMode = isOpeningSetup ? 'opening' : values.totalDebt > 0 ? debtAdjustmentMode || 'increase' : 'opening'
+      if (!isAdmin && mode !== 'increase') return
       if (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup) return
       setPendingDebtChange({ amount: parsed, reason: reason.trim(), mode })
       return
@@ -574,16 +578,16 @@ export function DebtReport({
                       </td>
                       <td className="px-5 py-3.5 text-right text-[12px] text-slate-400">
                         <span>{sec.note}</span>
-                        {sec.key === 'totalDebt' && isAdmin && (!hasLockedOpeningDebt || values.totalDebt > 0) && (
+                        {sec.key === 'totalDebt' && (isAdmin || canIncreaseDebt) && (!hasLockedOpeningDebt || values.totalDebt > 0) && (
                           <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation()
-                              hasLockedOpeningDebt ? openDebtAdjustment() : openOpeningDebtSetup()
+                              isAdmin && !hasLockedOpeningDebt ? openOpeningDebtSetup() : openDebtAdjustment()
                             }}
                             className="ml-2 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-bold text-sky-700 transition hover:bg-sky-100"
                           >
-                            {hasLockedOpeningDebt ? 'Vay thêm / điều chỉnh' : 'Thiết lập nợ gốc'}
+                            {isAdmin && !hasLockedOpeningDebt ? 'Thiết lập nợ gốc' : 'Vay thêm'}
                           </button>
                         )}
                       </td>
@@ -1054,7 +1058,7 @@ export function DebtReport({
                     const isCurrent = editing === item.key
                     const isLockedDebt =
                       item.key === 'totalDebt' &&
-                      (!isAdmin || (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup))
+                      (!canIncreaseDebt || (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup))
                     return (
                       <button
                         key={item.key}
@@ -1068,6 +1072,11 @@ export function DebtReport({
                               setReason('')
                             } else {
                               setReason(reasonOptions[item.key][0] || '')
+                            }
+                            if (item.key === 'totalDebt' && values.totalDebt > 0) {
+                              setDebtAdjustmentMode('increase')
+                              setIsOpeningSetup(false)
+                              setReason('Vay thêm')
                             }
                             setIsCustomReason(false)
                           }
@@ -1238,14 +1247,18 @@ export function DebtReport({
                         -- Vui lòng chọn lý do cấn trừ --
                       </option>
                     )}
-                    {reasonOptions[editing].map((option) => (
+                    {reasonOptions[editing]
+                      .filter((option) => editing !== 'totalDebt' || isAdmin || option === 'Vay thêm')
+                      .map((option) => (
                       <option key={option} value={option} className="py-2 font-semibold text-slate-800">
                         {option}
                       </option>
                     ))}
-                    <option value="__other__" className="py-2 font-bold text-amber-700">
-                      Khác (tự ghi lý do)
-                    </option>
+                    {(editing !== 'totalDebt' || isAdmin) && (
+                      <option value="__other__" className="py-2 font-bold text-amber-700">
+                        Khác (tự ghi lý do)
+                      </option>
+                    )}
                   </select>
                   <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                     <i className="fa-solid fa-chevron-down text-xs" />
