@@ -84,7 +84,13 @@ function pruneOldVersionDirectories() {
   for (const entry of fs.readdirSync(updatesRoot, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === 'state' || entry.name === version) continue
     if (/^\d+\.\d+\.\d+$/.test(entry.name)) {
-      removeDir(path.join(updatesRoot, entry.name))
+      try {
+        removeDir(path.join(updatesRoot, entry.name))
+      } catch (error) {
+        // A file manager or antivirus can briefly lock an old artifact folder.
+        // Keep the release usable and retry cleanup on the next run.
+        console.warn(`Khong the don thu muc cu ${entry.name}: ${error.message}`)
+      }
     }
   }
 }
@@ -127,6 +133,7 @@ function createQuick(previous) {
     deletedFiles,
     generatedAt: new Date().toISOString()
   }
+  ensureDir(appRoot)
   fs.writeFileSync(path.join(appRoot, '.update-manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 
   const zip = new AdmZip()
