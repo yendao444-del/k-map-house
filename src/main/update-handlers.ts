@@ -465,15 +465,39 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
   const repoInfo = resolveRepoInfo()
   if (repoInfo) {
     try {
-      const release = await fetchLatestRelease(repoInfo)
+      const latestRelease = await fetchLatestRelease(repoInfo)
+      let release = latestRelease
+      let selected = await selectReleaseAsset(latestRelease, currentVersion)
+
+      // Quick releases are intentionally chained. If a machine is behind the
+      // newest release, choose the first newer release whose package applies
+      // to the installed version instead of showing an unusable update.
+      if (!selected.asset) {
+        let releases: GithubRelease[] = []
+        try {
+          releases = await fetchReleases(repoInfo)
+        } catch {
+          releases = []
+        }
+        for (const candidate of releases) {
+          const candidateVersion = candidate.tag_name.replace(/^v/i, '')
+          if (compareVersions(candidateVersion, currentVersion) <= 0) continue
+          const candidateSelection = await selectReleaseAsset(candidate, currentVersion)
+          if (candidateSelection.asset) {
+            release = candidate
+            selected = candidateSelection
+            break
+          }
+        }
+      }
+
       const latestVersion = release.tag_name.replace(/^v/i, '')
-      const selected = await selectReleaseAsset(release, currentVersion)
       const selectedAsset = selected.asset
 
       return {
         currentVersion,
         latestVersion,
-        hasUpdate: compareVersions(latestVersion, currentVersion) > 0,
+        hasUpdate: compareVersions(latestVersion, currentVersion) > 0 && Boolean(selectedAsset?.digest),
         releaseNotes: release.body || 'Không có ghi chú.',
         publishedAt: release.published_at,
         downloadUrl: selectedAsset?.browser_download_url || null,

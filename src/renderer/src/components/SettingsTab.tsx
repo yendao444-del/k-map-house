@@ -1930,7 +1930,7 @@ function accountFormatDate(value?: string): string {
 }
 
 export const UpdateSettings = (): React.JSX.Element => {
-  const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'downloading'>('idle')
+  const [status, setStatus] = useState<'idle' | 'checking' | 'ready' | 'downloading' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [updateInfo, setUpdateInfo] = useState<{
     currentVersion: string
@@ -1958,12 +1958,13 @@ export const UpdateSettings = (): React.JSX.Element => {
         ? `Có bản mới v${result.data.latestVersion}.`
         : 'Đang sử dụng bản mới nhất.'
     )
-    setStatus(result.data.hasUpdate ? 'ready' : 'idle')
+    setStatus(result.data.hasUpdate && Boolean(result.data.downloadUrl) ? 'ready' : 'idle')
   }
 
   const applyUpdate = async () => {
-    if (false) {
+    if (!updateInfo?.downloadUrl) {
       setMessage('Bản phát hành chưa có tệp cập nhật phù hợp.')
+      setStatus('error')
       return
     }
     setStatus('downloading')
@@ -2151,7 +2152,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
           ? `Phát hiện phiên bản mới v${result.data.latestVersion}.`
           : 'Ứng dụng đang ở phiên bản mới nhất.'
       )
-      setStatus(result.data.hasUpdate ? 'available' : 'idle')
+      setStatus(result.data.hasUpdate && Boolean(result.data.downloadUrl) ? 'available' : 'idle')
       void fetchHistory()
     } catch (error) {
       console.error('[Updates] Check failed:', error)
@@ -2161,8 +2162,9 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   }
 
   const applyUpdate = async () => {
-    if (false) {
+    if (!updateInfo?.downloadUrl) {
       setMessage('Bản phát hành không có tệp cập nhật phù hợp.')
+      setStatus('error')
       return
     }
 
