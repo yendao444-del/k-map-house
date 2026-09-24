@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect, useMemo, useCallback } from 'react'
+import React, { Component, Suspense, lazy, useState, useEffect, useMemo, useCallback, type ErrorInfo, type ReactNode } from 'react'
 import {
   Home,
   FileText,
@@ -112,6 +112,40 @@ const InvestmentsTab = lazy(() =>
   import('./components/InvestmentsTab').then((module) => ({ default: module.InvestmentsTab }))
 )
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
+
+class FeatureErrorBoundary extends Component<
+  { label: string; children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error(`[Renderer] ${this.props.label} module error:`, error, info.componentStack)
+  }
+
+  render(): ReactNode {
+    if (!this.state.error) return this.props.children
+
+    return (
+      <div className="m-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900">
+        <h2 className="font-bold">Không thể tải mục {this.props.label}</h2>
+        <p className="mt-2 text-sm">Mục này gặp lỗi. Có thể tải lại riêng mục này để tiếp tục làm việc.</p>
+        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{this.state.error.message}</pre>
+        <button
+          type="button"
+          onClick={() => this.setState({ error: null })}
+          className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white"
+        >
+          Tải lại mục {this.props.label}
+        </button>
+      </div>
+    )
+  }
+}
 
 function usePageVisible(): boolean {
   const [isVisible, setIsVisible] = useState(
@@ -4420,15 +4454,17 @@ const App: React.FC = () => {
               />
             </Suspense>
           ) : activeTab === 'assets' ? (
-            <Suspense fallback={<TabLoading />}>
-              <AssetsTab
-                initialRoomId={assetModuleInitialRoomId}
-                onReceivePendingChange={handleAssetReceivePendingChange}
-                guideMode={assetModuleGuideMode}
-                guideRoomId={assetModuleInitialRoomId}
-                onGuideHandled={() => setAssetModuleGuideMode(null)}
-              />
-            </Suspense>
+            <FeatureErrorBoundary label="Tài sản">
+              <Suspense fallback={<TabLoading />}>
+                <AssetsTab
+                  initialRoomId={assetModuleInitialRoomId}
+                  onReceivePendingChange={handleAssetReceivePendingChange}
+                  guideMode={assetModuleGuideMode}
+                  guideRoomId={assetModuleInitialRoomId}
+                  onGuideHandled={() => setAssetModuleGuideMode(null)}
+                />
+              </Suspense>
+            </FeatureErrorBoundary>
           ) : activeTab === 'contracts' ? (
             <Suspense fallback={<TabLoading />}>
               <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
@@ -4486,9 +4522,11 @@ const App: React.FC = () => {
               <TenantsTab />
             </Suspense>
           ) : activeTab === 'settings' ? (
-            <Suspense fallback={<TabLoading />}>
-              <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
-            </Suspense>
+            <FeatureErrorBoundary label="Cài đặt">
+              <Suspense fallback={<TabLoading />}>
+                <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+              </Suspense>
+            </FeatureErrorBoundary>
           ) : null}
         </div>
 
@@ -4635,16 +4673,20 @@ const App: React.FC = () => {
           <EndContractNoticeModal room={endNoticeRoom} onClose={() => setEndNoticeRoom(null)} />
         )}
         {terminateRoom && (
-          <TerminateContractModal
-            room={terminateRoom}
-            onClose={() => setTerminateRoom(null)}
-            onNavigateToAssets={(room) => {
-              setTerminateRoom(null)
-              setAssetModuleInitialRoomId(room.id)
-              setAssetModuleGuideMode('move_out')
-              requestActiveTab('assets')
-            }}
-          />
+          <FeatureErrorBoundary label="Trả phòng">
+            <Suspense fallback={<TabLoading />}>
+            <TerminateContractModal
+              room={terminateRoom}
+              onClose={() => setTerminateRoom(null)}
+              onNavigateToAssets={(room) => {
+                setTerminateRoom(null)
+                setAssetModuleInitialRoomId(room.id)
+                setAssetModuleGuideMode('move_out')
+                requestActiveTab('assets')
+              }}
+            />
+            </Suspense>
+          </FeatureErrorBoundary>
         )}
         {cancelContractRoom && (
           <CancelContractModal

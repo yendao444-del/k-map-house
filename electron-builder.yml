@@ -41,9 +41,9 @@ files:
 asar: true
 asarUnpack:
   - resources/**
-electronLanguages:
-  - vi
-  - en
+# Keep Electron's full locale set. Windows uses locale-specific names such as
+# en-US and vi, and filtering by a generic language can leave users with no
+# matching .pak file and crash the renderer (exit code -36861).
 extraFiles:
   - from: node_modules/electron/dist/resources.pak
     to: .

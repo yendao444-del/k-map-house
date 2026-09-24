@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage, dialog } from 'electron'
 import 'dotenv/config'
 import { extname, join } from 'path'
 import {
@@ -1149,7 +1149,7 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
   const useCustomTitleBar = !useSafeWindow && process.platform === 'win32'
-  let rendererRecoveryAttempted = false
+  let rendererCrashDialogOpen = false
   let rendererConsoleErrorsLogged = 0
   const mainWindow = new BrowserWindow({
     width: 1400,
@@ -1219,13 +1219,25 @@ function createWindow(): void {
       url: mainWindow.webContents.getURL(),
       ...details
     })
-    if (details.reason === 'clean-exit' || rendererRecoveryAttempted || mainWindow.isDestroyed()) return
-    rendererRecoveryAttempted = true
-    setTimeout(() => {
+    if (details.reason === 'clean-exit' || rendererCrashDialogOpen || mainWindow.isDestroyed()) return
+    rendererCrashDialogOpen = true
+    const logDir = join(app.getPath('temp'), 'k-map-house-logs')
+    // A native dialog remains usable even when the renderer process has died.
+    void dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'DBY HOME - Lỗi hiển thị',
+      message: 'Tiến trình hiển thị đã dừng.',
+      detail: `Phiên bản: ${app.getVersion()}\nNguyên nhân: ${details.reason}\nMã lỗi: ${details.exitCode}\nLog: ${join(logDir, 'main-crash.log')}`,
+      buttons: ['Mở thư mục log', 'Tải lại màn hình'],
+      defaultId: 0,
+      cancelId: 0
+    }).then(async ({ response }) => {
+      if (response === 0) await shell.openPath(logDir)
       if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
         mainWindow.webContents.reload()
       }
-    }, 1000)
+    }).catch((error) => writeCrashLog('renderer:recovery-error', error))
+      .finally(() => { rendererCrashDialogOpen = false })
   })
 
   mainWindow.webContents.on('console-message', (details) => {
@@ -1274,6 +1286,10 @@ app.whenReady().then(() => {
   // Keep the runtime app name aligned with electron-builder so Windows uses
   // the packaged DBY HOME identity for the taskbar entry and shortcuts.
   app.setName('DBY HOME')
+  writeCrashLog('app:startup', {
+    version: app.getVersion(), appPath: app.getAppPath(), executable: process.execPath,
+    electron: process.versions.electron, hardwareAcceleration: app.isHardwareAccelerationEnabled()
+  })
   electronApp.setAppUserModelId('com.kmaphouse.app')
   writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()
