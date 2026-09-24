@@ -1,6 +1,15 @@
 {
+  "schema": 1,
+  "type": "quick",
   "version": "1.0.92",
-  "files": {
+  "fromVersion": "1.0.91",
+  "files": [
+    "package.json",
+    "out/main/index.js"
+  ],
+  "deletedFiles": [],
+  "generatedAt": "2026-09-24T09:01:04.250Z",
+  "currentFiles": {
     "package.json": "2cc0667ee37bdc32a8b4720d4e5923fdbd1fcb99ca24c7cb63a1524d41834fc1",
     "out/main/index.js": "c7fb9c4fa7627ef036e18957bb9f7fc069e979db0102a383f383346972411a7d",
     "out/preload/index.js": "8fc797cab8098501501f7aa65125cf76114254dc709592d43860fc1a47f1dedb",
@@ -51,6 +60,5 @@
     "out/renderer/assets/water-dispenser-CkO2kkV6.js": "64cb80d61e6dd7c2ee51ca3560bd6527c0f0c9e14da4fe3de68fa125820b2fc3",
     "out/renderer/assets/x-CmjiQ3bJ.js": "fccb73fdc95ca706184563f8759c262d05091a3c68bb223a5b19e8ea69eea7f9",
     "out/renderer/index.html": "511a207eb11abbc5fbac9b865dad136e49cd9b1053ff1bf65bc9f850227365cb"
-  },
-  "generatedAt": "2026-09-24T09:01:04.314Z"
+  }
 }

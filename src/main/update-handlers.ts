@@ -402,10 +402,17 @@ exit
 function createSilentInstallerRunner(tempDir: string, installerPath: string): void {
   const batPath = join(tempDir, 'install-update.bat')
   const vbsPath = join(tempDir, 'install-update.vbs')
-  const batContent = `@echo off
+const batContent = `@echo off
 chcp 65001 >nul
+set "LOG=%TEMP%\\k-map-house-logs\\update-apply.log"
+if not exist "%TEMP%\\k-map-house-logs" mkdir "%TEMP%\\k-map-house-logs"
 timeout /t 2 /nobreak >nul
 start /wait "" "${installerPath}" /S
+if errorlevel 1 (
+  echo [%date% %time%] Installer failed with exit code %errorlevel%. >> "%LOG%"
+  exit /b 1
+)
+echo [%date% %time%] Installer completed. >> "%LOG%"
 start "" "${process.execPath}"
 timeout /t 3 /nobreak >nul
 rmdir /S /Q "${tempDir}" 2>nul
@@ -446,6 +453,11 @@ async function selectReleaseAsset(
   }
 
   const standardZip = zipAssets.find((asset) => /-standard\.zip$/i.test(asset.name)) || null
+  const installer = release.assets.find((asset) => /-setup\.exe$/i.test(asset.name) && asset.digest) || null
+  if (installer) {
+    return { asset: installer, artifactType: 'installer' }
+  }
+
   if (standardZip && standardZip.digest) {
     return { asset: standardZip, artifactType: 'standard' }
   }
@@ -681,6 +693,10 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   if (targetRoot.toLowerCase().endsWith('.asar')) {
     const mergedRoot = join(tempDir, 'merged-app')
     const replacementAsar = join(tempDir, 'replacement.asar')
+    sendToRenderer('update:status', {
+      status: 'installing',
+      message: 'Đang chuẩn bị dữ liệu ứng dụng để cập nhật...'
+    })
     await extractAll(targetRoot, mergedRoot)
     for (const sourceFile of sourceFiles) {
       const relativePath = relative(sourceRoot, sourceFile)
@@ -692,6 +708,10 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
       rmSync(join(mergedRoot, deletedFile), { force: true })
     }
     rmSync(join(mergedRoot, '.update-manifest.json'), { force: true })
+    sendToRenderer('update:status', {
+      status: 'installing',
+      message: 'Đang tạo gói ứng dụng mới; bước này có thể mất vài phút...'
+    })
     await createPackage(mergedRoot, replacementAsar)
     createAsarFileUpdater(tempDir, replacementAsar, targetRoot)
     setTimeout(() => {
