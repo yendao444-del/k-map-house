@@ -1252,6 +1252,10 @@ function createWindow(): void {
 
   mainWindow.webContents.on('console-message', (details) => {
     if (details.level !== 'error' || rendererConsoleErrorsLogged >= 20) return
+    if (/jwt expired|token is expired|session.*expired/i.test(details.message)) {
+      writeDebugLog('renderer:auth-session-expired', details.message)
+      return
+    }
     rendererConsoleErrorsLogged += 1
     writeCrashLog('renderer:console-error', {
       version: app.getVersion(),

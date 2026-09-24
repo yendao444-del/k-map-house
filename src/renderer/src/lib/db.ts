@@ -2561,7 +2561,7 @@ export const deleteUser = async (id: string): Promise<void> => {
 }
 
 export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
-  const {
+  let {
     data: { session },
     error: sessionError
   } = await supabase.auth.getSession()
@@ -2570,8 +2570,27 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
     session ? `HAS SESSION (user: ${session.user?.email})` : 'NO SESSION',
     sessionError || ''
   )
-  if (sessionError) throw new Error(normalizeRemoteErrorMessage(sessionError.message))
+  if (sessionError) {
+    if (/jwt expired|token is expired|session.*expired/i.test(sessionError.message)) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      return null
+    }
+    throw new Error(normalizeRemoteErrorMessage(sessionError.message))
+  }
   if (!session?.user) return null
+
+  // Electron can stay open long enough for Supabase's background refresh timer
+  // to be delayed. Refresh shortly before expiry before querying the profile.
+  const expiresAt = Number(session.expires_at || 0) * 1000
+  if (expiresAt > 0 && expiresAt <= Date.now() + 60_000) {
+    const refreshed = await supabase.auth.refreshSession()
+    if (refreshed.error || !refreshed.data.session) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      return null
+    }
+    session = refreshed.data.session
+  }
+
   const user = session.user
 
   const { data: profile, error: profileError } = await supabase
