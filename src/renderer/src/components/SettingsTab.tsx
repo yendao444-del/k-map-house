@@ -2054,12 +2054,14 @@ type ProductionUpdateInfo = {
   publishedAt: string
   downloadUrl: string | null
   downloadSize: number
-  artifactType: 'installer' | 'zip' | 'none'
+  artifactType: 'installer' | 'standard' | 'quick' | 'zip' | 'none'
   fileName: string | null
 }
 
 const updateArtifactLabel = (artifactType?: ProductionUpdateInfo['artifactType']): string => {
   if (artifactType === 'installer') return 'Bộ cài đặt'
+  if (artifactType === 'quick') return 'Quick delta'
+  if (artifactType === 'standard') return 'Gói standard'
   if (artifactType === 'zip') return 'Gói cập nhật'
   if (artifactType === 'none') return 'Không có tệp'
   return 'Mặc định'

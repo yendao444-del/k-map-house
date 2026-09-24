@@ -142,11 +142,16 @@ function getLegacyInvestmentPath(): string {
 }
 
 function withoutCrypto(data: InvestmentStore): InvestmentStore {
+  const knownCryptoSymbols = new Set(['BTC', 'ETH', 'BNB', 'SOL', 'USDT', 'ADA', 'XRP', 'DOT', 'DOGE', 'SHIB', 'AVAX', 'LINK', 'MATIC', 'LTC', 'UNI'])
   const cryptoSymbols = new Set(
     (data.holdings || [])
       .filter((item) => item.category === 'crypto')
       .map((item) => String(item.symbol || '').toUpperCase())
   )
+  for (const item of data.holdings || []) {
+    const symbol = String(item.symbol || '').toUpperCase()
+    if (symbol.endsWith('USDT') || knownCryptoSymbols.has(symbol)) cryptoSymbols.add(symbol)
+  }
   return {
     holdings: (data.holdings || []).filter((item) => item.category !== 'crypto'),
     transactions: (data.transactions || []).filter(
@@ -1142,6 +1147,8 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
   const useCustomTitleBar = !useSafeWindow && process.platform === 'win32'
+  let rendererRecoveryAttempted = false
+  let rendererConsoleErrorsLogged = 0
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -1177,6 +1184,10 @@ function createWindow(): void {
     writeDebugLog('window:closed')
   })
 
+  mainWindow.on('unresponsive', () => {
+    writeCrashLog('window:unresponsive', { version: app.getVersion() })
+  })
+
   mainWindow.webContents.on('did-start-loading', () => {
     writeDebugLog('webContents:did-start-loading')
   })
@@ -1187,17 +1198,48 @@ function createWindow(): void {
 
   mainWindow.webContents.on(
     'did-fail-load',
-    (_event, errorCode, errorDescription, validatedURL) => {
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       writeDebugLog('webContents:did-fail-load', { errorCode, errorDescription, validatedURL })
+      if (isMainFrame && errorCode !== -3) {
+        writeCrashLog('webContents:did-fail-load', {
+          version: app.getVersion(),
+          errorCode,
+          errorDescription,
+          validatedURL
+        })
+      }
     }
   )
 
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    writeDebugLog('webContents:render-process-gone', details)
+    writeCrashLog('webContents:render-process-gone', {
+      version: app.getVersion(),
+      url: mainWindow.webContents.getURL(),
+      ...details
+    })
+    if (details.reason === 'clean-exit' || rendererRecoveryAttempted || mainWindow.isDestroyed()) return
+    rendererRecoveryAttempted = true
+    setTimeout(() => {
+      if (!mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.reload()
+      }
+    }, 1000)
+  })
+
+  mainWindow.webContents.on('console-message', (details) => {
+    if (details.level !== 'error' || rendererConsoleErrorsLogged >= 20) return
+    rendererConsoleErrorsLogged += 1
+    writeCrashLog('renderer:console-error', {
+      version: app.getVersion(),
+      message: details.message,
+      sourceId: details.sourceId,
+      lineNumber: details.lineNumber
+    })
   })
 
   mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
-    writeDebugLog('webContents:preload-error', {
+    writeCrashLog('webContents:preload-error', {
+      version: app.getVersion(),
       preloadPath,
       error: error.message,
       stack: error.stack
@@ -1227,7 +1269,9 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  app.setName('AN KHANG HOME')
+  // Keep the runtime app name aligned with electron-builder so Windows uses
+  // the packaged DBY HOME identity for the taskbar entry and shortcuts.
+  app.setName('DBY HOME')
   electronApp.setAppUserModelId('com.kmaphouse.app')
   writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()
@@ -1260,7 +1304,7 @@ app.whenReady().then(() => {
 })
 
 app.on('child-process-gone', (_event, details) => {
-  writeDebugLog('app:child-process-gone', details)
+  writeCrashLog('app:child-process-gone', { version: app.getVersion(), ...details })
 })
 
 app.on('window-all-closed', () => {

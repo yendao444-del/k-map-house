@@ -290,14 +290,6 @@ export function WalletTab({
             </label>
             <button
               type="button"
-              onClick={() => setTransferOpen(true)}
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 text-xs font-black text-[#00775C] shadow-sm transition hover:bg-emerald-100/70"
-            >
-              <ArrowUpRight size={14} />
-              Chuyển giữa các ví
-            </button>
-            <button
-              type="button"
               onClick={onSyncSepay}
               className="flex h-9 items-center gap-1.5 rounded-lg border border-amber-300 bg-[#FFFDF5] px-3.5 text-xs font-black text-[#8B5E13] shadow-sm transition hover:bg-amber-100/60"
             >
@@ -373,24 +365,17 @@ export function WalletTab({
                 </div>
               </div>
 
-              {/* Tỷ trọng phân bổ nhanh 2 ví */}
-              <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
-                <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200">
-                    Ngân hàng ({bankPercent}%)
-                  </div>
-                  <div className="mt-0.5 text-base sm:text-lg font-black tabular-nums text-white">
-                    {showBalance ? formatVND(safeBankBalance) : '••••••••••'}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/15 bg-white/10 px-4 py-2.5 backdrop-blur-sm">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-200">
-                    Tiền mặt ({cashPercent}%)
-                  </div>
-                  <div className="mt-0.5 text-base sm:text-lg font-black tabular-nums text-white">
-                    {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
-                  </div>
-                </div>
+              {/* Nút icon chuyển đổi giữa các ví */}
+              <div className="flex items-center self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setTransferOpen(true)}
+                  title="Chuyển đổi giữa các ví"
+                  aria-label="Chuyển đổi giữa các ví"
+                  className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-emerald-100 shadow-sm backdrop-blur-sm transition hover:bg-white/20 hover:border-white/40 hover:text-white hover:scale-105 active:scale-95"
+                >
+                  <ArrowLeftRight size={20} className="transition-transform duration-300 group-hover:rotate-180" />
+                </button>
               </div>
             </div>
           </div>

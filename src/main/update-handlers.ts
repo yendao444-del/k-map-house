@@ -42,6 +42,14 @@ interface LatestYmlInfo {
   releaseDate: string
 }
 
+interface UpdateManifest {
+  schema?: number
+  type?: 'quick' | 'standard'
+  version?: string
+  fromVersion?: string | null
+  deletedFiles?: string[]
+}
+
 interface UpdateCheckResult {
   currentVersion: string
   latestVersion: string
@@ -50,7 +58,7 @@ interface UpdateCheckResult {
   publishedAt: string
   downloadUrl: string | null
   downloadSize: number
-  artifactType: 'installer' | 'zip' | 'none'
+  artifactType: 'installer' | 'standard' | 'quick' | 'zip' | 'none'
   fileName: string | null
   checksum: string | null
 }
@@ -399,16 +407,48 @@ exit
   spawn('wscript.exe', [vbsPath], { detached: true, stdio: 'ignore' }).unref()
 }
 
-function selectReleaseAsset(release: GithubRelease): ReleaseAsset | null {
+async function readUpdateManifest(asset: ReleaseAsset | null): Promise<UpdateManifest | null> {
+  if (!asset) return null
+  try {
+    return JSON.parse(await fetchText(asset.browser_download_url)) as UpdateManifest
+  } catch {
+    return null
+  }
+}
+
+async function selectReleaseAsset(
+  release: GithubRelease,
+  currentVersion: string
+): Promise<{ asset: ReleaseAsset | null; artifactType: UpdateCheckResult['artifactType'] }> {
   const installerAsset =
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('-setup.exe')) ||
     release.assets.find((asset) => asset.name.toLowerCase().endsWith('.exe')) ||
     null
   const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
-  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-  const fullZip = zipAssets.find((asset) => /DBYHOME|KMAPHOUSE/i.test(asset.name))
+  const quickZip = zipAssets.find((asset) => /-quick\.zip$/i.test(asset.name)) || null
+  const quickManifestAsset =
+    release.assets.find((asset) => /-quick-manifest\.json$/i.test(asset.name)) ||
+    release.assets.find((asset) => /update-manifest\.json$/i.test(asset.name)) ||
+    null
+  const quickManifest = await readUpdateManifest(quickManifestAsset)
+  if (quickZip && quickZip.digest && quickManifest?.fromVersion === currentVersion) {
+    return { asset: quickZip, artifactType: 'quick' }
+  }
 
-  return installerAsset || patchZip || fullZip || zipAssets[0] || null
+  const standardZip = zipAssets.find((asset) => /-standard\.zip$/i.test(asset.name)) || null
+  if (standardZip && standardZip.digest) {
+    return { asset: standardZip, artifactType: 'standard' }
+  }
+
+  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
+  const fullZip = zipAssets.find(
+    (asset) => /DBYHOME|KMAPHOUSE/i.test(asset.name) && !/-quick\.zip$/i.test(asset.name) && !/-standard\.zip$/i.test(asset.name)
+  )
+
+  if (installerAsset) return { asset: installerAsset, artifactType: 'installer' }
+  if (patchZip) return { asset: patchZip, artifactType: 'zip' }
+  if (fullZip) return { asset: fullZip, artifactType: 'zip' }
+  return { asset: zipAssets[0] || null, artifactType: zipAssets[0] ? 'zip' : 'none' }
 }
 
 function isInstallerAsset(asset: ReleaseAsset | null): boolean {
@@ -422,7 +462,8 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
     try {
       const release = await fetchLatestRelease(repoInfo)
       const latestVersion = release.tag_name.replace(/^v/i, '')
-      const selectedAsset = selectReleaseAsset(release)
+      const selected = await selectReleaseAsset(release, currentVersion)
+      const selectedAsset = selected.asset
 
       return {
         currentVersion,
@@ -432,7 +473,7 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
         publishedAt: release.published_at,
         downloadUrl: selectedAsset?.browser_download_url || null,
         downloadSize: selectedAsset?.size || 0,
-        artifactType: isInstallerAsset(selectedAsset) ? 'installer' : selectedAsset ? 'zip' : 'none',
+        artifactType: isInstallerAsset(selectedAsset) ? 'installer' : selected.artifactType,
         fileName: selectedAsset?.name || null,
         checksum: selectedAsset?.digest || null
       }
@@ -597,6 +638,29 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   const sourceRoot = findAppRoot(extractDir) || extractDir
   const targetRoot = app.getAppPath()
   const sourceFiles = collectFiles(sourceRoot)
+  const manifestPath = join(sourceRoot, '.update-manifest.json')
+  let updateManifest: UpdateManifest | null = null
+  if (existsSync(manifestPath)) {
+    try {
+      updateManifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as UpdateManifest
+    } catch {
+      throw new Error('Manifest bản cập nhật không hợp lệ.')
+    }
+  }
+  if (
+    updateManifest?.type === 'quick' &&
+    updateManifest.fromVersion &&
+    updateManifest.fromVersion !== app.getVersion()
+  ) {
+    throw new Error(
+      `Gói quick chỉ dành cho v${updateManifest.fromVersion}, máy hiện tại đang v${app.getVersion()}.`
+    )
+  }
+
+  const deletedFiles = (updateManifest?.deletedFiles || []).filter((file) => {
+    const normalized = file.replace(/\\/g, '/')
+    return normalized && !normalized.startsWith('/') && !normalized.includes('../') && !normalized.includes('..\\')
+  })
 
   sendToRenderer('update:status', { status: 'installing', message: 'Đang cài đặt bản cập nhật...' })
 
@@ -612,6 +676,10 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
       mkdirSync(dirname(targetFile), { recursive: true })
       copyFileSync(sourceFile, targetFile)
     }
+    for (const deletedFile of deletedFiles) {
+      rmSync(join(mergedRoot, deletedFile), { force: true })
+    }
+    rmSync(join(mergedRoot, '.update-manifest.json'), { force: true })
     await createPackage(mergedRoot, replacementAsar)
     createAsarFileUpdater(tempDir, replacementAsar, targetRoot)
     setTimeout(() => {
@@ -632,6 +700,11 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
       hadLockedFiles = true
     }
   }
+
+  for (const deletedFile of deletedFiles) {
+    rmSync(join(targetRoot, deletedFile), { force: true })
+  }
+  rmSync(join(targetRoot, '.update-manifest.json'), { force: true })
 
   const packageJsonPath = join(sourceRoot, 'package.json')
   const newVersion = existsSync(packageJsonPath)

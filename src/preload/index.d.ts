@@ -123,7 +123,7 @@ interface UpdateCheckResult {
   publishedAt: string
   downloadUrl: string | null
   downloadSize: number
-  artifactType: 'installer' | 'zip' | 'none'
+  artifactType: 'installer' | 'standard' | 'quick' | 'zip' | 'none'
   fileName: string | null
 }
 

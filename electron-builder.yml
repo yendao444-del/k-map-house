@@ -8,6 +8,7 @@ files:
   - '!supabase/**/*'
   - '!scripts/**/*'
   - '!dist/**/*'
+  - '!updates/**/*'
   - '!build/**/*'
   - '!_perf-package-check*/**/*'
   - '!.claude/**/*'

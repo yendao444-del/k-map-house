@@ -2,11 +2,9 @@ import React, { Suspense, lazy, useState, useEffect, useMemo, useCallback } from
 import {
   Home,
   FileText,
-  Users,
   Settings as SettingsIcon,
   Bell,
-  Box,
-  ClipboardList,
+  Building2,
   BarChart3,
   WalletCards
 } from 'lucide-react'
@@ -1453,7 +1451,7 @@ const App: React.FC = () => {
     'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
   >('overview')
   const [financeSubTab, setFinanceSubTab] = useState<
-    'overview' | 'wallet' | 'investments' | 'funds' | 'debt'
+    'overview' | 'wallet' | 'investments' | 'debt'
   >('overview')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
@@ -1523,8 +1521,10 @@ const App: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
   const [isFinanceMenuOpen, setIsFinanceMenuOpen] = useState(false)
+  const [isRentalMenuOpen, setIsRentalMenuOpen] = useState(false)
   const [financeMenuPosition, setFinanceMenuPosition] = useState({ top: 56, left: 0 })
   const [reportMenuPosition, setReportMenuPosition] = useState({ top: 56, left: 0 })
+  const [rentalMenuPosition, setRentalMenuPosition] = useState({ top: 56, left: 0 })
   const notificationMenuRef = React.useRef<HTMLDivElement | null>(null)
   const accountMenuRef = React.useRef<HTMLDivElement | null>(null)
   const reportDropdownRef = React.useRef<HTMLDivElement | null>(null)
@@ -1532,12 +1532,15 @@ const App: React.FC = () => {
   const financeMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const reportMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const reportMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rentalMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const rentalMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const notificationCountRef = React.useRef<number | null>(null)
 
   useEffect(
     () => () => {
       if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
       if (financeMenuCloseTimerRef.current) clearTimeout(financeMenuCloseTimerRef.current)
+      if (rentalMenuCloseTimerRef.current) clearTimeout(rentalMenuCloseTimerRef.current)
     },
     []
   )
@@ -2319,10 +2322,7 @@ const App: React.FC = () => {
   const sapoGreen = '#7FD1AE'
   const headerNavItems = [
     { id: 'rooms' as const, icon: Home, label: 'Phòng' },
-    { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' },
-    { id: 'contracts' as const, icon: ClipboardList, label: 'Hợp đồng' },
-    { id: 'assets' as const, icon: Box, label: 'Tài sản' },
-    { id: 'tenants' as const, icon: Users, label: 'Khách thuê' }
+    { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' }
   ]
 
   return (
@@ -2602,6 +2602,85 @@ const App: React.FC = () => {
               <div
                 className="relative shrink-0"
                 onMouseEnter={() => {
+                  if (rentalMenuCloseTimerRef.current)
+                    clearTimeout(rentalMenuCloseTimerRef.current)
+                  const rect = rentalMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setRentalMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsRentalMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  rentalMenuCloseTimerRef.current = setTimeout(
+                    () => setIsRentalMenuOpen(false),
+                    180
+                  )
+                }}
+              >
+                <button
+                  type="button"
+                  ref={rentalMenuButtonRef}
+                  onClick={() => {
+                    playClick()
+                    const rect = rentalMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) setRentalMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    setIsRentalMenuOpen(true)
+                    setIsFinanceMenuOpen(false)
+                    setIsReportMenuOpen(false)
+                  }}
+                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                    ['contracts', 'assets', 'tenants'].includes(activeTab)
+                      ? 'bg-[#075244] text-white'
+                      : 'border-transparent text-white hover:bg-white/5'
+                  }`}
+                  style={{
+                    borderBottomColor: ['contracts', 'assets', 'tenants'].includes(activeTab)
+                      ? sapoGreen
+                      : 'transparent'
+                  }}
+                  aria-expanded={isRentalMenuOpen}
+                >
+                  <Building2 size={18} className="text-white" />
+                  <span className="text-white">Quản lý cho thuê</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
+                </button>
+                {isRentalMenuOpen && (
+                  <div
+                    onMouseEnter={() => {
+                      if (rentalMenuCloseTimerRef.current)
+                        clearTimeout(rentalMenuCloseTimerRef.current)
+                    }}
+                    onMouseLeave={() => setIsRentalMenuOpen(false)}
+                    className="fixed z-[120] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    style={{ top: rentalMenuPosition.top, left: rentalMenuPosition.left }}
+                  >
+                    {[
+                      { id: 'contracts' as const, icon: 'fa-file-signature', label: 'Hợp đồng' },
+                      { id: 'assets' as const, icon: 'fa-box-open', label: 'Tài sản' },
+                      { id: 'tenants' as const, icon: 'fa-users', label: 'Khách thuê' }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          playClick()
+                          requestActiveTab(item.id)
+                          setIsRentalMenuOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                          activeTab === item.id
+                            ? 'bg-primary/10 text-primary font-bold'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <i className={`fa-solid ${item.icon} w-4 text-center`} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
                   if (financeMenuCloseTimerRef.current)
                     clearTimeout(financeMenuCloseTimerRef.current)
                   const rect = financeMenuButtonRef.current?.getBoundingClientRect()
@@ -2625,6 +2704,7 @@ const App: React.FC = () => {
                       setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
                     }
                     setIsFinanceMenuOpen(true)
+                    setIsRentalMenuOpen(false)
                     setIsReportMenuOpen(false)
                   }}
                   className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
@@ -2657,7 +2737,6 @@ const App: React.FC = () => {
                       },
                       { id: 'wallet' as const, icon: 'fa-wallet', label: 'Ví' },
                       { id: 'investments' as const, icon: 'fa-arrow-trend-up', label: 'Đầu tư' },
-                      { id: 'funds' as const, icon: 'fa-layer-group', label: 'Hũ tài chính' },
                       { id: 'debt' as const, icon: 'fa-coins', label: 'Công nợ' },
                       { id: 'cashflow' as const, icon: 'fa-receipt', label: 'Giao dịch' }
                     ].map((item) => (
@@ -2708,6 +2787,7 @@ const App: React.FC = () => {
                   onClick={() => {
                     playClick()
                     setIsFinanceMenuOpen(false)
+                    setIsRentalMenuOpen(false)
                     const rect = reportMenuButtonRef.current?.getBoundingClientRect()
                     if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
                     setIsReportMenuOpen(true)

@@ -1,43 +1,890 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react'
-import { ArrowDownLeft, ArrowUpRight, BarChart3, Clock3, Landmark, LayoutDashboard, Pencil, PiggyBank, Plus, RefreshCw, Target, Trash2, TrendingUp, WalletCards, X } from 'lucide-react'
-import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { readInvestmentStore, writeInvestmentStore, type InvestmentCategory, type InvestmentHolding, type InvestmentStore, type InvestmentTransaction, type InvestmentTransactionType } from '../lib/investment-store'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  BarChart3,
+  Clock3,
+  Landmark,
+  LayoutDashboard,
+  Pencil,
+  PiggyBank,
+  Plus,
+  RefreshCw,
+  Target,
+  Trash2,
+  TrendingUp,
+  WalletCards,
+  X
+} from 'lucide-react'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from 'recharts'
+import {
+  readInvestmentStore,
+  writeInvestmentStore,
+  type InvestmentCategory,
+  type InvestmentHolding,
+  type InvestmentStore,
+  type InvestmentTransaction,
+  type InvestmentTransactionType
+} from '../lib/investment-store'
 
 type Screen = 'overview' | InvestmentCategory | 'transactions'
 const CATEGORY_ORDER: InvestmentCategory[] = ['cash', 'gold', 'stocks', 'bonds', 'savings']
-const categoryMeta: Record<InvestmentCategory, { label: string; color: string; icon: typeof TrendingUp }> = {
-  cash: { label: 'Ví tiền', color: '#087f5b', icon: WalletCards }, gold: { label: 'Vàng', color: '#d97706', icon: BarChart3 }, stocks: { label: 'Cổ phiếu & Quỹ', color: '#16a34a', icon: TrendingUp }, bonds: { label: 'Trái phiếu', color: '#2563eb', icon: Landmark }, savings: { label: 'Tiết kiệm', color: '#0f766e', icon: PiggyBank }
+const categoryMeta: Record<
+  InvestmentCategory,
+  { label: string; color: string; icon: typeof TrendingUp }
+> = {
+  cash: { label: 'Ví tiền', color: '#087f5b', icon: WalletCards },
+  gold: { label: 'Vàng', color: '#d97706', icon: BarChart3 },
+  stocks: { label: 'Cổ phiếu & Quỹ', color: '#16a34a', icon: TrendingUp },
+  bonds: { label: 'Trái phiếu', color: '#2563eb', icon: Landmark },
+  savings: { label: 'Tiết kiệm', color: '#0f766e', icon: PiggyBank }
 }
-const txLabel: Record<InvestmentTransactionType, string> = { deposit: 'Nạp tiền', withdraw: 'Rút tiền', buy: 'Mua tài sản', sell: 'Bán tài sản', 'import-existing': 'Nhập tài sản' }
-const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))} đ`
-const compactMoney = (value: number) => new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)
-const formatDate = (value: string) => { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN') }
-const parseQuantity = (value: string) => { const match = value.match(/[\d.,]+/); if (!match) return 0; const raw = match[0]; return Number(raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '')) || 0 }
+const txLabel: Record<InvestmentTransactionType, string> = {
+  deposit: 'Nạp tiền',
+  withdraw: 'Rút tiền',
+  buy: 'Mua tài sản',
+  sell: 'Bán tài sản',
+  'import-existing': 'Nhập tài sản'
+}
+const money = (value: number) =>
+  `${new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))} đ`
+const compactMoney = (value: number) =>
+  new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(
+    value || 0
+  )
+const formatDate = (value: string) => {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
+}
+const parseQuantity = (value: string) => {
+  const match = value.match(/[\d.,]+/)
+  if (!match) return 0
+  const raw = match[0]
+  return (
+    Number(raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw.replace(/,/g, '')) ||
+    0
+  )
+}
+const displayNote = (note: string) => {
+  if (!note) return ''
+  try {
+    const value = JSON.parse(note) as {
+      bank?: string
+      term?: string
+      rate?: number
+      maturityDate?: string
+      status?: string
+    }
+    return [
+      value.bank,
+      value.term,
+      value.rate ? `${value.rate}%/năm` : '',
+      value.maturityDate ? `đáo hạn ${formatDate(value.maturityDate)}` : '',
+      value.status === 'active' ? 'đang gửi' : value.status === 'settled' ? 'đã tất toán' : ''
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  } catch {
+    return note.replace(/^\[.*?\]\s*/, '').trim()
+  }
+}
+const transactionAssetDelta = (tx: InvestmentTransaction) => {
+  if (tx.assetSymbol.toUpperCase() === 'CASH') {
+    return tx.transactionType === 'withdraw' ? -tx.amountVnd : tx.transactionType === 'deposit' ? tx.amountVnd : 0
+  }
+  if (tx.transactionType === 'sell') return -tx.amountVnd
+  if (tx.transactionType === 'buy' || tx.transactionType === 'import-existing') return tx.amountVnd
+  return 0
+}
+const transactionCashDelta = (tx: InvestmentTransaction) => {
+  if (typeof tx.walletImpactVnd === 'number') return tx.walletImpactVnd
+  if (tx.assetSymbol.toUpperCase() === 'CASH') return transactionAssetDelta(tx)
+  if (tx.transactionType === 'buy') return -tx.amountVnd
+  if (tx.transactionType === 'sell') return tx.amountVnd
+  return 0
+}
+const isVisibleTransaction = (tx: InvestmentTransaction, filter: string) => {
+  if (filter === 'all') return true
+  return tx.transactionType === filter
+}
 
-function TransactionModal({ holding, transaction, onClose, onSave }: { holding?: InvestmentHolding; transaction?: InvestmentTransaction; onClose: () => void; onSave: (input: { category: InvestmentCategory; symbol: string; name: string; type: InvestmentTransactionType; amount: number; quantity: number; unit: string; date: string; note: string }) => void }): ReactElement {
+function TransactionModal({
+  holding,
+  transaction,
+  onClose,
+  onSave
+}: {
+  holding?: InvestmentHolding
+  transaction?: InvestmentTransaction
+  onClose: () => void
+  onSave: (input: {
+    category: InvestmentCategory
+    symbol: string
+    name: string
+    type: InvestmentTransactionType
+    amount: number
+    quantity: number
+    unit: string
+    date: string
+    note: string
+  }) => void
+}): ReactElement {
   const [category, setCategory] = useState<InvestmentCategory>(holding?.category || 'stocks')
   const [symbol, setSymbol] = useState(transaction?.assetSymbol || holding?.symbol || '')
   const [name, setName] = useState(holding?.name || '')
   const [type, setType] = useState<InvestmentTransactionType>(transaction?.transactionType || 'buy')
   const [amount, setAmount] = useState(String(transaction?.amountVnd || holding?.valueVnd || ''))
-  const [quantity, setQuantity] = useState(String(transaction?.quantity || (holding ? parseQuantity(holding.quantity) : '')))
-  const [unit, setUnit] = useState(transaction?.unit || (holding?.quantity.split(' ').slice(1).join(' ') || 'đơn vị'))
+  const [quantity, setQuantity] = useState(
+    String(transaction?.quantity || (holding ? parseQuantity(holding.quantity) : ''))
+  )
+  const [unit, setUnit] = useState(
+    transaction?.unit || holding?.quantity.split(' ').slice(1).join(' ') || 'đơn vị'
+  )
   const [date, setDate] = useState(transaction?.date || new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState(transaction?.note || '')
-  const submit = (event: FormEvent) => { event.preventDefault(); if (!symbol.trim() || Number(amount) <= 0) return; onSave({ category, symbol: symbol.trim().toUpperCase(), name: name.trim() || symbol.trim().toUpperCase(), type, amount: Number(amount), quantity: Number(quantity) || 0, unit: unit.trim() || 'đơn vị', date, note }) }
-  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm" onMouseDown={onClose}><form onSubmit={submit} onMouseDown={(event) => event.stopPropagation()} className="w-full max-w-xl overflow-hidden rounded-[24px] bg-white shadow-2xl"><div className="flex items-center justify-between bg-[#075244] px-6 py-5 text-white"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-emerald-200">Danh mục đầu tư</p><h2 className="mt-1 text-xl font-black">{transaction ? 'Sửa giao dịch' : holding ? `Cập nhật ${holding.symbol}` : 'Ghi giao dịch mới'}</h2></div><button type="button" onClick={onClose} className="rounded-full p-2 hover:bg-white/10"><X size={20} /></button></div><div className="grid gap-4 p-6 sm:grid-cols-2"><label className="text-xs font-bold text-slate-600">Nhóm tài sản<select value={category} onChange={(e) => setCategory(e.target.value as InvestmentCategory)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3">{CATEGORY_ORDER.map((key) => <option key={key} value={key}>{categoryMeta[key].label}</option>)}</select></label><label className="text-xs font-bold text-slate-600">Loại giao dịch<select value={type} onChange={(e) => setType(e.target.value as InvestmentTransactionType)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3">{Object.entries(txLabel).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label className="text-xs font-bold text-slate-600">Mã tài sản<input value={symbol} onChange={(e) => setSymbol(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 uppercase" placeholder="VD: FPT, VNHAN" /></label><label className="text-xs font-bold text-slate-600">Tên tài sản<input value={name} onChange={(e) => setName(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label><label className="text-xs font-bold text-slate-600">Giá trị giao dịch<input type="number" min="1" value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label><label className="text-xs font-bold text-slate-600">Ngày giao dịch<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label><label className="text-xs font-bold text-slate-600">Số lượng<input type="number" min="0" step="any" value={quantity} onChange={(e) => setQuantity(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label><label className="text-xs font-bold text-slate-600">Đơn vị<input value={unit} onChange={(e) => setUnit(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label><label className="text-xs font-bold text-slate-600 sm:col-span-2">Ghi chú<input value={note} onChange={(e) => setNote(e.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3" /></label></div><div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4"><button type="button" onClick={onClose} className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600">Hủy</button><button className="h-10 rounded-xl bg-[#008f68] px-5 text-xs font-black text-white">Lưu giao dịch</button></div></form></div>
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!symbol.trim() || Number(amount) <= 0) return
+    onSave({
+      category,
+      symbol: symbol.trim().toUpperCase(),
+      name: name.trim() || symbol.trim().toUpperCase(),
+      type,
+      amount: Number(amount),
+      quantity: Number(quantity) || 0,
+      unit: unit.trim() || 'đơn vị',
+      date,
+      note
+    })
+  }
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-sm"
+      onMouseDown={onClose}
+    >
+      <form
+        onSubmit={submit}
+        onMouseDown={(event) => event.stopPropagation()}
+        className="w-full max-w-xl overflow-hidden rounded-[24px] bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between bg-[#075244] px-6 py-5 text-white">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[.2em] text-emerald-200">
+              Danh mục đầu tư
+            </p>
+            <h2 className="mt-1 text-xl font-black">
+              {transaction
+                ? 'Sửa giao dịch'
+                : holding
+                  ? `Cập nhật ${holding.symbol}`
+                  : 'Ghi giao dịch mới'}
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 hover:bg-white/10">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="grid gap-4 p-6 sm:grid-cols-2">
+          <label className="text-xs font-bold text-slate-600">
+            Nhóm tài sản
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as InvestmentCategory)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+            >
+              {CATEGORY_ORDER.map((key) => (
+                <option key={key} value={key}>
+                  {categoryMeta[key].label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Loại giao dịch
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as InvestmentTransactionType)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-white px-3"
+            >
+              {Object.entries(txLabel).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Mã tài sản
+            <input
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 uppercase"
+              placeholder="VD: FPT, VNHAN"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Tên tài sản
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Giá trị giao dịch
+            <input
+              type="number"
+              min="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Ngày giao dịch
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Số lượng
+            <input
+              type="number"
+              min="0"
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600">
+            Đơn vị
+            <input
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+          <label className="text-xs font-bold text-slate-600 sm:col-span-2">
+            Ghi chú
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-600"
+          >
+            Hủy
+          </button>
+          <button className="h-10 rounded-xl bg-[#008f68] px-5 text-xs font-black text-white">
+            Lưu giao dịch
+          </button>
+        </div>
+      </form>
+    </div>
+  )
 }
 
 export function InvestmentsTab(): ReactElement {
-  const [store, setStore] = useState<InvestmentStore>({ holdings: [], transactions: [], portfolioSnapshots: [], categoryTargets: {} })
-  const [screen, setScreen] = useState<Screen>('overview'); const [loading, setLoading] = useState(true); const [source, setSource] = useState<string>(); const [modal, setModal] = useState<{ holding?: InvestmentHolding; transaction?: InvestmentTransaction } | null>(null)
-  const load = async () => { setLoading(true); const result = await readInvestmentStore(); setStore(result.data); setSource(result.importedFrom); setLoading(false) }
-  useEffect(() => { void load() }, [])
-  const holdings = useMemo(() => store.holdings.filter((item) => item.valueVnd > 0), [store.holdings]); const transactions = useMemo(() => [...store.transactions].sort((a, b) => (b.occurredAt || b.date).localeCompare(a.occurredAt || a.date)), [store.transactions]); const visibleHoldings = screen === 'overview' || screen === 'transactions' ? holdings : holdings.filter((item) => item.category === screen); const total = holdings.reduce((sum, item) => sum + item.valueVnd, 0); const gain = holdings.reduce((sum, item) => sum + item.valueVnd * item.pnlPercent / 100, 0)
-  const allocation = CATEGORY_ORDER.map((key) => ({ key, name: categoryMeta[key].label, value: holdings.filter((item) => item.category === key).reduce((sum, item) => sum + item.valueVnd, 0), color: categoryMeta[key].color })).filter((item) => item.value > 0)
-  const history = store.portfolioSnapshots.length > 1 ? store.portfolioSnapshots.map((item) => ({ date: formatDate(item.capturedAt), value: item.totalValueVnd })) : [{ date: 'Hiện tại', value: total }]
-  const persist = async (next: InvestmentStore) => { setStore(next); await writeInvestmentStore(next) }
-  const saveTransaction = async (input: { category: InvestmentCategory; symbol: string; name: string; type: InvestmentTransactionType; amount: number; quantity: number; unit: string; date: string; note: string }) => { const oldTx = modal?.transaction; const nextTransactions = [...(oldTx ? store.transactions.filter((item) => item.id !== oldTx.id) : store.transactions), { id: oldTx?.id || `TX-${Date.now()}`, date: input.date, occurredAt: new Date().toISOString(), transactionType: input.type, assetSymbol: input.symbol, amountVnd: input.amount, status: 'done' as const, note: input.note, quantity: input.quantity, unit: input.unit, unitPriceVnd: input.quantity ? input.amount / input.quantity : input.amount, capitalAmountVnd: input.amount }]; const existing = store.holdings.find((item) => item.symbol.toUpperCase() === input.symbol); const sign = ['sell', 'withdraw'].includes(input.type) ? -1 : 1; const nextHolding: InvestmentHolding = { symbol: input.symbol, name: input.name, category: input.category, group: input.category === 'cash' ? 'Ví thanh toán' : 'Tài sản', valueVnd: Math.max(0, (existing?.valueVnd || 0) + sign * input.amount), quantity: input.quantity ? `${input.quantity} ${input.unit}` : existing?.quantity || input.unit, allocationPercent: 0, targetPercent: existing?.targetPercent || store.categoryTargets?.[input.category] || 20, pnlPercent: existing?.pnlPercent || 0 }; const nextHoldings = existing ? store.holdings.map((item) => item.symbol === existing.symbol ? nextHolding : item) : [...store.holdings, nextHolding]; await persist({ ...store, holdings: nextHoldings, transactions: nextTransactions }); setModal(null) }
-  const nav: Array<{ id: Screen; label: string; icon: typeof TrendingUp }> = [{ id: 'overview', label: 'Tổng quan', icon: LayoutDashboard }, ...CATEGORY_ORDER.map((key) => ({ id: key as Screen, label: categoryMeta[key].label, icon: categoryMeta[key].icon })), { id: 'transactions', label: 'Giao dịch', icon: Clock3 }]
-  return <div className="flex min-h-0 flex-1 overflow-hidden bg-[#f4f8f6]"><aside className="hidden w-[220px] shrink-0 border-r border-emerald-950/10 bg-[#0b4f43] p-3 text-white xl:block"><div className="mb-5 px-3 pt-3"><p className="text-[10px] font-black uppercase tracking-[.22em] text-emerald-200/70">Tài chính</p><h2 className="mt-1 text-lg font-black">Danh mục đầu tư</h2></div><nav className="space-y-1">{nav.map((item) => { const Icon = item.icon; return <button key={item.id} onClick={() => setScreen(item.id)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${screen === item.id ? 'bg-white text-[#075244]' : 'text-white/75 hover:bg-white/10'}`}><Icon size={17} />{item.label}</button> })}</nav></aside><main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-[1480px] space-y-5"><header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#008f68]">Tài chính · Đầu tư</p><h1 className="mt-1 text-2xl font-black tracking-tight text-[#12372a]">{screen === 'overview' ? 'Tổng quan tài sản' : screen === 'transactions' ? 'Sổ giao dịch' : categoryMeta[screen].label}</h1><p className="mt-1 text-sm text-slate-500">Theo dõi giá trị, hiệu suất và tỷ trọng danh mục trên cùng một màn hình.</p></div><div className="flex gap-2"><button onClick={() => void load()} className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"><RefreshCw size={15} /> Làm mới</button><button onClick={() => setModal({})} className="flex h-10 items-center gap-2 rounded-xl bg-[#008f68] px-4 text-xs font-black text-white"><Plus size={16} /> Ghi giao dịch</button></div></header><div className="flex gap-2 overflow-x-auto pb-1 xl:hidden">{nav.map((item) => <button key={item.id} onClick={() => setScreen(item.id)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black ${screen === item.id ? 'bg-[#075244] text-white' : 'border border-slate-200 bg-white text-slate-500'}`}>{item.label}</button>)}</div>{source && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-800">Đã nhập danh mục hiện có từ DBY Finance. Dữ liệu mới được lưu riêng trong An Khang Home.</div>}{loading ? <div className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-sm text-slate-500">Đang tải danh mục...</div> : holdings.length === 0 ? <div className="rounded-2xl border border-dashed border-emerald-200 bg-white p-14 text-center"><Target className="mx-auto text-[#008f68]" size={34} /><h2 className="mt-4 text-lg font-black text-[#12372a]">Chưa kết nối được dữ liệu danh mục</h2><p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">Không tìm thấy dữ liệu DBY Finance trên máy này. Bạn vẫn có thể bắt đầu bằng nút Ghi giao dịch.</p></div> : <><section className="grid gap-3 md:grid-cols-3"><div className="rounded-[22px] bg-[#075244] p-5 text-white"><p className="text-xs font-bold text-white/65">Tổng giá trị tài sản</p><p className="mt-2 text-3xl font-black tabular-nums">{money(total)}</p><p className="mt-3 text-xs text-white/65">{holdings.length} khoản đang hoạt động</p></div><div className="rounded-[22px] border border-emerald-100 bg-white p-5 shadow-sm"><p className="text-xs font-bold text-slate-500">Lãi/lỗ tạm tính</p><p className={`mt-2 text-2xl font-black tabular-nums ${gain >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{gain >= 0 ? '+' : ''}{money(gain)}</p><p className="mt-3 text-xs text-slate-400">Tổng hợp theo từng tài sản</p></div><div className="rounded-[22px] border border-emerald-100 bg-white p-5 shadow-sm"><p className="text-xs font-bold text-slate-500">Phân bổ lớn nhất</p><p className="mt-2 text-2xl font-black text-[#12372a]">{allocation.sort((a, b) => b.value - a.value)[0]?.name}</p><p className="mt-3 text-xs text-slate-400">{(((allocation.sort((a, b) => b.value - a.value)[0]?.value || 0) / total) * 100).toFixed(1)}% tổng danh mục</p></div></section>{screen === 'overview' && <section className="grid gap-5 lg:grid-cols-[1.45fr_.55fr]"><div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-black text-[#12372a]">Biến động giá trị tài sản</h2><p className="mt-1 text-xs text-slate-400">Diễn biến theo lịch sử danh mục</p><div className="mt-3 h-[245px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={history}><defs><linearGradient id="investmentFill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#008f68" stopOpacity={0.26}/><stop offset="95%" stopColor="#008f68" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8efec"/><XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }}/><YAxis axisLine={false} tickLine={false} tickFormatter={compactMoney} tick={{ fontSize: 10, fill: '#94a3b8' }}/><Tooltip formatter={(value) => money(Number(value))}/><Area type="monotone" dataKey="value" stroke="#008f68" strokeWidth={3} fill="url(#investmentFill)" /></AreaChart></ResponsiveContainer></div></div><div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-black text-[#12372a]">Cơ cấu danh mục</h2><div className="mx-auto h-[170px] max-w-[230px]"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={allocation} dataKey="value" nameKey="name" innerRadius={48} outerRadius={72} paddingAngle={3}>{allocation.map((item) => <Cell key={item.key} fill={item.color} />)}</Pie><Tooltip formatter={(value) => money(Number(value))}/></PieChart></ResponsiveContainer></div><div className="space-y-2">{allocation.map((item) => <button key={item.key} onClick={() => setScreen(item.key)} className="flex w-full items-center justify-between text-xs"><span className="flex items-center gap-2 font-bold text-slate-600"><span className="h-2.5 w-2.5 rounded-full" style={{ background: item.color }} />{item.name}</span><strong className="text-slate-800">{(item.value / total * 100).toFixed(1)}%</strong></button>)}</div></div></section>}{screen !== 'transactions' && <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 px-5 py-4"><div><h2 className="font-black text-[#12372a]">Tài sản đang nắm giữ</h2><p className="mt-1 text-xs text-slate-400">Giá trị, tỷ trọng mục tiêu và hiệu suất từng khoản</p></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{visibleHoldings.length} tài sản</span></div><div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left"><thead className="bg-[#f7faf8] text-[10px] font-black uppercase tracking-wider text-slate-400"><tr><th className="px-5 py-3">Tài sản</th><th className="px-4 py-3">Nhóm</th><th className="px-4 py-3 text-right">Giá trị</th><th className="px-4 py-3">Phân bổ</th><th className="px-4 py-3 text-right">Lãi/lỗ</th><th className="px-5 py-3" /></tr></thead><tbody className="divide-y divide-slate-100">{visibleHoldings.map((item) => { const meta = categoryMeta[item.category]; const percent = total ? item.valueVnd / total * 100 : 0; return <tr key={item.symbol} className="hover:bg-emerald-50/30"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: meta.color }}><meta.icon size={17}/></span><div><p className="text-sm font-black text-[#12372a]">{item.name}</p><p className="mt-0.5 text-xs text-slate-400">{item.symbol} · {item.quantity}</p></div></div></td><td className="px-4 py-4 text-xs font-bold text-slate-500">{meta.label}</td><td className="px-4 py-4 text-right text-sm font-black text-slate-800">{money(item.valueVnd)}</td><td className="px-4 py-4"><div className="mb-1 flex justify-between text-[10px] font-bold text-slate-500"><span>{percent.toFixed(1)}%</span><span>MT {item.targetPercent}%</span></div><div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100"><span className="block h-full rounded-full" style={{ width: `${Math.min(percent, 100)}%`, background: meta.color }} /></div></td><td className={`px-4 py-4 text-right text-xs font-black ${item.pnlPercent >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{item.pnlPercent >= 0 ? '+' : ''}{item.pnlPercent.toFixed(2)}%</td><td className="px-5 py-4 text-right"><button onClick={() => setModal({ holding: item })} className="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"><Pencil size={15}/></button></td></tr> })}</tbody></table></div></section>}{(screen === 'overview' || screen === 'transactions') && <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-[#12372a]">{screen === 'transactions' ? 'Toàn bộ giao dịch' : 'Giao dịch gần đây'}</h2><p className="mt-1 text-xs text-slate-400">Lịch sử mua, bán, nạp và rút khỏi danh mục</p></div><div className="divide-y divide-slate-100">{transactions.slice(0, screen === 'transactions' ? undefined : 7).map((tx) => { const outgoing = ['sell', 'withdraw'].includes(tx.transactionType); return <div key={tx.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"><div className="flex items-center gap-3"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${outgoing ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}>{outgoing ? <ArrowDownLeft size={17}/> : <ArrowUpRight size={17}/>}</span><div><p className="text-sm font-black text-slate-700">{tx.assetSymbol} · {txLabel[tx.transactionType]}</p><p className="mt-0.5 text-xs text-slate-400">{formatDate(tx.date)}{tx.note ? ` · ${tx.note}` : ''}</p></div></div><div className="flex items-center gap-2"><strong className={outgoing ? 'text-rose-600' : 'text-emerald-700'}>{outgoing ? '-' : '+'}{money(tx.amountVnd)}</strong><button onClick={() => setModal({ transaction: tx, holding: store.holdings.find((item) => item.symbol === tx.assetSymbol) })} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><Pencil size={14}/></button><button onClick={() => void persist({ ...store, transactions: store.transactions.filter((item) => item.id !== tx.id) })} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={14}/></button></div></div> })}</div></section>}</>}</div></main>{modal && <TransactionModal holding={modal.holding} transaction={modal.transaction} onClose={() => setModal(null)} onSave={(input) => void saveTransaction(input)} />}</div>
+  const [store, setStore] = useState<InvestmentStore>({
+    holdings: [],
+    transactions: [],
+    portfolioSnapshots: [],
+    categoryTargets: {}
+  })
+  const [screen, setScreen] = useState<Screen>('overview')
+  const [loading, setLoading] = useState(true)
+  const [source, setSource] = useState<string>()
+  const [modal, setModal] = useState<{
+    holding?: InvestmentHolding
+    transaction?: InvestmentTransaction
+  } | null>(null)
+  const [targetsOpen, setTargetsOpen] = useState(false)
+  const [targetDraft, setTargetDraft] = useState<Record<string, number>>({})
+  const [chartMode, setChartMode] = useState<'category' | 'asset'>('category')
+  const [transactionFilter, setTransactionFilter] = useState<InvestmentTransactionType | 'all'>('all')
+  const load = async () => {
+    setLoading(true)
+    const result = await readInvestmentStore()
+    setStore(result.data)
+    setSource(result.importedFrom)
+    setLoading(false)
+  }
+  useEffect(() => {
+    void load()
+  }, [])
+  const holdings = useMemo(
+    () => store.holdings.filter((item) => item.valueVnd > 0),
+    [store.holdings]
+  )
+  const transactions = useMemo(
+    () =>
+      [...store.transactions].sort((a, b) =>
+        (b.occurredAt || b.date).localeCompare(a.occurredAt || a.date)
+      ),
+    [store.transactions]
+  )
+  const visibleHoldings =
+    screen === 'overview' || screen === 'transactions'
+      ? holdings
+      : holdings.filter((item) => item.category === screen)
+  const categoryTransactions = useMemo(() => {
+    if (screen === 'overview' || screen === 'transactions') return []
+    const symbols = new Set(visibleHoldings.map((item) => item.symbol.toUpperCase()))
+    return transactions.filter((tx) => symbols.has(tx.assetSymbol.toUpperCase()) || (screen === 'cash' && tx.assetSymbol.toUpperCase() === 'CASH'))
+  }, [screen, transactions, visibleHoldings])
+  const total = holdings.reduce((sum, item) => sum + item.valueVnd, 0)
+  const gain = holdings.reduce((sum, item) => sum + (item.valueVnd * item.pnlPercent) / 100, 0)
+  const allocation = CATEGORY_ORDER.filter((key) => key !== 'cash').map((key) => ({
+    key,
+    name: categoryMeta[key].label,
+    value: holdings
+      .filter((item) => item.category === key || (key === 'savings' && item.category === 'cash'))
+      .reduce((sum, item) => sum + item.valueVnd, 0),
+    color: categoryMeta[key].color
+  })).filter((item) => item.value > 0)
+  const assetAllocation = holdings
+    .slice()
+    .sort((a, b) => b.valueVnd - a.valueVnd)
+    .map((item, index) => ({
+      key: item.symbol,
+      name: item.symbol,
+      value: item.valueVnd,
+      color: ['#087f5b', '#d97706', '#2563eb', '#8b5cf6', '#16a34a', '#0f766e'][index % 6]
+    }))
+  const currentAllocation = chartMode === 'category' ? allocation : assetAllocation
+  const sortedTargets = CATEGORY_ORDER.filter((key) => key !== 'cash')
+  const driftAlerts = sortedTargets
+    .map((key) => {
+      const actual = total ? ((allocation.find((item) => item.key === key)?.value || 0) / total) * 100 : 0
+      const target = targetDraft[key] ?? store.categoryTargets?.[key] ?? 20
+      const drift = actual - target
+      return { key, actual, target, drift, amount: Math.round((total * Math.abs(drift)) / 100) }
+    })
+    .filter((item) => Math.abs(item.drift) >= 3)
+    .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift))
+  const history = useMemo(() => {
+    if (store.portfolioSnapshots.length > 1) {
+      return store.portfolioSnapshots.map((item) => ({ date: formatDate(item.capturedAt), value: item.totalValueVnd }))
+    }
+    const ordered = [...transactions].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+    const netChange = ordered.reduce((sum, tx) => sum + transactionAssetDelta(tx), 0)
+    let value = Math.max(0, total - netChange)
+    const points = [{ date: 'Bắt đầu', value }]
+    for (const tx of ordered) {
+      value = Math.max(0, value + transactionAssetDelta(tx))
+      points.push({ date: formatDate(tx.date), value })
+    }
+    return points.length > 1 ? points : [{ date: 'Hiện tại', value: total }]
+  }, [store.portfolioSnapshots, transactions, total])
+  const persist = async (next: InvestmentStore) => {
+    setStore(next)
+    await writeInvestmentStore(next)
+  }
+  const openTargets = () => {
+    const next: Record<string, number> = {}
+    sortedTargets.forEach((key) => { next[key] = store.categoryTargets?.[key] ?? 20 })
+    setTargetDraft(next)
+    setTargetsOpen((value) => !value)
+  }
+  const saveTargets = async () => {
+    const totalTarget = sortedTargets.reduce((sum, key) => sum + (targetDraft[key] || 0), 0)
+    if (totalTarget > 100) return
+    const targets = { ...(store.categoryTargets || {}), ...targetDraft }
+    await persist({ ...store, categoryTargets: targets, holdings: store.holdings.map((item) => ({ ...item, targetPercent: targets[item.category] ?? item.targetPercent })) })
+    setTargetsOpen(false)
+  }
+  const saveTransaction = async (input: {
+    category: InvestmentCategory
+    symbol: string
+    name: string
+    type: InvestmentTransactionType
+    amount: number
+    quantity: number
+    unit: string
+    date: string
+    note: string
+  }) => {
+    const oldTx = modal?.transaction
+    const nextTransactions = [
+      ...(oldTx ? store.transactions.filter((item) => item.id !== oldTx.id) : store.transactions),
+      {
+        id: oldTx?.id || `TX-${Date.now()}`,
+        date: input.date,
+        occurredAt: new Date().toISOString(),
+        transactionType: input.type,
+        assetSymbol: input.symbol,
+        amountVnd: input.amount,
+        status: 'done' as const,
+        note: input.note,
+        quantity: input.quantity,
+        unit: input.unit,
+        unitPriceVnd: input.quantity ? input.amount / input.quantity : input.amount,
+        capitalAmountVnd: input.amount
+      }
+    ]
+    const oldImpact = oldTx ? transactionAssetDelta(oldTx) : 0
+    const newTx = nextTransactions[nextTransactions.length - 1]
+    const newImpact = transactionAssetDelta(newTx)
+    const oldCashImpact = oldTx ? transactionCashDelta(oldTx) : 0
+    const newCashImpact = transactionCashDelta(newTx)
+    const nextHoldingsMap = new Map(store.holdings.map((item) => [item.symbol.toUpperCase(), { ...item }]))
+    const updateHolding = (symbol: string, delta: number, fallback?: Partial<InvestmentHolding>) => {
+      if (!symbol || !delta) return
+      const key = symbol.toUpperCase()
+      const existing = nextHoldingsMap.get(key)
+      const base = existing || {
+        symbol: key,
+        name: fallback?.name || key,
+        category: fallback?.category || input.category,
+        group: fallback?.group || (input.category === 'cash' ? 'Ví thanh toán' : 'Tài sản'),
+        valueVnd: 0,
+        quantity: fallback?.quantity || input.unit,
+        allocationPercent: 0,
+        targetPercent: store.categoryTargets?.[input.category] || 20,
+        pnlPercent: 0
+      }
+      nextHoldingsMap.set(key, { ...base, valueVnd: Math.max(0, base.valueVnd + delta) })
+    }
+    if (oldTx) {
+      updateHolding(oldTx.assetSymbol, -oldImpact)
+      updateHolding('CASH', -oldCashImpact, { name: 'Ví VND', category: 'cash', group: 'Ví thanh toán', quantity: 'VND' })
+    }
+    updateHolding(input.symbol, newImpact, { name: input.name, category: input.category, group: input.category === 'cash' ? 'Ví thanh toán' : 'Tài sản', quantity: input.quantity ? `${input.quantity} ${input.unit}` : input.unit })
+    updateHolding('CASH', newCashImpact, { name: 'Ví VND', category: 'cash', group: 'Ví thanh toán', quantity: 'VND' })
+    const edited = nextHoldingsMap.get(input.symbol)
+    if (edited && input.quantity) nextHoldingsMap.set(input.symbol, { ...edited, name: input.name, category: input.category, quantity: `${input.quantity} ${input.unit}`, targetPercent: store.categoryTargets?.[input.category] || edited.targetPercent })
+    const nextHoldings = Array.from(nextHoldingsMap.values())
+    await persist({ ...store, holdings: nextHoldings, transactions: nextTransactions })
+    setModal(null)
+  }
+  const deleteTransaction = async (tx: InvestmentTransaction) => {
+    const nextHoldingsMap = new Map(store.holdings.map((item) => [item.symbol.toUpperCase(), { ...item }]))
+    const updateHolding = (symbol: string, delta: number) => {
+      const existing = nextHoldingsMap.get(symbol.toUpperCase())
+      if (existing) nextHoldingsMap.set(symbol.toUpperCase(), { ...existing, valueVnd: Math.max(0, existing.valueVnd + delta) })
+    }
+    updateHolding(tx.assetSymbol, -transactionAssetDelta(tx))
+    updateHolding('CASH', -transactionCashDelta(tx))
+    await persist({ ...store, holdings: Array.from(nextHoldingsMap.values()), transactions: store.transactions.filter((item) => item.id !== tx.id) })
+  }
+  const nav: Array<{ id: Screen; label: string; icon: typeof TrendingUp }> = [
+    { id: 'overview', label: 'Tổng quan', icon: LayoutDashboard },
+    ...CATEGORY_ORDER.map((key) => ({
+      id: key as Screen,
+      label: categoryMeta[key].label,
+      icon: categoryMeta[key].icon
+    })),
+    { id: 'transactions', label: 'Giao dịch', icon: Clock3 }
+  ]
+  return (
+    <div className="flex min-h-0 flex-1 overflow-hidden bg-[#f4f8f6]">
+      <aside className="hidden w-[220px] shrink-0 border-r border-emerald-950/10 bg-[#0b4f43] p-3 text-white xl:block">
+        <div className="mb-5 px-3 pt-3">
+          <p className="text-[10px] font-black uppercase tracking-[.22em] text-emerald-200/70">
+            Tài chính
+          </p>
+          <h2 className="mt-1 text-lg font-black">Danh mục đầu tư</h2>
+        </div>
+        <nav className="space-y-1">
+          {nav.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.id}
+                onClick={() => setScreen(item.id)}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold ${screen === item.id ? 'bg-white text-[#075244]' : 'text-white/75 hover:bg-white/10'}`}
+              >
+                <Icon size={17} />
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+      </aside>
+      <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="mx-auto max-w-[1480px] space-y-5">
+          <header className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#008f68]">
+                Tài chính · Đầu tư
+              </p>
+              <h1 className="mt-1 text-2xl font-black tracking-tight text-[#12372a]">
+                {screen === 'overview'
+                  ? 'Tổng quan tài sản'
+                  : screen === 'transactions'
+                    ? 'Sổ giao dịch'
+                    : categoryMeta[screen].label}
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Theo dõi giá trị, hiệu suất và tỷ trọng danh mục trên cùng một màn hình.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => void load()}
+                className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <RefreshCw size={15} /> Làm mới
+              </button>
+              <button
+                onClick={() => setModal({})}
+                className="flex h-10 items-center gap-2 rounded-xl bg-[#008f68] px-4 text-xs font-black text-white"
+              >
+                <Plus size={16} /> Ghi giao dịch
+              </button>
+            </div>
+          </header>
+          <div className="flex gap-2 overflow-x-auto pb-1 xl:hidden">
+            {nav.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setScreen(item.id)}
+                className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-black ${screen === item.id ? 'bg-[#075244] text-white' : 'border border-slate-200 bg-white text-slate-500'}`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {source && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-800">
+              Đã nhập danh mục hiện có từ DBY Finance. Dữ liệu mới được lưu riêng trong An Khang
+              Home.
+            </div>
+          )}
+          {loading ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-16 text-center text-sm text-slate-500">
+              Đang tải danh mục...
+            </div>
+          ) : holdings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-emerald-200 bg-white p-14 text-center">
+              <Target className="mx-auto text-[#008f68]" size={34} />
+              <h2 className="mt-4 text-lg font-black text-[#12372a]">
+                Chưa kết nối được dữ liệu danh mục
+              </h2>
+              <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
+                Không tìm thấy dữ liệu DBY Finance trên máy này. Bạn vẫn có thể bắt đầu bằng nút Ghi
+                giao dịch.
+              </p>
+            </div>
+          ) : (
+            <>
+              <section className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-[22px] bg-[#075244] p-5 text-white">
+                  <p className="text-xs font-bold text-white/65">Tổng giá trị tài sản</p>
+                  <p className="mt-2 text-3xl font-black tabular-nums">{money(total)}</p>
+                  <p className="mt-3 text-xs text-white/65">
+                    {holdings.length} khoản đang hoạt động
+                  </p>
+                </div>
+                <div className="rounded-[22px] border border-emerald-100 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-bold text-slate-500">Lãi/lỗ tạm tính</p>
+                  <p
+                    className={`mt-2 text-2xl font-black tabular-nums ${gain >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
+                  >
+                    {gain >= 0 ? '+' : ''}
+                    {money(gain)}
+                  </p>
+                  <p className="mt-3 text-xs text-slate-400">Tổng hợp theo từng tài sản</p>
+                </div>
+                <div className="rounded-[22px] border border-emerald-100 bg-white p-5 shadow-sm">
+                  <p className="text-xs font-bold text-slate-500">Phân bổ lớn nhất</p>
+                  <p className="mt-2 text-2xl font-black text-[#12372a]">
+                    {allocation.sort((a, b) => b.value - a.value)[0]?.name}
+                  </p>
+                  <p className="mt-3 text-xs text-slate-400">
+                    {(
+                      ((allocation.sort((a, b) => b.value - a.value)[0]?.value || 0) / total) *
+                      100
+                    ).toFixed(1)}
+                    % tổng danh mục
+                  </p>
+                </div>
+              </section>
+              {(
+                <section className="grid gap-5 lg:grid-cols-[1.45fr_.55fr]">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div><h2 className="font-black text-[#12372a]">Biến động giá trị tài sản</h2><p className="mt-1 text-xs text-slate-400">Diễn biến theo lịch sử danh mục</p></div>
+                      <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[10px] font-black"><button type="button" onClick={() => setChartMode('category')} className={`rounded-md px-2 py-1 ${chartMode === 'category' ? 'bg-white text-[#008f68] shadow-sm' : 'text-slate-400'}`}>Theo nhóm</button><button type="button" onClick={() => setChartMode('asset')} className={`rounded-md px-2 py-1 ${chartMode === 'asset' ? 'bg-white text-[#008f68] shadow-sm' : 'text-slate-400'}`}>Theo mã</button></div>
+                    </div>
+                    <div className="mt-3 h-[245px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={history}>
+                          <defs>
+                            <linearGradient id="investmentFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#008f68" stopOpacity={0.26} />
+                              <stop offset="95%" stopColor="#008f68" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8efec" />
+                          <XAxis
+                            dataKey="date"
+                            axisLine={false}
+                            tickLine={false}
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          />
+                          <YAxis
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={compactMoney}
+                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                          />
+                          <Tooltip formatter={(value) => money(Number(value))} />
+                          <Area
+                            type="monotone"
+                            dataKey="value"
+                            stroke="#008f68"
+                            strokeWidth={3}
+                            fill="url(#investmentFill)"
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="font-black text-[#12372a]">Cơ cấu danh mục</h2>
+                    <div className="mx-auto h-[170px] max-w-[230px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={currentAllocation}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={48}
+                            outerRadius={72}
+                            paddingAngle={3}
+                          >
+                            {currentAllocation.map((item) => (
+                              <Cell key={item.key} fill={item.color} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value) => money(Number(value))} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2">
+                      {currentAllocation.map((item) => (
+                        <button
+                          key={item.key}
+                          onClick={() => setScreen(item.key as Screen)}
+                          className="flex w-full items-center justify-between text-xs"
+                        >
+                          <span className="flex items-center gap-2 font-bold text-slate-600">
+                            <span
+                              className="h-2.5 w-2.5 rounded-full"
+                              style={{ background: item.color }}
+                            />
+                            {item.name}
+                          </span>
+                          <strong className="text-slate-800">
+                            {((item.value / total) * 100).toFixed(1)}%
+                          </strong>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-5 border-t border-slate-100 pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <div><p className="text-xs font-black text-[#12372a]">Tái cân bằng</p><p className="mt-1 text-[11px] text-slate-400">So sánh tỷ trọng thực tế với mục tiêu</p></div>
+                        <button type="button" onClick={openTargets} className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black text-emerald-700">{targetsOpen ? 'Đóng' : 'Cài mục tiêu'}</button>
+                      </div>
+                      {targetsOpen && <div className="mt-3 space-y-2">{sortedTargets.map((key) => <label key={key} className="flex items-center justify-between gap-2 text-xs font-bold text-slate-600"><span>{categoryMeta[key].label}</span><span className="flex items-center gap-1"><input type="number" min="0" max="100" value={targetDraft[key] ?? 20} onChange={(event) => setTargetDraft((prev) => ({ ...prev, [key]: Math.min(100, Math.max(0, Number(event.target.value) || 0)) }))} className="h-8 w-16 rounded-lg border border-slate-200 px-2 text-right" />%</span></label>)}<div className="flex items-center justify-between pt-1 text-[10px] font-black"><span className={sortedTargets.reduce((sum, key) => sum + (targetDraft[key] || 0), 0) === 100 ? 'text-emerald-700' : 'text-rose-600'}>{sortedTargets.reduce((sum, key) => sum + (targetDraft[key] || 0), 0)}% / 100%</span><button type="button" onClick={() => void saveTargets()} disabled={sortedTargets.reduce((sum, key) => sum + (targetDraft[key] || 0), 0) !== 100} className="rounded-lg bg-[#008f68] px-2.5 py-1.5 text-white disabled:cursor-not-allowed disabled:opacity-40">Lưu</button></div></div>}
+                      {driftAlerts.length > 0 && <div className="mt-3 space-y-2">{driftAlerts.map((alert) => <div key={alert.key} className="rounded-lg border-l-4 border-amber-400 bg-amber-50 px-3 py-2"><p className="text-[11px] font-black text-slate-700">{categoryMeta[alert.key].label}</p><p className="mt-0.5 text-[10px] font-bold text-amber-700">{alert.drift > 0 ? `Vượt ${alert.drift.toFixed(1)}% · nên giảm ${money(alert.amount)}` : `Thiếu ${Math.abs(alert.drift).toFixed(1)}% · nên bổ sung ${money(alert.amount)}`}</p></div>)}</div>}
+                    </div>
+                  </div>
+                </section>
+              )}
+              {screen !== 'transactions' && (
+                <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                      <h2 className="font-black text-[#12372a]">Tài sản đang nắm giữ</h2>
+                      <p className="mt-1 text-xs text-slate-400">
+                        Giá trị, tỷ trọng mục tiêu và hiệu suất từng khoản
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+                      {visibleHoldings.length} tài sản
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[780px] text-left">
+                      <thead className="bg-[#f7faf8] text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <tr>
+                          <th className="px-5 py-3">Tài sản</th>
+                          <th className="px-4 py-3">Nhóm</th>
+                          <th className="px-4 py-3 text-right">Giá trị</th>
+                          <th className="px-4 py-3">Phân bổ</th>
+                          <th className="px-4 py-3 text-right">Lãi/lỗ</th>
+                          <th className="px-5 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {visibleHoldings.map((item) => {
+                          const meta = categoryMeta[item.category]
+                          const percent = total ? (item.valueVnd / total) * 100 : 0
+                          return (
+                            <tr key={item.symbol} className="hover:bg-emerald-50/30">
+                              <td className="px-5 py-4">
+                                <div className="flex items-center gap-3">
+                                  <span
+                                    className="flex h-9 w-9 items-center justify-center rounded-xl text-white"
+                                    style={{ background: meta.color }}
+                                  >
+                                    <meta.icon size={17} />
+                                  </span>
+                                  <div>
+                                    <p className="text-sm font-black text-[#12372a]">{item.name}</p>
+                                    <p className="mt-0.5 text-xs text-slate-400">
+                                      {item.symbol} · {item.quantity}
+                                    </p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-xs font-bold text-slate-500">
+                                {meta.label}
+                              </td>
+                              <td className="px-4 py-4 text-right text-sm font-black text-slate-800">
+                                {money(item.valueVnd)}
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="mb-1 flex justify-between text-[10px] font-bold text-slate-500">
+                                  <span>{percent.toFixed(1)}%</span>
+                                  <span>MT {item.targetPercent}%</span>
+                                </div>
+                                <div className="h-1.5 w-32 overflow-hidden rounded-full bg-slate-100">
+                                  <span
+                                    className="block h-full rounded-full"
+                                    style={{
+                                      width: `${Math.min(percent, 100)}%`,
+                                      background: meta.color
+                                    }}
+                                  />
+                                </div>
+                              </td>
+                              <td
+                                className={`px-4 py-4 text-right text-xs font-black ${item.pnlPercent >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}
+                              >
+                                {item.pnlPercent >= 0 ? '+' : ''}
+                                {item.pnlPercent.toFixed(2)}%
+                              </td>
+                              <td className="px-5 py-4 text-right">
+                                <button
+                                  onClick={() => setModal({ holding: item })}
+                                  className="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
+              {screen !== 'overview' && screen !== 'transactions' && (
+                <section className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
+                  <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+                    <h2 className="font-black text-[#12372a]">Tổng hợp {categoryMeta[screen].label}</h2>
+                    <div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between"><span className="text-slate-500">Giá trị hiện tại</span><strong className="text-[#12372a]">{money(visibleHoldings.reduce((sum, item) => sum + item.valueVnd, 0))}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Số khoản nắm giữ</span><strong>{visibleHoldings.length}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Số giao dịch</span><strong>{categoryTransactions.length}</strong></div>{screen === 'cash' && <><div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="text-slate-500">Tổng tiền vào</span><strong className="text-emerald-700">+{money(categoryTransactions.reduce((sum, tx) => sum + Math.max(0, transactionCashDelta(tx)), 0))}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Tổng tiền ra</span><strong className="text-rose-600">-{money(categoryTransactions.reduce((sum, tx) => sum + Math.max(0, -transactionCashDelta(tx)), 0))}</strong></div></>}</div>
+                  </div>
+                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-[#12372a]">Giao dịch của nhóm</h2><p className="mt-1 text-xs text-slate-400">Lịch sử riêng của {categoryMeta[screen].label.toLowerCase()}</p></div><div className="divide-y divide-slate-100">{categoryTransactions.length ? categoryTransactions.slice(0, 8).map((tx) => { const outgoing = ['sell', 'withdraw'].includes(tx.transactionType); return <button type="button" key={tx.id} onClick={() => { setModal({ transaction: tx, holding: store.holdings.find((item) => item.symbol === tx.assetSymbol) }) }} className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left hover:bg-slate-50"><div><p className="text-xs font-black text-slate-700">{tx.assetSymbol} · {txLabel[tx.transactionType]}</p><p className="mt-1 text-[11px] text-slate-400">{formatDate(tx.date)}{displayNote(tx.note) ? ` · ${displayNote(tx.note)}` : ''}</p></div><strong className={`text-xs ${outgoing ? 'text-rose-600' : 'text-emerald-700'}`}>{outgoing ? '-' : '+'}{money(tx.amountVnd)}</strong></button> }) : <p className="p-8 text-center text-sm text-slate-400">Chưa có giao dịch trong nhóm này.</p>}</div></div>
+                </section>
+              )}
+              {(screen === 'overview' || screen === 'transactions') && (
+                <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-100 px-5 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-black text-[#12372a]">{screen === 'transactions' ? 'Toàn bộ giao dịch' : 'Giao dịch gần đây'}</h2><p className="mt-1 text-xs text-slate-400">Lịch sử mua, bán, nạp và rút khỏi danh mục</p></div>{screen === 'transactions' && <div className="flex flex-wrap gap-1">{([['all', 'Tất cả'], ['buy', 'Mua'], ['sell', 'Bán'], ['deposit', 'Nạp'], ['withdraw', 'Rút'], ['import-existing', 'Nhập']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTransactionFilter(key)} className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black ${transactionFilter === key ? 'bg-emerald-50 text-emerald-700' : 'text-slate-400 hover:bg-slate-50'}`}>{label}</button>)}</div>}</div>
+                  </div>
+                  <div className="divide-y divide-slate-100">
+                    {transactions.filter((tx) => screen !== 'transactions' || isVisibleTransaction(tx, transactionFilter)).slice(0, screen === 'transactions' ? undefined : 7).map((tx) => {
+                      const outgoing = ['sell', 'withdraw'].includes(tx.transactionType)
+                      return (
+                        <div
+                          key={tx.id}
+                          className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`flex h-9 w-9 items-center justify-center rounded-xl ${outgoing ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-700'}`}
+                            >
+                              {outgoing ? <ArrowDownLeft size={17} /> : <ArrowUpRight size={17} />}
+                            </span>
+                            <div>
+                              <p className="text-sm font-black text-slate-700">
+                                {tx.assetSymbol} · {txLabel[tx.transactionType]}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-400">
+                                {formatDate(tx.date)}
+                                {displayNote(tx.note) ? ` · ${displayNote(tx.note)}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <strong className={outgoing ? 'text-rose-600' : 'text-emerald-700'}>
+                              {outgoing ? '-' : '+'}
+                              {money(tx.amountVnd)}
+                            </strong>
+                            <button
+                              onClick={() =>
+                                setModal({
+                                  transaction: tx,
+                                  holding: store.holdings.find(
+                                    (item) => item.symbol === tx.assetSymbol
+                                  )
+                                })
+                              }
+                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => void deleteTransaction(tx)}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </div>
+      </main>
+      {modal && (
+        <TransactionModal
+          holding={modal.holding}
+          transaction={modal.transaction}
+          onClose={() => setModal(null)}
+          onSave={(input) => void saveTransaction(input)}
+        />
+      )}
+    </div>
+  )
 }

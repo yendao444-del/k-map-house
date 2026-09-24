@@ -88,7 +88,9 @@ if errorlevel 1 (
 
 echo [4/5] Package NSIS installer...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win -c.win.signAndEditExecutable=false
+rem Keep electron-builder's executable editing enabled so the packaged EXE,
+rem installer and shortcuts all receive the DBY HOME icon and metadata.
+call npx electron-builder --win
 if errorlevel 1 (
     echo [X] DONG GOI INSTALLER THAT BAI!
     goto rollback_fail
@@ -101,19 +103,6 @@ if not exist "!INSTALLER!" (
 set UNPACKED_EXE=dist\win-unpacked\DBY Home.exe
 if not exist "!UNPACKED_EXE!" (
     echo [X] Khong tim thay app exe sau khi build: !UNPACKED_EXE!
-    goto rollback_fail
-)
-set RCEDIT=
-for /f "delims=" %%R in ('dir /b /s "%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\rcedit-x64.exe" 2^>nul') do if not defined RCEDIT set "RCEDIT=%%R"
-if not defined RCEDIT if exist "node_modules\electron-winstaller\vendor\rcedit.exe" set "RCEDIT=node_modules\electron-winstaller\vendor\rcedit.exe"
-if not defined RCEDIT (
-    echo [X] Khong tim thay rcedit de gan icon vao file exe.
-    goto rollback_fail
-)
-echo     Gan icon vao app exe...
-call "!RCEDIT!" "!UNPACKED_EXE!" --set-icon "build\icon.ico"
-if errorlevel 1 (
-    echo [X] Gan icon vao app exe that bai.
     goto rollback_fail
 )
 set LATEST_YML=dist\latest.yml
@@ -149,8 +138,36 @@ if not exist "!PORTABLE_ZIP!" (
     goto rollback_fail
 )
 
+echo [5/7] Tao goi cap nhat thong minh (quick + standard)...
+call node scripts\create-update-artifacts.cjs quick
+if errorlevel 1 (
+    echo [X] Khong tao duoc goi quick update.
+    goto rollback_fail
+)
+call node scripts\create-update-artifacts.cjs standard
+if errorlevel 1 (
+    echo [X] Khong tao duoc goi standard update.
+    goto rollback_fail
+)
+set QUICK_ZIP=updates\!NEW_VERSION!\DBYHOME-!NEW_VERSION!-quick.zip
+set QUICK_MANIFEST=updates\!NEW_VERSION!\DBYHOME-!NEW_VERSION!-quick-manifest.json
+set STANDARD_ZIP=updates\!NEW_VERSION!\DBYHOME-!NEW_VERSION!-standard.zip
+set STANDARD_MANIFEST=updates\!NEW_VERSION!\DBYHOME-!NEW_VERSION!-standard-manifest.json
+if not exist "!QUICK_ZIP!" goto rollback_fail
+if not exist "!QUICK_MANIFEST!" goto rollback_fail
+if not exist "!STANDARD_ZIP!" goto rollback_fail
+if not exist "!STANDARD_MANIFEST!" goto rollback_fail
+
+echo     Luu cac artifact vao updates\!NEW_VERSION!...
+set UPDATE_DIR=updates\!NEW_VERSION!
+if not exist "!UPDATE_DIR!" mkdir "!UPDATE_DIR!"
+copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
+copy /Y "!LATEST_YML!" "!UPDATE_DIR!\" >nul
+copy /Y "!INSTALLER_BLOCKMAP!" "!UPDATE_DIR!\" >nul
+copy /Y "!PORTABLE_ZIP!" "!UPDATE_DIR!\" >nul
+
 if "!ENABLE_GITHUB!"=="1" (
-    echo [5/6] Git commit + push...
+    echo [6/7] Git commit + push...
     git add -A
     git commit -m "v!NEW_VERSION! - !NOTES!"
     if errorlevel 1 ( echo GIT COMMIT THAT BAI! & goto rollback_fail )
@@ -166,11 +183,11 @@ if "!ENABLE_GITHUB!"=="1" (
     )
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & goto fail_after_commit )
 
-    echo [6/6] Tao GitHub Release...
-    gh release create v!NEW_VERSION! "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" --title "DBY HOME v!NEW_VERSION!" --notes "!NOTES!"
+    echo [7/7] Tao GitHub Release...
+    gh release create v!NEW_VERSION! "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" "!QUICK_ZIP!" "!QUICK_MANIFEST!" "!STANDARD_ZIP!" "!STANDARD_MANIFEST!" --title "DBY HOME v!NEW_VERSION!" --notes "!NOTES!"
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & goto fail_after_commit )
 ) else (
-    echo [5/5] Dang o che do local-only: bo qua Git push va GitHub Release.
+    echo [6/7] Dang o che do local-only: bo qua Git push va GitHub Release.
     echo     Neu muon upload de production auto-update, chay: RELEASE.bat --github
 )
 

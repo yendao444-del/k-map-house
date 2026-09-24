@@ -26,6 +26,9 @@ export type InvestmentTransaction = {
   unit?: string
   unitPriceVnd?: number
   capitalAmountVnd?: number
+  walletImpactVnd?: number
+  linkedAssetSymbol?: string
+  fundingSource?: 'wallet' | 'opening-balance'
 }
 
 export type InvestmentSnapshot = {
