@@ -585,12 +585,25 @@ async function runAutoUpdateCheck(): Promise<void> {
 
     if (data.hasUpdate) {
       sendToRenderer('update:available', silentData)
+
+      if (!data.downloadUrl || !data.checksum) {
+        throw new Error('Bản phát hành không có tệp cập nhật phù hợp.')
+      }
+
+      // Keep the production flow unattended: download, verify and apply the
+      // package as soon as the startup check finds a valid release.
+      sendToRenderer('update:status', {
+        status: 'downloading',
+        message: `Đang tự động tải bản v${data.latestVersion}...`
+      })
+      await installUpdate(data.downloadUrl, data.checksum)
     }
   } catch (error) {
-    void reportTelegramError('update-check-failed', { message: error instanceof Error ? error.message : error })
+    const message = error instanceof Error ? error.message : error
+    void reportTelegramError('update-auto-install-failed', { message })
     sendToRenderer('update:status', {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.',
+      message: typeof message === 'string' ? message : 'Không thể tự động cập nhật.',
       silent: true
     })
   }

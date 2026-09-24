@@ -45,6 +45,8 @@ asarUnpack:
 # en-US and vi, and filtering by a generic language can leave users with no
 # matching .pak file and crash the renderer (exit code -36861).
 extraFiles:
+  - from: build/icon.ico
+    to: DBY HOME.ico
   - from: node_modules/electron/dist/resources.pak
     to: .
   - from: node_modules/electron/dist/v8_context_snapshot.bin
@@ -65,6 +67,7 @@ win:
   signAndEditExecutable: true
 nsis:
   artifactName: DBYHOME-${version}-setup.${ext}
+  include: build/installer.nsh
   installerIcon: build/icon.ico
   uninstallerIcon: build/icon.ico
   oneClick: false
