@@ -27,6 +27,25 @@ function removeDir(dir) {
   fs.rmSync(dir, { recursive: true, force: true })
 }
 
+function removeDirWithRetry(dir) {
+  if (!fs.existsSync(dir)) return true
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      removeDir(dir)
+      if (!fs.existsSync(dir)) return true
+    } catch (error) {
+      if (attempt === 8) {
+        console.warn(`Khong the xoa thu muc cu ${path.basename(dir)} sau 8 lan thu: ${error.message}`)
+        return false
+      }
+      // Antivirus and Explorer can briefly hold a newly generated archive.
+      const waitUntil = Date.now() + 750
+      while (Date.now() < waitUntil) {}
+    }
+  }
+  return false
+}
+
 function sha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
 }
@@ -84,13 +103,7 @@ function pruneOldVersionDirectories() {
   for (const entry of fs.readdirSync(updatesRoot, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name === 'state' || entry.name === version) continue
     if (/^\d+\.\d+\.\d+$/.test(entry.name)) {
-      try {
-        removeDir(path.join(updatesRoot, entry.name))
-      } catch (error) {
-        // A file manager or antivirus can briefly lock an old artifact folder.
-        // Keep the release usable and retry cleanup on the next run.
-        console.warn(`Khong the don thu muc cu ${entry.name}: ${error.message}`)
-      }
+      removeDirWithRetry(path.join(updatesRoot, entry.name))
     }
   }
 }

@@ -13,9 +13,9 @@ thu cong cuoi cung.
 
 ## Cach chay
 
-- Update lon: `updates\RELEASE-FULL.bat`
-- Update code thong thuong: `updates\RELEASE-STANDARD.bat`
-- Update rat nho: `updates\RELEASE-QUICK.bat`
+- Update lon / cai lai: `updates\RELEASE-FULL.bat`
+- Update code day du: `updates\RELEASE-STANDARD.bat` (standard ZIP + installer)
+- Update rat nho theo dung phien ban lien truoc: `updates\RELEASE-QUICK.bat` (chi quick ZIP)
 
 All release scripts upload to GitHub by default. Use `--local` only when you
 intentionally want to create local artifacts without committing or publishing.
@@ -24,4 +24,4 @@ Only the current version directory is kept locally; older version directories
 are removed after a new artifact is generated. Published GitHub Release assets
 are not affected.
 
-`RELEASE.bat --github` tao cac artifact cho cung mot release. Updater trong app doc manifest va tu chon `quick` neu tuong thich, neu khong thi chon `standard`/`patch`; installer chi dung thu cong.
+Quick update phai dung lien tuc theo `fromVersion`. Vi du quick v1.0.84 co the ap dung cho v1.0.83, khong ap dung truc tiep cho v1.0.82. Khi production bi lech phien ban, dung standard.

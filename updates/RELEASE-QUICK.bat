@@ -2,7 +2,7 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 echo ============================================
-echo   DBY HOME - QUICK UPDATE
+echo   DBY HOME - QUICK UPDATE (CHI GOI QUICK)
 echo ============================================
 rem Releases upload to GitHub by default so production can receive the update.
 set ENABLE_GITHUB=1
@@ -33,35 +33,14 @@ set STEP=Build renderer
 echo [5/8] Build ung dung...
 call npx electron-vite build
 if errorlevel 1 goto fail
-set STEP=Dong goi installer
-echo [6/8] Dong goi installer Windows...
-set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win
-if errorlevel 1 goto fail
-set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
-if not exist "!INSTALLER!" (
-  echo [FAILED] Khong tim thay !INSTALLER!
-  goto fail
-)
-if not exist "dist\win-unpacked\locales\vi.pak" (
-  echo [FAILED] Thieu locale vi.pak trong goi Electron.
-  goto fail
-)
-if not exist "dist\win-unpacked\locales\en-US.pak" (
-  echo [FAILED] Thieu locale en-US.pak trong goi Electron.
-  goto fail
-)
 set STEP=Tao goi cap nhat
-echo [7/8] Tao quick + standard ZIP...
+echo [6/7] Tao duy nhat goi quick ZIP...
 node scripts\create-update-artifacts.cjs quick
 if errorlevel 1 goto fail
-call node scripts\create-update-artifacts.cjs standard
-if errorlevel 1 goto fail
 set UPDATE_DIR=updates\!NEW_VERSION!
-copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
 if "!ENABLE_GITHUB!"=="1" (
   set STEP=Push GitHub
-  echo [8/8] Commit va push GitHub...
+  echo [7/7] Commit va push GitHub...
   git add -A
   git commit -m "v!NEW_VERSION! - Quick update"
   if errorlevel 1 goto fail_after_commit
@@ -69,14 +48,14 @@ if "!ENABLE_GITHUB!"=="1" (
   if errorlevel 1 goto fail_after_commit
   set STEP=Tao GitHub Release
   echo     Tao release v!NEW_VERSION!...
-  gh release create v!NEW_VERSION! "!INSTALLER!" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick-manifest.json" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard-manifest.json" --title "DBY HOME v!NEW_VERSION! (QUICK)" --notes "Quick delta update with standard fallback and manual installer"
+  gh release create v!NEW_VERSION! "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick-manifest.json" --title "DBY HOME v!NEW_VERSION! (QUICK)" --notes "Quick delta update. Requires the fromVersion shown in the manifest."
   if errorlevel 1 goto fail_after_commit
   echo     GitHub Release da tao thanh cong.
 )
 echo.
-echo Da tao goi quick + standard trong %UPDATE_DIR%.
-echo Bo cai thu cong: %UPDATE_DIR%\DBYHOME-%NEW_VERSION%-setup.exe
-echo Goi quick chi ap dung tu dung phien ban fromVersion trong manifest.
+echo Da tao duy nhat goi quick trong %UPDATE_DIR%.
+echo Goi quick chi ap dung dung phien ban fromVersion trong manifest.
+echo Neu may dang lech phien ban, dung RELEASE-STANDARD.bat.
 echo.
 echo [SUCCESS] RELEASE v!NEW_VERSION! HOAN TAT.
 if "!ENABLE_GITHUB!"=="1" (

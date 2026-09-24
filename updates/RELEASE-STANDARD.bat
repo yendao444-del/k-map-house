@@ -23,10 +23,12 @@ if errorlevel 1 goto fail
 call npx electron-vite build
 if errorlevel 1 goto fail
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win -c.win.signAndEditExecutable=false
+call npx electron-builder --win
 if errorlevel 1 goto fail
 set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
 if not exist "!INSTALLER!" goto fail
+if not exist "dist\win-unpacked\locales\vi.pak" goto fail
+if not exist "dist\win-unpacked\locales\en-US.pak" goto fail
 node scripts\create-update-artifacts.cjs standard
 if errorlevel 1 goto fail
 set UPDATE_DIR=updates\!NEW_VERSION!
@@ -43,12 +45,14 @@ if "!ENABLE_GITHUB!"=="1" (
 echo.
 echo Da tao goi standard trong %UPDATE_DIR%.
 echo Bo cai thu cong: %UPDATE_DIR%\DBYHOME-%NEW_VERSION%-setup.exe
+echo [SUCCESS] STANDARD RELEASE v!NEW_VERSION! HOAN TAT.
 pause
 exit /b 0
 
 :fail
 node scripts\release-version.cjs set !CURRENT_VERSION! >nul 2>&1
 echo STANDARD UPDATE THAT BAI.
+echo [FAILED] Kiem tra lai buoc build, locale hoac tao artifact.
 exit /b 1
 
 :fail_after_commit
