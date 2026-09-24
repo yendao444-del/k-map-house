@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 
 export function setupRealtime(queryClient: QueryClient): () => void {
@@ -38,7 +39,11 @@ export function setupRealtime(queryClient: QueryClient): () => void {
     }
   }
 
-  const channel = supabase.channel('db-changes')
+  // Each effect setup gets its own topic. React StrictMode and auth refreshes
+  // can overlap cleanup with the next setup; reusing a topic can mutate a
+  // channel after it has already subscribed and crash the renderer.
+  const channelName = `db-changes-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const channel: RealtimeChannel = supabase.channel(channelName)
   for (const table of Object.keys(tableQueryKeys)) {
     channel.on(
       'postgres_changes',
@@ -46,11 +51,11 @@ export function setupRealtime(queryClient: QueryClient): () => void {
       () => queueInvalidation(table)
     )
   }
-  channel.subscribe()
+  void channel.subscribe()
 
   return () => {
     if (flushTimer) clearTimeout(flushTimer)
     pendingKeys.clear()
-    void supabase.removeChannel(channel)
+    void supabase.removeChannel(channel).catch(() => undefined)
   }
 }

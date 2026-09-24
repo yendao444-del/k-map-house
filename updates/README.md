@@ -7,6 +7,10 @@ Ba cap do goi cap nhat duoc tao trong thu muc `updates\<version>`:
 - `quick`: `DBYHOME-<version>-quick.zip`, chi chua file compiled thay doi va manifest xoa file. Chi ap dung neu `fromVersion` trung dung phien ban dang cai.
 - `manual`: `DBYHOME-<version>-setup.exe`, bo cai day du dung khi may khong nhan cap nhat tu GitHub.
 
+Ung dung dang chay chi tu tai `quick`, `standard` hoac `patch` ZIP. Installer `.exe`
+khong duoc tu dong tai de tranh tai goi 100 MB va lap update; dung installer cho lan cai
+thu cong cuoi cung.
+
 ## Cach chay
 
 - Update lon: `updates\RELEASE-FULL.bat`
@@ -20,4 +24,4 @@ Only the current version directory is kept locally; older version directories
 are removed after a new artifact is generated. Published GitHub Release assets
 are not affected.
 
-`RELEASE.bat --github` tao ca ba artifact cho cung mot release. Updater trong app doc manifest va tu chon `quick` neu tuong thich, neu khong thi chon `standard`, cuoi cung moi dung installer.
+`RELEASE.bat --github` tao cac artifact cho cung mot release. Updater trong app doc manifest va tu chon `quick` neu tuong thich, neu khong thi chon `standard`/`patch`; installer chi dung thu cong.

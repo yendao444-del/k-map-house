@@ -1617,17 +1617,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!window.api?.update) return undefined
 
-    const removeAvailable = window.api.update.onAvailable((data) => {
-      setUpdateBanner({
-        latestVersion: data.latestVersion,
-        downloadUrl: data.downloadUrl,
-        status: 'available',
-        message: `Có bản cập nhật v${data.latestVersion}. Hệ thống đang tự động cập nhật...`,
-        progress: 0
-      })
-    })
-
     const removeStatus = window.api.update.onStatus((event) => {
+      if ((event as any)?.silent || (event as any)?.data?.silent) return
+      if (['checking', 'available', 'idle', 'error'].includes(event.status)) {
+        setUpdateBanner(null)
+        return
+      }
       setUpdateBanner((current) => {
         const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & {
           currentVersion?: string
@@ -1648,7 +1643,6 @@ const App: React.FC = () => {
     })
 
     return () => {
-      removeAvailable()
       removeStatus()
       removeProgress()
     }

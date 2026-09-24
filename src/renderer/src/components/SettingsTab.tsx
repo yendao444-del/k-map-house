@@ -2087,22 +2087,30 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
 
   const fetchHistory = async () => {
     setLoadingHistory(true)
-    const result = await (window.api as any).update.getHistory()
-    if (result.success) {
-      setHistory(result.data)
+    try {
+      const result = await (window.api as any).update.getHistory()
+      if (result.success && Array.isArray(result.data)) {
+        setHistory(result.data)
+      }
+    } catch (error) {
+      console.error('[Updates] Could not load release history:', error)
+      setHistory([])
+    } finally {
+      setLoadingHistory(false)
     }
-    setLoadingHistory(false)
   }
 
   useEffect(() => {
     fetchHistory()
 
     // Lấy phiên bản hiện tại ngay khi mở màn hình.
-    window.api.update.getCurrentVersion().then((res: any) => {
-      if (res.success) {
-        setUpdateInfo(prev => prev ? { ...prev, currentVersion: res.data } : { currentVersion: res.data } as any)
-      }
-    })
+    void window.api.update.getCurrentVersion()
+      .then((res: any) => {
+        if (res.success) {
+          setUpdateInfo(prev => prev ? { ...prev, currentVersion: res.data } : { currentVersion: res.data } as any)
+        }
+      })
+      .catch((error) => console.error('[Updates] Could not read current version:', error))
 
     const removeStatus = window.api.update.onStatus((event: any) => {
       setStatus(event.status)
@@ -2129,21 +2137,27 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
     setStatus('checking')
     setMessage('Đang kiểm tra bản cập nhật mới...')
     setProgress(0)
-    const result = await window.api.update.check()
-    if (!result.success || !result.data) {
-      setMessage(result.error || 'Không thể kiểm tra cập nhật.')
-      setStatus('error')
-      return
-    }
+    try {
+      const result = await window.api.update.check()
+      if (!result.success || !result.data) {
+        setMessage(result.error || 'Không thể kiểm tra cập nhật.')
+        setStatus('error')
+        return
+      }
 
-    setUpdateInfo(result.data as ProductionUpdateInfo)
-    setMessage(
-      result.data.hasUpdate
-        ? `Phát hiện phiên bản mới v${result.data.latestVersion}.`
-        : 'Ứng dụng đang ở phiên bản mới nhất.'
-    )
-    setStatus(result.data.hasUpdate ? 'available' : 'idle')
-    fetchHistory()
+      setUpdateInfo(result.data as ProductionUpdateInfo)
+      setMessage(
+        result.data.hasUpdate
+          ? `Phát hiện phiên bản mới v${result.data.latestVersion}.`
+          : 'Ứng dụng đang ở phiên bản mới nhất.'
+      )
+      setStatus(result.data.hasUpdate ? 'available' : 'idle')
+      void fetchHistory()
+    } catch (error) {
+      console.error('[Updates] Check failed:', error)
+      setMessage(error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.')
+      setStatus('error')
+    }
   }
 
   const applyUpdate = async () => {
@@ -2159,18 +2173,24 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
         : 'Đang tải và chuẩn bị áp dụng bản cập nhật...'
     )
     setProgress(0)
-    const result = await window.api.update.installLatest()
-    if (!result.success) {
-      setMessage(result.error || 'Cập nhật thất bại.')
+    try {
+      const result = await window.api.update.installLatest()
+      if (!result.success) {
+        setMessage(result.error || 'Cập nhật thất bại.')
+        setStatus('available')
+        return
+      }
+      if (!updateInfo) return
+      setMessage(
+        updateInfo?.artifactType === 'installer'
+          ? 'Bộ cài đã được mở. Ứng dụng sẽ thoát để hoàn tất cài đặt.'
+          : `Đã chuẩn bị bản v${result.data?.version || updateInfo.latestVersion}. Ứng dụng sẽ khởi động lại.`
+      )
+    } catch (error) {
+      console.error('[Updates] Install failed:', error)
+      setMessage(error instanceof Error ? error.message : 'Cập nhật thất bại.')
       setStatus('available')
-      return
     }
-    if (!updateInfo) return
-    setMessage(
-      updateInfo?.artifactType === 'installer'
-        ? 'Bộ cài đã được mở. Ứng dụng sẽ thoát để hoàn tất cài đặt.'
-        : `Đã chuẩn bị bản v${result.data?.version || updateInfo.latestVersion}. Ứng dụng sẽ khởi động lại.`
-    )
   }
 
   const busy = ['checking', 'downloading', 'extracting', 'installing', 'restarting'].includes(status)

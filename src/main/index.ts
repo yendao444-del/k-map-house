@@ -1142,6 +1142,8 @@ function setupPerformanceHandlers(): void {
   })
 }
 
+// Avoid renderer/GPU crashes on production machines with unstable graphics drivers.
+app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 function createWindow(): void {

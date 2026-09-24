@@ -23,7 +23,7 @@ if errorlevel 1 goto fail
 call npx electron-vite build
 if errorlevel 1 goto fail
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win -c.win.signAndEditExecutable=false
+call npx electron-builder --win
 if errorlevel 1 goto fail
 set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
 if not exist "!INSTALLER!" goto fail

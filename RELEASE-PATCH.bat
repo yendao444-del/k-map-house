@@ -80,7 +80,7 @@ if errorlevel 1 (
     goto rollback_fail
 )
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win -c.win.signAndEditExecutable=false
+call npx electron-builder --win
 if errorlevel 1 (
     echo DONG GOI INSTALLER THAT BAI!
     goto rollback_fail

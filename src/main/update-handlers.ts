@@ -66,7 +66,6 @@ interface UpdateCheckResult {
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
 let updateInProgress = false
-let forcedInstallQueued = false
 const CACHE_DURATION = 5 * 60 * 1000
 const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
 
@@ -369,8 +368,22 @@ function createAsarFileUpdater(tempDir: string, sourceAsar: string, targetAsar: 
   const vbsPath = join(tempDir, 'apply-asar-update.vbs')
   const batContent = `@echo off
 chcp 65001 >nul
+set "LOG=%TEMP%\\k-map-house-logs\\update-apply.log"
+if not exist "%TEMP%\\k-map-house-logs" mkdir "%TEMP%\\k-map-house-logs"
+set /a attempts=0
+:retry
+set /a attempts+=1
 timeout /t 2 /nobreak >nul
 copy /Y "${sourceAsar}" "${targetAsar}" >nul 2>&1
+if not errorlevel 1 (
+  fc /B "${sourceAsar}" "${targetAsar}" >nul 2>&1
+  if not errorlevel 1 goto success
+)
+if %attempts% LSS 30 goto retry
+echo [%date% %time%] Failed to replace app.asar after %attempts% attempts. >> "%LOG%"
+exit /b 1
+:success
+echo [%date% %time%] Replaced and verified app.asar after %attempts% attempts. >> "%LOG%"
 start "" "${process.execPath}"
 timeout /t 3 /nobreak >nul
 rmdir /S /Q "${tempDir}" 2>nul
@@ -420,10 +433,6 @@ async function selectReleaseAsset(
   release: GithubRelease,
   currentVersion: string
 ): Promise<{ asset: ReleaseAsset | null; artifactType: UpdateCheckResult['artifactType'] }> {
-  const installerAsset =
-    release.assets.find((asset) => asset.name.toLowerCase().endsWith('-setup.exe')) ||
-    release.assets.find((asset) => asset.name.toLowerCase().endsWith('.exe')) ||
-    null
   const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
   const quickZip = zipAssets.find((asset) => /-quick\.zip$/i.test(asset.name)) || null
   const quickManifestAsset =
@@ -440,15 +449,10 @@ async function selectReleaseAsset(
     return { asset: standardZip, artifactType: 'standard' }
   }
 
-  const patchZip = zipAssets.find((asset) => asset.name.toUpperCase().includes('PATCH'))
-  const fullZip = zipAssets.find(
-    (asset) => /DBYHOME|KMAPHOUSE/i.test(asset.name) && !/-quick\.zip$/i.test(asset.name) && !/-standard\.zip$/i.test(asset.name)
-  )
+  const patchZip = zipAssets.find((asset) => /DBYHOME-PATCH-v[\d.]+\.zip$/i.test(asset.name) && asset.digest)
 
-  if (installerAsset) return { asset: installerAsset, artifactType: 'installer' }
   if (patchZip) return { asset: patchZip, artifactType: 'zip' }
-  if (fullZip) return { asset: fullZip, artifactType: 'zip' }
-  return { asset: zipAssets[0] || null, artifactType: zipAssets[0] ? 'zip' : 'none' }
+  return { asset: null, artifactType: 'none' }
 }
 
 function isInstallerAsset(asset: ReleaseAsset | null): boolean {
@@ -483,8 +487,8 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
   }
 
   const latestYml = await fetchLatestYml()
-  if (!latestYml) {
-    throw new Error('Không thể lấy thông tin bản cập nhật từ GitHub.')
+  if (!latestYml || latestYml.path.toLowerCase().endsWith('.exe')) {
+    throw new Error('Không tìm thấy gói cập nhật nhẹ trên GitHub. Hãy dùng bộ cài thủ công.')
   }
 
   return {
@@ -537,62 +541,31 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
   return { ...result, latestVersion: update.latestVersion, applied: true }
 }
 
-function forceInstallUpdate(update: UpdateCheckResult): void {
-  if (!app.isPackaged || !update.hasUpdate || forcedInstallQueued || updateInProgress) return
-
-  if (!update.downloadUrl || !update.checksum) {
-    sendToRenderer('update:status', {
-      status: 'error',
-      message: 'Bản phát hành không có tệp cập nhật phù hợp.',
-      data: update
-    })
-    return
-  }
-
-  forcedInstallQueued = true
-  sendToRenderer('update:status', {
-    status: 'available',
-    message: `Có bản mới v${update.latestVersion}. Đang tự động cập nhật...`,
-    data: update
-  })
-
-  setTimeout(() => {
-    void installUpdate(update.downloadUrl as string, update.checksum)
-      .catch((error) => {
-        sendToRenderer('update:status', {
-          status: 'error',
-          message: error instanceof Error ? error.message : 'Tự động cập nhật thất bại.',
-          data: update
-        })
-      })
-      .finally(() => {
-        forcedInstallQueued = false
-      })
-  }, 1500)
-}
-
 async function runAutoUpdateCheck(): Promise<void> {
   sendToRenderer('update:status', {
     status: 'checking',
-    message: 'Đang tự động kiểm tra bản cập nhật...'
+    message: 'Đang tự động kiểm tra bản cập nhật...',
+    silent: true
   })
 
   try {
     const data = await checkForUpdate()
+    const silentData = { ...data, silent: true }
     sendToRenderer('update:status', {
       status: data.hasUpdate ? 'available' : 'idle',
       message: data.hasUpdate ? `Có bản mới v${data.latestVersion}.` : 'Đang sử dụng bản mới nhất.',
-      data
+      data: silentData,
+      silent: true
     })
 
     if (data.hasUpdate) {
-      sendToRenderer('update:available', data)
-      forceInstallUpdate(data)
+      sendToRenderer('update:available', silentData)
     }
   } catch (error) {
     sendToRenderer('update:status', {
       status: 'error',
-      message: error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.'
+      message: error instanceof Error ? error.message : 'Không thể kiểm tra cập nhật.',
+      silent: true
     })
   }
 }
@@ -797,7 +770,6 @@ export function registerUpdateHandlers(): void {
       })
       if (data.hasUpdate) {
         sendToRenderer('update:available', data)
-        forceInstallUpdate(data)
       }
       return { success: true, data }
     } catch (error) {
