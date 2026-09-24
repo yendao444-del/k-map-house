@@ -15,4 +15,8 @@ Ba cap do goi cap nhat duoc tao trong thu muc `updates\<version>`:
 All release scripts upload to GitHub by default. Use `--local` only when you
 intentionally want to create local artifacts without committing or publishing.
 
+Only the current version directory is kept locally; older version directories
+are removed after a new artifact is generated. Published GitHub Release assets
+are not affected.
+
 `RELEASE.bat --github` tao ca ba artifact cho cung mot release. Updater trong app doc manifest va tu chon `quick` neu tuong thich, neu khong thi chon `standard`, cuoi cung moi dung installer.

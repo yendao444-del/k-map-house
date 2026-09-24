@@ -79,6 +79,16 @@ function writeState(files) {
   )
 }
 
+function pruneOldVersionDirectories() {
+  if (!fs.existsSync(updatesRoot)) return
+  for (const entry of fs.readdirSync(updatesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name === 'state' || entry.name === version) continue
+    if (/^\d+\.\d+\.\d+$/.test(entry.name)) {
+      removeDir(path.join(updatesRoot, entry.name))
+    }
+  }
+}
+
 function createStandard() {
   const appRoot = path.join(tempDir, 'resources', 'app')
   copyFile(path.join(root, 'package.json'), path.join(appRoot, 'package.json'))
@@ -151,6 +161,7 @@ try {
   const manifestPath = path.join(outputDir, `DBYHOME-${version}-${mode}-manifest.json`)
   fs.writeFileSync(manifestPath, JSON.stringify({ ...result.manifest, currentFiles }, null, 2) + '\n')
   writeState(currentFiles)
+  pruneOldVersionDirectories()
   console.log(result.zipPath)
   console.log(manifestPath)
 } finally {
