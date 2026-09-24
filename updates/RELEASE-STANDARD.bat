@@ -22,20 +22,27 @@ call npm run typecheck:web
 if errorlevel 1 goto fail
 call npx electron-vite build
 if errorlevel 1 goto fail
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+call npx electron-builder --win -c.win.signAndEditExecutable=false
+if errorlevel 1 goto fail
+set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
+if not exist "!INSTALLER!" goto fail
 node scripts\create-update-artifacts.cjs standard
 if errorlevel 1 goto fail
 set UPDATE_DIR=updates\!NEW_VERSION!
+copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
 if "!ENABLE_GITHUB!"=="1" (
   git add -A
   git commit -m "v!NEW_VERSION! - Standard update"
   if errorlevel 1 goto fail_after_commit
   git push
   if errorlevel 1 goto fail_after_commit
-  gh release create v!NEW_VERSION! "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard-manifest.json" --title "DBY HOME v!NEW_VERSION! (STANDARD)" --notes "Standard application update"
+  gh release create v!NEW_VERSION! "!INSTALLER!" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard-manifest.json" --title "DBY HOME v!NEW_VERSION! (STANDARD)" --notes "Standard application update with manual installer"
   if errorlevel 1 goto fail_after_commit
 )
 echo.
 echo Da tao goi standard trong %UPDATE_DIR%.
+echo Bo cai thu cong: %UPDATE_DIR%\DBYHOME-%NEW_VERSION%-setup.exe
 pause
 exit /b 0
 

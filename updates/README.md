@@ -5,6 +5,7 @@ Ba cap do goi cap nhat duoc tao trong thu muc `updates\<version>`:
 - `full`: bo cai `*-setup.exe`, portable ZIP, metadata va blockmap. Dung khi sua lon, thay doi Electron/runtime, hoac may dang loi nang.
 - `standard`: `DBYHOME-<version>-standard.zip`, chua toan bo `resources/app` (compiled app). Nho hon bo cai va an toan cho thay doi code thong thuong.
 - `quick`: `DBYHOME-<version>-quick.zip`, chi chua file compiled thay doi va manifest xoa file. Chi ap dung neu `fromVersion` trung dung phien ban dang cai.
+- `manual`: `DBYHOME-<version>-setup.exe`, bo cai day du dung khi may khong nhan cap nhat tu GitHub.
 
 ## Cach chay
 

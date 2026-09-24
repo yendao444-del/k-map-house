@@ -79,6 +79,17 @@ if errorlevel 1 (
     echo BUILD THAT BAI!
     goto rollback_fail
 )
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+call npx electron-builder --win -c.win.signAndEditExecutable=false
+if errorlevel 1 (
+    echo DONG GOI INSTALLER THAT BAI!
+    goto rollback_fail
+)
+set INSTALLER=dist\DBYHOME-!NEW_VERSION!-setup.exe
+if not exist "!INSTALLER!" (
+    echo KHONG TIM THAY INSTALLER!
+    goto rollback_fail
+)
 
 echo [2/4] Nen patch zip...
 if not exist "dist" mkdir "dist"
@@ -109,6 +120,9 @@ if not exist "!PATCH_ZIP!" (
     echo [X] Khong tao duoc file patch zip.
     goto rollback_fail
 )
+set UPDATE_DIR=updates\!NEW_VERSION!
+if not exist "!UPDATE_DIR!" mkdir "!UPDATE_DIR!"
+copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
 
 if "!ENABLE_GITHUB!"=="1" (
     echo [3/4] Git commit + push...
@@ -120,7 +134,7 @@ if "!ENABLE_GITHUB!"=="1" (
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & goto fail_after_commit )
 
     echo [4/4] Tao GitHub Release...
-    gh release create v!NEW_VERSION! "!PATCH_ZIP!" --title "DBY HOME v!NEW_VERSION! (PATCH)" --notes "!NOTES!"
+    gh release create v!NEW_VERSION! "!INSTALLER!" "!PATCH_ZIP!" --title "DBY HOME v!NEW_VERSION! (PATCH)" --notes "!NOTES! Manual installer included."
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & goto fail_after_commit )
     if exist "!PATCH_ZIP!" del /Q "!PATCH_ZIP!"
 ) else (
