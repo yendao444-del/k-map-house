@@ -1,7 +1,7 @@
 {
-  "version": "1.0.93",
+  "version": "1.0.94",
   "files": {
-    "package.json": "50184bb3dcb061b559ae905cb009c1a595bd6719782a2fb0bbb5a70d854b3870",
+    "package.json": "c3ff9ae3738a2217f4aa94c6e5932738af373832d00b720da2110441bbb8e40a",
     "out/main/index.js": "064bdfd3684796ff1acbdc3e26a99309fac8cbb6227a43f720ae09414d8adfd6",
     "out/preload/index.js": "8fc797cab8098501501f7aa65125cf76114254dc709592d43860fc1a47f1dedb",
     "out/renderer/assets/air-conditioner-DshrE_3f.png": "6b551be97ce4d8ae5b3a5ef5d7765da224b7ca06aa6d55785996a7c8b79f8f11",
@@ -52,5 +52,5 @@
     "out/renderer/assets/x-DbuUaZ0x.js": "4622c116316c21dec3bd6033b0b53cb6d3ef15bd9f078cfc0de5fc0a3e06b3c0",
     "out/renderer/index.html": "c78fb3676340ca673cb465c65cd93a7612f07e878cfd2180666745e1828a8436"
   },
-  "generatedAt": "2026-09-24T09:16:52.314Z"
+  "generatedAt": "2026-09-25T08:14:19.483Z"
 }
