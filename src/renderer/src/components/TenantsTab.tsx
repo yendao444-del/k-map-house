@@ -378,7 +378,7 @@ export const TenantsTab: React.FC = () => {
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
           <table className="w-full min-w-[1080px] text-left border-collapse">
-            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-[#f8faf9] text-[10px] font-extrabold uppercase tracking-[0.11em] text-slate-400">
+            <thead className="sticky top-0 z-10 border-b border-slate-100 bg-[#f7faf8] text-[10px] font-extrabold uppercase tracking-[0.11em] text-slate-400">
               <tr>
                 <th className="w-[25%] px-5 py-3.5">Khách thuê & phòng</th>
                 <th className="w-[17%] px-4 py-3.5">Liên hệ</th>

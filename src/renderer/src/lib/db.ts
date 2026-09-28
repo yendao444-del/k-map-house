@@ -763,6 +763,21 @@ export const getRoom = async (id: string): Promise<Room> => {
 
 export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
   const roomName = formatRoomName(roomData.name || '')
+  if (!roomName) throw new Error('Tên phòng không được để trống.')
+
+  // Check before insert so the form can show a useful error without relying on a
+  // database error. The migration trigger remains the final race-safe guard.
+  const existingRooms = await safeQuery(() => supabase.from('rooms').select('id,name'))
+  const normalizedName = roomName.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
+  if (
+    (existingRooms as Array<{ id: string; name?: string }>).some(
+      (room) =>
+        (room.name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN') === normalizedName
+    )
+  ) {
+    throw new Error('Tên phòng này đã tồn tại. Vui lòng nhập tên khác.')
+  }
+
   const newRoom = {
     ...roomData,
     id: createEntityId('room'),
@@ -775,7 +790,27 @@ export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
 }
 
 export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Room> => {
-  if (typeof updates.name === 'string') updates.name = formatRoomName(updates.name)
+  if (typeof updates.name === 'string') {
+    updates.name = formatRoomName(updates.name)
+    if (!updates.name) throw new Error('Tên phòng không được để trống.')
+
+    const existingRooms = await safeQuery(() =>
+      supabase.from('rooms').select('id,name').neq('id', id)
+    )
+    const normalizedName = updates.name
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('vi-VN')
+    if (
+      (existingRooms as Array<{ id: string; name?: string }>).some(
+        (room) =>
+          (room.name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN') ===
+          normalizedName
+      )
+    ) {
+      throw new Error('Tên phòng này đã tồn tại. Vui lòng nhập tên khác.')
+    }
+  }
   const result = await safeQuery(() =>
     supabase.from('rooms').update(updates).eq('id', id).select().single()
   )
@@ -909,10 +944,38 @@ export const adjustRoomMeterReadings = async (data: {
 }
 
 export const deleteRoom = async (id: string): Promise<void> => {
-  void id
-  throw new Error(
-    'Đã chặn xóa vĩnh viễn phòng để bảo vệ hóa đơn, hợp đồng và lịch sử tài sản. Hãy chuyển phòng về trạng thái phù hợp thay vì xóa.'
-  )
+  const relatedTables = [
+    ['contracts', 'hợp đồng'],
+    ['invoices', 'hóa đơn'],
+    ['move_in_receipts', 'biên lai nhận phòng'],
+    ['room_assets', 'tài sản'],
+    ['asset_snapshots', 'lịch sử tài sản'],
+    ['room_vehicles', 'xe'],
+    ['room_asset_adjustments', 'điều chỉnh tài sản'],
+    ['meter_reading_adjustments', 'lịch sử chỉ số']
+  ] as const
+
+  for (const [table, label] of relatedTables) {
+    let query = supabase.from(table).select('id').eq('room_id', id).limit(1)
+    // The assets screen hides zero-quantity rows, so they should not prevent
+    // deleting a newly created room that has no active assets.
+    if (table === 'room_assets') query = query.gt('quantity', 0)
+    const { data, error } = await query
+    // Some older deployments do not have the optional audit table yet.
+    if (error?.code === 'PGRST205') continue
+    if (error) throw new Error(error.message)
+    if (data && data.length > 0) {
+      throw new Error(`Không thể xóa phòng vì vẫn còn ${label} liên quan.`)
+    }
+  }
+
+  const { error } = await supabase.from('rooms').delete().eq('id', id)
+  if (error) {
+    if (error.code === '42501' || /permission|policy|row-level security/i.test(error.message)) {
+      throw new Error('Chỉ tài khoản quản trị đang hoạt động mới được xóa phòng chưa có dữ liệu.')
+    }
+    throw new Error(error.message)
+  }
 }
 
 // =========================================================
@@ -2394,6 +2457,15 @@ export const getRoomMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
   return data || []
 }
 
+export const getRoomMoveInReceiptRefs = async (): Promise<
+  Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
+> => {
+  const data = await safeQuery(() =>
+    supabase.from('move_in_receipts').select('id,room_id').order('created_at', { ascending: false })
+  )
+  return (data || []) as Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
+}
+
 export const getMoveInReceiptsByTenant = async (tenantId: string): Promise<MoveInReceipt[]> => {
   const data = await safeQuery(() =>
     supabase
@@ -2443,6 +2515,84 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       .limit(1)
   )
   return (data?.[0] as AppSettings) || {}
+}
+
+export type WalletBalanceSummary = {
+  bankBalance: number
+  cashBalance: number
+  totalBalance: number
+  availableBalance: number
+  entries: Array<{
+    id: string
+    date: string
+    title: string
+    amount: number
+    type: 'income' | 'expense'
+    paymentMethod: PaymentMethod
+    source: string
+  }>
+}
+
+/** Uses the same invoice/manual ledger as the Wallet tab for cross-module totals. */
+export const getWalletBalanceSummary = async (): Promise<WalletBalanceSummary> => {
+  const [cashTransactions, invoices, appSettings] = await Promise.all([
+    getCashTransactions(),
+    getInvoices(),
+    getAppSettings()
+  ])
+  const invoiceRows = invoices
+    .filter((invoice) => invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged')
+    .flatMap((invoice) =>
+      getInvoicePaymentRecords(invoice).map((record) => ({
+        id: `invoice-${invoice.id}-${record.id}`,
+        date: record.payment_date,
+        title: 'Thu tiền phòng',
+        amount: Number(record.amount) || 0,
+        type: 'income' as const,
+        paymentMethod: record.payment_method || 'transfer',
+        source: 'Hóa đơn'
+      }))
+    )
+  const manualRows = cashTransactions.map((item) => ({
+    id: `cash-${item.id}`,
+    date: item.transaction_date,
+    title:
+      item.category === 'investment_transfer'
+        ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
+        : item.category === 'wallet_transfer'
+        ? 'Chuyển giữa các ví'
+        : DEFAULT_EXPENSE_CATEGORIES.find((category) => category.value === item.category)?.name ||
+          item.category ||
+          'Giao dịch ví',
+    amount: Number(item.amount) || 0,
+    type: item.type,
+    paymentMethod: item.payment_method || 'transfer',
+    source: 'Thủ công'
+  }))
+  const openingDate = appSettings.opening_balance_date || ''
+  const ledgerRows = [...invoiceRows, ...manualRows].filter(
+    (row) => !openingDate || row.date >= openingDate
+  )
+  const bankBalance = ledgerRows.reduce(
+    (sum, row) =>
+      row.paymentMethod === 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
+    Number(appSettings.opening_balance_bank || 0)
+  )
+  const cashBalance = ledgerRows.reduce(
+    (sum, row) =>
+      row.paymentMethod !== 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
+    Number(appSettings.opening_balance_cash || 0)
+  )
+  const totalBalance = bankBalance + cashBalance
+  return {
+    bankBalance,
+    cashBalance,
+    totalBalance,
+    availableBalance: Math.max(0, totalBalance),
+    entries: [...invoiceRows, ...manualRows]
+      .filter((row) => !openingDate || row.date >= openingDate)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  }
 }
 
 export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {

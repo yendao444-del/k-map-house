@@ -18,7 +18,7 @@ import {
 import { get } from 'http'
 import { get as httpsGet, request as httpsRequest } from 'https'
 import { cpus } from 'os'
-import { dirname, join, relative } from 'path'
+import { dirname, join, relative, resolve, sep } from 'path'
 import { reportTelegramError } from './telegram-reporter'
 
 interface ReleaseAsset {
@@ -657,7 +657,31 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   await verifyFileChecksum(zipPath, checksum)
 
   sendToRenderer('update:status', { status: 'extracting', message: 'Đang giải nén...' })
-  new AdmZip(zipPath).extractAllTo(extractDir, true)
+  const archive = new AdmZip(zipPath)
+  const entries = archive.getEntries()
+  if (entries.length > 10_000) throw new Error('Gói cập nhật chứa quá nhiều tệp.')
+  const extractionRoot = resolve(extractDir)
+  let uncompressedBytes = 0
+  for (const entry of entries) {
+    const normalizedName = entry.entryName.replace(/\\/g, '/')
+    const destination = resolve(extractDir, normalizedName)
+    const pathSegments = normalizedName.split('/')
+    if (
+      !normalizedName ||
+      normalizedName.includes('\0') ||
+      normalizedName.startsWith('/') ||
+      pathSegments.includes('..') ||
+      !destination.startsWith(`${extractionRoot}${sep}`)
+    ) {
+      throw new Error('Gói cập nhật chứa đường dẫn tệp không hợp lệ.')
+    }
+    if ((entry.header.fileAttr & 0o170000) === 0o120000) {
+      throw new Error('Gói cập nhật không được chứa symbolic link.')
+    }
+    uncompressedBytes += entry.header.size
+    if (uncompressedBytes > 512 * 1024 * 1024) throw new Error('Gói cập nhật vượt quá giới hạn kích thước.')
+  }
+  archive.extractAllTo(extractDir, true)
 
   const sourceRoot = findAppRoot(extractDir) || extractDir
   const targetRoot = app.getAppPath()

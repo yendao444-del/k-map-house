@@ -215,6 +215,9 @@ declare global {
       }
     }
     api: {
+      windowTheme: {
+        setInvestmentTitleBar: (active: boolean) => Promise<void>
+      }
       db: DbAPI
       investment: InvestmentAPI
       marketData: MarketDataAPI

@@ -1207,7 +1207,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                 <span className="text-slate-600">Tài khoản</span>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e7f8f2] text-[#087f6b] shadow-[inset_0_0_0_1px_rgba(15,175,122,0.08)]">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#edf9f1] text-[#047857] shadow-[inset_0_0_0_1px_rgba(15,175,122,0.08)]">
                   <UserRound size={25} strokeWidth={2.2} />
                 </div>
                 <div>
@@ -1260,7 +1260,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                     className={`flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-bold text-white shadow-sm transition ${
                       showAddForm
                         ? 'bg-slate-700 hover:bg-slate-800'
-                        : 'bg-[#00656b] hover:bg-[#00545a]'
+                        : 'bg-[#06603f] hover:bg-[#064a31]'
                     }`}
                   >
                     {showAddForm ? <X size={16} /> : <Plus size={17} />}
@@ -1276,7 +1276,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
                       placeholder="Tìm kiếm tài khoản..."
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#0faf7a] focus:ring-4 focus:ring-[#0faf7a]/10"
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#00ab60] focus:ring-4 focus:ring-[#00ab60]/10"
                     />
                   </div>
                   <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-600">
@@ -1305,7 +1305,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                   </button>
                   <button
                     onClick={() => queryClient.invalidateQueries({ queryKey: ['users'] })}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-[#0faf7a]/30 hover:bg-[#eaf8f3] hover:text-[#087f6b]"
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-[#00ab60]/30 hover:bg-[#eaf8f3] hover:text-[#047857]"
                     title="Làm mới danh sách"
                   >
                     <RefreshCcw size={16} />
@@ -1326,7 +1326,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       <div className="text-sm font-black text-[#10233f]">Tạo tài khoản mới</div>
                       <div className="mt-1 text-xs text-slate-400">Cấp quyền truy cập cho nhân sự mới.</div>
                     </div>
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#e7f8f2] text-[#087f6b]">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#edf9f1] text-[#047857]">
                       <UserRound size={17} />
                     </div>
                   </div>
@@ -1414,7 +1414,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                     <button
                       type="submit"
                       disabled={createUserMutation.isPending}
-                      className="rounded-xl bg-[#00656b] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#00545a] disabled:opacity-60"
+                      className="rounded-xl bg-[#06603f] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#064a31] disabled:opacity-60"
                     >
                       {createUserMutation.isPending ? 'Đang tạo...' : 'Tạo tài khoản'}
                     </button>
@@ -1473,7 +1473,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                 <div className="flex items-center gap-2">
                                   <span className="truncate text-sm font-black text-[#10233f]">{user.full_name}</span>
                                   {user.id === currentUser.id && (
-                                    <span className="rounded-full bg-[#e7f8f2] px-2 py-0.5 text-[10px] font-black text-[#087f6b]">Tôi</span>
+                                    <span className="rounded-full bg-[#edf9f1] px-2 py-0.5 text-[10px] font-black text-[#047857]">Tôi</span>
                                   )}
                                 </div>
                                 <div className="mt-0.5 truncate text-xs text-slate-400">{user.email || `@${user.username}`}</div>
@@ -1529,7 +1529,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                     setOpenMenuId(user.id)
                                   }
                                 }}
-                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-[#0faf7a]/30 hover:text-[#087f6b]"
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-[#00ab60]/30 hover:text-[#047857]"
                                 title="Thao tác tài khoản"
                               >
                                 <MoreVertical size={16} />
@@ -1588,7 +1588,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                 <span>Hiển thị {filteredUsers.length} trong {totalUsers} tài khoản</span>
                 <div className="flex items-center gap-2">
                   <button disabled className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-300">‹</button>
-                  <button className="h-9 min-w-9 rounded-xl bg-[#00656b] px-3 font-bold text-white shadow-sm">1</button>
+                  <button className="h-9 min-w-9 rounded-xl bg-[#06603f] px-3 font-bold text-white shadow-sm">1</button>
                   <button disabled className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-300">›</button>
                 </div>
               </div>
@@ -1651,7 +1651,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       icon={<ShieldCheck size={17} />}
                       label="Quyền hệ thống"
                       value={selectedUser.role === 'admin' ? 'Toàn quyền quản trị' : 'Quyền người dùng'}
-                      valueClassName={selectedUser.role === 'admin' ? 'text-[#9a5b00]' : 'text-[#087f6b]'}
+                      valueClassName={selectedUser.role === 'admin' ? 'text-[#9a5b00]' : 'text-[#047857]'}
                     />
                   </div>
 
@@ -1663,7 +1663,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                         setEditForm({ full_name: selectedUser.full_name })
                         setEditingUser(selectedUser)
                       }}
-                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#00656b] text-sm font-bold text-white shadow-sm transition hover:bg-[#00545a]"
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#06603f] text-sm font-bold text-white shadow-sm transition hover:bg-[#064a31]"
                     >
                       <PencilLine size={16} /> Sửa thông tin
                     </button>
@@ -1672,7 +1672,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                         setPasswordUser(selectedUser)
                         setNewPassword('')
                       }}
-                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#00656b] bg-white text-sm font-bold text-[#00656b] transition hover:bg-[#eaf8f3]"
+                      className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#06603f] bg-white text-sm font-bold text-[#06603f] transition hover:bg-[#eaf8f3]"
                     >
                       <KeyRound size={16} /> Đổi mật khẩu
                     </button>
@@ -1878,7 +1878,7 @@ const AccountDetailRow = ({
   valueClassName?: string
 }): React.JSX.Element => (
   <div className="flex items-start gap-3">
-    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#eef5f3] text-[#087f6b]">{icon}</div>
+    <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#eef5f3] text-[#047857]">{icon}</div>
     <div className="min-w-0">
       <div className="text-xs text-slate-400">{label}</div>
       <div className={`mt-0.5 truncate text-sm font-bold ${valueClassName}`}>{value}</div>
@@ -1888,7 +1888,7 @@ const AccountDetailRow = ({
 
 function accountAvatarTone(id: string): string {
   const tones = [
-    'bg-[#d9f5ec] text-[#087f6b]',
+    'bg-[#d9f5ec] text-[#047857]',
     'bg-[#e3edff] text-[#2864b7]',
     'bg-[#eee5ff] text-[#6a45cb]',
     'bg-[#fff0d8] text-[#a66000]',

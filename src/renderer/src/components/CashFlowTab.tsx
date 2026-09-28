@@ -54,7 +54,9 @@ const toCategoryOptions = (categories: ExpenseCategory[]): CategoryOption[] =>
   categories.map((item) => ({ value: item.value, label: item.name, type: item.type }))
 
 const categoryLabel = (category: CashTransactionCategory, options: CategoryOption[]) =>
-  category === 'wallet_transfer'
+  category === 'investment_transfer'
+    ? 'Chuyển vốn đầu tư'
+    : category === 'wallet_transfer'
     ? 'Chuyển giữa các ví'
     : options.find((item) => item.value === category)?.label || 'Khác'
 
@@ -160,7 +162,7 @@ function ReportLedgerPanel({
 
       <div className="min-h-[416px] divide-y divide-slate-100">
         {pageRows.map((item) => {
-          const isManual = item.source === 'manual'
+          const isManual = item.source === 'manual' && !['wallet_transfer', 'investment_transfer'].includes(item.category)
           const target = getCashTargetLabel(item, roomById)
           const subtitle = [target, item.note].filter(Boolean).join(' · ')
           return (
@@ -782,10 +784,10 @@ export function CashFlowTab({
   )
 
   const totalIncome = filtered
-    .filter((item) => item.type === 'income' && item.category !== 'wallet_transfer')
+    .filter((item) => item.type === 'income' && !['wallet_transfer', 'investment_transfer'].includes(item.category))
     .reduce((sum, item) => sum + item.amount, 0)
   const totalExpense = filtered
-    .filter((item) => item.type === 'expense' && item.category !== 'wallet_transfer')
+    .filter((item) => item.type === 'expense' && !['wallet_transfer', 'investment_transfer'].includes(item.category))
     .reduce((sum, item) => sum + item.amount, 0)
 
   const openingDate = appSettings?.opening_balance_date || ''
@@ -830,11 +832,13 @@ export function CashFlowTab({
   }
 
   const requestEdit = (transaction: CashTransaction) => {
+    if (['wallet_transfer', 'investment_transfer'].includes(transaction.category)) return
     if (!isAdmin) return
     setConfirmAction({ type: 'edit', transaction })
   }
 
   const requestDelete = (transaction: CashTransaction) => {
+    if (['wallet_transfer', 'investment_transfer'].includes(transaction.category)) return
     if (!isAdmin) return
     setConfirmAction({ type: 'delete', transaction })
   }
@@ -906,11 +910,11 @@ export function CashFlowTab({
       <div className="overflow-hidden rounded-2xl border border-[#D5E8DD] bg-white shadow-[0_10px_28px_rgba(0,91,60,0.08)]">
         <div className="flex items-center justify-between border-b border-[#E2EFE7] bg-white p-4">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#DDF5E7] text-xl text-[#007A4D]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#DDF5E7] text-xl text-[#047857]">
               <i className="fa-solid fa-wallet"></i>
             </div>
             <div>
-              <h2 className="text-lg font-black text-[#12372A]">Giao Dịch</h2>
+              <h2 className="text-lg font-black text-[#15231d]">Giao Dịch</h2>
               <p className="text-xs text-gray-500">
                 Khoản thu được lấy tự động từ tab Hóa đơn theo từng lần thu; tại đây bạn quản lý
                 thêm các chứng từ chi và khoản thu khác.
@@ -919,14 +923,14 @@ export function CashFlowTab({
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 rounded-lg bg-[#008F5A] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#006B4F]"
+            className="flex items-center gap-2 rounded-lg bg-[#00ab60] px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-[#06603f]"
           >
             <i className="fa-solid fa-plus"></i>
             Thêm giao dịch
           </button>
         </div>
 
-        <section className="flex min-h-[92px] items-center bg-[#006B4F] px-6 text-white">
+        <section className="flex min-h-[92px] items-center bg-[#06603f] px-6 text-white">
           <div className="min-w-[330px] border-r border-white/45 pr-7">
             <div className="text-xs font-black uppercase tracking-wide text-white/90">
               Số dư khả dụng (Chênh lệch)
@@ -1011,8 +1015,8 @@ export function CashFlowTab({
               onDelete={requestDelete}
             />
             <aside className="relative flex min-h-[320px] flex-col items-center overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm">
-              <div className="mt-9 w-full border-t border-dashed border-[#008F5A]" />
-              <div className="mt-[-10px] bg-white px-2 text-xs font-bold text-[#008F5A]">
+              <div className="mt-9 w-full border-t border-dashed border-[#00ab60]" />
+              <div className="mt-[-10px] bg-white px-2 text-xs font-bold text-[#00ab60]">
                 {formatVND(totalIncome)} đ
               </div>
               <div className="absolute bottom-12 top-14 border-l border-dashed border-emerald-200" />
@@ -1020,14 +1024,14 @@ export function CashFlowTab({
                 <div>
                   <div className="text-sm font-bold text-slate-800">Còn lại</div>
                   <div
-                    className={`mt-1 text-base font-black tabular-nums ${totalIncome >= totalExpense ? 'text-[#007A4D]' : 'text-[#E04444]'}`}
+                    className={`mt-1 text-base font-black tabular-nums ${totalIncome >= totalExpense ? 'text-[#047857]' : 'text-[#E04444]'}`}
                   >
                     {formatVND(totalIncome - totalExpense)} đ
                   </div>
                 </div>
                 <ChevronLeft
                   size={22}
-                  className={totalIncome >= totalExpense ? 'text-[#007A4D]' : 'text-[#E04444]'}
+                  className={totalIncome >= totalExpense ? 'text-[#047857]' : 'text-[#E04444]'}
                 />
               </div>
               <div className="mb-9 w-full border-t border-dashed border-[#E04444]" />
@@ -1133,7 +1137,7 @@ export function CashFlowTab({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-center gap-2">
-                        {item.source === 'manual' && item.category !== 'wallet_transfer' ? (
+                        {item.source === 'manual' && !['wallet_transfer', 'investment_transfer'].includes(item.category) ? (
                           <>
                             <button
                               onClick={() => requestEdit(item)}
@@ -1156,7 +1160,9 @@ export function CashFlowTab({
                           <button
                             type="button"
                             title={
-                              item.category === 'wallet_transfer'
+                              item.category === 'investment_transfer'
+                                ? 'Sửa hoặc xóa từ Danh mục đầu tư để đồng bộ tài sản và Ví.'
+                                : item.category === 'wallet_transfer'
                                 ? 'Giao dịch chuyển giữa các ví được khóa để giữ cân bằng hai ví.'
                                 : 'Dòng này lấy tự động từ lịch sử thanh toán hóa đơn.'
                             }

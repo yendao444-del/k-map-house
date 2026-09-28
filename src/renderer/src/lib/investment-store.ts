@@ -29,6 +29,8 @@ export type InvestmentTransaction = {
   walletImpactVnd?: number
   linkedAssetSymbol?: string
   fundingSource?: 'wallet' | 'opening-balance'
+  walletPosting?: { paymentMethod: 'cash' | 'transfer'; amount: number }
+  assetValueImpactVnd?: number
 }
 
 export type InvestmentSnapshot = {
@@ -46,6 +48,10 @@ export type InvestmentStore = {
   portfolioSnapshots: InvestmentSnapshot[]
   categoryTargets?: Record<string, number>
 }
+
+// Compatibility aliases used by the ported source trackers.
+export type HoldingRecord = InvestmentHolding
+export type TransactionRecord = InvestmentTransaction
 
 export async function readInvestmentStore(): Promise<{ data: InvestmentStore; importedFrom?: string }> {
   const result = (await window.api.investment.read()) as { data?: Partial<InvestmentStore>; importedFrom?: string }

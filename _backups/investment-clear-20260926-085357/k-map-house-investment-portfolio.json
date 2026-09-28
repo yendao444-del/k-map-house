@@ -1,0 +1,128 @@
+{
+  "holdings": [
+    {
+      "symbol": "STK-TECHC-1781517994952",
+      "name": "Tiết kiệm Techcombank",
+      "category": "savings",
+      "group": "Đã tất toán",
+      "valueVnd": 11987500,
+      "quantity": "{\"type\":\"savings\",\"bank\":\"Techcombank\",\"principal\":350000000,\"term\":\"6 tháng\",\"rate\":6.85,\"startDate\":\"2025-12-16\",\"maturityDate\":\"2026-06-16\",\"settleDate\":\"2026-06-16\",\"settleAmount\":361987500,\"status\":\"settled\"}",
+      "allocationPercent": 0,
+      "targetPercent": 35,
+      "pnlPercent": 3.4250000000000003
+    },
+    {
+      "symbol": "STK-TECHC-1781518959391",
+      "name": "Tiết kiệm Techcombank",
+      "category": "savings",
+      "group": "Đang gửi",
+      "valueVnd": 0,
+      "quantity": "{\"type\":\"savings\",\"bank\":\"Techcombank\",\"principal\":500000000,\"term\":\"6 tháng\",\"rate\":6.85,\"startDate\":\"2026-01-30\",\"maturityDate\":\"2026-07-30\",\"maturityAction\":\"tat_toan_ve_vi\",\"status\":\"active\"}",
+      "allocationPercent": 34.54425986300298,
+      "targetPercent": 35,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "STK-VIETC-1781518995614",
+      "name": "Tiết kiệm Techcombank",
+      "category": "savings",
+      "group": "Đang gửi",
+      "valueVnd": 0,
+      "quantity": "{\"type\":\"savings\",\"bank\":\"Techcombank\",\"principal\":300000000,\"term\":\"6 tháng\",\"rate\":7.4,\"startDate\":\"2026-04-23\",\"maturityDate\":\"2026-10-23\",\"maturityAction\":\"tat_toan_ve_vi\",\"status\":\"active\"}",
+      "allocationPercent": 13.789919726712254,
+      "targetPercent": 35,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "CASH",
+      "name": "Ví VND",
+      "category": "cash",
+      "group": "Ví thanh toán",
+      "valueVnd": 39157808,
+      "quantity": "17.452192 triệu VND",
+      "allocationPercent": 0,
+      "targetPercent": 35,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "E1VFVN30",
+      "name": "E1VFVN30",
+      "category": "stocks",
+      "group": "Tài sản",
+      "valueVnd": 91808200,
+      "quantity": "2900 don vi",
+      "allocationPercent": 0,
+      "targetPercent": 35,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "VNHAN",
+      "name": "Nhẫn SJC 99.99",
+      "category": "gold",
+      "group": "Tài sản",
+      "valueVnd": 479360000,
+      "quantity": "34 chỉ",
+      "allocationPercent": 0,
+      "targetPercent": 15,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "STK-VIETC-1781605499032",
+      "name": "Tiết kiệm Vietcombank",
+      "category": "savings",
+      "group": "Đang gửi",
+      "valueVnd": 0,
+      "quantity": "{\"type\":\"savings\",\"bank\":\"Vietcombank\",\"principal\":350000000,\"term\":\"6 tháng\",\"rate\":7.4,\"startDate\":\"2026-06-16\",\"maturityDate\":\"2026-12-16\",\"maturityAction\":\"tat_toan_ve_vi\",\"status\":\"active\"}",
+      "allocationPercent": 0,
+      "targetPercent": 35,
+      "pnlPercent": 0
+    },
+    {
+      "symbol": "VFF",
+      "name": "VFF",
+      "category": "bonds",
+      "group": "Tài sản",
+      "valueVnd": 174999861,
+      "quantity": "6946.84 CCQ",
+      "allocationPercent": 0,
+      "targetPercent": 10,
+      "pnlPercent": 0
+    }
+  ],
+  "transactions": [
+    {
+      "id": "TX-1790386993872",
+      "date": "2026-09-26",
+      "occurredAt": "2026-09-26T01:43:13.872Z",
+      "transactionType": "buy",
+      "assetSymbol": "VNHAN",
+      "amountVnd": 14390000,
+      "status": "done",
+      "note": "Nhẫn SJC 99.99 · 14.390.000 đ/chỉ",
+      "quantity": 1,
+      "unit": "chỉ",
+      "unitPriceVnd": 14390000,
+      "capitalAmountVnd": 14390000,
+      "walletImpactVnd": -14390000,
+      "fundingSource": "wallet"
+    }
+  ],
+  "priceQuotes": [],
+  "portfolioSnapshots": [
+    {
+      "id": "SNAP-0001",
+      "capturedAt": "2026-06-29T10:30:52.573706600+00:00",
+      "totalValueVnd": 1821887753,
+      "totalCapitalVnd": 1802216253,
+      "cashValueVnd": 100439692,
+      "investedValueVnd": 1721448061,
+      "transactionId": "TX-0016"
+    }
+  ],
+  "categoryTargets": {
+    "stocks": 35,
+    "savings": 35,
+    "bonds": 10,
+    "gold": 15
+  }
+}

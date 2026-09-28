@@ -150,7 +150,7 @@ const buildBulkInvoiceHtml = (
     body { margin: 0; padding: 24px; background: #eef2f7; font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; }
     .capture-page { max-width: 760px; margin: 0 auto; }
     .invoice-export-frame { background: #fff; border: 1px solid #cbd5e1; border-radius: 18px; overflow: hidden; box-shadow: 0 24px 48px rgba(15, 23, 42, 0.14); }
-    .head { padding: 26px 30px 18px; border-bottom: 2px solid #10b981; text-align: center; }
+    .head { padding: 26px 30px 18px; border-bottom: 2px solid #00ab60; text-align: center; }
     .brand { font-size: 18px; font-weight: 900; color: #065f46; text-transform: uppercase; }
     .addr { margin-top: 4px; font-size: 12px; color: #64748b; }
     .title { margin-top: 18px; font-size: 24px; font-weight: 900; letter-spacing: .4px; }
@@ -162,7 +162,7 @@ const buildBulkInvoiceHtml = (
     th:last-child, td:last-child { text-align: right; }
     td { padding: 10px 12px; border: 1px solid #e2e8f0; }
     .total td { font-size: 16px; font-weight: 900; background: #f8fafc; }
-    .paid td { color: #059669; font-weight: 800; }
+    .paid td { color: #009653; font-weight: 800; }
     .remain td { color: #dc2626; font-weight: 900; background: #fff7ed; }
     .sig { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 12px 30px 36px; text-align: center; font-size: 13px; font-weight: 800; }
   </style>
@@ -368,14 +368,13 @@ const buildInvoiceDetailExportHtml = (
 <html>
 <head>
   <meta charset="utf-8" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
     body { font-family: Inter, Arial, sans-serif; background: #fff; color: #111827; padding: 0; }
     .capture-page { max-width: 1120px; margin: 0 auto; }
     .invoice-export-frame { background: #fff; }
-    .invoice-wrap { position: relative; background: #fff; border: 3px solid #002855; overflow: hidden; max-width: 768px; margin: 0 auto; }
+    .invoice-wrap { position: relative; background: #fff; border: 3px solid #064a31; overflow: hidden; max-width: 768px; margin: 0 auto; }
     .shape-1 { position: absolute; right: -80px; top: 0; width: 224px; height: 224px; border-radius: 999px; background: rgba(209, 250, 229, .75); }
     .shape-2 { position: absolute; right: 80px; top: 80px; width: 80px; height: 144px; border-radius: 32px; background: rgba(219, 234, 254, .6); transform: rotate(45deg); }
     .shape-3 { position: absolute; left: -80px; bottom: 176px; width: 224px; height: 224px; border-radius: 999px; border: 28px solid rgba(226, 232, 240, .7); }
@@ -386,7 +385,7 @@ const buildInvoiceDetailExportHtml = (
     .header { display: grid; grid-template-columns: 1.15fr 1fr .85fr; gap: 20px; align-items: start; padding: 28px 28px 24px; }
     .bulk-logo { order: 1; }
     .logo { width: 245px; height: 78px; object-fit: contain; object-position: left; display: block; }
-    .tagline { margin-top: 8px; font-size: 12px; font-style: italic; color: #002855; }
+    .tagline { margin-top: 8px; font-size: 12px; font-style: italic; color: #064a31; }
     .header-grid { order: 3; border-left: 1px solid #e2e8f0; padding-left: 24px; font-size: 11px; color: #64748b; }
     .header-left { display: none; }
     .header-right { display: flex; flex-direction: column; gap: 4px; }
@@ -395,7 +394,7 @@ const buildInvoiceDetailExportHtml = (
     .brand { font-weight: 900; text-transform: uppercase; letter-spacing: .03em; color: #0f172a; }
     .bold { font-weight: 700; color: #0f172a; }
     .title-block { order: 2; text-align: center; }
-    .title-main { font-size: 32px; line-height: 1; font-weight: 900; text-transform: uppercase; color: #002855; }
+    .title-main { font-size: 32px; line-height: 1; font-weight: 900; text-transform: uppercase; color: #064a31; }
     .title-sub { margin-top: 8px; font-size: 21px; font-weight: 800; text-transform: uppercase; color: #3b82f6; white-space: nowrap; }
     .title-period { margin-top: 8px; font-size: 14px; font-weight: 500; color: #334155; }
     .title-date { margin-top: 4px; font-size: 11px; font-weight: 500; color: #94a3b8; }
@@ -404,18 +403,18 @@ const buildInvoiceDetailExportHtml = (
     .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; border-top: 1px solid #eef2f7; border-bottom: 1px solid #eef2f7; padding: 14px 0; font-size: 12px; color: #334155; }
     .party + .party { border-left: 1px solid #e2e8f0; padding-left: 28px; }
     .pill { display: inline-flex; border-radius: 6px; padding: 6px 16px; font-size: 10px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; color: #fff; margin-bottom: 12px; }
-    .pill-blue { background: #002855; }
-    .pill-green { background: #059669; }
-    .party-title { margin-bottom: 8px; font-size: 16px; font-weight: 900; text-transform: uppercase; color: #002855; }
+    .pill-blue { background: #064a31; }
+    .pill-green { background: #009653; }
+    .party-title { margin-bottom: 8px; font-size: 16px; font-weight: 900; text-transform: uppercase; color: #064a31; }
     .party-text { font-size: 12px; color: #334155; line-height: 1.65; }
     .tenant-info { display: grid; grid-template-columns: 100px 1fr; gap: 8px 0; font-size: 12px; }
     .tenant-info span { color: #64748b; }
-    .room-name { font-size: 16px; color: #002855; }
+    .room-name { font-size: 16px; color: #064a31; }
     .table-wrap { position: relative; padding: 0 28px 16px; }
     .table-watermark { position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); opacity: .03; pointer-events: none; }
     .table-watermark img { width: 360px; object-fit: contain; }
     table { position: relative; z-index: 1; width: 100%; border-collapse: separate; border-spacing: 0; background: transparent; font-size: 12px; overflow: hidden; border-radius: 8px; }
-    th { background: #002855; color: #fff; font-weight: 800; padding: 8px 12px; border: 1px solid #002855; text-transform: uppercase; font-size: 10px; }
+    th { background: #064a31; color: #fff; font-weight: 800; padding: 8px 12px; border: 1px solid #064a31; text-transform: uppercase; font-size: 10px; }
     th:first-child { border-top-left-radius: 8px; }
     th:last-child { border-top-right-radius: 8px; }
     th:nth-child(1), td:nth-child(1) { text-align: center; width: 7%; }
@@ -424,13 +423,13 @@ const buildInvoiceDetailExportHtml = (
     th:nth-child(4), td:nth-child(4) { text-align: right; width: 25%; }
     td { padding: 8px 12px; border: 1px solid #e2e8f0; vertical-align: middle; color: #0f172a; }
     .item-label { font-weight: 700; color: #1e293b; }
-    .amount { font-weight: 900; color: #002855; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; }
+    .amount { font-weight: 900; color: #064a31; font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 14px; }
     .line-detail-main { color: #0f172a; font-size: 11px; font-weight: 600; white-space: nowrap; }
     .line-detail-sub { color: #0f172a; font-size: 11px; margin-top: 2px; white-space: nowrap; }
     .summary { position: relative; z-index: 1; padding: 0 28px 20px; }
     .total-card { display: flex; align-items: center; justify-content: space-between; border: 1px solid #dbeafe; background: rgba(239, 246, 255, .6); border-radius: 6px; padding: 12px 16px; margin-bottom: 12px; }
-    .total-card span:first-child { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #002855; }
-    .total-card span:last-child { font-size: 26px; font-weight: 900; color: #002855; }
+    .total-card span:first-child { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .12em; color: #064a31; }
+    .total-card span:last-child { font-size: 26px; font-weight: 900; color: #064a31; }
     .words-row { display: flex; font-size: 12px; margin-bottom: 16px; }
     .words-label { width: 112px; font-style: italic; color: #94a3b8; }
     .words { flex: 1; font-weight: 800; font-style: italic; color: #1e293b; }
@@ -439,7 +438,7 @@ const buildInvoiceDetailExportHtml = (
     .remain-row span:first-child { font-size: 15px; font-weight: 900; text-transform: uppercase; }
     .remain-row span:last-child { font-size: 26px; font-weight: 900; }
     .signature { padding: 0 28px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; text-align: center; font-size: 14px; }
-    .sig-title { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #002855; }
+    .sig-title { font-size: 11px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #064a31; }
     .sig-hint { margin: 4px 0 28px; color: #94a3b8; font-size: 10px; font-style: italic; }
     .sig-cursive { margin-bottom: 8px; font-size: 18px; font-weight: 600; font-style: italic; color: #64748b; }
     .tenant-short { margin-bottom: 8px; font-size: 18px; font-weight: 600; font-style: italic; color: #64748b; }
@@ -450,12 +449,12 @@ const buildInvoiceDetailExportHtml = (
     .qr-box { flex: 0 0 auto; background: #fff; padding: 8px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(15, 23, 42, .08); }
     .qr-box img { width: 150px; height: 150px; object-fit: contain; display: block; }
     .qr-info { font-size: 12px; color: #475569; }
-    .qr-title { font-size: 15px; font-weight: 900; text-transform: uppercase; color: #002855; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+    .qr-title { font-size: 15px; font-weight: 900; text-transform: uppercase; color: #064a31; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
     .qr-grid { display: grid; grid-template-columns: 110px 1fr; gap: 8px 0; }
     .qr-money { color: #dc2626; font-size: 24px; font-weight: 900; }
     .qr-hint { margin-top: 10px; color: #64748b; font-size: 11px; line-height: 1.45; }
     .qr-des { margin-top: 16px; display: block; background: #fff; border: 1px dashed #cbd5e1; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 10px; }
-    .footer { position: relative; z-index: 1; margin: 0 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; border-top: 2px solid #002855; background: #fff; padding: 16px; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(0, 40, 85, .7); }
+    .footer { position: relative; z-index: 1; margin: 0 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; border-top: 2px solid #064a31; background: #fff; padding: 16px; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: rgba(0, 40, 85, .7); }
   </style>
 </head>
 <body>
@@ -712,7 +711,7 @@ export const InvoicesTab: React.FC<{
     staleTime: 60_000
   })
   const { data: sepayInvoices = [] } = useQuery({
-    queryKey: ['invoices', 'sepay'],
+    queryKey: ['invoices'],
     queryFn: () => getInvoices(),
     enabled: showSePaySync,
     staleTime: 15_000

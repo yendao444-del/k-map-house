@@ -47,6 +47,153 @@ final result: blocked
 
 ---
 
+# Investment titlebar theme - 2026-09-26
+
+- Reference: user screenshot `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-d1d0233f-eb62-404c-85e3-66704d6299b3.png` shows a white global header above the navy investment screen.
+- Scope: only `Tài chính -> Đầu tư` changes the global header and native Windows titlebar overlay to navy; other tabs, finance sections, and logged-out state restore the original white header.
+- Expected contrast: light brand/nav/action labels, emerald active finance item, dark dropdowns, and light Windows caption symbols.
+- Verification: `npm run typecheck` and `npm run build` passed; `git diff --check` passed with line-ending warnings only.
+- Runtime visual comparison: pending authenticated Electron capture. Verify entry to Đầu tư, open each top menu, then navigate to Ví and Phòng to confirm the white header and native caption controls return.
+
+---
+
+# Design QA — Investment runtime sweep — 2026-09-26 16:09
+
+- Capture method: Electron `webContents.capturePage()` after launching the current production preview bundle with the authenticated local profile.
+- Viewport: 1400 × 900 desktop Electron.
+- Fresh evidence: `tmp-product-design/qa-overview-runtime.png`, `tmp-product-design/qa-wallet-runtime.png`, `tmp-product-design/qa-gold-runtime.png`, `tmp-product-design/qa-stocks-runtime.png`, `tmp-product-design/qa-bonds-runtime.png`, `tmp-product-design/qa-savings-runtime.png`, `tmp-product-design/qa-transactions-runtime.png`, `tmp-product-design/qa-transaction-modal-runtime.png`, `tmp-product-design/qa-gold-modal-runtime.png`.
+
+## Step results
+
+1. Tổng quan — passed: navy cards, dark chart grid and dark Recharts tooltip styling are visible; rebalance alerts remain amber without white cards.
+2. Ví tiền — passed: wallet summary and wallet transaction list use navy panels, readable emerald/rose amounts and no light body surface.
+3. Vàng — passed: gold price cards, chart, holdings strip and actions retain amber semantics on navy surfaces.
+4. Cổ phiếu & Quỹ — passed: watchlist body, rows, header, chart and legend are dark; the supplied white watchlist defect is gone.
+5. Trái phiếu — passed: watchlist, NAV chart, legend and selected sidebar state are dark; the supplied green-sidebar/white-table defect is gone.
+6. Tiết kiệm — passed: header, stat cards, empty state and segmented tabs use the same navy system.
+7. Giao dịch — passed: filters, history row and transaction actions are dark and legible.
+8. Ghi giao dịch modal — passed: legacy modal without `role="dialog"` is dark, including fields and footer.
+9. Mua vàng modal — passed: product choices, quantity slider, price panel and save action are dark with emerald/amber semantics.
+
+## Remaining checks
+
+- Responsive/mobile layout and keyboard-only focus order were not included in this desktop sweep.
+- No functional mutation was submitted during capture; all screenshots were read-only navigation states.
+
+final result: passed for the requested desktop investment surface sweep
+
+---
+
+# Design QA — Investment tabs light-surface sweep — 2026-09-26
+
+- User evidence: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-11f98a29-d318-4b07-a178-33fad1269fbc.png` (Cổ phiếu & Quỹ, white watchlist and legend).
+- Implementation target: `src/renderer/src/components/investment-trackers/investment-dark.css` and `src/renderer/src/components/InvestmentsTab.tsx`.
+- Scope: Tổng quan, Ví tiền, Vàng, Cổ phiếu & Quỹ, Trái phiếu, Tiết kiệm, Giao dịch, and transaction dialogs.
+
+## Findings and fixes
+
+- [P1] Shared arbitrary light surfaces could reappear in Ví tiền and transaction dialogs because they do not use only `bg-white`/`bg-slate-50`; added scoped navy overrides for those exact tokens.
+- [P1] The legacy `TransactionModal` has no `role="dialog"`, so the previous dialog rule did not cover it; added a fixed-form fallback selector.
+- [P2] Overview Recharts grid and tooltips still used light defaults; changed grid, tooltip surface, labels and active dot to the investment navy tokens.
+- [P2] Savings and wallet-specific cards now inherit the same panel/soft-panel/border/text system without changing their interactions or data flow.
+
+## Verification
+
+- `npm run typecheck` passed.
+- `npm run build` passed and emitted the updated investment CSS/renderer bundle.
+- `git diff --check` reports only the repository's existing CRLF/LF warnings.
+- Fresh post-build desktop capture: `tmp-product-design/electron-runtime-latest.png`; it confirms the restarted Electron process is healthy, but the active window was on Phòng, so it is not accepted as investment-screen evidence.
+
+## Remaining evidence limit
+
+- The current Windows capture adapter cannot safely select the authenticated investment window for each tab/modal. The supplied user screenshot is therefore the authoritative failure evidence; the implementation changes are verified by cascade inspection and build output, not claimed as a new pixel-perfect pass for every tab.
+
+final result: code fixed; investment runtime capture still pending
+
+## Design QA — Investment tracker surface audit — 2026-09-26 (follow-up)
+
+- Evidence reviewed: user screenshot `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-11f98a29-d318-4b07-a178-33fad1269fbc.png`.
+- Scope: shared tracker surfaces across Cổ phiếu & Quỹ, Trái phiếu, Vàng, Tiết kiệm, Ví tiền, Tổng quan and Giao dịch.
+- Root cause: `original-trackers.css` defines light global tracker variables and several white `!important` surfaces; watchlists and legends resolve those variables from inline styles.
+- Fix: added scoped dark tokens and explicit watchlist/table/legend/dialog overrides in `src/renderer/src/components/investment-trackers/investment-dark.css`; preserved semantic emerald/rose/amber colors and removed the blanket `<strong>` color override.
+
+Verification:
+
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `git diff --check` completed with line-ending warnings only.
+- Live Electron screenshot remains blocked: the capture surface exposes no selectable Electron window, so pixel-level visual pass/fail is not claimed.
+
+final result: code verified; visual capture blocked
+
+## Static Cascade QA — Investment tracker theme — 2026-09-26 (follow-up)
+
+- Rendered representative tracker state after the latest build: `tmp-product-design/qa-investment-theme.png`.
+- Verified computed styles through Electron Chromium: sidebar gradient `#0b1727 → #08111e`, watchlist `#111a28`, selected/hover row `#162235`, and chart legend `#111a28` with readable muted text.
+- The representative render no longer contains the white watchlist or white legend shown in the supplied screenshot.
+- Native controls now inherit `color-scheme: dark`; legacy transaction dialogs, tooltips, empty states and history panels are scoped to the same dark surfaces.
+- This is a CSS cascade/render check, not an authenticated end-to-end screen capture; the live user account was not available in the capture session.
+
+## Runtime follow-up — fresh Electron build — 2026-09-26
+
+- `npm run start` completed the production preview build and launched a fresh `AN KHANG HOME` Electron process.
+- Process evidence: a responding Electron window titled `AN KHANG HOME` was present after launch; the renderer bundle was rebuilt at 14:08 on 26/09/2026.
+- The native UI capture adapter still returned no app surface, so the investment screen itself could not be selected for a screenshot or interaction check.
+- The code and bundle checks prove the new navigation classes are included; they do not replace the missing pixel-level runtime capture.
+
+final result: blocked
+
+## Follow-up correction — runtime screenshot exposed stale green sidebar
+
+- Evidence: `C:\Users\Admin\.codex\attachments\c1b1699e-e9b9-4b7f-98ff-538101d7e736\image-1.png` still showed the left investment menu in green.
+- Cause: the sidebar JSX retained the old `bg-[#064a31]` and selected `bg-white` classes, so a stale development window could render the old color even when the scoped CSS bundle had been updated.
+- Fix: changed the desktop and mobile investment navigation classes directly to navy `#0b1727` / `#111a28` and emerald selected `#21d38a` in `InvestmentsTab.tsx`; retained the scoped theme as a second layer for tracker surfaces.
+- Verification: `npm run build` passed again; the latest renderer bundle contains the new navy and emerald navigation classes.
+
+final result: blocked
+
+---
+
+# Design QA — Đồng bộ màu thương hiệu Electron
+
+- Approved room layout reference: `tmp-product-design/room-attention-order-demo.png`.
+- Brand source: `G:\QUAN LY BAN HANG\desktop-FIXDEBUG\src\App.css` (primary `#00ab60`, dark shell `#064a31`, mint `#edf9f1`, ink `#15231d`, faceted green gradient).
+- Electron implementation capture: `tmp-product-design/brand-recolor-electron.png`, 1400 × 900.
+
+## Comparison
+
+- Room list retains the approved hierarchy: attention rooms first, then the remaining rooms, with the same columns and actions.
+- Header, selected navigation, primary buttons, mint surfaces, borders and dark text now use the Electron app palette. Red debt and orange move warnings remain visually distinct.
+- The live data shows two attention rooms and 24 rooms total; the reference image uses demo data, so counts and row contents differ by design.
+- A scoped tracker stylesheet prevents its table and heading rules from changing the room list after opening Investments. Reloaded Electron and confirmed the compact room rows render normally.
+
+## Verification
+
+- `npx tsc --noEmit -p tsconfig.web.json --composite false`: passed.
+- `npx electron-vite build`: passed.
+- `git diff --check`: passed.
+
+final result: passed for the room list and brand color comparison at the captured desktop size.
+
+## Menu and window controls follow-up
+
+- The `desktop-FIXDEBUG` menu uses a white surface, dark inactive labels, and a faceted green selected item. The room app header now uses those colors without the old dark-green strip.
+- Electron's native minimize, maximize, and close controls are configured with a white `titleBarOverlay` and dark symbols. A newly launched Electron process confirms the controls are white in `tmp-product-design/menu-close-controls-qa.png`.
+- Existing Electron windows retain their original native overlay until restarted; this does not affect the rebuilt application.
+
+---
+
+# Design QA — Đầu tư / Ví tiền / Biểu đồ vàng
+
+- Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-b16b14c0-f1d9-4f8e-8d26-4ff2fe19dc69.png` and the four supplied investment screenshots.
+- Implementation targets: `src/renderer/src/components/InvestmentsTab.tsx`, `src/renderer/src/components/investment-trackers/original-trackers.css`, `src/renderer/src/lib/db.ts`.
+- Changes: replaced the stale imported `CASH` holding with the Wallet-tab ledger balance, aligned cash history to wallet entries, removed dark/translucent tracker tokens, and tightened the gold/overview chart containers.
+- Verification: `npm run typecheck` and `npm run build` passed. Authenticated screenshot capture is not available in this session, so pixel-level QA remains pending.
+
+final result: partial
+
+---
+
 # Design QA — Báo cáo → Nợ demo alignment
 
 - Source visual truth: `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-889fd7b3-ba52-4bcb-bdf3-19a829e29a01.png`
@@ -509,5 +656,60 @@ Blocked with the same window-selection limitation. The target regions to compare
 
 - Initial pass: selected design opened; local browser rendering is unavailable because Electron preload APIs are absent.
 - Electron pass: app started, but multiple identical AN KHANG HOME windows block safe capture of the correct demo instance.
+
+final result: blocked
+
+
+## Gold holdings correction - 2026-09-26
+
+Reference: original HoldingsTable in E:/DU AN CA NHAN/QUAN LY DANH MUC/src/App.tsx. Replaced the simplified three-column table with the original six-column hierarchy, compact spacing, gold icon, cost/average price, allocation bar, PnL and per-asset buy/sell actions. Header uses original holdings strip classes and Add/Details controls. Details opens a read-only holdings dialog; it is not a full port of the original AssetDetailPanel. Live unit quotes are displayed only when validated; stored valuation and cost semantics remain unchanged.
+
+Checks: typecheck, production build and four existing gold-price/history tests passed before the final selected-product wiring. Final typecheck/build repeated. Pixel comparison in a running Electron window remains pending; do not claim pixel-perfect parity.
+
+---
+
+# Design QA — Investment dark theme rollout — 2026-09-26
+
+- Source visual truth: `G:\PHONG TRO\app\tmp-product-design\investment-dark-theme-demo.png` and the user's screenshot `C:\Users\Admin\AppData\Local\Temp\codex-clipboard-4b879a9c-23c9-4c77-80e2-2f099cc26563.png`
+- Implementation target: `src/renderer/src/components/InvestmentsTab.tsx` and `src/renderer/src/components/investment-trackers/original-trackers.css`
+- Intended viewport: desktop Electron, 1440 × 1024, 1× density
+- State: Tài chính → Danh mục đầu tư → Vàng, with the left investment menu visible
+- Implementation screenshot: unavailable; no selectable Electron window was exposed to the current UI capture tool
+
+## Changes
+
+- Applied the navy theme to the complete investment shell, including the left sidebar.
+- Converted investment panels, tables, tracker cards, controls, dividers and hover states to the same navy surface system.
+- Kept emerald as the selected and positive state, amber for gold, and rose for sell/negative values.
+- Preserved the white global Electron navigation header and existing content hierarchy.
+
+## Verification
+
+- `npm run typecheck:web` passed.
+- `npm run build` passed, including node and web typechecks and the Electron renderer bundle.
+- `git diff --check` completed with line-ending warnings only.
+- Pixel-level comparison is blocked because the current Computer Use surface exposes no running Electron window and the regular browser cannot provide the Electron preload state.
+
+## Findings
+
+- [P2] Rendered visual comparison is blocked.
+  - Location: complete investment module, especially sidebar, gold chart, holdings table and recent transactions.
+  - Evidence: source/demo images are available; a same-viewport live Electron screenshot could not be captured.
+  - Impact: final contrast, exact spacing and chart/table rendering cannot be proven from build output alone.
+  - Fix: capture the authenticated investment screen in the running Electron app and compare it at 1440 × 1024.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing app font and hierarchy are preserved; rendered comparison remains pending.
+- Spacing and layout rhythm: existing investment layout and tracker dimensions are preserved; only colors, borders and surfaces are overridden.
+- Colors and visual tokens: sidebar and content now use navy surfaces; emerald, amber and rose retain semantic roles.
+- Image quality and asset fidelity: no new raster assets or replacement icons were introduced.
+- Copy and content: Vietnamese labels, charts, holdings and transaction rows remain unchanged.
+
+## Comparison history
+
+- Initial pass: screenshot showed a green left menu against dark investment content.
+- Fix pass: added scoped `investment-dark` overrides for the complete investment shell and tracker surfaces; production build passed.
+- Final capture: blocked by unavailable authenticated Electron window.
 
 final result: blocked

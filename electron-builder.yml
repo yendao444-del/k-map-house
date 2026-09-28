@@ -31,6 +31,12 @@ files:
   - '!node_modules/**/{test,tests,__tests__,docs,example,examples}/**/*'
   - '!node_modules/**/{skills,storybook,stories,coverage,benchmarks,benchmark,fixtures}/**/*'
   - '!node_modules/**/*.snap'
+  # Renderer-only libraries are bundled by Vite and must not be copied as
+  # runtime node_modules. Keep the source imports for the renderer build.
+  - '!node_modules/recharts/**/*'
+  - '!node_modules/lightweight-charts/**/*'
+  - '!node_modules/lucide-react/**/*'
+  - '!service-price-zone-demo.png'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!electron.vite.config.*.mjs'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md,app.code-workspace}'
@@ -47,20 +53,6 @@ asarUnpack:
 extraFiles:
   - from: build/icon.ico
     to: DBY HOME.ico
-  - from: node_modules/electron/dist/resources.pak
-    to: .
-  - from: node_modules/electron/dist/v8_context_snapshot.bin
-    to: .
-  - from: node_modules/electron/dist/libGLESv2.dll
-    to: .
-  - from: node_modules/electron/dist/d3dcompiler_47.dll
-    to: .
-  - from: node_modules/electron/dist/chrome_200_percent.pak
-    to: .
-  - from: node_modules/electron/dist/vk_swiftshader.dll
-    to: .
-  - from: node_modules/electron/dist/version
-    to: .
 win:
   executableName: DBY Home
   icon: build/icon.ico

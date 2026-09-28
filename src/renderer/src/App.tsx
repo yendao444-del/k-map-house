@@ -20,7 +20,7 @@ import {
   deleteServiceZone,
   getInvoices,
   getActiveContracts,
-  getRoomMoveInReceipts,
+  getRoomMoveInReceiptRefs,
   getAssetSnapshotsByRoomIds,
   getAppSettings,
   getSepayTokenStatus,
@@ -49,7 +49,12 @@ import { LogoLoading } from './components/LogoLoading'
 
 import { LoginScreen } from './components/LoginScreen'
 import { setupRealtime } from './lib/realtime'
-import { buildInvoiceTransferDescription, normalizeTransferText } from './lib/invoiceTransfer'
+import {
+  createInvoiceTransferIndex,
+  findInvoiceTransferMatches,
+  normalizeTransferText
+} from './lib/invoiceTransfer'
+import { getRoomListSummary } from './lib/room-list-summary'
 import logoNavbar from './assets/an_khang_home_logo.png'
 import { isPasswordRecoveryRedirect } from './lib/supabase'
 
@@ -187,6 +192,19 @@ type AppTab =
   | 'reports'
   | 'settings'
 type PendingAssetReceive = { roomId: string; roomName: string }
+type ServiceTooltipState = {
+  name: string
+  electric: number
+  water: number
+  internet: number
+  cleaning: number
+  fixedTotal: number
+  tooltipBg: string
+  arrowColor: string
+  left: number
+  top: number
+  above: boolean
+}
 type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
 type UpdateBannerInfo = {
   latestVersion?: string
@@ -1357,7 +1375,13 @@ const App: React.FC = () => {
     queryFn: getServiceZones,
     enabled: canLoadData
   })
-  const { data: invoices = [] } = useQuery({
+  const {
+    data: invoices = [],
+    isLoading: invoicesLoading,
+    isError: invoicesLoadFailed,
+    error: invoicesLoadError,
+    refetch: refetchInvoices
+  } = useQuery({
     queryKey: ['invoices'],
     queryFn: getInvoices,
     enabled: canLoadData,
@@ -1381,14 +1405,18 @@ const App: React.FC = () => {
     ])
   }, [isPageVisible, queryClient])
 
-  const { data: contracts = [], isFetched: isActiveContractsFetched } = useQuery({
+  const {
+    data: contracts = [],
+    isFetched: isActiveContractsFetched,
+    isLoading: contractsLoading
+  } = useQuery({
     queryKey: ['activeContracts'],
     queryFn: getActiveContracts,
     enabled: canLoadData
   })
   const { data: moveInReceipts = [] } = useQuery({
     queryKey: ['moveInReceipts'],
-    queryFn: getRoomMoveInReceipts,
+    queryFn: getRoomMoveInReceiptRefs,
     enabled: canLoadData
   })
   const { data: appSettings = {} } = useQuery({
@@ -1487,6 +1515,9 @@ const App: React.FC = () => {
   const [financeSubTab, setFinanceSubTab] = useState<
     'overview' | 'wallet' | 'investments' | 'debt'
   >('overview')
+  const isInvestmentView = Boolean(
+    currentUser && activeTab === 'finance' && financeSubTab === 'investments'
+  )
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
   const [detailRoomInitialTab, setDetailRoomInitialTab] = useState<
@@ -1513,6 +1544,7 @@ const App: React.FC = () => {
     right: number
     bottom: number
   } | null>(null)
+  const [serviceTooltip, setServiceTooltip] = useState<ServiceTooltipState | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({
     occupied: false,
@@ -1888,6 +1920,21 @@ const App: React.FC = () => {
     return map
   }, [moveInReceipts])
 
+  const roomListSummaries = useMemo(() => {
+    const summaries = new Map<string, ReturnType<typeof getRoomListSummary>>()
+    for (const room of rooms) {
+      summaries.set(
+        room.id,
+        getRoomListSummary(
+          invoicesByRoomId.get(room.id) || [],
+          activeContractByRoomId.get(room.id),
+          moveInReceiptsByRoomId.get(room.id)?.length || 0
+        )
+      )
+    }
+    return summaries
+  }, [rooms, invoicesByRoomId, activeContractByRoomId, moveInReceiptsByRoomId])
+
   const roomById = useMemo(() => {
     const map = new Map<string, Room>()
     for (const room of rooms) {
@@ -1895,6 +1942,13 @@ const App: React.FC = () => {
     }
     return map
   }, [rooms])
+
+  const { data: sepayTokenStatus } = useQuery({
+    queryKey: ['sepayTokenStatus'],
+    queryFn: getSepayTokenStatus,
+    enabled: canLoadData && currentUser?.role === 'admin',
+    staleTime: 60_000
+  })
 
   const sepayPendingInvoices = useMemo(
     () =>
@@ -1907,12 +1961,10 @@ const App: React.FC = () => {
     [invoices]
   )
 
-  const { data: sepayTokenStatus } = useQuery({
-    queryKey: ['sepayTokenStatus'],
-    queryFn: getSepayTokenStatus,
-    enabled: canLoadData && currentUser?.role === 'admin',
-    staleTime: 60_000
-  })
+  const sepayInvoicesByTransferSuffix = useMemo(
+    () => createInvoiceTransferIndex(sepayPendingInvoices, (id) => roomById.get(id)?.name),
+    [roomById, sepayPendingInvoices]
+  )
 
   const { data: sepayBackgroundTransactions = [], isSuccess: isSepayBackgroundSuccess } = useQuery<
     SepayBackgroundTransaction[]
@@ -1940,11 +1992,10 @@ const App: React.FC = () => {
       const amount = Number(tx.amount_in)
       if (!Number.isFinite(amount) || amount <= 0) continue
 
-      const matchedInvoices = sepayPendingInvoices.filter((invoice) => {
-        const roomName = roomById.get(invoice.room_id)?.name || ''
-        const transferCode = buildInvoiceTransferDescription(invoice, roomName)
-        return normalizedContent.includes(normalizeTransferText(transferCode))
-      })
+      const matchedInvoices = findInvoiceTransferMatches(
+        sepayInvoicesByTransferSuffix,
+        normalizedContent
+      )
       const uniqueInvoiceIds = new Set(matchedInvoices.map((invoice) => invoice.id))
       if (uniqueInvoiceIds.size !== 1) continue
 
@@ -1978,8 +2029,8 @@ const App: React.FC = () => {
       })
     }
 
-    return matches.slice(0, 9)
-  }, [roomById, sepayBackgroundTransactions, sepayPendingInvoices])
+    return matches
+  }, [roomById, sepayBackgroundTransactions, sepayInvoicesByTransferSuffix])
 
   useEffect(() => {
     if (!isSepayBackgroundSuccess) return
@@ -2106,28 +2157,84 @@ const App: React.FC = () => {
     [rooms]
   )
 
-  // Lọc phòng theo checkbox + tìm kiếm
-  const filteredRooms = useMemo(
-    () =>
-      rooms.filter((room) => {
-        // Nếu không tick checkbox nào → hiện tất cả
-        const anyFilterActive =
-          filters.occupied || filters.vacant || filters.ending || filters.expiring
-        if (anyFilterActive) {
-          const statusMatch =
-            (filters.vacant && room.status === 'vacant') ||
-            (filters.occupied && room.status === 'occupied') ||
-            (filters.ending && room.status === 'ending')
-          if (!statusMatch) return false
-        }
-        // Tìm kiếm theo tên
-        if (searchQuery.trim()) {
-          return room.name.toLowerCase().includes(searchQuery.toLowerCase())
-        }
-        return true
-      }),
-    [rooms, filters, searchQuery]
+  const attentionRoomIds = useMemo(() => {
+    const today = new Date()
+    const ids = new Set<string>()
+
+    for (const room of rooms) {
+      if (room.status === 'ending') {
+        ids.add(room.id)
+        continue
+      }
+      if (room.status === 'vacant') continue
+
+      const activeContract = activeContractByRoomId.get(room.id)
+      const roomInvoices = invoicesByRoomId.get(room.id) || []
+      if (
+        roomInvoices.some(
+          (invoice) =>
+            invoice.payment_status !== 'merged' &&
+            (!activeContract?.tenant_id || invoice.tenant_id === activeContract.tenant_id) &&
+            hasInvoiceBalance(invoice)
+        )
+      ) {
+        ids.add(room.id)
+        continue
+      }
+
+      if (
+        room.status === 'occupied' &&
+        today.getDate() >= (room.invoice_day || 5) &&
+        !roomInvoices.some(
+          (invoice) => invoice.month === today.getMonth() + 1 && invoice.year === today.getFullYear()
+        )
+      ) {
+        ids.add(room.id)
+      }
+    }
+
+    return ids
+  }, [rooms, activeContractByRoomId, invoicesByRoomId])
+
+  // Keep the current filters and room order, with rooms needing action first.
+  const normalizedSearchQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
+
+  const filteredRoomResult = useMemo(
+    () => {
+      const result = rooms
+        .filter((room) => {
+          // Nếu không tick checkbox nào → hiện tất cả
+          const anyFilterActive =
+            filters.occupied || filters.vacant || filters.ending || filters.expiring
+          if (anyFilterActive) {
+            const statusMatch =
+              (filters.vacant && room.status === 'vacant') ||
+              (filters.occupied && room.status === 'occupied') ||
+              (filters.ending && room.status === 'ending')
+            if (!statusMatch) return false
+          }
+          // Tìm kiếm theo tên
+          if (normalizedSearchQuery) {
+            return room.name.toLowerCase().includes(normalizedSearchQuery)
+          }
+          return true
+        })
+        .sort(
+          (a, b) => Number(attentionRoomIds.has(b.id)) - Number(attentionRoomIds.has(a.id))
+        )
+
+      return {
+        rooms: result,
+        attentionCount: result.reduce(
+          (count, room) => count + (attentionRoomIds.has(room.id) ? 1 : 0),
+          0
+        )
+      }
+    },
+    [rooms, filters, normalizedSearchQuery, attentionRoomIds]
   )
+  const filteredRooms = filteredRoomResult.rooms
+  const filteredAttentionCount = filteredRoomResult.attentionCount
 
   const isAllRoomFilter =
     !filters.occupied && !filters.vacant && !filters.ending && !filters.expiring
@@ -2278,7 +2385,7 @@ const App: React.FC = () => {
       }
     })
 
-  const sepayNotificationItems = sepayBackgroundMatches.map((match) => {
+  const sepayNotificationItems = sepayBackgroundMatches.slice(0, 9).map((match) => {
     const difference = Math.abs(match.amount - match.remaining)
     const isExact = match.matchType === 'exact'
     const mismatchLabel = match.matchType === 'partial' ? 'chuyển thiếu' : 'chuyển thừa'
@@ -2332,6 +2439,10 @@ const App: React.FC = () => {
     notificationCountRef.current = notificationItems.length
   }, [notificationItems.length])
 
+  useEffect(() => {
+    void window.api?.windowTheme?.setInvestmentTitleBar(isInvestmentView)
+  }, [isInvestmentView])
+
   if (!authReady)
     return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
 
@@ -2347,7 +2458,6 @@ const App: React.FC = () => {
 
   const accountDisplayName =
     currentUser.full_name || (currentUser.role === 'admin' ? 'Admin' : currentUser.username)
-  const sapoGreen = '#7FD1AE'
   const headerNavItems = [
     { id: 'rooms' as const, icon: Home, label: 'Phòng' },
     { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' }
@@ -2589,15 +2699,17 @@ const App: React.FC = () => {
           />
         )}
         {/* Header Menu */}
-        <header className="app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#06483D] bg-[#075244] px-4 pr-40 font-sans text-white shadow-md">
+        <header
+          className={`app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#e5eee8] bg-white px-4 pr-40 font-sans text-[#15231d] shadow-sm ${isInvestmentView ? 'investment-titlebar' : ''}`}
+        >
           <div className="app-no-drag flex min-w-0 items-center space-x-4">
             <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white shadow-sm transition-transform group-hover:scale-105 p-1">
+              <div className="investment-titlebar-logo flex h-9 w-9 items-center justify-center rounded-lg border border-[#e5eee8] bg-white p-1 shadow-sm transition-transform group-hover:scale-105">
                 <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
               </div>
               <div className="flex flex-col leading-none">
-                <span className="text-sm font-bold tracking-tight text-white">AN KHANG HOME</span>
-                <span className="text-[9px] font-medium uppercase tracking-wider text-white opacity-60">
+                <span className="investment-titlebar-brand text-sm font-bold tracking-tight text-[#15231d]">AN KHANG HOME</span>
+                <span className="investment-titlebar-subtitle text-[9px] font-medium uppercase tracking-wider text-[#718079]">
                   Quản lý phòng trọ
                 </span>
               </div>
@@ -2615,15 +2727,14 @@ const App: React.FC = () => {
                       playClick()
                       requestActiveTab(item.id)
                     }}
-                    className={`flex shrink-0 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                    className={`my-2 flex h-10 shrink-0 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
                       isActive
-                        ? 'bg-[#075244] text-white'
-                        : 'border-transparent text-white hover:bg-white/5'
+                        ? 'brand-nav-active text-white'
+                        : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
                     }`}
-                    style={{ borderBottomColor: isActive ? sapoGreen : 'transparent' }}
                   >
-                    <Icon size={18} className="text-white" />
-                    <span className="text-white">{item.label}</span>
+                    <Icon size={18} />
+                    <span>{item.label}</span>
                   </button>
                 )
               })}
@@ -2654,21 +2765,16 @@ const App: React.FC = () => {
                     setIsFinanceMenuOpen(false)
                     setIsReportMenuOpen(false)
                   }}
-                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
                     ['contracts', 'assets', 'tenants'].includes(activeTab)
-                      ? 'bg-[#075244] text-white'
-                      : 'border-transparent text-white hover:bg-white/5'
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
                   }`}
-                  style={{
-                    borderBottomColor: ['contracts', 'assets', 'tenants'].includes(activeTab)
-                      ? sapoGreen
-                      : 'transparent'
-                  }}
                   aria-expanded={isRentalMenuOpen}
                 >
-                  <Building2 size={18} className="text-white" />
-                  <span className="text-white">Quản lý cho thuê</span>
-                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
+                  <Building2 size={18} />
+                  <span>Quản lý cho thuê</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
                 </button>
                 {isRentalMenuOpen && (
                   <div
@@ -2677,7 +2783,7 @@ const App: React.FC = () => {
                         clearTimeout(rentalMenuCloseTimerRef.current)
                     }}
                     onMouseLeave={() => setIsRentalMenuOpen(false)}
-                    className="fixed z-[120] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    className="investment-titlebar-menu fixed z-[120] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
                     style={{ top: rentalMenuPosition.top, left: rentalMenuPosition.left }}
                   >
                     {[
@@ -2735,17 +2841,16 @@ const App: React.FC = () => {
                     setIsRentalMenuOpen(false)
                     setIsReportMenuOpen(false)
                   }}
-                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
                     activeTab === 'finance'
-                      ? 'bg-[#075244] text-white'
-                      : 'border-transparent text-white hover:bg-white/5'
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
                   }`}
-                  style={{ borderBottomColor: activeTab === 'finance' ? sapoGreen : 'transparent' }}
                   aria-expanded={isFinanceMenuOpen}
                 >
-                  <WalletCards size={18} className="text-white" />
-                  <span className="text-white">Tài chính</span>
-                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
+                  <WalletCards size={18} />
+                  <span>Tài chính</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
                 </button>
                 {isFinanceMenuOpen && (
                   <div
@@ -2754,7 +2859,7 @@ const App: React.FC = () => {
                         clearTimeout(financeMenuCloseTimerRef.current)
                     }}
                     onMouseLeave={() => setIsFinanceMenuOpen(false)}
-                    className="fixed z-[120] min-w-[210px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    className="investment-titlebar-menu fixed z-[120] min-w-[210px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
                     style={{ top: financeMenuPosition.top, left: financeMenuPosition.left }}
                   >
                     {[
@@ -2820,17 +2925,16 @@ const App: React.FC = () => {
                     if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
                     setIsReportMenuOpen(true)
                   }}
-                  className={`flex h-14 cursor-pointer items-center space-x-2 border-b-2 px-4 text-sm font-medium transition-all ${
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
                     activeTab === 'reports'
-                      ? 'bg-[#075244] text-white'
-                      : 'border-transparent text-white hover:bg-white/5'
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
                   }`}
-                  style={{ borderBottomColor: activeTab === 'reports' ? sapoGreen : 'transparent' }}
                   aria-expanded={isReportMenuOpen}
                 >
-                  <BarChart3 size={18} className="text-white" />
-                  <span className="text-white">Báo cáo</span>
-                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] text-white/70" />
+                  <BarChart3 size={18} />
+                  <span>Báo cáo</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
                 </button>
               </div>
             </nav>
@@ -2841,7 +2945,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsNotificationOpen((prev) => !prev)}
-                className="relative flex h-10 w-10 items-center justify-center rounded-xl text-white/70 hover:bg-white/10 hover:text-white transition-all duration-200"
+                className="investment-titlebar-action relative flex h-10 w-10 items-center justify-center rounded-xl text-[#334155] transition-all duration-200 hover:bg-[#edf9f1] hover:text-[#047857]"
                 title="Thông báo"
               >
                 <Bell
@@ -2860,7 +2964,9 @@ const App: React.FC = () => {
               </button>
 
               {isNotificationOpen && (
-                <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]">
+                <div
+                  className={`absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)] ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
+                >
                   <div className="flex items-center justify-between px-4 pb-2 pt-1">
                     <div>
                       <div className="text-xs font-black uppercase tracking-wide text-slate-800">
@@ -2915,7 +3021,7 @@ const App: React.FC = () => {
                 setSettingsInitialTab('general')
                 requestActiveTab('settings')
               }}
-              className="flex h-9 w-9 items-center justify-center text-white transition-opacity hover:opacity-80"
+              className="investment-titlebar-action flex h-9 w-9 items-center justify-center rounded-lg text-[#334155] transition-colors hover:bg-[#edf9f1] hover:text-[#047857]"
               title="Cài đặt hệ thống"
             >
               <SettingsIcon size={18} />
@@ -2925,7 +3031,7 @@ const App: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsAccountMenuOpen((prev) => !prev)}
-                className="relative flex h-10 w-10 items-center justify-center rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.15)] transition-all hover:scale-105 active:scale-95 border-2 border-white/20 overflow-hidden bg-white/10 backdrop-blur-sm"
+                className="investment-titlebar-avatar relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border-2 border-[#e5eee8] bg-white shadow-sm transition-all hover:scale-105 active:scale-95"
                 title={accountDisplayName}
               >
                 <img
@@ -2942,7 +3048,9 @@ const App: React.FC = () => {
               </button>
 
               {isAccountMenuOpen && (
-                <div className="fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300">
+                <div
+                  className={`fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300 ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
+                >
                   {/* User Info Card */}
                   <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
                     {/* Decorative backgrounds */}
@@ -3030,7 +3138,7 @@ const App: React.FC = () => {
               if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
             }}
             onMouseLeave={() => setIsReportMenuOpen(false)}
-            className="fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
+            className={`fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)] ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
             style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
           >
             {[
@@ -3110,7 +3218,7 @@ const App: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setIsAddRoomOpen(true)}
-                      className="px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
+                      className="room-primary-faceted px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
                     >
                       <i className="fa-solid fa-plus text-xs"></i>
                       <span>Thêm phòng</span>
@@ -3135,7 +3243,7 @@ const App: React.FC = () => {
                       onClick={resetRoomFilters}
                       className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
                         isAllRoomFilter
-                          ? 'bg-primary text-white shadow-md shadow-primary/20'
+                          ? 'room-primary-faceted bg-primary text-white shadow-md shadow-primary/20'
                           : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'
                       }`}
                     >
@@ -3261,11 +3369,11 @@ const App: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {isLoading ? (
+                      {isLoading || invoicesLoading || contractsLoading ? (
                         <tr>
                           <td colSpan={12} className="text-center py-10 text-gray-400">
                             <LogoLoading
-                              message="Đang tải danh sách phòng..."
+                              message="Đang tải dữ liệu phòng và hóa đơn..."
                               className="min-h-[45vh]"
                             />
                           </td>
@@ -3291,9 +3399,34 @@ const App: React.FC = () => {
                             </button>
                           </td>
                         </tr>
+                      ) : invoicesLoadFailed ? (
+                        <tr>
+                          <td colSpan={12} className="px-6 py-12 text-center">
+                            <p className="font-semibold text-red-700">Không tải được hóa đơn</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {invoicesLoadError instanceof Error
+                                ? invoicesLoadError.message
+                                : 'Kiểm tra kết nối và thử lại.'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void refetchInvoices()}
+                              className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark"
+                            >
+                              Thử lại
+                            </button>
+                          </td>
+                        </tr>
                       ) : (
                         filteredRooms.map((origRoom, roomIndex) => {
                           const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
+                          const isAttention = attentionRoomIds.has(room.id)
+                          const showAttentionHeader =
+                            isAttention && roomIndex === 0 && filteredAttentionCount > 0
+                          const showRemainingHeader =
+                            !isAttention &&
+                            roomIndex === filteredAttentionCount &&
+                            filteredAttentionCount > 0
                           const zone = serviceZoneById.get(room.service_zone_id || '') || {
                             name: 'Chưa có',
                             electric_price: 0,
@@ -3302,79 +3435,13 @@ const App: React.FC = () => {
                             cleaning_price: 0
                           }
                           const activeContract = activeContractByRoomId.get(room.id)
-                          const roomInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                            (i) => i.payment_status !== 'cancelled' && i.payment_status !== 'merged'
-                          )
-                          const roomMoveInReceipts = moveInReceiptsByRoomId.get(room.id) || []
-                          const checkInvoices = (invoicesByRoomId.get(room.id) || []).filter(
-                            (i) =>
-                              (!activeContract?.tenant_id ||
-                                i.tenant_id === activeContract.tenant_id) &&
-                              new Date(
-                                i.created_at ||
-                                  i.invoice_date ||
-                                  activeContract?.created_at ||
-                                  Date.now()
-                              ).getTime() >=
-                                new Date(
-                                  activeContract?.created_at ||
-                                    activeContract?.move_in_date ||
-                                    Date.now()
-                                ).getTime()
-                          )
-                          const endingOutstandingInvoice =
-                            checkInvoices
-                              .filter(
-                                (i) =>
-                                  i.payment_status !== 'cancelled' &&
-                                  i.payment_status !== 'merged' &&
-                                  (i.payment_status === 'unpaid' || i.payment_status === 'partial')
-                              )
-                              .sort((a, b) => {
-                                if (!!a.is_first_month !== !!b.is_first_month)
-                                  return a.is_first_month ? -1 : 1
-                                return (
-                                  new Date(b.created_at).getTime() -
-                                  new Date(a.created_at).getTime()
-                                )
-                              })[0] || null
-                          const unpaidFirstMonthForCurrentTenant = checkInvoices.find(
-                            (i) =>
-                              i.is_first_month &&
-                              i.payment_status === 'unpaid' &&
-                              (i.paid_amount || 0) === 0
-                          )
-                          const canCancel =
-                            activeContract &&
-                            !checkInvoices.some(
-                              (i) =>
-                                i.payment_status !== 'cancelled' &&
-                                i.payment_status !== 'merged' &&
-                                (i.payment_status === 'paid' ||
-                                  i.payment_status === 'partial' ||
-                                  i.paid_amount > 0)
-                            )
-                          const canDeleteRoom =
-                            roomInvoices.length === 0 && roomMoveInReceipts.length === 0
-                          // Hóa đơn tháng đầu đã được tạo là đủ để phòng thoát trạng thái "Chờ lập HĐ".
-                          // Các hóa đơn thường khác chỉ đánh dấu bắt đầu khi đã ghi nhận thanh toán.
-                          const hasStartedInvoice = checkInvoices.some((i) => {
-                            if (i.payment_status === 'cancelled' || i.payment_status === 'merged')
-                              return false
-                            if (i.is_settlement || i.billing_reason === 'contract_end') return false
-                            if (i.is_first_month) return true
-                            if (i.payment_status !== 'paid' && Number(i.paid_amount || 0) <= 0)
-                              return false
-                            return (
-                              Number(i.room_cost || 0) > 0 ||
-                              Number(i.electric_cost || 0) > 0 ||
-                              Number(i.water_cost || 0) > 0 ||
-                              Number(i.wifi_cost || 0) > 0 ||
-                              Number(i.garbage_cost || 0) > 0
-                            )
-                          })
-                          const hasStartedBilling =
-                            hasStartedInvoice || activeContract?.is_migration === true
+                          const {
+                            endingOutstandingInvoice,
+                            unpaidFirstMonthForCurrentTenant,
+                            canCancel,
+                            canDeleteRoom,
+                            hasStartedBilling
+                          } = roomListSummaries.get(room.id)!
 
                           const menuItemClass =
                             'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
@@ -3678,10 +3745,41 @@ const App: React.FC = () => {
                           const showRoomTooltipAbove = roomIndex >= filteredRooms.length - 3
 
                           return (
-                            <tr
-                              key={room.id}
-                              className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative"
-                            >
+                            <React.Fragment key={room.id}>
+                              {showAttentionHeader && (
+                                <tr className="bg-red-50 border-y border-red-100 text-red-700">
+                                  <td colSpan={12} className="px-4 py-2.5">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-2 font-bold">
+                                        <i className="fa-solid fa-triangle-exclamation text-red-500" />
+                                        <span>Cần chú ý ({filteredAttentionCount} phòng)</span>
+                                      </div>
+                                      <span className="text-xs font-medium text-red-500">
+                                        Các phòng có công nợ hoặc cần theo dõi đặc biệt
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              {showRemainingHeader && (
+                                <tr className="bg-emerald-50 border-y border-emerald-100 text-emerald-800">
+                                  <td colSpan={12} className="px-4 py-2.5">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-2 font-bold">
+                                        <i className="fa-solid fa-circle-check text-emerald-500" />
+                                        <span>
+                                          Các phòng còn lại ({filteredRooms.length - filteredAttentionCount}{' '}
+                                          phòng)
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-medium text-emerald-700">
+                                        Hoạt động ổn định
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative">
                               <td className="px-3 py-2 text-center text-gray-400">
                                 <i className="fa-solid fa-bars"></i>
                               </td>
@@ -3763,7 +3861,7 @@ const App: React.FC = () => {
                                       border: 'border-emerald-200',
                                       dot: 'bg-emerald-500',
                                       tooltipBg: 'bg-emerald-800',
-                                      arrow: 'border-b-emerald-800'
+                                      tooltipColor: '#065f46'
                                     },
                                     {
                                       bg: 'bg-violet-100',
@@ -3771,7 +3869,7 @@ const App: React.FC = () => {
                                       border: 'border-violet-200',
                                       dot: 'bg-violet-500',
                                       tooltipBg: 'bg-violet-800',
-                                      arrow: 'border-b-violet-800'
+                                      tooltipColor: '#5b21b6'
                                     },
                                     {
                                       bg: 'bg-amber-100',
@@ -3779,7 +3877,7 @@ const App: React.FC = () => {
                                       border: 'border-amber-200',
                                       dot: 'bg-amber-500',
                                       tooltipBg: 'bg-amber-800',
-                                      arrow: 'border-b-amber-800'
+                                      tooltipColor: '#92400e'
                                     },
                                     {
                                       bg: 'bg-sky-100',
@@ -3787,7 +3885,7 @@ const App: React.FC = () => {
                                       border: 'border-sky-200',
                                       dot: 'bg-sky-500',
                                       tooltipBg: 'bg-sky-800',
-                                      arrow: 'border-b-sky-800'
+                                      tooltipColor: '#075985'
                                     },
                                     {
                                       bg: 'bg-rose-100',
@@ -3795,7 +3893,7 @@ const App: React.FC = () => {
                                       border: 'border-rose-200',
                                       dot: 'bg-rose-500',
                                       tooltipBg: 'bg-rose-800',
-                                      arrow: 'border-b-rose-800'
+                                      tooltipColor: '#9f1239'
                                     },
                                     {
                                       bg: 'bg-teal-100',
@@ -3803,7 +3901,7 @@ const App: React.FC = () => {
                                       border: 'border-teal-200',
                                       dot: 'bg-teal-500',
                                       tooltipBg: 'bg-teal-800',
-                                      arrow: 'border-b-teal-800'
+                                      tooltipColor: '#115e59'
                                     }
                                   ]
                                   const zoneIndex = serviceZones.findIndex(
@@ -3815,7 +3913,33 @@ const App: React.FC = () => {
                                     (zone.internet_price || 0) + (zone.cleaning_price || 0)
 
                                   return (
-                                    <div className="relative group/tooltip inline-block cursor-help">
+                                    <div
+                                      className="relative group/tooltip inline-block cursor-help"
+                                      onMouseEnter={(event) => {
+                                        const rect = event.currentTarget.getBoundingClientRect()
+                                        const tooltipWidth = 208
+                                        const tooltipHeight = 180
+                                        const left = Math.min(
+                                          Math.max(8, rect.left + rect.width / 2 - tooltipWidth / 2),
+                                          window.innerWidth - tooltipWidth - 8
+                                        )
+                                        const above = rect.bottom + tooltipHeight + 12 > window.innerHeight
+                                        setServiceTooltip({
+                                          name: zone.name,
+                                          electric: zone.electric_price || 0,
+                                          water: zone.water_price || 0,
+                                          internet: zone.internet_price || 0,
+                                          cleaning: zone.cleaning_price || 0,
+                                          fixedTotal,
+                                          tooltipBg: color.tooltipBg,
+                                          arrowColor: color.tooltipColor,
+                                          left,
+                                          top: above ? Math.max(8, rect.top - 8) : rect.bottom + 8,
+                                          above
+                                        })
+                                      }}
+                                      onMouseLeave={() => setServiceTooltip(null)}
+                                    >
                                       <div
                                         className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
                                       >
@@ -3825,62 +3949,6 @@ const App: React.FC = () => {
                                         <span className="tabular-nums">
                                           {formatVND(fixedTotal)} đ
                                         </span>
-                                      </div>
-                                      {/* Tooltip Content */}
-                                      <div
-                                        className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 w-52 ${color.tooltipBg} text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-50`}
-                                      >
-                                        <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
-                                          {zone.name}
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <div className="flex justify-between">
-                                            <span>
-                                              <i className="fa-solid fa-bolt text-yellow-400 w-4"></i>{' '}
-                                              Điện:
-                                            </span>{' '}
-                                            <span className="font-semibold tabular-nums">
-                                              {formatVND(zone.electric_price)} đ/kWh
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>
-                                              <i className="fa-solid fa-droplet text-blue-300 w-4"></i>{' '}
-                                              Nước:
-                                            </span>{' '}
-                                            <span className="font-semibold tabular-nums">
-                                              {formatVND(zone.water_price)} đ/m³
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>
-                                              <i className="fa-solid fa-wifi text-green-300 w-4"></i>{' '}
-                                              Nét:
-                                            </span>{' '}
-                                            <span className="font-semibold tabular-nums">
-                                              {formatVND(zone.internet_price)} đ/ph
-                                            </span>
-                                          </div>
-                                          <div className="flex justify-between">
-                                            <span>
-                                              <i className="fa-solid fa-broom text-gray-300 w-4"></i>{' '}
-                                              Rác:
-                                            </span>{' '}
-                                            <span className="font-semibold tabular-nums">
-                                              {formatVND(zone.cleaning_price)} đ/ph
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="mt-2 pt-1.5 border-t border-white/20 flex justify-between font-bold text-sm">
-                                          <span>Cố định:</span>
-                                          <span className="tabular-nums">
-                                            {formatVND(fixedTotal)} đ/th
-                                          </span>
-                                        </div>
-                                        {/* Arrow pointing up */}
-                                        <div
-                                          className={`absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent ${color.arrow}`}
-                                        ></div>
                                       </div>
                                     </div>
                                   )
@@ -4093,7 +4161,7 @@ const App: React.FC = () => {
                                       room.status === 'vacant'
                                         ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
                                         : room.status === 'occupied' && hasStartedBilling
-                                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
+                                          ? 'room-primary-faceted bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
                                           : room.status === 'occupied' && !hasStartedBilling
                                             ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
                                             : room.status === 'ending'
@@ -4298,7 +4366,7 @@ const App: React.FC = () => {
                                               e.stopPropagation()
                                               setSelectedRoom(room)
                                             }}
-                                            className="bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
+                                            className="room-primary-faceted bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
                                           >
                                             <div>
                                               <i className="fa-solid fa-lock mr-1"></i>Đã thu cọc
@@ -4393,7 +4461,7 @@ const App: React.FC = () => {
                                 return (
                                   <td className="px-4 py-3 text-center">
                                     {daysUntilNext > 0 ? (
-                                      <span className="inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
+                                      <span className="room-primary-faceted inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
                                         <i className="fa-solid fa-check-double text-[9px]"></i>
                                         Đã thu
                                         <span className="bg-white text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
@@ -4434,7 +4502,8 @@ const App: React.FC = () => {
                                   {menuOpenId === room.id && roomActionMenu}
                                 </div>
                               </td>
-                            </tr>
+                              </tr>
+                            </React.Fragment>
                           )
                         })
                       )}
@@ -4498,7 +4567,7 @@ const App: React.FC = () => {
                   <InvestmentsTab />
                 </Suspense>
               ) : (
-                <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-6">
+                <div className="flex-1 overflow-y-auto bg-[#f7faf8] p-6">
                   <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
                     <h1 className="text-xl font-black text-slate-900">Tổng quan tài chính</h1>
                     <p className="mt-2 text-sm text-slate-500">
@@ -4761,6 +4830,50 @@ const App: React.FC = () => {
               requestActiveTab('assets')
             }}
           />
+        )}
+
+        {serviceTooltip && (
+          <div
+            role="tooltip"
+            className={`fixed z-[120] w-52 rounded-lg ${serviceTooltip.tooltipBg} p-3 text-xs text-white shadow-xl pointer-events-none`}
+            style={{
+              left: serviceTooltip.left,
+              top: serviceTooltip.top,
+              transform: serviceTooltip.above ? 'translateY(-100%)' : undefined
+            }}
+          >
+            <div className="mb-2 border-b border-white/20 pb-1.5 text-center text-sm font-bold">
+              {serviceTooltip.name}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-bolt w-4 text-yellow-400" /> Điện:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.electric)} đ/kWh</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-droplet w-4 text-blue-300" /> Nước:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.water)} đ/m³</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-wifi w-4 text-green-300" /> Nét:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.internet)} đ/ph</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-broom w-4 text-gray-300" /> Rác:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.cleaning)} đ/ph</span>
+              </div>
+            </div>
+            <div className="mt-2 flex justify-between border-t border-white/20 pt-1.5 text-sm font-bold">
+              <span>Cố định:</span>
+              <span className="tabular-nums">{formatVND(serviceTooltip.fixedTotal)} đ/th</span>
+            </div>
+            <div
+              className={`absolute left-1/2 -translate-x-1/2 border-4 border-transparent ${serviceTooltip.above ? 'top-full' : 'bottom-full'}`}
+              style={serviceTooltip.above
+                ? { borderTopColor: serviceTooltip.arrowColor }
+                : { borderBottomColor: serviceTooltip.arrowColor }}
+            />
+          </div>
         )}
 
         <TourOverlay />

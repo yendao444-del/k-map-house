@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, clipboard, nativeImage, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, clipboard, dialog, ClipboardItem } from 'electron'
 import 'dotenv/config'
 import { extname, join } from 'path'
 import {
@@ -155,6 +155,10 @@ function withoutCrypto(data: InvestmentStore): InvestmentStore {
     const symbol = String(item.symbol || '').toUpperCase()
     if (symbol.endsWith('USDT') || knownCryptoSymbols.has(symbol)) cryptoSymbols.add(symbol)
   }
+  // Historical snapshots do not carry per-asset values, so they cannot be
+  // safely adjusted after removing crypto. Rebuild the non-crypto history in
+  // the renderer instead of showing inflated totals.
+  const hadCrypto = cryptoSymbols.size > 0 || (data.holdings || []).some((item) => item.category === 'crypto')
   return {
     holdings: (data.holdings || []).filter((item) => item.category !== 'crypto'),
     transactions: (data.transactions || []).filter(
@@ -163,7 +167,7 @@ function withoutCrypto(data: InvestmentStore): InvestmentStore {
     priceQuotes: (data.priceQuotes || []).filter(
       (item) => !cryptoSymbols.has(String(item.assetSymbol || '').toUpperCase())
     ),
-    portfolioSnapshots: data.portfolioSnapshots || [],
+    portfolioSnapshots: hadCrypto ? [] : data.portfolioSnapshots || [],
     categoryTargets: Object.fromEntries(
       Object.entries(data.categoryTargets || {}).filter(([key]) => key !== 'crypto')
     )
@@ -240,6 +244,14 @@ async function waitForWebContentsReady(
   await Promise.race([ready, new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))])
 }
 
+function secureExportHtml(html: string): string {
+  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src data: blob: file: https://qr.sepay.vn; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'"
+  if (!/<head(?:\s[^>]*)?>/i.test(html)) throw new Error('Nội dung tài liệu thiếu phần head.')
+  return html.replace(/<head(?:\s[^>]*)?>/i, (head) =>
+    `${head}<meta http-equiv="Content-Security-Policy" content="${csp}">`
+  )
+}
+
 function setupZaloHandlers(): void {
   ipcMain.removeHandler('zalo:send')
 
@@ -266,17 +278,17 @@ function setupZaloHandlers(): void {
         webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
       })
 
-      const htmlWithTailwind = payload.html.replace(
-        '</head>',
-        '<script src="https://cdn.tailwindcss.com"></script></head>'
-      )
-      writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
       try {
+        writeFileSync(htmlPath, secureExportHtml(payload.html), 'utf-8')
         await captureWindow.loadFile(htmlPath)
         await waitForWebContentsReady(captureWindow.webContents)
         const image = await captureWindow.webContents.capturePage()
         writeFileSync(imagePath, image.toPNG())
-        clipboard.writeImage(nativeImage.createFromPath(imagePath))
+        await clipboard.write([
+          new ClipboardItem({
+            'image/png': new Blob([image.toPNG() as unknown as BlobPart], { type: 'image/png' })
+          })
+        ])
       } finally {
         captureWindow.destroy()
       }
@@ -314,9 +326,8 @@ function setupInvoiceHandlers(): void {
       webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
     })
 
-    writeFileSync(htmlPath, rawHtml, 'utf-8')
-
     try {
+      writeFileSync(htmlPath, secureExportHtml(rawHtml), 'utf-8')
       await captureWindow.loadFile(htmlPath)
       await waitForWebContentsReady(captureWindow.webContents)
 
@@ -460,13 +471,8 @@ function setupInvoiceHandlers(): void {
           webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
         })
 
-        const htmlWithTailwind = rawHtml.replace(
-          '</head>',
-          '<script src="https://cdn.tailwindcss.com"></script></head>'
-        )
-        writeFileSync(htmlPath, htmlWithTailwind, 'utf-8')
-
         try {
+          writeFileSync(htmlPath, secureExportHtml(rawHtml), 'utf-8')
           await captureWindow.loadFile(htmlPath)
           await waitForWebContentsReady(captureWindow.webContents)
 
@@ -593,7 +599,7 @@ function setupContractHandlers(): void {
         const tempDir = join(app.getPath('temp'), 'phongtro-contracts')
         mkdirSync(tempDir, { recursive: true })
         const htmlPath = join(tempDir, `contract_temp_${Date.now()}.html`)
-        writeFileSync(htmlPath, rawHtml, 'utf-8')
+        writeFileSync(htmlPath, secureExportHtml(rawHtml), 'utf-8')
 
         const pdfWindow = new BrowserWindow({
           width: 794,
@@ -609,7 +615,7 @@ function setupContractHandlers(): void {
           const pdfBuffer = await pdfWindow.webContents.printToPDF({
             pageSize: 'A4',
             printBackground: true,
-            margins: { marginType: 'custom', top: 0, bottom: 0, left: 0, right: 0 }
+            margins: { top: 0, bottom: 0, left: 0, right: 0 }
           })
           const targetPath = saveResult.filePath.endsWith('.pdf')
             ? saveResult.filePath
@@ -1145,6 +1151,19 @@ function setupPerformanceHandlers(): void {
   })
 }
 
+function setupWindowThemeHandlers(): void {
+  ipcMain.removeHandler('window:setInvestmentTitleBar')
+  ipcMain.handle('window:setInvestmentTitleBar', (event, active: unknown) => {
+    const window = BrowserWindow.fromWebContents(event.sender)
+    if (!window || process.platform !== 'win32' || process.env.KMAP_SAFE_WINDOW === '1') return
+    window.setTitleBarOverlay({
+      color: active === true ? '#0b1727' : '#ffffff',
+      symbolColor: active === true ? '#e7eef7' : '#334155',
+      height: 40
+    })
+  })
+}
+
 // Avoid renderer/GPU crashes on production machines with unstable graphics drivers.
 app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
@@ -1160,14 +1179,14 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     title: 'AN KHANG HOME',
-    backgroundColor: '#005B3C',
+    backgroundColor: '#ffffff',
     icon: useSafeWindow ? undefined : icon,
     ...(useCustomTitleBar
       ? {
           titleBarStyle: 'hidden' as const,
           titleBarOverlay: {
-            color: '#005B3C',
-            symbolColor: '#ffffff',
+            color: '#ffffff',
+            symbolColor: '#334155',
             height: 40
           }
         }
@@ -1330,6 +1349,7 @@ app.whenReady().then(() => {
   setupContractHandlers()
   setupTtsHandlers()
   setupPerformanceHandlers()
+  setupWindowThemeHandlers()
   // Privileged Supabase and SePay operations run through the authenticated Edge Function.
   registerUpdateHandlers()
   const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()

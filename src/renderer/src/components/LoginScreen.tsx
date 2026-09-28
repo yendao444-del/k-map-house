@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import logoNavbar from '../assets/an_khang_home_logo.png'
-import loginCinematicApartment from '../assets/login-an-khang-home-right.png'
+import loginCinematicApartment from '../assets/login-an-khang-home-right.webp'
 import { WeatherBackdrop, type WeatherSceneStyle } from './WeatherBackdrop'
 import {
   requestPasswordReset,
@@ -304,19 +304,19 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
           <div className="login-hero mb-6 text-center">
             <span className="login-logo mx-auto flex h-[72px] w-[86px] items-center justify-center rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_14px_32px_-20px_rgba(0,91,69,0.45)]"><img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain" /></span>
             <h2 className="mt-5 text-[36px] font-extrabold leading-none tracking-[-0.035em] drop-shadow-[0_3px_10px_rgba(0,91,69,0.12)]">
-              <span className="text-[#073f35]">AN KHANG</span>{' '}
-              <span className="text-[#00a779]">HOME</span>
+              <span className="text-[#064a31]">AN KHANG</span>{' '}
+              <span className="text-[#00ab60]">HOME</span>
             </h2>
-            <div className="login-accent mx-auto mt-4 h-1 w-12 rounded-full bg-[#2fcf9b]" />
+            <div className="login-accent mx-auto mt-4 h-1 w-12 rounded-full bg-[#09c97d]" />
             <p className="mt-4 text-[13px] font-medium text-slate-500">Nhẹ việc quản lý · Vững vàng vận hành</p>
           </div>
 
           <div className="login-secure-note mb-5 flex items-center gap-2.5 rounded-xl border border-emerald-100/80 bg-gradient-to-r from-emerald-50/70 to-teal-50/30 px-3.5 py-2 text-left">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[#008461]">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[#047857]">
               <i className="fa-solid fa-house-circle-check text-[13px]" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-bold text-[#006a50] leading-snug">
+              <span className="block text-[12.5px] font-bold text-[#06603f] leading-snug">
                 Trọ an khang · Chủ nhà an tâm
               </span>
               <span className="block text-[11px] font-medium text-slate-400 leading-snug">
@@ -329,31 +329,31 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
             <label className="block">
               <span className="mb-2 block text-[13px] font-bold text-slate-700">Email hoặc tên đăng nhập</span>
               <span className="group relative block">
-                <i className="fa-regular fa-envelope pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 transition group-focus-within:text-[#008461]" aria-hidden="true" />
-                <input value={login} onChange={(event) => setLogin(event.target.value)} autoFocus autoComplete="username" placeholder="Nhập email hoặc tên đăng nhập" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-4 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a779] focus:ring-4 focus:ring-emerald-500/10" />
+                <i className="fa-regular fa-envelope pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 transition group-focus-within:text-[#047857]" aria-hidden="true" />
+                <input value={login} onChange={(event) => setLogin(event.target.value)} autoFocus autoComplete="username" placeholder="Nhập email hoặc tên đăng nhập" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-4 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
               </span>
             </label>
 
             <label className="block">
               <span className="mb-2 block text-[13px] font-bold text-slate-700">Mật khẩu</span>
               <span className="group relative block">
-                <i className="fa-solid fa-lock pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[16px] text-slate-400 transition group-focus-within:text-[#008461]" aria-hidden="true" />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="Nhập mật khẩu" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-14 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00a779] focus:ring-4 focus:ring-emerald-500/10" />
-                <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 transition hover:text-[#008461] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}><i className={`fa-regular ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-[17px]`} aria-hidden="true" /></button>
+                <i className="fa-solid fa-lock pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[16px] text-slate-400 transition group-focus-within:text-[#047857]" aria-hidden="true" />
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="Nhập mật khẩu" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-14 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
+                <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 transition hover:text-[#047857] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}><i className={`fa-regular ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-[17px]`} aria-hidden="true" /></button>
               </span>
             </label>
 
             <div className="flex items-center justify-between gap-4 pt-1">
               <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-slate-600">
-                <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="h-4 w-4 cursor-pointer rounded border-slate-300 bg-white accent-[#00a779]" />
+                <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="h-4 w-4 cursor-pointer rounded border-slate-300 bg-white accent-[#00ab60]" />
                 Ghi nhớ đăng nhập
               </label>
-              <button type="button" onClick={openForgotPassword} className="text-[13px] font-bold text-[#008461] transition hover:text-[#005b45] hover:underline">Quên mật khẩu?</button>
+              <button type="button" onClick={openForgotPassword} className="text-[13px] font-bold text-[#047857] transition hover:text-[#064a31] hover:underline">Quên mật khẩu?</button>
             </div>
 
             {error && <div role="alert" className="flex items-start gap-3 rounded-[9px] border border-rose-200 bg-rose-50 p-4 text-[13px] font-medium leading-5 text-rose-700"><i className="fa-solid fa-circle-exclamation mt-0.5" aria-hidden="true" /><span>{error}</span></div>}
 
-            <button type="submit" disabled={submitting} className="flex h-[54px] w-full items-center justify-center gap-3 rounded-[12px] bg-[#00a779] text-[15px] font-bold text-white shadow-[0_16px_26px_-15px_rgba(0,126,91,0.85)] transition hover:bg-[#008461] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-65">
+            <button type="submit" disabled={submitting} className="flex h-[54px] w-full items-center justify-center gap-3 rounded-[12px] bg-[#00ab60] text-[15px] font-bold text-white shadow-[0_16px_26px_-15px_rgba(0,126,91,0.85)] transition hover:bg-[#047857] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-65">
               <i className={`fa-solid ${submitting ? 'fa-circle-notch animate-spin' : 'fa-right-to-bracket'} text-[17px]`} aria-hidden="true" />
               {submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
@@ -362,11 +362,11 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
           <div className="login-divider mt-6 flex items-center gap-4 text-[12px] text-slate-400" aria-hidden="true"><span className="h-px flex-1 bg-slate-200" /><span>hoặc</span><span className="h-px flex-1 bg-slate-200" /></div>
           <p className="login-legal mt-5 text-center text-[11px] font-medium leading-5 text-slate-500">
             Bằng việc đăng nhập, bạn đồng ý với{' '}
-            <button type="button" onClick={() => setOpenPolicy('terms')} className="font-semibold text-[#007c5d] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+            <button type="button" onClick={() => setOpenPolicy('terms')} className="font-semibold text-[#047857] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
               Điều khoản sử dụng
             </button>{' '}
             và{' '}
-            <button type="button" onClick={() => setOpenPolicy('privacy')} className="font-semibold text-[#007c5d] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+            <button type="button" onClick={() => setOpenPolicy('privacy')} className="font-semibold text-[#047857] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
               Chính sách bảo mật
             </button>.
           </p>
@@ -388,7 +388,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
             aria-labelledby="password-reset-title"
             className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_80px_-20px_rgba(15,23,42,0.55)]"
           >
-            <header className="flex items-center justify-between border-b border-emerald-800/20 bg-[#005b45] px-6 py-5 text-white">
+            <header className="flex items-center justify-between border-b border-emerald-800/20 bg-[#064a31] px-6 py-5 text-white">
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/12 text-xl ring-1 ring-white/15">
                   <i className={`fa-solid ${resetStep === 'success' ? 'fa-circle-check' : resetStep === 'sent' ? 'fa-envelope-circle-check' : 'fa-key'}`} aria-hidden="true" />
@@ -565,7 +565,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
               aria-labelledby="policy-dialog-title"
               className="flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_80px_-20px_rgba(15,23,42,0.55)]"
             >
-              <header className="flex shrink-0 items-center justify-between border-b border-emerald-800/20 bg-[#005b45] px-6 py-5 text-white">
+              <header className="flex shrink-0 items-center justify-between border-b border-emerald-800/20 bg-[#064a31] px-6 py-5 text-white">
                 <div className="flex items-center gap-3">
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/12 text-xl ring-1 ring-white/15">
                     <i className={`fa-solid ${document.icon}`} aria-hidden="true" />

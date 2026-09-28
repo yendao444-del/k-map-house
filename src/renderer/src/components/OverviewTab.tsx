@@ -21,7 +21,7 @@ import {
   type Invoice
 } from '../lib/db'
 
-const COLORS = ['#0faf7a', '#2563eb', '#d99116', '#e67824', '#2497c9', '#64748b']
+const COLORS = ['#00ab60', '#2563eb', '#d99116', '#e67824', '#2497c9', '#64748b']
 const fmt = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 
 type ExpenseItem = {
@@ -80,6 +80,7 @@ function calcMetrics(
     0
   )
   const periodTransactions = transactions.filter((transaction) => {
+    if (transaction.category === 'investment_transfer') return false
     if (!start || !end) return true
     const date = day(transaction.transaction_date || transaction.created_at)
     return date >= start && date <= end
@@ -550,9 +551,9 @@ export function OverviewTab({
                       type="monotone"
                       dataKey="revenue"
                       name="Doanh thu"
-                      stroke="#0faf7a"
+                      stroke="#00ab60"
                       strokeWidth={3}
-                      fill="#0faf7a"
+                      fill="#00ab60"
                       fillOpacity={0.08}
                     />
                     <Area

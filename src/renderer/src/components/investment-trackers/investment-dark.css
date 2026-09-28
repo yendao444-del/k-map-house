@@ -1,0 +1,377 @@
+/* Dark presentation is scoped to the Investments screen only. */
+.investment-dark {
+  --investment-bg: #0b111b;
+  --investment-panel: #111a28;
+  --investment-panel-raised: #162235;
+  --investment-panel-soft: #0e1725;
+  --investment-border: #26364a;
+  --investment-text: #e7eef7;
+  --investment-muted: #8fa1b5;
+  --investment-accent: #21d38a;
+  --investment-accent-deep: #0d8f63;
+  color-scheme: dark;
+  background: radial-gradient(circle at 70% -10%, #183c3b 0%, var(--investment-bg) 42%) !important;
+  color: var(--investment-text);
+}
+
+.investment-dark main { background: transparent !important; }
+.investment-dark h1,
+.investment-dark h2,
+.investment-dark h3,
+.investment-dark .text-\[\#15231d\] { color: var(--investment-text) !important; }
+.investment-dark .text-slate-500,
+.investment-dark .text-slate-400,
+.investment-dark .text-gray-500,
+.investment-dark .text-gray-400 { color: var(--investment-muted) !important; }
+.investment-dark .text-slate-600 { color: #b8c6d6 !important; }
+.investment-dark .text-slate-700,
+.investment-dark .text-slate-800 { color: #d8e3ef !important; }
+
+.investment-dark aside {
+  background: linear-gradient(180deg, #0b1727 0%, #08111e 100%) !important;
+  border-color: #20364f !important;
+}
+.investment-dark aside button:not(.bg-white) {
+  background: transparent !important;
+  color: #a9bbcf !important;
+}
+.investment-dark aside button:hover { background: #14283d !important; color: #f1f7ff !important; }
+.investment-dark aside button.bg-\[\#21d38a\] {
+  background: var(--investment-accent) !important;
+  color: #06251a !important;
+}
+.investment-dark aside button.bg-white,
+.investment-dark [class~="xl:hidden"] button.bg-\[\#064a31\] {
+  background: var(--investment-accent) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #23d89a, 0 8px 18px rgb(0 0 0 / 18%) !important;
+}
+
+.investment-dark [class~="xl:hidden"] button:not(.bg-\[\#064a31\]),
+.investment-dark header button.border-slate-200,
+.investment-dark .border-slate-200.bg-white {
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark .bg-\[\#00ab60\] { background: var(--investment-accent) !important; color: #052217 !important; }
+.investment-dark .bg-\[\#21d38a\] { background: var(--investment-accent) !important; }
+.investment-dark .bg-\[\#064a31\] { background: #10283a !important; }
+
+.investment-dark .border-emerald-100,
+.investment-dark .border-slate-100,
+.investment-dark .border-slate-200,
+.investment-dark .border-emerald-200 { border-color: var(--investment-border) !important; }
+.investment-dark .bg-white { background: var(--investment-panel) !important; }
+.investment-dark .bg-slate-50,
+.investment-dark .bg-\[\#f7faf8\],
+.investment-dark .bg-\[\#f4f8f6\] { background: var(--investment-panel-soft) !important; }
+.investment-dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--investment-border) !important; }
+.investment-dark [class~="hover:bg-slate-50"]:hover { background: var(--investment-panel-raised) !important; }
+.investment-dark input,
+.investment-dark select,
+.investment-dark textarea {
+  background: #0b1421 !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark input::placeholder { color: #6e8196 !important; }
+.investment-dark option,
+.investment-dark select option { background: #0b1421 !important; color: var(--investment-text) !important; }
+
+.investment-dark .text-emerald-700,
+.investment-dark .text-emerald-800 { color: #55e8aa !important; }
+.investment-dark .text-rose-600 { color: #ff7189 !important; }
+.investment-dark .bg-emerald-50 { background: rgb(33 211 138 / 13%) !important; }
+.investment-dark .bg-rose-50 { background: rgb(255 113 137 / 13%) !important; }
+.investment-dark .bg-amber-50 { background: rgb(217 119 6 / 14%) !important; }
+.investment-dark .border-amber-400 { border-color: #8e6a2a !important; }
+.investment-dark .text-amber-700 { color: #f4b95f !important; }
+.investment-dark .text-rose-700 { color: #ff8da0 !important; }
+
+/* A few investment screens still use arbitrary Tailwind surface tokens instead
+   of the shared bg-white/bg-slate-50 classes. Keep those surfaces in the same
+   navy system so changing tabs never reveals a light flash. */
+.investment-dark [class~="bg-[#F5F9F7]"],
+.investment-dark [class~="bg-[#f5fff8]"],
+.investment-dark [class~="bg-[#F3FCF8]"],
+.investment-dark [class~="bg-[#edf9f1]"],
+.investment-dark [class~="bg-[#E2F8EE]"],
+.investment-dark [class~="bg-[#FFF0DB]"],
+.investment-dark [class~="bg-[#FFFDF5]"],
+.investment-dark [class~="bg-[#FFFBF4]"],
+.investment-dark [class~="bg-[#f1fbf6]"],
+.investment-dark [class~="bg-[#f7fbf9]"],
+.investment-dark [class~="bg-[#f8fbf9]"],
+.investment-dark [class~="bg-[#f6faf8]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [class~="bg-[#e9f9ef]"],
+.investment-dark [class~="bg-[#e2f8ee]"] {
+  background: rgb(33 211 138 / 13%) !important;
+}
+.investment-dark [class~="text-[#15231d]"],
+.investment-dark [class~="text-[#047857]"],
+.investment-dark [class~="text-[#06603f]"],
+.investment-dark [class~="text-slate-700"],
+.investment-dark [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+.investment-dark [class~="text-[#047857]"],
+.investment-dark [class~="text-emerald-700"] {
+  color: #55e8aa !important;
+}
+.investment-dark [class~="text-[#D27B20]"],
+.investment-dark [class~="text-[#8B5E13]"] {
+  color: #f4b95f !important;
+}
+.investment-dark [class~="border-emerald-100"],
+.investment-dark [class~="border-emerald-200"],
+.investment-dark [class~="border-amber-200"] {
+  border-color: var(--investment-border) !important;
+}
+
+/* Source tracker components use CSS variables, so their panels inherit the same dark surface. */
+.investment-dark .investment-tracker-copy,
+.investment-dark .investment-tracker-copy .gold-tracker-container,
+.investment-dark .investment-tracker-copy .stock-tracker-container,
+.investment-dark .investment-tracker-copy .bond-tracker-container,
+.investment-dark .investment-tracker-copy .savings-tracker-container,
+.investment-dark .investment-tracker-copy .gold-history-panel,
+.investment-dark .investment-tracker-copy .gold-holdings-panel,
+.investment-dark .investment-tracker-copy .panel,
+.investment-dark .investment-tracker-copy .chart-panel,
+.investment-dark .investment-tracker-copy .savings-stat-card,
+.investment-dark .investment-tracker-copy .savings-card {
+  color: var(--investment-text) !important;
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 18%) !important;
+}
+
+/* The source trackers resolve most inline surfaces through these variables.
+   Keep the override scoped so the rest of Electron remains unchanged. */
+.investment-dark .investment-tracker-copy {
+  color-scheme: dark;
+  --color-text-primary: var(--investment-text);
+  --color-text-secondary: var(--investment-muted);
+  --color-text-muted: #72859a;
+  --color-text: var(--investment-text);
+  --color-bg-app: var(--investment-bg);
+  --color-bg-gradient: linear-gradient(180deg, #101b2a 0%, var(--investment-bg) 100%);
+  --color-bg-panel: var(--investment-panel);
+  --color-bg-sidebar: #0b1727;
+  --color-bg-card: var(--investment-panel);
+  --color-bg-card-hover: var(--investment-panel-raised);
+  --color-bg-input: #0b1421;
+  --color-border: var(--investment-border);
+  --color-border-hover: #35604f;
+  --color-primary: var(--investment-accent);
+  --color-primary-hover: #49e7a7;
+  --color-primary-glow: rgb(33 211 138 / 18%);
+  --color-soft-button-text: #7af0bd;
+  --color-soft-button-bg: rgb(33 211 138 / 13%);
+  --color-soft-button-border: #28654f;
+  --color-gold-bg: rgb(217 119 6 / 14%);
+  --color-gold-border: #8e6a2a;
+  --color-red-bg: rgb(255 113 137 / 13%);
+  --color-red-border: #75404c;
+  --color-chart-grid: #26364a;
+  --color-chart-axis: #52657a;
+}
+
+/* Watchlists and their legend use inline var(...) styles in the source copy. */
+.investment-dark .investment-tracker-copy .tv-watchlist-card,
+.investment-dark .investment-tracker-copy .tv-watchlist-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-sidebar,
+.investment-dark .investment-tracker-copy .tv-watchlist-table,
+.investment-dark .investment-tracker-copy .tv-watchlist-table tbody,
+.investment-dark .investment-tracker-copy .watchlist-suggestions,
+.investment-dark .investment-tracker-copy .chart-legend {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-section-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-section-header td,
+.investment-dark .investment-tracker-copy .tv-watchlist-th {
+  background: var(--investment-panel-soft) !important;
+  color: var(--investment-muted) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-row td {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text);
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-row:hover td,
+.investment-dark .investment-tracker-copy .tv-watchlist-row.selected td {
+  background: var(--investment-panel-raised) !important;
+}
+.investment-dark .investment-tracker-copy .watchlist-suggestion {
+  color: var(--investment-text) !important;
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .watchlist-suggestion:hover {
+  background: var(--investment-panel-raised) !important;
+}
+.investment-dark .investment-tracker-copy .chart-legend {
+  color: var(--investment-muted) !important;
+  border-top-color: var(--investment-border) !important;
+}
+
+/* Keep category-specific status colors readable on the dark surface. */
+.investment-dark .investment-tracker-copy .tv-text-green,
+.investment-dark .investment-tracker-copy .text-emerald-700,
+.investment-dark .investment-tracker-copy .text-emerald-800 { color: #55e8aa !important; }
+.investment-dark .investment-tracker-copy .tv-text-red,
+.investment-dark .investment-tracker-copy .text-rose-600,
+.investment-dark .investment-tracker-copy .text-rose-700 { color: #ff7189 !important; }
+.investment-dark .investment-tracker-copy .text-slate-400,
+.investment-dark .investment-tracker-copy .text-slate-500 { color: var(--investment-muted) !important; }
+.investment-dark .investment-tracker-copy .tracker-header,
+.investment-dark .investment-tracker-copy .panel-title,
+.investment-dark .investment-tracker-copy .savings-tabs-bar,
+.investment-dark .investment-tracker-copy .savings-card-metrics { border-color: var(--investment-border) !important; }
+.investment-dark .investment-tracker-copy .tracker-title h3,
+.investment-dark .investment-tracker-copy .card-brand-info strong,
+.investment-dark .investment-tracker-copy .mini-brand-row strong,
+.investment-dark .investment-tracker-copy .bank-name,
+.investment-dark .investment-tracker-copy .metric-value,
+.investment-dark .investment-tracker-copy .stat-value,
+.investment-dark .investment-tracker-copy .date-col strong { color: var(--investment-text) !important; }
+.investment-dark .investment-tracker-copy .tracker-title p,
+.investment-dark .investment-tracker-copy .source-tag,
+.investment-dark .investment-tracker-copy .stat-label,
+.investment-dark .investment-tracker-copy .stat-sub,
+.investment-dark .investment-tracker-copy .metric-label,
+.investment-dark .investment-tracker-copy .date-col span,
+.investment-dark .investment-tracker-copy .mini-brand-row small { color: var(--investment-muted) !important; }
+.investment-dark .investment-tracker-copy .brand-select,
+.investment-dark .investment-tracker-copy .time-select,
+.investment-dark .investment-tracker-copy .tab-button,
+.investment-dark .investment-tracker-copy .range-button,
+.investment-dark .investment-tracker-copy .savings-segmented,
+.investment-dark .investment-tracker-copy .savings-card-metrics,
+.investment-dark .investment-tracker-copy .tv-watchlist-search-container {
+  background: var(--investment-panel-soft) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tab-button.active,
+.investment-dark .investment-tracker-copy .range-button.active {
+  background: var(--investment-panel-raised) !important;
+  color: var(--investment-accent) !important;
+  box-shadow: inset 0 0 0 1px var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted {
+  background: var(--investment-panel-raised) !important;
+  border-color: #8e6a2a !important;
+  color: var(--investment-text) !important;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 24%) !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block.buy {
+  background: rgb(33 211 138 / 12%) !important;
+  border-color: #28654f !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block.sell {
+  background: rgb(217 119 6 / 14%) !important;
+  border-color: #8e6a2a !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block strong,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .card-brand-info strong,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .card-brand-info h4 {
+  color: var(--investment-text) !important;
+}
+.investment-dark .investment-tracker-copy table th { color: var(--investment-muted) !important; background: #0d1725 !important; }
+.investment-dark .investment-tracker-copy table td { border-color: var(--investment-border) !important; }
+.investment-dark .investment-tracker-copy tbody tr:hover,
+.investment-dark .investment-tracker-copy tbody tr.selected { background: var(--investment-panel-raised) !important; }
+.investment-dark .investment-tracker-copy .mini-bar { background: #253448 !important; }
+
+/* Gold trade dialog is part of this screen and should not flash a light surface. */
+.investment-dark [role='dialog'] {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark [role='dialog'] .bg-white { background: var(--investment-panel) !important; }
+.investment-dark [role='dialog'] .bg-\[\#f7faf8\],
+.investment-dark [role='dialog'] .bg-\[\#f8fbf9\] { background: var(--investment-panel-soft) !important; }
+.investment-dark [role='dialog'] .border-slate-100,
+.investment-dark [role='dialog'] .border-slate-200,
+.investment-dark [role='dialog'] .border-\[\#dfe9e4\],
+.investment-dark [role='dialog'] .border-\[\#e0ebe5\] { border-color: var(--investment-border) !important; }
+.investment-dark [role='dialog'] .text-\[\#15231d\],
+.investment-dark [role='dialog'] .text-\[\#064a31\] { color: var(--investment-text) !important; }
+.investment-dark [role='dialog'] [class~="bg-[#f1fbf6]"],
+.investment-dark [role='dialog'] [class~="bg-[#f7fbf9]"],
+.investment-dark [role='dialog'] [class~="bg-[#f8fbf9]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [role='dialog'] [class~="border-[#dbe6e1]"],
+.investment-dark [role='dialog'] [class~="border-[#dfe9e4]"],
+.investment-dark [role='dialog'] [class~="border-[#e0ebe5]"] {
+  border-color: var(--investment-border) !important;
+}
+.investment-dark [role='dialog'] [class~="text-[#15231d]"],
+.investment-dark [role='dialog'] [class~="text-[#064a31]"],
+.investment-dark [role='dialog'] [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+
+/* TransactionModal is a legacy form without role="dialog". */
+.investment-dark [class~="fixed"] form.bg-white,
+.investment-dark [class~="fixed"] > .bg-white {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark [class~="fixed"] [class~="bg-slate-50"],
+.investment-dark [class~="fixed"] [class~="bg-[#f7faf8]"],
+.investment-dark [class~="fixed"] [class~="bg-[#f8fbf9]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [class~="fixed"] [class~="text-[#15231d]"],
+.investment-dark [class~="fixed"] [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+.investment-dark [role='status'] {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+
+/* Legacy tracker dialogs/tooltips do not all expose role="dialog". */
+.investment-dark .modal,
+.investment-dark .asset-detail-modal,
+.investment-dark .recent-transactions-modal,
+.investment-dark .premium-asset-detail,
+.investment-dark .gold-holdings-dialog,
+.investment-dark .transaction-list-table-wrapper,
+.investment-dark .savings-empty-state,
+.investment-dark .chart-tooltip,
+.investment-dark .toast {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 35%) !important;
+}
+.investment-dark .modal-close-btn,
+.investment-dark .asset-detail-close { background: var(--investment-panel-raised) !important; color: var(--investment-muted) !important; border-color: var(--investment-border) !important; }
+.investment-dark .tx-type-selector { background: var(--investment-panel-soft) !important; }
+.investment-dark .recent-transactions-modal-header,
+.investment-dark .savings-tabs-bar,
+.investment-dark .rebalance-alerts-section { border-color: var(--investment-border) !important; }
+.investment-dark .rebalance-alert-card {
+  background: var(--investment-panel-soft) !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark .rebalance-alert-card .alert-title { color: var(--investment-text) !important; }
+.investment-dark .rebalance-alert-card .alert-desc { color: var(--investment-muted) !important; }
+
+@media (max-width: 767px) {
+  .investment-dark main { padding: 14px !important; }
+}

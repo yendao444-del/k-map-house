@@ -73,6 +73,8 @@ dist/
 .idea
 .vscode
 .claude/worktrees/
+tmp-product-design/
+scripts/__pycache__/
 *.swp
 *.swo
 

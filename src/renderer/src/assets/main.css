@@ -1,27 +1,68 @@
 @import 'tailwindcss';
 
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('./fonts/inter-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('./fonts/inter-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+
 /* ===== Tailwind v4: Custom Theme ===== */
 @theme {
-  --color-primary: #0faf7a;
-  --color-primary-dark: #0a9668;
+  --color-primary: #00ab60;
+  --color-primary-dark: #009653;
+  --color-emerald-50: #f5fff8;
+  --color-emerald-100: #e9f9ef;
+  --color-emerald-200: #c8efd5;
+  --color-emerald-300: #9be5b4;
+  --color-emerald-400: #42d990;
+  --color-emerald-500: #00ab60;
+  --color-emerald-600: #009653;
+  --color-emerald-700: #047857;
+  --color-emerald-800: #06603f;
+  --color-emerald-900: #064a31;
+  --color-emerald-950: #003d29;
+  --color-green-50: #f5fff8;
+  --color-green-100: #e9f9ef;
+  --color-green-200: #c8efd5;
+  --color-green-300: #9be5b4;
+  --color-green-400: #42d990;
+  --color-green-500: #00ab60;
+  --color-green-600: #009653;
+  --color-green-700: #047857;
+  --color-green-800: #06603f;
+  --color-green-900: #064a31;
+  --color-green-950: #003d29;
   --font-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 :root {
-  --brand-shell: #075244;
-  --brand-primary: #0faf7a;
-  --brand-primary-dark: #0a9668;
-  --brand-ink: #19324a;
-  --brand-muted: #708096;
-  --brand-canvas: #f8faf9;
-  --brand-border: #e3ebe8;
-  --brand-mint: #eef9f4;
+  --brand-shell: #064a31;
+  --brand-primary: #00ab60;
+  --brand-primary-dark: #009653;
+  --brand-primary-ink: #047857;
+  --brand-ink: #15231d;
+  --brand-muted: #718079;
+  --brand-canvas: #f7faf8;
+  --brand-border: #e5eee8;
+  --brand-mint: #edf9f1;
   --brand-danger: #d94b5f;
   --brand-warning: #d99116;
   --brand-radius-control: 8px;
   --brand-radius-surface: 10px;
-  --brand-shadow: 0 2px 10px rgba(25, 50, 74, 0.055);
+  --brand-shadow: 0 2px 10px rgba(6, 74, 49, 0.055);
 }
 
 html,
@@ -51,6 +92,65 @@ body {
   -webkit-app-region: no-drag;
 }
 
+.investment-titlebar {
+  background: #0b1727 !important;
+  border-bottom-color: #26364a !important;
+  color: #e7eef7 !important;
+  box-shadow: none !important;
+}
+
+.investment-titlebar .investment-titlebar-logo {
+  background: #f7faf8 !important;
+  border-color: #35485d !important;
+}
+
+.investment-titlebar .investment-titlebar-brand { color: #e7eef7 !important; }
+.investment-titlebar .investment-titlebar-subtitle { color: #91a8bb !important; }
+
+.investment-titlebar nav button:not(.brand-nav-active),
+.investment-titlebar .investment-titlebar-action {
+  color: #b8c9d9 !important;
+}
+
+.investment-titlebar nav button:not(.brand-nav-active):hover,
+.investment-titlebar .investment-titlebar-action:hover {
+  background: #1c3245 !important;
+  color: #f1f7ff !important;
+}
+
+.investment-titlebar .investment-titlebar-avatar {
+  border-color: #35485d !important;
+  background: #162235 !important;
+}
+
+.investment-titlebar .investment-titlebar-menu,
+.investment-titlebar-menu-active {
+  background: #111e2e !important;
+  border-color: #2b4056 !important;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32) !important;
+}
+
+.investment-titlebar .investment-titlebar-menu button:not(.brand-nav-active),
+.investment-titlebar-menu-active button:not(.brand-nav-active) {
+  color: #c3d0df !important;
+}
+
+.investment-titlebar .investment-titlebar-menu button:not(.brand-nav-active):hover,
+.investment-titlebar-menu-active button:not(.brand-nav-active):hover {
+  background: #1c3245 !important;
+  color: #f1f7ff !important;
+}
+
+.investment-titlebar-menu-active .text-slate-800,
+.investment-titlebar-menu-active .text-slate-600,
+.investment-titlebar-menu-active .text-slate-500 {
+  color: #c3d0df !important;
+}
+
+.investment-titlebar-menu-active .bg-slate-50 {
+  background: #162235 !important;
+}
+
 .app-system-font,
 .app-system-font input,
 .app-system-font select,
@@ -77,8 +177,8 @@ body {
 }
 
 .account-form-input:focus {
-  border-color: #0faf7a;
-  box-shadow: 0 0 0 4px rgb(15 175 122 / 0.1);
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 4px rgb(0 171 96 / 0.1);
 }
 
 /* ===== GLOBAL SCROLLBAR (Apple / Enterprise UI Style) ===== */
@@ -132,6 +232,39 @@ textarea {
   box-shadow: var(--brand-shadow) !important;
 }
 
+/* Primary controls use the faceted green finish from the desktop-FIXDEBUG app. */
+.room-primary-faceted,
+.brand-nav-active,
+button.bg-primary,
+button.bg-emerald-500,
+button.bg-emerald-600,
+button.bg-green-500,
+button.bg-green-600 {
+  color: #fff !important;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0 26%, transparent 26.5%),
+    linear-gradient(315deg, rgba(0, 74, 43, 0.14) 0 23%, transparent 23.5%),
+    linear-gradient(135deg, #09c97d 0%, #00ab60 60%, #009653 100%) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 4px rgba(0, 74, 43, 0.12),
+    0 5px 12px rgba(0, 169, 96, 0.2) !important;
+}
+
+button.room-primary-faceted:not(:disabled):hover,
+button.brand-nav-active:not(:disabled):hover,
+button.bg-primary:not(:disabled):hover,
+button.bg-emerald-500:not(:disabled):hover,
+button.bg-emerald-600:not(:disabled):hover,
+button.bg-green-500:not(:disabled):hover,
+button.bg-green-600:not(:disabled):hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.29) 0 26%, transparent 26.5%),
+    linear-gradient(315deg, rgba(0, 74, 43, 0.11) 0 23%, transparent 23.5%),
+    linear-gradient(135deg, #14d98b 0%, #00bd6b 60%, #00a45c 100%) !important;
+  box-shadow: 0 4px 12px rgba(0, 171, 86, 0.4) !important;
+}
+
 .rounded-xl {
   border-radius: var(--brand-radius-surface) !important;
 }
@@ -164,7 +297,7 @@ textarea {
 }
 
 .text-primary {
-  color: var(--brand-primary) !important;
+  color: var(--brand-primary-ink) !important;
 }
 
 .focus\:border-primary:focus {

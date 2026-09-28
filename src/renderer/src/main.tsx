@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './assets/font-awesome.css'
 
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -8,15 +9,6 @@ import { installGlobalSoundEffects, playError } from './lib/sound'
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 installGlobalSoundEffects()
-
-function loadIconStylesheet(): void {
-  if (document.querySelector('link[data-font-awesome]')) return
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'
-  link.dataset.fontAwesome = 'true'
-  document.head.appendChild(link)
-}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,7 +44,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
     if (!this.state.error) return this.props.children
 
     return (
-      <div className="flex h-screen items-center justify-center bg-[#005B3C] p-6 text-white">
+      <div className="flex h-screen items-center justify-center bg-[#064a31] p-6 text-white">
         <div className="w-full max-w-lg rounded-2xl bg-white p-6 text-slate-900 shadow-2xl">
           <h1 className="text-lg font-bold">Không thể tải màn hình này</h1>
           <p className="mt-2 text-sm text-slate-600">
@@ -90,6 +82,3 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>
 )
-
-// Keep the icon CDN out of the critical rendering path; icons fill in after the shell mounts.
-window.setTimeout(loadIconStylesheet, 0)

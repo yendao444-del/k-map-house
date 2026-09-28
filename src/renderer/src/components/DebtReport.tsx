@@ -18,7 +18,7 @@ import {
 
 type DebtSummary = { totalDebt: number; paid: number; offset: number }
 type EditableKey = 'totalDebt' | 'paid' | 'offset'
-type DebtChangeMode = 'opening' | 'increase' | 'decrease'
+type DebtChangeMode = 'opening' | 'increase'
 
 export type DebtEntry = {
   id: string
@@ -123,7 +123,6 @@ export function DebtReport({
   const [isCustomReason, setIsCustomReason] = useState(false)
   const [expanded, setExpanded] = useState<EditableKey[]>(['offset'])
   const [pendingDelete, setPendingDelete] = useState<DebtEntry | null>(null)
-  const [debtAdjustmentMode, setDebtAdjustmentMode] = useState<'increase' | 'decrease' | null>(null)
   const [pendingDebtChange, setPendingDebtChange] = useState<PendingDebtChange | null>(null)
   const [isOpeningSetup, setIsOpeningSetup] = useState(false)
   const [syncError, setSyncError] = useState('')
@@ -203,11 +202,11 @@ export function DebtReport({
   const baseTotal = values.totalDebt || 1
   const totalSettled = values.paid + values.offset
   const hasLockedOpeningDebt = entries.some((entry) => entry.type === 'totalDebt' && entry.amount > 0)
-  const canIncreaseDebt = canCreate && (isAdmin || (values.totalDebt > 0 && hasLockedOpeningDebt))
+  const canIncreaseDebt = canCreate
   const pendingDebtResult = pendingDebtChange
     ? pendingDebtChange.mode === 'opening'
       ? pendingDebtChange.amount
-      : values.totalDebt + (pendingDebtChange.mode === 'decrease' ? -pendingDebtChange.amount : pendingDebtChange.amount)
+      : values.totalDebt + pendingDebtChange.amount
     : null
   const pendingDebtInvalid = pendingDebtResult !== null && pendingDebtResult < 0
   const recoveryRate =
@@ -232,16 +231,17 @@ export function DebtReport({
       setReason(reasonOptions[key][0] || '')
     }
     setIsCustomReason(false)
-    setDebtAdjustmentMode(null)
     setIsOpeningSetup(false)
-    if (key === 'totalDebt' && values.totalDebt > 0) setDebtAdjustmentMode('increase')
+    if (key === 'totalDebt') {
+      setReason('Vay thêm')
+    }
   }
 
   const openDebtAdjustment = () => {
-    if (!canIncreaseDebt || values.totalDebt <= 0) return
+    if (!canIncreaseDebt) return
     setEditing('totalDebt')
     setEditingEntryId(null)
-    setDebtAdjustmentMode('increase')
+    setIsOpeningSetup(false)
     setAmount('')
     setReason('Vay thêm')
     setIsCustomReason(false)
@@ -251,7 +251,6 @@ export function DebtReport({
     if (!isAdmin || hasLockedOpeningDebt) return
     setEditing('totalDebt')
     setEditingEntryId(null)
-    setDebtAdjustmentMode(null)
     setIsOpeningSetup(true)
     setAmount('')
     setReason('Nợ gốc ban đầu')
@@ -298,7 +297,8 @@ export function DebtReport({
   const confirmDebtChange = () => {
     if (!canCreate || !pendingDebtChange) return
     if (!isAdmin && pendingDebtChange.mode !== 'increase') return
-    const signedAmount = pendingDebtChange.mode === 'decrease' ? -pendingDebtChange.amount : pendingDebtChange.amount
+    if (!Number.isSafeInteger(pendingDebtChange.amount) || pendingDebtChange.amount <= 0) return
+    const signedAmount = pendingDebtChange.amount
     const nextTotal = pendingDebtChange.mode === 'opening'
       ? pendingDebtChange.amount
       : values.totalDebt + signedAmount
@@ -312,7 +312,7 @@ export function DebtReport({
           : `${Date.now()}-${Math.random()}`,
       type: 'totalDebt',
       amount: pendingDebtChange.mode === 'opening' ? pendingDebtChange.amount : signedAmount,
-      reason: pendingDebtChange.reason,
+      reason: pendingDebtChange.mode === 'increase' ? 'Vay thêm' : pendingDebtChange.reason,
       createdAt: new Date().toISOString()
     }
     setEntries((current) => [entry, ...current])
@@ -327,7 +327,6 @@ export function DebtReport({
       setSyncError(error instanceof Error ? error.message : 'Không thể lưu giao dịch online.')
     })
     setPendingDebtChange(null)
-    setDebtAdjustmentMode(null)
     setIsOpeningSetup(false)
     setEditing(null)
     setAmount('')
@@ -349,10 +348,9 @@ export function DebtReport({
       return
 
     if (editing === 'totalDebt' && !editingEntryId) {
-      const mode: DebtChangeMode = isOpeningSetup ? 'opening' : values.totalDebt > 0 ? debtAdjustmentMode || 'increase' : 'opening'
+      const mode: DebtChangeMode = isOpeningSetup ? 'opening' : 'increase'
       if (!isAdmin && mode !== 'increase') return
-      if (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup) return
-      setPendingDebtChange({ amount: parsed, reason: reason.trim(), mode })
+      setPendingDebtChange({ amount: parsed, reason: mode === 'increase' ? 'Vay thêm' : reason.trim(), mode })
       return
     }
 
@@ -578,7 +576,7 @@ export function DebtReport({
                       </td>
                       <td className="px-5 py-3.5 text-right text-[12px] text-slate-400">
                         <span>{sec.note}</span>
-                        {sec.key === 'totalDebt' && (isAdmin || canIncreaseDebt) && (!hasLockedOpeningDebt || values.totalDebt > 0) && (
+                        {sec.key === 'totalDebt' && canIncreaseDebt && (
                           <button
                             type="button"
                             onClick={(event) => {
@@ -721,7 +719,7 @@ export function DebtReport({
             <button
               type="button"
               onClick={openOpeningDebtSetup}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00ab60] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#009653]"
             >
               <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
               Thiết lập nợ gốc
@@ -730,7 +728,7 @@ export function DebtReport({
             <button
               type="button"
               onClick={() => openEditor('paid')}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0faf7a] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#0a9668]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#00ab60] px-2.5 py-1.5 text-[11px] font-black text-white shadow-sm transition hover:bg-[#009653]"
             >
               <i className="fa-solid fa-plus text-[10px]" aria-hidden="true" />
               Thêm giao dịch
@@ -767,8 +765,8 @@ export function DebtReport({
                   </linearGradient>
                   {/* Gradient cho đường đã thanh toán */}
                   <linearGradient id="settledGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0faf7a" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#0faf7a" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#00ab60" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#00ab60" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -816,7 +814,7 @@ export function DebtReport({
                   type="monotone"
                   dataKey="settled"
                   name="settled"
-                  stroke="#0faf7a"
+                  stroke="#00ab60"
                   strokeWidth={2}
                   fill="url(#settledGrad)"
                 />
@@ -833,7 +831,7 @@ export function DebtReport({
               <span className="font-semibold text-slate-600">Còn phải trả</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="h-1.5 w-3 rounded-full bg-[#0faf7a]" />
+              <span className="h-1.5 w-3 rounded-full bg-[#00ab60]" />
               <span className="font-semibold text-slate-600">Đã trả & cấn trừ</span>
             </div>
           </div>
@@ -842,7 +840,7 @@ export function DebtReport({
           <div className="mt-1">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-full rounded-full bg-[#0faf7a] transition-all duration-500"
+                className="h-full rounded-full bg-[#00ab60] transition-all duration-500"
                 style={{ width: `${recoveryRate}%` }}
               />
             </div>
@@ -876,19 +874,19 @@ export function DebtReport({
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-[16px] font-black text-[#17345f]">
-                  {pendingDebtChange.mode === 'opening' ? 'Xác nhận ghi nhận tổng nợ' : 'Xác nhận điều chỉnh tổng nợ'}
+                  {pendingDebtChange.mode === 'opening' ? 'Xác nhận nợ gốc' : 'Xác nhận vay thêm'}
                 </h3>
                 <p className="mt-1 text-[12px] leading-5 text-slate-500">
                   {pendingDebtChange.mode === 'opening'
                     ? 'Sau khi xác nhận, bản ghi nợ gốc sẽ được khóa và không thể sửa hoặc xóa.'
-                    : 'Hệ thống sẽ giữ nguyên bản ghi cũ và thêm một dòng điều chỉnh mới vào lịch sử.'}
+                    : 'Khoản vay thêm sẽ được ghi vào lịch sử. Dư nợ giảm qua trả nợ và cấn trừ.'}
                 </p>
               </div>
               <button type="button" onClick={() => setPendingDebtChange(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Đóng"><i className="fa-solid fa-xmark" /></button>
             </div>
             <div className="space-y-2 bg-slate-50/70 px-5 py-4 text-[12px]">
               <div className="flex justify-between text-slate-500"><span>Tổng nợ hiện tại</span><strong className="text-slate-800">{fmt(values.totalDebt)} đ</strong></div>
-              <div className="flex justify-between text-slate-500"><span>{pendingDebtChange.mode === 'opening' ? 'Mức nợ gốc thiết lập' : pendingDebtChange.mode === 'decrease' ? 'Giảm' : 'Tăng'}</span><strong className={pendingDebtChange.mode === 'decrease' ? 'text-amber-700' : 'text-emerald-700'}>{pendingDebtChange.mode === 'opening' ? fmt(pendingDebtChange.amount) : `${pendingDebtChange.mode === 'decrease' ? '-' : '+'}${fmt(pendingDebtChange.amount)}`} đ</strong></div>
+              <div className="flex justify-between text-slate-500"><span>{pendingDebtChange.mode === 'opening' ? 'Mức nợ gốc thiết lập' : 'Số tiền vay thêm'}</span><strong className="text-emerald-700">{fmt(pendingDebtChange.amount)} đ</strong></div>
               <div className="flex justify-between border-t border-slate-200 pt-2 font-black text-slate-800"><span>Tổng nợ sau xác nhận</span><strong>{fmt(pendingDebtResult || 0)} đ</strong></div>
               <p className="pt-1 text-slate-600"><span className="font-semibold">Lý do:</span> {pendingDebtChange.reason}</p>
             </div>
@@ -968,7 +966,6 @@ export function DebtReport({
           onMouseDown={() => {
             setEditing(null)
             setEditingEntryId(null)
-            setDebtAdjustmentMode(null)
             setIsOpeningSetup(false)
           }}
         >
@@ -1004,7 +1001,7 @@ export function DebtReport({
                 <div>
                   <h3 className="text-[16px] font-black text-[#17345f]">{editorTitle}</h3>
                   <p className="text-[12px] text-slate-400">
-                    {editing === 'totalDebt' && (debtAdjustmentMode ? 'Điều chỉnh nợ của An Khang bằng một bút toán mới' : 'Ghi nhận nghĩa vụ nợ của An Khang Home')}
+                    {editing === 'totalDebt' && (isOpeningSetup ? 'Ghi nhận nợ gốc ban đầu' : 'Ghi nhận khoản vay thêm của An Khang Home')}
                     {editing === 'paid' && 'Ghi nhận số tiền An Khang Home đã thanh toán trả nợ'}
                     {editing === 'offset' && 'Ghi nhận khoản đối tác nợ An Khang để cấn trừ nợ'}
                   </p>
@@ -1015,7 +1012,6 @@ export function DebtReport({
                 onClick={() => {
                   setEditing(null)
                   setEditingEntryId(null)
-                  setDebtAdjustmentMode(null)
                   setIsOpeningSetup(false)
                 }}
                 className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
@@ -1036,7 +1032,7 @@ export function DebtReport({
                     {
                       key: 'totalDebt' as EditableKey,
                       label: 'A. An Khang Home nợ',
-                      sub: 'Tăng nợ',
+                      sub: 'Vay thêm',
                       activeStyle: 'border-sky-500 bg-sky-50/70 text-sky-950 ring-2 ring-sky-500/20',
                       dot: 'bg-sky-500'
                     },
@@ -1058,7 +1054,7 @@ export function DebtReport({
                     const isCurrent = editing === item.key
                     const isLockedDebt =
                       item.key === 'totalDebt' &&
-                      (!canIncreaseDebt || (values.totalDebt > 0 && !debtAdjustmentMode && !isOpeningSetup))
+                      (!canIncreaseDebt || Boolean(editingEntryId))
                     return (
                       <button
                         key={item.key}
@@ -1067,14 +1063,14 @@ export function DebtReport({
                         onClick={() => {
                           if (isLockedDebt) return
                           setEditing(item.key)
+                          if (item.key !== 'totalDebt') setIsOpeningSetup(false)
                           if (!editingEntryId) {
                             if (item.key === 'offset') {
                               setReason('')
                             } else {
                               setReason(reasonOptions[item.key][0] || '')
                             }
-                            if (item.key === 'totalDebt' && values.totalDebt > 0) {
-                              setDebtAdjustmentMode('increase')
+                            if (item.key === 'totalDebt' && !isOpeningSetup) {
                               setIsOpeningSetup(false)
                               setReason('Vay thêm')
                             }
@@ -1107,29 +1103,6 @@ export function DebtReport({
                   })}
                 </div>
               </div>
-
-              {editing === 'totalDebt' && debtAdjustmentMode && (
-                <div className="mb-4 rounded-xl border border-sky-100 bg-sky-50/60 p-3">
-                  <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-sky-800">Hướng điều chỉnh</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setDebtAdjustmentMode('increase')}
-                      className={`rounded-lg border px-3 py-2 text-left text-[12px] font-bold transition ${debtAdjustmentMode === 'increase' ? 'border-emerald-400 bg-white text-emerald-700 shadow-sm' : 'border-slate-200 bg-white/60 text-slate-500'}`}
-                    >
-                      <i className="fa-solid fa-arrow-trend-up mr-1.5" />Tăng tổng nợ
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDebtAdjustmentMode('decrease')}
-                      className={`rounded-lg border px-3 py-2 text-left text-[12px] font-bold transition ${debtAdjustmentMode === 'decrease' ? 'border-amber-400 bg-white text-amber-700 shadow-sm' : 'border-slate-200 bg-white/60 text-slate-500'}`}
-                    >
-                      <i className="fa-solid fa-arrow-trend-down mr-1.5" />Giảm tổng nợ
-                    </button>
-                  </div>
-                  <p className="mt-2 text-[11px] text-sky-700">Bản ghi tổng nợ gốc vẫn được giữ nguyên; thao tác này chỉ thêm một dòng điều chỉnh.</p>
-                </div>
-              )}
 
               {/* Màn hình nhập số tiền chuẩn POS siêu thị */}
               <div className="mb-4">
@@ -1202,7 +1175,7 @@ export function DebtReport({
                 <p className="mt-1.5 flex items-center gap-1.5 px-1 text-[11px] text-slate-500">
                   <i className="fa-solid fa-circle-info text-[10px] text-slate-400" />
                   <span>
-                    {editing === 'totalDebt' && (debtAdjustmentMode === 'decrease' ? 'Khoản tiền này sẽ được trừ khỏi tổng công nợ.' : 'Khoản tiền này sẽ được cộng vào tổng công nợ phát sinh.')}
+                    {editing === 'totalDebt' && 'Khoản tiền này sẽ được cộng vào công nợ phát sinh.'}
                     {editing === 'paid' && 'Khoản tiền thanh toán thực tế sẽ làm giảm dư nợ còn lại.'}
                     {editing === 'offset' && 'Khoản cấn trừ dịch vụ (điện, nước, kho...) sẽ khấu trừ vào nợ.'}
                   </span>
@@ -1248,13 +1221,13 @@ export function DebtReport({
                       </option>
                     )}
                     {reasonOptions[editing]
-                      .filter((option) => editing !== 'totalDebt' || isAdmin || option === 'Vay thêm')
+                      .filter((option) => editing !== 'totalDebt' || isOpeningSetup || option === 'Vay thêm')
                       .map((option) => (
                       <option key={option} value={option} className="py-2 font-semibold text-slate-800">
                         {option}
                       </option>
                     ))}
-                    {(editing !== 'totalDebt' || isAdmin) && (
+                    {(editing !== 'totalDebt' || isOpeningSetup) && (
                       <option value="__other__" className="py-2 font-bold text-amber-700">
                         Khác (tự ghi lý do)
                       </option>
@@ -1319,7 +1292,6 @@ export function DebtReport({
                         if (currentEntry) {
                           setEditing(null)
                           setEditingEntryId(null)
-                          setDebtAdjustmentMode(null)
                           setIsOpeningSetup(false)
                           setPendingDelete(currentEntry)
                         }
@@ -1337,7 +1309,6 @@ export function DebtReport({
                     onClick={() => {
                       setEditing(null)
                       setEditingEntryId(null)
-                      setDebtAdjustmentMode(null)
                       setIsOpeningSetup(false)
                     }}
                     className="rounded-xl border border-slate-200 px-4 py-2.5 text-[12px] font-bold text-slate-600 transition hover:bg-slate-50"

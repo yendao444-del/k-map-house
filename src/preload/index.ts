@@ -7,6 +7,10 @@ const electronAPI = {
 
 // Custom APIs for renderer - Database IPC
 const api = {
+  windowTheme: {
+    setInvestmentTitleBar: (active: boolean): Promise<void> =>
+      ipcRenderer.invoke('window:setInvestmentTitleBar', active)
+  },
   db: {
     read: (): Promise<unknown> => ipcRenderer.invoke('db:read'),
     write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('db:write', data),

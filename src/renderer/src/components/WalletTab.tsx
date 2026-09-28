@@ -114,7 +114,9 @@ export function WalletTab({
       id: `cash-${item.id}`,
       date: item.transaction_date,
       title:
-        item.category === 'wallet_transfer'
+        item.category === 'investment_transfer'
+          ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
+          : item.category === 'wallet_transfer'
           ? 'Chuyển giữa các ví'
           : categoryMap.get(item.category) ||
             (item.type === 'income' ? 'Khoản thu khác' : 'Chi phí vận hành'),
@@ -248,10 +250,10 @@ export function WalletTab({
         {/* Top Header */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#008F68]">
+            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#047857]">
               Tài chính · Dòng tiền
             </div>
-            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#12372A]">Ví tiền</h1>
+            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#15231d]">Ví tiền</h1>
             <p className="mt-0.5 text-xs text-slate-500">
               Quản lý số dư ngân hàng, tiền mặt và luân chuyển giữa các ví.
             </p>
@@ -261,14 +263,14 @@ export function WalletTab({
               <button
                 type="button"
                 onClick={onOpenInvestments}
-                className="flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3.5 text-xs font-black text-[#008F68] shadow-sm transition hover:bg-emerald-50"
+                className="flex h-9 items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3.5 text-xs font-black text-[#047857] shadow-sm transition hover:bg-emerald-50"
               >
                 <PieChart size={15} />
                 Danh mục đầu tư
               </button>
             )}
             <label className="flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm">
-              <CalendarDays size={15} className="text-[#007A4D]" />
+              <CalendarDays size={15} className="text-[#047857]" />
               <select
                 value={selectedMonth}
                 onChange={(event) => setSelectedMonth(event.target.value)}
@@ -299,7 +301,7 @@ export function WalletTab({
             <button
               type="button"
               onClick={onRecordTransaction}
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#008F68] px-3.5 text-xs font-black text-white shadow-sm transition hover:bg-[#007653]"
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-[#00ab60] px-3.5 text-xs font-black text-white shadow-sm transition hover:bg-[#009653]"
             >
               <CirclePlus size={15} />
               Ghi nhận thủ công
@@ -309,7 +311,7 @@ export function WalletTab({
               onClick={onReconcile}
               className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
-              <RefreshCw size={13} className="text-[#008F68]" />
+              <RefreshCw size={13} className="text-[#047857]" />
               Đối soát ngay
             </button>
           </div>
@@ -319,11 +321,11 @@ export function WalletTab({
         <section className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E8F8F0] text-[#008F68]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#edf9f1] text-[#047857]">
                 <WalletCards size={18} />
               </div>
               <div>
-                <h2 className="text-base font-black text-[#12372A]">Tiền đang nằm ở đâu?</h2>
+                <h2 className="text-base font-black text-[#15231d]">Tiền đang nằm ở đâu?</h2>
                 <p className="text-[11px] text-slate-400">Số dư tại từng tài khoản ngân hàng và quỹ tiền mặt</p>
               </div>
             </div>
@@ -335,7 +337,7 @@ export function WalletTab({
           </div>
 
           {/* BANNER SỐ DƯ KHẢ DỤNG TO RÕ RÀNG */}
-          <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#006e53] via-[#005e46] to-[#014936] p-5 sm:p-6 text-white shadow-lg shadow-emerald-950/10">
+          <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#06603f] via-[#064a31] to-[#003d29] p-5 sm:p-6 text-white shadow-lg shadow-emerald-950/10">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
@@ -397,7 +399,7 @@ export function WalletTab({
             >
               <div>
                 <div className="flex items-start justify-between">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#DDF8EC] text-[#008F68] shadow-sm">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e9f9ef] text-[#047857] shadow-sm">
                     <Landmark size={20} />
                   </span>
                   <div className="flex items-center gap-1">
@@ -415,7 +417,7 @@ export function WalletTab({
                     <MoreHorizontal size={16} className="text-slate-400" />
                   </div>
                 </div>
-                <div className="mt-3 truncate text-sm font-black text-[#12372A]">
+                <div className="mt-3 truncate text-sm font-black text-[#15231d]">
                   {bankName} · {accountNo}
                 </div>
                 <div className="mt-0.5 text-[11px] text-slate-500">
@@ -423,12 +425,12 @@ export function WalletTab({
                     ? 'Tài khoản nhận tiền · Đồng bộ qua Sepay'
                     : 'Chưa cấu hình tài khoản nhận tiền'}
                 </div>
-                <div className="mt-3 text-2xl font-black tabular-nums text-[#12372A]">
+                <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
                   {showBalance ? formatVND(safeBankBalance) : '••••••••••'}
                 </div>
               </div>
               <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
-                <div className="flex items-center gap-1.5 font-bold text-[#008F68]">
+                <div className="flex items-center gap-1.5 font-bold text-[#047857]">
                   <CheckCircle2 size={13} />
                   {appSettings?.bank_id && appSettings.account_no ? 'Đang hoạt động' : 'Cần cấu hình'}
                 </div>
@@ -469,9 +471,9 @@ export function WalletTab({
                     <MoreHorizontal size={16} className="text-slate-400" />
                   </div>
                 </div>
-                <div className="mt-3 text-sm font-black text-[#12372A]">Tiền mặt tại quỹ</div>
+                <div className="mt-3 text-sm font-black text-[#15231d]">Tiền mặt tại quỹ</div>
                 <div className="mt-0.5 text-[11px] text-slate-500">Tiền mặt · Cập nhật thủ công</div>
-                <div className="mt-3 text-2xl font-black tabular-nums text-[#12372A]">
+                <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
                   {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
                 </div>
               </div>
@@ -488,7 +490,7 @@ export function WalletTab({
             <button
               type="button"
               onClick={onRecordTransaction}
-              className="group flex min-h-[160px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-200 bg-[#FBFEFC] p-4 text-[#008F68] transition hover:border-emerald-300 hover:bg-emerald-50/50"
+              className="group flex min-h-[160px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-200 bg-[#f5fff8] p-4 text-[#047857] transition hover:border-emerald-300 hover:bg-emerald-50/50"
             >
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E2F8EE] shadow-sm transition group-hover:scale-105">
                 <Plus size={20} />
@@ -504,14 +506,14 @@ export function WalletTab({
         {/* 2. MỤC BIẾN ĐỘNG GẦN ĐÂY */}
         <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
           <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-            <div className="flex items-center gap-2 text-base font-black text-[#12372A]">
-              <ReceiptText size={18} className="text-[#008F68]" />
+            <div className="flex items-center gap-2 text-base font-black text-[#15231d]">
+              <ReceiptText size={18} className="text-[#047857]" />
               Biến động gần đây
             </div>
             <button
               type="button"
               onClick={onRecordTransaction}
-              className="inline-flex items-center gap-1 text-xs font-black text-[#008F68] transition hover:text-[#007653]"
+              className="inline-flex items-center gap-1 text-xs font-black text-[#047857] transition hover:text-[#06603f]"
             >
               Xem tất cả <ChevronRight size={14} />
             </button>
@@ -528,7 +530,7 @@ export function WalletTab({
             </label>
           </div>
           {isLoading ? (
-            <div className="flex h-44 items-center justify-center text-xs font-bold text-[#008F68]">
+            <div className="flex h-44 items-center justify-center text-xs font-bold text-[#047857]">
               <i className="fa-solid fa-spinner fa-spin mr-2"></i> Đang tổng hợp ví...
             </div>
           ) : (
@@ -539,7 +541,7 @@ export function WalletTab({
                   className="grid grid-cols-[34px_1fr_auto] items-center gap-3 px-5 py-3 transition hover:bg-slate-50/50"
                 >
                   <span
-                    className={`flex h-8 w-8 items-center justify-center rounded-full ${row.type === 'income' ? 'bg-emerald-50 text-[#008F68]' : 'bg-red-50 text-[#E04444]'}`}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full ${row.type === 'income' ? 'bg-emerald-50 text-[#047857]' : 'bg-red-50 text-[#E04444]'}`}
                   >
                     {row.type === 'income' ? (
                       <ArrowDownLeft size={16} />
@@ -548,7 +550,7 @@ export function WalletTab({
                     )}
                   </span>
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-black text-[#12372A]">{row.title}</div>
+                    <div className="truncate text-xs font-black text-[#15231d]">{row.title}</div>
                     <div className="truncate text-[10px] text-slate-500">
                       {formatDate(row.date)} ·{' '}
                       {row.paymentMethod === 'cash'
@@ -557,7 +559,7 @@ export function WalletTab({
                     </div>
                   </div>
                   <div
-                    className={`text-xs font-black tabular-nums ${row.type === 'income' ? 'text-[#008F68]' : 'text-[#E04444]'}`}
+                    className={`text-xs font-black tabular-nums ${row.type === 'income' ? 'text-[#047857]' : 'text-[#E04444]'}`}
                   >
                     {row.type === 'income' ? '+' : '−'}
                     {formatVND(row.amount)}
@@ -579,7 +581,7 @@ export function WalletTab({
             <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-lg font-black text-[#12372A]">Chuyển giữa các ví</div>
+                  <div className="text-lg font-black text-[#15231d]">Chuyển giữa các ví</div>
                   <div className="mt-1 text-xs leading-5 text-slate-500">
                     Di chuyển tiền giữa các ví của bạn. Tổng tiền không đổi.
                   </div>
@@ -653,7 +655,7 @@ export function WalletTab({
                       direction === 'cash-to-bank' ? 'bank-to-cash' : 'cash-to-bank'
                     )
                   }
-                  className="col-start-2 row-start-1 flex h-10 w-10 items-center justify-center justify-self-center rounded-full bg-[#00775C] text-white shadow-lg transition hover:scale-105 hover:bg-[#00634D] focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                  className="col-start-2 row-start-1 flex h-10 w-10 items-center justify-center justify-self-center rounded-full bg-[#00ab60] text-white shadow-lg transition hover:scale-105 hover:bg-[#009653] focus:outline-none focus:ring-4 focus:ring-emerald-100"
                   title="Đảo chiều chuyển giữa các ví"
                   aria-label="Đảo chiều chuyển giữa các ví"
                 >
@@ -664,7 +666,7 @@ export function WalletTab({
                 {transferDirection === 'cash-to-bank'
                   ? 'Tiền mặt tại quỹ'
                   : `${bankName} · ${accountNo}`}
-                <span className="mx-2 text-[#008F68]">→</span>
+                <span className="mx-2 text-[#047857]">→</span>
                 {transferDirection === 'cash-to-bank'
                   ? `${bankName} · ${accountNo}`
                   : 'Tiền mặt tại quỹ'}
@@ -700,7 +702,7 @@ export function WalletTab({
                   type="button"
                   onClick={submitTransfer}
                   disabled={transferMutation.isPending}
-                  className="rounded-xl bg-[#008F68] px-4 py-2.5 text-xs font-black text-white hover:bg-[#007653] disabled:opacity-60"
+                  className="rounded-xl bg-[#00ab60] px-4 py-2.5 text-xs font-black text-white hover:bg-[#009653] disabled:opacity-60"
                 >
                   {transferMutation.isPending ? 'Đang ghi nhận...' : 'Xác nhận chuyển giữa các ví'}
                 </button>

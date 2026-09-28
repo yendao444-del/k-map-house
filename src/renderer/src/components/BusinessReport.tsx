@@ -228,7 +228,7 @@ function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
         )
       })}
 
-      <path d={linePath('revenue')} fill="none" stroke="#0faf7a" strokeWidth="3" />
+      <path d={linePath('revenue')} fill="none" stroke="#00ab60" strokeWidth="3" />
       <path d={linePath('expense')} fill="none" stroke="#d94b5f" strokeWidth="2.5" />
 
       {data.map((item, index) => (
@@ -237,7 +237,7 @@ function PnlTrendChart({ data }: { data: PnlTrendPoint[] }) {
             cx={x(index)}
             cy={y(item.revenue)}
             r="4"
-            fill="#0faf7a"
+            fill="#00ab60"
             stroke="white"
             strokeWidth="2"
           >
@@ -760,6 +760,7 @@ export function BusinessReport({
   const filteredCash = useMemo(
     () =>
       cashTransactions.filter((item) => {
+        if (item.category === 'investment_transfer') return false
         const date = toDate(item.transaction_date || item.created_at)
         return isDateInPeriod(date, period)
       }),
@@ -1413,7 +1414,7 @@ export function BusinessReport({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f8faf9] p-5 space-y-4">
+    <div className="flex-1 overflow-y-auto bg-[#f7faf8] p-5 space-y-4">
       <div className="flex justify-end">
         <div ref={dropdownRef} className="flex items-center gap-2">
           <div className="relative">
@@ -1786,7 +1787,7 @@ export function BusinessReport({
                     Lợi nhuận thực
                   </div>
                   <div
-                    className={`my-3 text-[clamp(30px,3vw,46px)] leading-none font-black tracking-[-1.4px] tabular-nums ${pnl.netProfit >= 0 ? 'text-[#0faf7a]' : 'text-[#d94b5f]'}`}
+                    className={`my-3 text-[clamp(30px,3vw,46px)] leading-none font-black tracking-[-1.4px] tabular-nums ${pnl.netProfit >= 0 ? 'text-[#00ab60]' : 'text-[#d94b5f]'}`}
                   >
                     {pnl.netProfit < 0 ? '−' : ''}
                     {fmt(Math.abs(pnl.netProfit))} đ
@@ -1820,7 +1821,7 @@ export function BusinessReport({
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-xs font-semibold text-slate-500">
                   <span className="inline-flex items-center gap-1.5">
-                    <i className="h-[3px] w-5 rounded-full bg-[#0faf7a]"></i>Doanh thu
+                    <i className="h-[3px] w-5 rounded-full bg-[#00ab60]"></i>Doanh thu
                   </span>
                   <span className="inline-flex items-center gap-1.5">
                     <i className="h-[3px] w-5 rounded-full bg-[#d94b5f]"></i>Chi phí phát sinh
@@ -1837,7 +1838,7 @@ export function BusinessReport({
                 {
                   label: 'Doanh thu thực thu',
                   value: pnl.operatingRevenue,
-                  tone: 'text-[#0faf7a]',
+                  tone: 'text-[#00ab60]',
                   suffix: '100%'
                 },
                 {
@@ -1855,7 +1856,7 @@ export function BusinessReport({
                 {
                   label: 'Lợi nhuận thực',
                   value: pnl.netProfit,
-                  tone: pnl.netProfit >= 0 ? 'text-[#0faf7a]' : 'text-[#d94b5f]',
+                  tone: pnl.netProfit >= 0 ? 'text-[#00ab60]' : 'text-[#d94b5f]',
                   suffix: `${pnl.margin.toFixed(1)}%`
                 }
               ].map((metric, index) => (
