@@ -2608,7 +2608,9 @@ export const getWalletBalanceSummary = async (): Promise<WalletBalanceSummary> =
           'Giao dịch ví',
     amount: Number(item.amount) || 0,
     type: item.type,
-    paymentMethod: item.payment_method || 'transfer',
+    // Manual cash-ledger entries without a method are cash-at-fund entries.
+    // Bank/SePay records always carry `transfer` explicitly.
+    paymentMethod: item.payment_method || 'cash',
     source: 'Thủ công'
   }))
   const openingDate = appSettings.opening_balance_date || ''

@@ -999,7 +999,7 @@ export function DebtReport({
           <form
             onSubmit={submitEditor}
             onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-[540px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-[540px] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.22)]"
           >
             {/* Modal Header */}
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-4">
@@ -1231,6 +1231,7 @@ export function DebtReport({
                 <div className="relative">
                   <select
                     id="debt-reason-select"
+                    style={{ colorScheme: 'light' }}
                     value={isCustomReason ? '__other__' : reason}
                     onChange={(event) => {
                       const val = event.target.value
@@ -1245,19 +1246,19 @@ export function DebtReport({
                     className="h-11 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/50 px-4 pr-10 text-[13px] font-bold text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
                   >
                     {editing === 'offset' && (
-                      <option value="" disabled className="text-slate-400">
+                      <option value="" disabled style={{ backgroundColor: '#ffffff', color: '#64748b' }}>
                         -- Vui lòng chọn lý do cấn trừ --
                       </option>
                     )}
                     {reasonOptions[editing]
                       .filter((option) => editing !== 'totalDebt' || isOpeningSetup || option === 'Vay thêm')
                       .map((option) => (
-                      <option key={option} value={option} className="py-2 font-semibold text-slate-800">
+                      <option key={option} value={option} style={{ backgroundColor: '#ffffff', color: '#1e293b' }}>
                         {option}
                       </option>
                     ))}
                     {(editing !== 'totalDebt' || isOpeningSetup) && (
-                      <option value="__other__" className="py-2 font-bold text-amber-700">
+                      <option value="__other__" style={{ backgroundColor: '#ffffff', color: '#92400e' }}>
                         Khác (tự ghi lý do)
                       </option>
                     )}

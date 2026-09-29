@@ -137,6 +137,7 @@ interface UpdateStatusEvent {
     | 'extracting'
     | 'installing'
     | 'restarting'
+    | 'success'
     | 'error'
   message: string
   data?: UpdateCheckResult
@@ -170,6 +171,13 @@ interface UpdateAPI {
     error?: string
   }>
   getCurrentVersion: () => Promise<{ success: boolean; data?: string; error?: string }>
+  getResult: () => Promise<{
+    status: 'pending' | 'success' | 'error'
+    fromVersion: string
+    targetVersion: string
+    message: string
+    at: string
+  } | null>
   onAvailable: (callback: (data: UpdateCheckResult) => void) => () => void
   onStatus: (callback: (data: UpdateStatusEvent) => void) => () => void
   onProgress: (callback: (data: UpdateProgressEvent) => void) => () => void

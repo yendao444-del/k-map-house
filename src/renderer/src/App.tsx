@@ -1670,6 +1670,7 @@ const App: React.FC = () => {
   const [saveToast, setSaveToast] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [updateBanner, setUpdateBanner] = useState<UpdateBannerInfo | null>(null)
+  const [updateResultKey, setUpdateResultKey] = useState('')
   const handleSePaySyncSignalHandled = useCallback(() => {
     setSepaySyncOpenSignal(0)
   }, [])
@@ -1703,10 +1704,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!window.api?.update) return undefined
 
+    void window.api.update.getResult().then((result) => {
+      if (result && (result.status === 'success' || result.status === 'error')) {
+        const key = `${result.status}:${result.targetVersion}:${result.at}`
+        setUpdateResultKey(key)
+        if (localStorage.getItem('acknowledged-update-result') !== key) {
+          setUpdateBanner({ status: result.status, message: result.message, latestVersion: result.targetVersion })
+        }
+      }
+    }).catch(() => {})
+
     const removeStatus = window.api.update.onStatus((event) => {
       if ((event as any)?.silent || (event as any)?.data?.silent) return
-      if (['checking', 'available', 'idle', 'error'].includes(event.status)) {
-        setUpdateBanner(null)
+      if (['checking', 'available', 'idle'].includes(event.status)) {
         return
       }
       setUpdateBanner((current) => {
@@ -4735,7 +4745,9 @@ const App: React.FC = () => {
                 <div className="min-w-0 flex-1">
                   <div className="text-base font-black text-slate-900">
                     {updateBanner.status === 'error'
-                      ? 'Cập nhật tự động lỗi'
+                      ? 'Cập nhật thất bại'
+                      : updateBanner.status === 'success'
+                        ? 'Cập nhật thành công'
                       : updateBanner.status === 'checking'
                         ? 'Đang kiểm tra cập nhật'
                         : updateBanner.status === 'restarting'
@@ -4747,7 +4759,7 @@ const App: React.FC = () => {
                     {updateBanner.message ||
                       'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
                   </div>
-                  {updateBanner.status !== 'error' && (
+                  {!['error', 'success'].includes(updateBanner.status || '') && (
                     <div className="mt-5">
                       <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
                         <span>Tiến trình</span>
@@ -4763,9 +4775,13 @@ const App: React.FC = () => {
                   )}
                   {updateBanner.status === 'error' && (
                     <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
-                      Không thể tự cập nhật. Hãy kiểm tra mạng hoặc mở lại ứng dụng để hệ thống thử
-                      lại.
+                      Mở Cài đặt → Cập nhật để thử lại thủ công. Ứng dụng sẽ không tự lặp lại bản lỗi này.
                     </p>
+                  )}
+                  {['error', 'success'].includes(updateBanner.status || '') && (
+                    <button type="button" onClick={() => { if (updateResultKey) localStorage.setItem('acknowledged-update-result', updateResultKey); setUpdateBanner(null) }} className="mt-4 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white">
+                      Đã hiểu
+                    </button>
                   )}
                 </div>
               </div>

@@ -61,26 +61,14 @@ taskkill /F /IM electron.exe >nul 2>&1
 taskkill /F /IM "DBY HOME.exe" >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
 taskkill /F /IM esbuild.exe >nul 2>&1
-timeout /t 2 /nobreak >nul
-call npm run typecheck:node
-if errorlevel 1 (
-    echo NODE TYPECHECK THAT BAI!
-    goto rollback_fail
-)
-
-call npm run typecheck:web
-if errorlevel 1 (
-    echo WEB TYPECHECK THAT BAI!
-    goto rollback_fail
-)
-
-call npx electron-vite build
+powershell -NoProfile -Command "$names=@('electron','DBY HOME','K-Map House','esbuild'); $deadline=(Get-Date).AddSeconds(2); do { $running=Get-Process -Name $names -ErrorAction SilentlyContinue; if(-not $running){break}; Start-Sleep -Milliseconds 100 } while((Get-Date) -lt $deadline)"
+call node scripts\release-build.cjs
 if errorlevel 1 (
     echo BUILD THAT BAI!
     goto rollback_fail
 )
 set CSC_IDENTITY_AUTO_DISCOVERY=false
-call npx electron-builder --win
+call node node_modules\electron-builder\cli.js --win --publish never
 if errorlevel 1 (
     echo DONG GOI INSTALLER THAT BAI!
     goto rollback_fail
@@ -94,28 +82,11 @@ if not exist "!INSTALLER!" (
 echo [2/4] Nen patch zip...
 if not exist "dist" mkdir "dist"
 set PATCH_ZIP=dist\DBYHOME-PATCH-v!NEW_VERSION!.zip
-if exist "!PATCH_ZIP!" del "!PATCH_ZIP!"
-if exist "_patch_temp" rmdir /S /Q "_patch_temp"
-mkdir "_patch_temp\resources\app\out"
-xcopy "out\*" "_patch_temp\resources\app\out\" /E /I /Y /Q >nul 2>&1
-if errorlevel 1 (
-    echo [X] Khong copy duoc thu muc out vao patch.
-    rmdir /S /Q "_patch_temp" 2>nul
-    goto rollback_fail
-)
-copy /Y "package.json" "_patch_temp\resources\app\package.json" >nul 2>&1
-if errorlevel 1 (
-    echo [X] Khong copy duoc package.json vao patch.
-    rmdir /S /Q "_patch_temp" 2>nul
-    goto rollback_fail
-)
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '_patch_temp\*' -DestinationPath '!PATCH_ZIP!' -Force"
+call node scripts\create-update-artifacts.cjs patch
 if errorlevel 1 (
     echo [X] Nen patch zip that bai.
-    rmdir /S /Q "_patch_temp" 2>nul
     goto rollback_fail
 )
-rmdir /S /Q "_patch_temp" 2>nul
 if not exist "!PATCH_ZIP!" (
     echo [X] Khong tao duoc file patch zip.
     goto rollback_fail
@@ -155,7 +126,6 @@ if "!VERSION_COMMITTED!"=="0" (
     echo [WARN] Dang rollback version ve v!CURRENT_VERSION!...
     node scripts\release-version.cjs set !CURRENT_VERSION! >nul 2>&1
 )
-if exist "_patch_temp" rmdir /S /Q "_patch_temp" 2>nul
 pause
 exit /b 1
 
@@ -163,6 +133,5 @@ exit /b 1
 echo.
 echo [WARN] Commit v!NEW_VERSION! da duoc tao. Khong rollback version de tranh lech lich su git.
 echo     Sua loi ben tren roi chay lai lenh push/release neu can.
-if exist "_patch_temp" rmdir /S /Q "_patch_temp" 2>nul
 pause
 exit /b 1

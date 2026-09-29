@@ -32,19 +32,21 @@ if not exist "dist\win-unpacked\locales\en-US.pak" goto fail
 node scripts\create-update-artifacts.cjs standard
 if errorlevel 1 goto fail
 set UPDATE_DIR=updates\!NEW_VERSION!
-copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
+set MANUAL_INSTALLER=!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-manual-install.exe
+copy /Y "!INSTALLER!" "!MANUAL_INSTALLER!" >nul
+if errorlevel 1 goto fail
 if "!ENABLE_GITHUB!"=="1" (
   git add -A
   git commit -m "v!NEW_VERSION! - Standard update"
   if errorlevel 1 goto fail_after_commit
   git push
   if errorlevel 1 goto fail_after_commit
-  gh release create v!NEW_VERSION! "!INSTALLER!" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard-manifest.json" --title "DBY HOME v!NEW_VERSION! (STANDARD)" --notes "Standard application update with manual installer"
+  gh release create v!NEW_VERSION! "!MANUAL_INSTALLER!" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-standard-manifest.json" --title "DBY HOME v!NEW_VERSION! (STANDARD)" --notes "Standard application update with manual installer"
   if errorlevel 1 goto fail_after_commit
 )
 echo.
 echo Da tao goi standard trong %UPDATE_DIR%.
-echo Bo cai thu cong: %UPDATE_DIR%\DBYHOME-%NEW_VERSION%-setup.exe
+echo Bo cai thu cong: !MANUAL_INSTALLER!
 echo [SUCCESS] STANDARD RELEASE v!NEW_VERSION! HOAN TAT.
 pause
 exit /b 0

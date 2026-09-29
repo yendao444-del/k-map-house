@@ -594,7 +594,7 @@ function TransactionModal({
               <option value="cash">Tiền mặt · {money(operatingWalletSummary.cashBalance)}</option>
             </select>
           </label>}
-          <p className="mt-2">Tổng khả dụng: {money(walletSummary.availableBalance)}.{!isWalletTransaction && (type === 'sell' ? ' Tiền bán sẽ được cộng vào ví đã chọn.' : ' Tiền mua sẽ được trừ từ ví đã chọn.')}</p>
+          <p className="mt-2">{isWalletTransaction && type === 'deposit' ? 'Khả dụng ví vận hành' : 'Khả dụng ví đầu tư'}: {money(isWalletTransaction && type === 'deposit' ? operatingWalletSummary.availableBalance : walletSummary.availableBalance)}.{!isWalletTransaction && (type === 'sell' ? ' Tiền bán sẽ được cộng vào ví đầu tư.' : ' Tiền mua sẽ được trừ từ ví đầu tư.')}</p>
           {error && <p role="alert" className="mt-2 font-bold text-rose-600">{error}</p>}
           {fundingError && <p role="alert" className="mt-2 font-bold text-rose-600">{fundingError}</p>}
         </div>}

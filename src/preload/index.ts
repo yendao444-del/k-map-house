@@ -74,6 +74,7 @@ const api = {
     getHistory: (): Promise<unknown> => ipcRenderer.invoke('update:getHistory'),
     installLatest: (): Promise<unknown> => ipcRenderer.invoke('update:installLatest'),
     getCurrentVersion: (): Promise<unknown> => ipcRenderer.invoke('update:getCurrentVersion'),
+    getResult: (): Promise<unknown> => ipcRenderer.invoke('update:getResult'),
     onAvailable: (callback: (data: unknown) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
       ipcRenderer.on('update:available', listener)

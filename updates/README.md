@@ -14,7 +14,7 @@ thu cong cuoi cung.
 ## Cach chay
 
 - Update lon / cai lai: `updates\RELEASE-FULL.bat`
-- Update code day du: `updates\RELEASE-STANDARD.bat` (standard ZIP + installer)
+- Update code day du: `updates\RELEASE-STANDARD.bat` (standard ZIP tu dong + manual-install.exe de cai thu cong)
 - Update rat nho theo dung phien ban lien truoc: `updates\RELEASE-QUICK.bat` (chi quick ZIP)
 
 All release scripts upload to GitHub by default. Use `--local` only when you

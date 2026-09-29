@@ -13,7 +13,9 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ invoice,
   const room = rooms.find(r => r.id === invoice.room_id);
 
   const [paidAmount, setPaidAmount] = useState<number | ''>(invoice.total_amount - (invoice.paid_amount || 0));
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>(invoice.payment_method || 'transfer');
+  // Manual payments happen outside SePay; default them to cash-at-fund.
+  // Bank receipts must be selected explicitly (SePay sync always sets transfer).
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>(invoice.payment_method || 'cash');
   const [saving, setSaving] = useState(false);
 
   // remaining debt

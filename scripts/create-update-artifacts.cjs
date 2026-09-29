@@ -9,15 +9,14 @@ const packagePath = path.join(root, 'package.json')
 const updatesRoot = path.join(root, 'updates')
 const statePath = path.join(updatesRoot, 'state', 'manifest.json')
 
-if (!['standard', 'quick'].includes(mode)) {
-  console.error('Usage: node scripts/create-update-artifacts.cjs <standard|quick>')
+if (!['standard', 'quick', 'both', 'patch'].includes(mode)) {
+  console.error('Usage: node scripts/create-update-artifacts.cjs <standard|quick|both|patch>')
   process.exit(1)
 }
 
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'))
 const version = packageJson.version
 const outputDir = path.join(updatesRoot, version)
-const tempDir = path.join(updatesRoot, `.tmp-${mode}-${Date.now()}`)
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
@@ -39,8 +38,7 @@ function removeDirWithRetry(dir) {
         return false
       }
       // Antivirus and Explorer can briefly hold a newly generated archive.
-      const waitUntil = Date.now() + 750
-      while (Date.now() < waitUntil) {}
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 750)
     }
   }
   return false
@@ -63,11 +61,6 @@ function collectFiles(dir, prefix = '') {
     }
   }
   return result
-}
-
-function copyFile(source, target) {
-  ensureDir(path.dirname(target))
-  fs.copyFileSync(source, target)
 }
 
 function addDirectoryToZip(zip, sourceDir, zipPrefix) {
@@ -108,33 +101,22 @@ function pruneOldVersionDirectories() {
   }
 }
 
-function createStandard() {
-  const appRoot = path.join(tempDir, 'resources', 'app')
-  copyFile(path.join(root, 'package.json'), path.join(appRoot, 'package.json'))
-  fs.cpSync(path.join(root, 'out'), path.join(appRoot, 'out'), { recursive: true })
-
+function createStandard(zipPath = path.join(outputDir, `DBYHOME-${version}-standard.zip`)) {
   const zip = new AdmZip()
-  addDirectoryToZip(zip, path.join(tempDir, 'resources'), 'resources')
-  const zipPath = path.join(outputDir, `DBYHOME-${version}-standard.zip`)
-  zip.writeZip(zipPath)
+  zip.addFile('resources/app/package.json', fs.readFileSync(packagePath))
+  addDirectoryToZip(zip, path.join(root, 'out'), 'resources/app/out')
+  fs.writeFileSync(zipPath, zip.toBuffer())
   return zipPath
 }
 
-function createQuick(previous) {
-  const currentFiles = {
-    'package.json': sha256(path.join(root, 'package.json')),
-    ...Object.fromEntries(
-      Object.entries(collectFiles(path.join(root, 'out'))).map(([file, hash]) => [`out/${file}`, hash])
-    )
-  }
+function createQuick(previous, currentFiles) {
   const previousFiles = previous?.files || {}
   const changedFiles = Object.keys(currentFiles).filter((file) => currentFiles[file] !== previousFiles[file])
   const deletedFiles = Object.keys(previousFiles).filter((file) => !currentFiles[file])
-  const appRoot = path.join(tempDir, 'resources', 'app')
-
+  const zip = new AdmZip()
   for (const relative of changedFiles) {
     const source = path.join(root, relative === 'package.json' ? 'package.json' : relative)
-    copyFile(source, path.join(appRoot, relative))
+    zip.addFile(`resources/app/${relative}`, fs.readFileSync(source))
   }
 
   const manifest = {
@@ -146,13 +128,9 @@ function createQuick(previous) {
     deletedFiles,
     generatedAt: new Date().toISOString()
   }
-  ensureDir(appRoot)
-  fs.writeFileSync(path.join(appRoot, '.update-manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
-
-  const zip = new AdmZip()
-  addDirectoryToZip(zip, path.join(tempDir, 'resources'), 'resources')
+  zip.addFile('resources/app/.update-manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n'))
   const zipPath = path.join(outputDir, `DBYHOME-${version}-quick.zip`)
-  zip.writeZip(zipPath)
+  fs.writeFileSync(zipPath, zip.toBuffer())
   return { zipPath, manifest }
 }
 
@@ -160,9 +138,12 @@ try {
   if (!fs.existsSync(path.join(root, 'out'))) {
     throw new Error('Khong tim thay thu muc out. Hay build electron-vite truoc.')
   }
+  if (mode === 'patch') {
+    ensureDir(path.join(root, 'dist'))
+    console.log(createStandard(path.join(root, 'dist', `DBYHOME-PATCH-v${version}.zip`)))
+    process.exit(0)
+  }
   ensureDir(outputDir)
-  removeDir(tempDir)
-  ensureDir(tempDir)
 
   const previous = readState()
   const currentFiles = {
@@ -171,19 +152,22 @@ try {
       Object.entries(collectFiles(path.join(root, 'out'))).map(([file, hash]) => [`out/${file}`, hash])
     )
   }
+  for (const artifactMode of mode === 'both' ? ['quick', 'standard'] : [mode]) {
   let result
-  if (mode === 'standard') {
+  if (artifactMode === 'standard') {
     result = { zipPath: createStandard(), manifest: { schema: 1, type: 'standard', version } }
   } else {
-    result = createQuick(previous)
+    result = createQuick(previous, currentFiles)
   }
 
-  const manifestPath = path.join(outputDir, `DBYHOME-${version}-${mode}-manifest.json`)
+  const manifestPath = path.join(outputDir, `DBYHOME-${version}-${artifactMode}-manifest.json`)
   fs.writeFileSync(manifestPath, JSON.stringify({ ...result.manifest, currentFiles }, null, 2) + '\n')
-  writeState(currentFiles)
-  pruneOldVersionDirectories()
   console.log(result.zipPath)
   console.log(manifestPath)
-} finally {
-  removeDir(tempDir)
+  }
+  writeState(currentFiles)
+  pruneOldVersionDirectories()
+} catch (error) {
+  console.error(error.message)
+  process.exitCode = 1
 }

@@ -70,6 +70,52 @@ interface UpdateCheckResult {
 let releaseCache: GithubRelease | null = null
 let releaseCacheTime = 0
 let updateInProgress = false
+type StoredUpdateResult = {
+  status: 'pending' | 'success' | 'error'
+  fromVersion: string
+  targetVersion: string
+  message: string
+  at: string
+}
+
+function updateResultPath(): string {
+  return join(app.getPath('userData'), 'update-result.json')
+}
+
+function readUpdateResult(): StoredUpdateResult | null {
+  try {
+    const value = JSON.parse(readFileSync(updateResultPath(), 'utf-8')) as StoredUpdateResult
+    return ['pending', 'success', 'error'].includes(value.status) && typeof value.targetVersion === 'string'
+      ? value
+      : null
+  } catch {
+    return null
+  }
+}
+
+function saveUpdateResult(result: StoredUpdateResult): void {
+  const path = updateResultPath()
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, JSON.stringify(result), 'utf-8')
+}
+
+function verifyUpdateAfterRestart(): StoredUpdateResult | null {
+  const result = readUpdateResult()
+  if (!result || result.status === 'success') return result
+  const installedVersion = app.getVersion()
+  const success = compareVersions(installedVersion, result.targetVersion) >= 0
+  if (result.status === 'error' && !success) return result
+  const verified: StoredUpdateResult = {
+    ...result,
+    status: success ? 'success' : 'error',
+    message: success
+      ? `Cập nhật thành công lên v${installedVersion}.`
+      : `Cập nhật v${result.targetVersion} thất bại: máy vẫn đang ở v${installedVersion}. Vui lòng cập nhật thủ công trong Cài đặt.`,
+    at: new Date().toISOString()
+  }
+  saveUpdateResult(verified)
+  return verified
+}
 const CACHE_DURATION = 5 * 60 * 1000
 const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
 
@@ -361,6 +407,10 @@ function createLockedFileUpdater(tempDir: string, sourceRoot: string, targetRoot
 chcp 65001 >nul
 timeout /t 2 /nobreak >nul
 xcopy "${sourceRoot}\\*" "${targetRoot}\\" /E /I /Y /Q >nul 2>&1
+if errorlevel 1 (
+  start "" "${process.execPath}"
+  exit /b 1
+)
 start "" "${process.execPath}"
 timeout /t 3 /nobreak >nul
 rmdir /S /Q "${tempDir}" 2>nul
@@ -393,6 +443,7 @@ if not errorlevel 1 (
 )
 if %attempts% LSS 30 goto retry
 echo [%date% %time%] Failed to replace app.asar after %attempts% attempts. >> "%LOG%"
+start "" "${process.execPath}"
 exit /b 1
 :success
 echo [%date% %time%] Replaced and verified app.asar after %attempts% attempts. >> "%LOG%"
@@ -419,8 +470,10 @@ set "LOG=%TEMP%\\k-map-house-logs\\update-apply.log"
 if not exist "%TEMP%\\k-map-house-logs" mkdir "%TEMP%\\k-map-house-logs"
 timeout /t 2 /nobreak >nul
 start /wait "" "${installerPath}" /S
-if errorlevel 1 (
-  echo [%date% %time%] Installer failed with exit code %errorlevel%. >> "%LOG%"
+set "installerExit=%errorlevel%"
+if not "%installerExit%"=="0" (
+  echo [%date% %time%] Installer failed with exit code %installerExit%. >> "%LOG%"
+  start "" "${process.execPath}"
   exit /b 1
 )
 echo [%date% %time%] Installer completed. >> "%LOG%"
@@ -453,6 +506,11 @@ async function selectReleaseAsset(
   currentVersion: string
 ): Promise<{ asset: ReleaseAsset | null; artifactType: UpdateCheckResult['artifactType'] }> {
   const zipAssets = release.assets.filter((asset) => asset.name.toLowerCase().endsWith('.zip'))
+  const installer = release.assets.find((asset) => /-(setup|manual-install)\.exe$/i.test(asset.name) && asset.digest) || null
+  const failedVersion = readUpdateResult()
+  if (installer && failedVersion?.status === 'error' && failedVersion.targetVersion === release.tag_name.replace(/^v/i, '')) {
+    return { asset: installer, artifactType: 'installer' }
+  }
   const quickZip = zipAssets.find((asset) => /-quick\.zip$/i.test(asset.name)) || null
   const quickManifestAsset =
     release.assets.find((asset) => /-quick-manifest\.json$/i.test(asset.name)) ||
@@ -464,13 +522,12 @@ async function selectReleaseAsset(
   }
 
   const standardZip = zipAssets.find((asset) => /-standard\.zip$/i.test(asset.name)) || null
-  const installer = release.assets.find((asset) => /-setup\.exe$/i.test(asset.name) && asset.digest) || null
-  if (installer) {
-    return { asset: installer, artifactType: 'installer' }
-  }
-
   if (standardZip && standardZip.digest) {
     return { asset: standardZip, artifactType: 'standard' }
+  }
+
+  if (installer) {
+    return { asset: installer, artifactType: 'installer' }
   }
 
   const patchZip = zipAssets.find((asset) => /DBYHOME-PATCH-v[\d.]+\.zip$/i.test(asset.name) && asset.digest)
@@ -553,7 +610,7 @@ async function checkForUpdate(): Promise<UpdateCheckResult> {
   }
 }
 
-async function installUpdate(downloadUrl: string, checksum: string | null): Promise<{ version: string }> {
+async function installUpdate(downloadUrl: string, checksum: string | null, targetVersion: string): Promise<{ version: string }> {
   if (updateInProgress) {
     throw new Error('Đang có bản cập nhật chạy.')
   }
@@ -561,9 +618,21 @@ async function installUpdate(downloadUrl: string, checksum: string | null): Prom
   updateInProgress = true
   try {
     assertAllowedUpdateUrl(downloadUrl)
-    return downloadUrl.toLowerCase().endsWith('.exe')
+    const result = await (downloadUrl.toLowerCase().endsWith('.exe')
       ? await installWithSetup(downloadUrl, checksum)
-      : await installWithZip(downloadUrl, checksum)
+      : await installWithZip(downloadUrl, checksum))
+    saveUpdateResult({
+      status: 'pending',
+      fromVersion: app.getVersion(),
+      targetVersion,
+      message: `Đã chuẩn bị bản v${targetVersion}. Đang chờ khởi động lại để xác nhận kết quả.`,
+      at: new Date().toISOString()
+    })
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Không thể cài đặt bản cập nhật.'
+    saveUpdateResult({ status: 'error', fromVersion: app.getVersion(), targetVersion, message, at: new Date().toISOString() })
+    throw error
   } finally {
     updateInProgress = false
   }
@@ -585,11 +654,12 @@ async function installLatestUpdate(): Promise<{ version: string; latestVersion: 
   }
 
   sendToRenderer('update:available', update)
-  const result = await installUpdate(update.downloadUrl, update.checksum)
-  return { ...result, latestVersion: update.latestVersion, applied: true }
+  await installUpdate(update.downloadUrl, update.checksum, update.latestVersion)
+  return { version: update.latestVersion, latestVersion: update.latestVersion, applied: true }
 }
 
 async function runAutoUpdateCheck(): Promise<void> {
+  let targetVersion = ''
   sendToRenderer('update:status', {
     status: 'checking',
     message: 'Đang tự động kiểm tra bản cập nhật...',
@@ -607,8 +677,18 @@ async function runAutoUpdateCheck(): Promise<void> {
     })
 
     if (data.hasUpdate) {
+      targetVersion = data.latestVersion
       sendToRenderer('update:available', silentData)
 
+      const previous = readUpdateResult()
+      if (previous?.status === 'error' && previous.targetVersion === data.latestVersion) {
+        sendToRenderer('update:status', {
+          status: 'error',
+          message: `Tự động cập nhật v${data.latestVersion} đã thất bại trên máy này. Hãy thử cập nhật thủ công trong Cài đặt.`,
+          silent: true
+        })
+        return
+      }
       if (!data.downloadUrl || !data.checksum) {
         throw new Error('Bản phát hành không có tệp cập nhật phù hợp.')
       }
@@ -617,17 +697,27 @@ async function runAutoUpdateCheck(): Promise<void> {
       // package as soon as the startup check finds a valid release.
       sendToRenderer('update:status', {
         status: 'downloading',
-        message: `Đang tự động tải bản v${data.latestVersion}...`
+        message: `Đang tự động tải bản v${data.latestVersion}...`,
+        data
       })
-      await installUpdate(data.downloadUrl, data.checksum)
+      await installUpdate(data.downloadUrl, data.checksum, data.latestVersion)
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : error
+    if (targetVersion) {
+      saveUpdateResult({
+        status: 'error',
+        fromVersion: app.getVersion(),
+        targetVersion,
+        message: typeof message === 'string' ? message : 'Không thể tự động cập nhật.',
+        at: new Date().toISOString()
+      })
+    }
     void reportTelegramError('update-auto-install-failed', { message })
     sendToRenderer('update:status', {
       status: 'error',
       message: typeof message === 'string' ? message : 'Không thể tự động cập nhật.',
-      silent: true
+      silent: false
     })
   }
 }
@@ -843,6 +933,8 @@ function fetchReleases(repoInfo: { owner: string; repo: string }): Promise<Githu
 }
 
 export function registerUpdateHandlers(): void {
+  verifyUpdateAfterRestart()
+  ipcMain.handle('update:getResult', async () => readUpdateResult())
   ipcMain.handle('update:getHistory', async () => {
     try {
       const repoInfo = resolveRepoInfo()

@@ -2076,6 +2076,7 @@ type UpdateRuntimeStatus =
   | 'extracting'
   | 'installing'
   | 'restarting'
+  | 'success'
   | 'error'
 
 const ProductionUpdateSettings = (): React.JSX.Element => {
@@ -2085,6 +2086,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   const [history, setHistory] = useState<any[]>([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [lastResult, setLastResult] = useState<Awaited<ReturnType<typeof window.api.update.getResult>>>(null)
 
   const fetchHistory = async () => {
     setLoadingHistory(true)
@@ -2103,6 +2105,13 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
 
   useEffect(() => {
     fetchHistory()
+    void window.api.update.getResult().then((result) => {
+      setLastResult(result)
+      if (result?.status === 'success' || result?.status === 'error') {
+        setStatus(result.status)
+        setMessage(result.message)
+      }
+    })
 
     // Lấy phiên bản hiện tại ngay khi mở màn hình.
     void window.api.update.getCurrentVersion()
@@ -2117,6 +2126,9 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
       setStatus(event.status)
       setMessage(event.message)
       if (event.data) setUpdateInfo(event.data)
+      if (event.status === 'success' || event.status === 'error') {
+        void window.api.update.getResult().then(setLastResult)
+      }
     })
     const removeProgress = window.api.update.onProgress((event: any) => {
       setProgress(event.percent)
@@ -2179,7 +2191,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
       const result = await window.api.update.installLatest()
       if (!result.success) {
         setMessage(result.error || 'Cập nhật thất bại.')
-        setStatus('available')
+        setStatus('error')
         return
       }
       if (!updateInfo) return
@@ -2191,7 +2203,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
     } catch (error) {
       console.error('[Updates] Install failed:', error)
       setMessage(error instanceof Error ? error.message : 'Cập nhật thất bại.')
-      setStatus('available')
+      setStatus('error')
     }
   }
 
@@ -2229,7 +2241,7 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-2xl font-bold text-slate-900">
-                      {status === 'available' ? `Phát hiện phiên bản mới (v${updateInfo?.latestVersion})` : 'Hệ thống đã được cập nhật'}
+                      {status === 'available' ? `Phát hiện phiên bản mới (v${updateInfo?.latestVersion})` : status === 'error' ? 'Cập nhật thất bại' : status === 'success' ? 'Cập nhật thành công' : busy ? 'Đang cập nhật phần mềm' : 'Trạng thái cập nhật'}
                     </h2>
                     <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
                       <span className="text-xs font-medium text-slate-500">Phiên bản hiện tại:</span>
@@ -2250,6 +2262,12 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
                     </button>
                   )}
                 </div>
+
+                {(status === 'error' || status === 'success') && (
+                  <div role="status" className={`mt-6 rounded-2xl border px-4 py-3 text-sm font-semibold ${status === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
+                    {message}{lastResult?.status === status && lastResult.message === message && <span className="mt-1 block text-xs font-normal">Ghi nhận lúc {new Date(lastResult.at).toLocaleString('vi-VN')} · v{lastResult.fromVersion} → v{lastResult.targetVersion}</span>}
+                  </div>
+                )}
 
                 {status === 'available' && (
                   <div className="mt-8 p-6 bg-emerald-50/50 rounded-3xl border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-6 transition-all animate-in fade-in slide-in-from-bottom-4">

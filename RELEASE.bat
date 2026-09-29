@@ -60,26 +60,14 @@ echo [1/5] Tat app neu dang chay...
 taskkill /F /IM electron.exe >nul 2>&1
 taskkill /F /IM "DBY HOME.exe" >nul 2>&1
 taskkill /F /IM "K-Map House.exe" >nul 2>&1
-timeout /t 2 /nobreak >nul
+powershell -NoProfile -Command "$names=@('electron','DBY HOME','K-Map House','esbuild'); $deadline=(Get-Date).AddSeconds(2); do { $running=Get-Process -Name $names -ErrorAction SilentlyContinue; if(-not $running){break}; Start-Sleep -Milliseconds 100 } while((Get-Date) -lt $deadline)"
 
 echo [2/5] Don dist cu...
 call npm run clean:dist
 if errorlevel 1 ( echo CLEAN DIST THAT BAI! & goto rollback_fail )
 
 echo [3/5] Build app (TypeScript + electron-vite)...
-call npm run typecheck:node
-if errorlevel 1 (
-    echo [X] NODE TYPECHECK THAT BAI!
-    goto rollback_fail
-)
-
-call npm run typecheck:web
-if errorlevel 1 (
-    echo [X] WEB TYPECHECK THAT BAI!
-    goto rollback_fail
-)
-
-call npx electron-vite build
+call node scripts\release-build.cjs
 if errorlevel 1 (
     echo [X] BUILD THAT BAI! Co loi TypeScript hoac electron-vite.
     echo     Kiem tra log loi o tren, sua code roi chay lai RELEASE.bat.
@@ -90,7 +78,7 @@ echo [4/5] Package NSIS installer...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 rem Keep electron-builder's executable editing enabled so the packaged EXE,
 rem installer and shortcuts all receive the DBY HOME icon and metadata.
-call npx electron-builder --win
+call node node_modules\electron-builder\cli.js --win --publish never
 if errorlevel 1 (
     echo [X] DONG GOI INSTALLER THAT BAI!
     goto rollback_fail
@@ -139,14 +127,9 @@ if not exist "!PORTABLE_ZIP!" (
 )
 
 echo [5/7] Tao goi cap nhat thong minh (quick + standard)...
-call node scripts\create-update-artifacts.cjs quick
+call node scripts\create-update-artifacts.cjs both
 if errorlevel 1 (
-    echo [X] Khong tao duoc goi quick update.
-    goto rollback_fail
-)
-call node scripts\create-update-artifacts.cjs standard
-if errorlevel 1 (
-    echo [X] Khong tao duoc goi standard update.
+    echo [X] Khong tao duoc goi quick/standard update.
     goto rollback_fail
 )
 set QUICK_ZIP=updates\!NEW_VERSION!\DBYHOME-!NEW_VERSION!-quick.zip

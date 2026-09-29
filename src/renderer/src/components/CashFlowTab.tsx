@@ -606,7 +606,7 @@ function CashTransactionModal({
                 </p>
                 <select
                   name="payment_method"
-                  defaultValue={transaction?.payment_method || 'transfer'}
+                  defaultValue={transaction?.payment_method || 'cash'}
                   className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                 >
                   <option value="">Không ghi nhận</option>
@@ -760,7 +760,13 @@ export function CashFlowTab({
     () =>
       [
         ...invoiceIncomeRows,
-        ...transactions.map((item) => ({ ...item, source: 'manual' as const }))
+        ...transactions.map((item) => ({
+          ...item,
+          // Rows entered outside SePay are cash-at-fund by default. A bank
+          // entry must explicitly be marked as `transfer`.
+          payment_method: item.payment_method || 'cash',
+          source: 'manual' as const
+        }))
       ].sort((a, b) => {
         const dateDiff =
           new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
@@ -814,7 +820,7 @@ export function CashFlowTab({
     for (const row of rowsFromOpening) {
       const delta = row.type === 'income' ? row.amount : -row.amount
       totalBal += delta
-      if (row.payment_method === 'cash') cashBal += delta
+      if ((row.payment_method || 'cash') === 'cash') cashBal += delta
       else if (row.payment_method === 'transfer') bankBal += delta
       map.set(row.id, totalBal)
     }

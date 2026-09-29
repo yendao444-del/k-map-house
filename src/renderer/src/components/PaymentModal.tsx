@@ -84,7 +84,7 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
   const [amount, setAmount] = useState<number>(paymentTarget);
   const [amountDisplay, setAmountDisplay] = useState<string>(formatVND(paymentTarget));
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>(
-    invoice.payment_method || 'transfer'
+    invoice.payment_method || 'cash'
   );
   const [note, setNote] = useState('');
 

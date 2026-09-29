@@ -50,7 +50,7 @@ const formatDate = (value: string): string => {
 }
 const paymentLabel = (value: string): string =>
   value === 'cash'
-    ? 'Tiền mặt tại quỹ'
+    ? 'Tiền mặt'
     : value === 'transfer'
       ? 'Chuyển khoản ngân hàng'
       : 'Chưa xác định'
@@ -123,7 +123,9 @@ export function WalletTab({
       subtitle: item.note || 'Giao dịch ghi nhận thủ công',
       amount: Number(item.amount) || 0,
       type: item.type,
-      paymentMethod: item.payment_method || 'transfer',
+      // A manually entered row belongs to the cash fund unless it explicitly
+      // records a bank transfer (SePay rows are explicit `transfer`).
+      paymentMethod: item.payment_method || 'cash',
       source: 'Thủ công'
     }))
     return [...invoiceRows, ...manualRows].sort(
@@ -154,14 +156,14 @@ export function WalletTab({
     openingCash
   )
   const totalBalance = bankBalance + cashBalance
-  const safeTotal = Math.max(0, totalBalance)
-  const availableBalance = safeTotal
-  const safeBankBalance = Math.max(0, bankBalance)
-  const safeCashBalance = Math.max(0, cashBalance)
+  // Keep the real account balances (including a negative bank ledger) visible.
+  const safeBankBalance = bankBalance
+  const safeCashBalance = cashBalance
+  const positiveBalanceTotal = Math.max(0, bankBalance) + Math.max(0, cashBalance)
   const bankPercent =
-    availableBalance > 0 ? ((safeBankBalance / availableBalance) * 100).toFixed(1) : '0'
+    positiveBalanceTotal > 0 ? ((Math.max(0, bankBalance) / positiveBalanceTotal) * 100).toFixed(1) : '0'
   const cashPercent =
-    availableBalance > 0 ? ((safeCashBalance / availableBalance) * 100).toFixed(1) : '0'
+    positiveBalanceTotal > 0 ? ((Math.max(0, cashBalance) / positiveBalanceTotal) * 100).toFixed(1) : '0'
   const copyWalletValue = async (value: string, label: string) => {
     try {
       await navigator.clipboard.writeText(value)
@@ -198,8 +200,8 @@ export function WalletTab({
     }) => {
       const stamp = new Date().toISOString()
       const cashToBank = direction === 'cash-to-bank'
-      const sourceLabel = cashToBank ? 'Tiền mặt tại quỹ' : `${bankName} · ${accountNo}`
-      const targetLabel = cashToBank ? `${bankName} · ${accountNo}` : 'Tiền mặt tại quỹ'
+      const sourceLabel = cashToBank ? 'Tiền mặt' : `${bankName} · ${accountNo}`
+      const targetLabel = cashToBank ? `${bankName} · ${accountNo}` : 'Tiền mặt'
       const note = `Chuyển giữa các ví: ${sourceLabel} → ${targetLabel}`
       const sourceRow = await createCashTransaction({
         type: 'expense',
@@ -326,15 +328,22 @@ export function WalletTab({
               </div>
               <div>
                 <h2 className="text-base font-black text-[#15231d]">Tiền đang nằm ở đâu?</h2>
-                <p className="text-[11px] text-slate-400">Số dư tại từng tài khoản ngân hàng và quỹ tiền mặt</p>
+                <p className="text-[11px] text-slate-400">Số dư theo giao dịch đã ghi nhận; không phải truy vấn số dư trực tiếp từ ngân hàng</p>
               </div>
             </div>
 
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
               <CheckCircle2 size={13} className="text-emerald-600" />
-              Khớp sổ sách
+              {bankBalance < 0 || cashBalance < 0 ? 'Cần đối soát số dư' : 'Theo sổ giao dịch'}
             </span>
           </div>
+
+          {(bankBalance < 0 || cashBalance < 0) && (
+            <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Sổ giao dịch đang có tài khoản âm. Chưa xác nhận được số dư thực tế của BIDV và tiền mặt.
+              Vui lòng đối soát số dư đầu kỳ và phương thức thu/chi; tổng bên dưới không phải xác nhận tiền thực có thể sử dụng.
+            </p>
+          )}
 
           {/* BANNER SỐ DƯ KHẢ DỤNG TO RÕ RÀNG */}
           <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#06603f] via-[#064a31] to-[#003d29] p-5 sm:p-6 text-white shadow-lg shadow-emerald-950/10">
@@ -342,13 +351,13 @@ export function WalletTab({
               <div>
                 <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
                   <WalletCards size={16} />
-                  <span>Số dư khả dụng</span>
+                  <span>{bankBalance < 0 || cashBalance < 0 ? 'Tổng sổ sách · Cần đối soát' : 'Số dư theo sổ'}</span>
                   <span className="text-emerald-300/60">•</span>
-                  <span className="text-[11px] font-bold normal-case text-emerald-100/80">Tổng tài sản thanh khoản</span>
+                  <span className="text-[11px] font-bold normal-case text-emerald-100/80">Ngân hàng + tiền mặt</span>
                 </div>
                 <div className="mt-2.5 flex items-baseline gap-3">
                   <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums text-white drop-shadow-sm">
-                    {showBalance ? formatVND(availableBalance) : '••••••••••'}
+                    {showBalance ? formatVND(totalBalance) : '••••••••••'}
                   </span>
                   <button
                     type="button"
@@ -438,7 +447,7 @@ export function WalletTab({
               </div>
             </div>
 
-            {/* Thẻ Tiền mặt tại quỹ */}
+            {/* Thẻ Tiền mặt */}
             <div
               role="button"
               tabIndex={0}
@@ -471,7 +480,7 @@ export function WalletTab({
                     <MoreHorizontal size={16} className="text-slate-400" />
                   </div>
                 </div>
-                <div className="mt-3 text-sm font-black text-[#15231d]">Tiền mặt tại quỹ</div>
+                <div className="mt-3 text-sm font-black text-[#15231d]">Tiền mặt</div>
                 <div className="mt-0.5 text-[11px] text-slate-500">Tiền mặt · Cập nhật thủ công</div>
                 <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
                   {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
@@ -554,7 +563,7 @@ export function WalletTab({
                     <div className="truncate text-[10px] text-slate-500">
                       {formatDate(row.date)} ·{' '}
                       {row.paymentMethod === 'cash'
-                        ? 'Tiền mặt tại quỹ'
+                        ? 'Tiền mặt'
                         : `${bankName} · ${accountNo}`}
                     </div>
                   </div>
@@ -599,7 +608,7 @@ export function WalletTab({
                   {
                     key: 'cash-to-bank' as const,
                     icon: <Banknote size={18} />,
-                    label: 'Tiền mặt tại quỹ',
+                    label: 'Tiền mặt',
                     balance: cashBalance,
                     tone: 'amber'
                   },
@@ -664,12 +673,12 @@ export function WalletTab({
               </div>
               <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-center text-[11px] font-bold text-slate-500">
                 {transferDirection === 'cash-to-bank'
-                  ? 'Tiền mặt tại quỹ'
+                  ? 'Tiền mặt'
                   : `${bankName} · ${accountNo}`}
                 <span className="mx-2 text-[#047857]">→</span>
                 {transferDirection === 'cash-to-bank'
                   ? `${bankName} · ${accountNo}`
-                  : 'Tiền mặt tại quỹ'}
+                  : 'Tiền mặt'}
               </div>
               <label className="mt-4 block text-xs font-black text-slate-600">
                 Số tiền chuyển
