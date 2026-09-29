@@ -10,7 +10,6 @@ import {
   type ServiceZone,
   type Tenant,
 } from '../lib/db'
-import { playCreate } from '../lib/sound'
 
 interface Props {
   room: Room
@@ -193,7 +192,6 @@ export default function NewContractModal({ room, onClose, lastInvoice, initialTe
         deposit_pre_collected: isMigration && depositPreCollected ? true : undefined,
       }),
     onSuccess: () => {
-      playCreate()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['activeContracts'] })

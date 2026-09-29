@@ -1,0 +1,50 @@
+﻿[
+    {
+        "Mode":  "software",
+        "Run":  1,
+        "Alive":  true,
+        "StartupSeconds":  2.15,
+        "WorkingSetMB":  102.3,
+        "Pid":  8024
+    },
+    {
+        "Mode":  "software",
+        "Run":  2,
+        "Alive":  true,
+        "StartupSeconds":  2.04,
+        "WorkingSetMB":  113,
+        "Pid":  38088
+    },
+    {
+        "Mode":  "software",
+        "Run":  3,
+        "Alive":  true,
+        "StartupSeconds":  2.09,
+        "WorkingSetMB":  113.3,
+        "Pid":  1520
+    },
+    {
+        "Mode":  "gpu",
+        "Run":  1,
+        "Alive":  true,
+        "StartupSeconds":  2.04,
+        "WorkingSetMB":  113.7,
+        "Pid":  41808
+    },
+    {
+        "Mode":  "gpu",
+        "Run":  2,
+        "Alive":  true,
+        "StartupSeconds":  2.04,
+        "WorkingSetMB":  117.1,
+        "Pid":  18300
+    },
+    {
+        "Mode":  "gpu",
+        "Run":  3,
+        "Alive":  true,
+        "StartupSeconds":  2.03,
+        "WorkingSetMB":  117.1,
+        "Pid":  22564
+    }
+]

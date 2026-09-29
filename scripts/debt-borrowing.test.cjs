@@ -30,6 +30,7 @@ function harness(props) {
   new Function('require', 'exports', code)((name) => {
     if (name === 'react') return hooks
     if (name === 'react/jsx-runtime') return require(name)
+    if (name === './DebtDateTimePicker') return { DebtDateTimePicker: 'DebtDateTimePicker' }
     if (name === 'recharts') return new Proxy({}, { get: (_, key) => String(key) })
     if (name === '../lib/supabase') return { supabase: {} }
     if (name === '../lib/db') return {
@@ -69,12 +70,14 @@ for (const isAdmin of [false, true]) {
       assert.ok(!h.label(h.render()).includes('Giảm tổng nợ'))
       assert.ok(!h.label(h.render()).includes('Hướng điều chỉnh'))
       h.find((n) => n.props?.id === 'debt-amount').props.onChange({ target: { value: '250' } })
+      h.find((n) => n.type === 'DebtDateTimePicker').props.onChange('2026-09-24T09:45')
       h.find((n) => n.type === 'form').props.onSubmit({ preventDefault() {} })
       assert.ok(h.label(h.render()).includes('Xác nhận vay thêm'))
       h.button('Xác nhận').props.onClick()
       assert.equal(h.writes.length, 1)
       assert.equal(h.writes[0].amount, 250)
       assert.equal(h.writes[0].reason, 'Vay thêm')
+      assert.equal(h.writes[0].created_at, new Date('2026-09-24T09:45').toISOString())
     })
   }
 }

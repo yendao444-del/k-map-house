@@ -18,7 +18,8 @@ const api = {
   },
   investment: {
     read: (): Promise<unknown> => ipcRenderer.invoke('investment:read'),
-    write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('investment:write', data)
+    write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('investment:write', data),
+    fundNav: (symbol: string): Promise<unknown> => ipcRenderer.invoke('investment:fundNav', symbol)
   },
   marketData: {
     getSnapshot: (propertyAddress?: string): Promise<unknown> =>

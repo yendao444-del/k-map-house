@@ -2,12 +2,14 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getInvoices,
+  getOutstandingInvoices,
   getInvoiceMonthCounts,
   getInvoiceMonthSummary,
   getRooms,
   getTenants,
   getAppSettings,
   deleteInvoice,
+  reopenInvoiceDebt,
   isDepositOnlyInvoice,
   updateInvoice,
   type Invoice,
@@ -658,6 +660,7 @@ export const InvoicesTab: React.FC<{
   const queryClient = useQueryClient()
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1)
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [debtView, setDebtView] = useState(false)
   const [showSePaySync, setShowSePaySync] = useState(false)
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const {
@@ -683,6 +686,12 @@ export const InvoicesTab: React.FC<{
     () => invoicePages?.pages.flatMap((page) => page) || [],
     [invoicePages]
   )
+  const { data: outstandingInvoices = [], isLoading: outstandingLoading } = useQuery({
+    queryKey: ['invoices', 'outstanding'],
+    queryFn: getOutstandingInvoices,
+    enabled: debtView,
+    staleTime: 15_000
+  })
   const loadingAllPagesRef = useRef<Promise<void> | null>(null)
   const loadAllInvoicePages = async (): Promise<void> => {
     if (loadingAllPagesRef.current) return loadingAllPagesRef.current
@@ -729,6 +738,7 @@ export const InvoicesTab: React.FC<{
   )
   const [payingInvoice, setPayingInvoice] = useState<Invoice | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [reopeningId, setReopeningId] = useState<string | null>(null)
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null)
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null)
 
@@ -759,6 +769,19 @@ export const InvoicesTab: React.FC<{
     },
     onError: (err: Error) => {
       setDeleteError(err.message)
+    }
+  })
+  const reopenMutation = useMutation({
+    mutationFn: reopenInvoiceDebt,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      setReopeningId(null)
+      queryClient.invalidateQueries({ queryKey: ['room'] })
+    },
+    onError: (err: Error) => {
+      setReopeningId(null)
+      window.alert(err.message || 'Không thể hoàn tác chốt nợ.')
     }
   })
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -841,7 +864,16 @@ export const InvoicesTab: React.FC<{
 
   const filteredInvoices = useMemo(() => {
     const normalizedSearch = searchQuery.toLowerCase()
-    const result = monthInvoices.filter((inv) => {
+    const sourceInvoices = debtView ? outstandingInvoices : monthInvoices
+    const result = sourceInvoices.filter((inv) => {
+      const roomName = roomById.get(inv.room_id)?.name || ''
+      const tenantName = tenantById.get(inv.tenant_id)?.full_name || ''
+      if (debtView) {
+        return (
+          inv.total_amount > inv.paid_amount &&
+          `${roomName} ${tenantName} ${inv.month}/${inv.year}`.toLowerCase().includes(normalizedSearch)
+        )
+      }
       // Hóa đơn đã hủy hợp đồng
       if (inv.payment_status === 'cancelled') return filters.cancelled
       // Hóa đơn tất toán đã xong chỉ hiện khi bật filter Tất toán.
@@ -858,7 +890,6 @@ export const InvoicesTab: React.FC<{
       if (inv.payment_status === 'paid' && !filters.paid) return false
       if (inv.payment_status === 'unpaid' && !filters.unpaid) return false
       if (inv.payment_status === 'partial' && !filters.partial) return false
-      const roomName = roomById.get(inv.room_id)?.name || ''
       return roomName.toLowerCase().includes(normalizedSearch)
     })
     return result.sort((a, b) => {
@@ -869,7 +900,18 @@ export const InvoicesTab: React.FC<{
       if (sortOrder === 'amount_desc') return b.total_amount - a.total_amount
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
-  }, [monthInvoices, filters, roomById, searchQuery, sortOrder])
+  }, [debtView, outstandingInvoices, monthInvoices, filters, roomById, tenantById, searchQuery, sortOrder])
+
+  // Keep aggregate totals on the complete result, but avoid mounting thousands
+  // of debt rows at once when the history grows.
+  const [visibleInvoiceCount, setVisibleInvoiceCount] = useState(100)
+  useEffect(() => {
+    setVisibleInvoiceCount(100)
+  }, [debtView, searchQuery, sortOrder, filters])
+  const visibleInvoices = useMemo(
+    () => filteredInvoices.slice(0, visibleInvoiceCount),
+    [filteredInvoices, visibleInvoiceCount]
+  )
 
   const filteredInvoiceSummary = useMemo(() => {
     let count = 0
@@ -1000,13 +1042,21 @@ export const InvoicesTab: React.FC<{
         {/* Month Tabs */}
         <div className="px-4 pt-3 overflow-x-auto border-b border-gray-100">
           <div className="flex gap-1.5 pb-0 min-w-max">
+            <button
+              type="button"
+              onClick={() => setDebtView(true)}
+              className={`relative flex items-center gap-1.5 rounded-t-lg px-4 py-2 text-sm font-bold transition-colors ${debtView ? 'border-b-2 border-rose-600 bg-rose-50 text-rose-700' : 'bg-gray-50 text-gray-500 hover:bg-rose-50'}`}
+            >
+              <i className="fa-solid fa-file-circle-exclamation" /> Đang nợ · Tất cả tháng
+            </button>
             {monthYearOptions.map((opt) => {
-              const isActive = selectedMonth === opt.month && selectedYear === opt.year
+              const isActive = !debtView && selectedMonth === opt.month && selectedYear === opt.year
               const count = invoiceMonthCounts[`${opt.year}-${opt.month}`] || 0
               return (
                 <button
                   key={`${opt.month}-${opt.year}`}
                   onClick={() => {
+                    setDebtView(false)
                     setSelectedMonth(opt.month)
                     setSelectedYear(opt.year)
                   }}
@@ -1041,7 +1091,7 @@ export const InvoicesTab: React.FC<{
           </div>
 
           {/* Checkboxes */}
-          {[
+          {!debtView && [
             {
               key: 'paid' as const,
               label: 'Đã thu',
@@ -1056,7 +1106,7 @@ export const InvoicesTab: React.FC<{
             },
             {
               key: 'partial' as const,
-              label: 'Đang nợ',
+              label: 'Thu thiếu',
               count: statusCounts.partial,
               color: 'text-red-600'
             },
@@ -1088,6 +1138,7 @@ export const InvoicesTab: React.FC<{
               </span>
             </label>
           ))}
+          {debtView && <span className="text-xs font-semibold text-rose-700">Toàn bộ hóa đơn còn phải thu, không giới hạn tháng</span>}
 
           <div className="flex-1" />
 
@@ -1140,7 +1191,7 @@ export const InvoicesTab: React.FC<{
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {isLoading ? (
+              {(debtView ? outstandingLoading : isLoading) ? (
                 <tr>
                   <td colSpan={10} className="text-center py-12 text-gray-400">
                     <LogoLoading message="Đang tải hóa đơn..." className="min-h-[45vh]" />
@@ -1154,7 +1205,7 @@ export const InvoicesTab: React.FC<{
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((invoice) => {
+                visibleInvoices.map((invoice) => {
                   const room = roomById.get(invoice.room_id)
                   const isPaid = invoice.payment_status === 'paid'
                   const isPartial = invoice.payment_status === 'partial'
@@ -1380,6 +1431,8 @@ export const InvoicesTab: React.FC<{
                           <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap">
                             <i className="fa-solid fa-check mr-1"></i>Đã thu xong
                           </span>
+                        ) : invoice.debt_confirmed_at ? (
+                          <span className="rounded bg-rose-100 px-2 py-1 text-[10px] font-bold text-rose-700">Đã chốt · Đang nợ</span>
                         ) : isPartial ? (
                           <span className="bg-yellow-100 text-yellow-700 text-[10px] px-2 py-1 rounded font-bold whitespace-nowrap">
                             <i className="fa-solid fa-hourglass-half mr-1"></i>Thu thiếu
@@ -1424,7 +1477,22 @@ export const InvoicesTab: React.FC<{
           </table>
         </div>
 
-        {hasNextPage && (
+        {visibleInvoiceCount < filteredInvoices.length && (
+          <div className="flex items-center justify-center gap-3 border-t border-gray-100 bg-white px-4 py-3">
+            <span className="text-xs text-gray-500">
+              Đang hiển thị {visibleInvoices.length}/{filteredInvoices.length} hóa đơn
+            </span>
+            <button
+              type="button"
+              onClick={() => setVisibleInvoiceCount((count) => count + 100)}
+              className="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+            >
+              Hiển thị thêm
+            </button>
+          </div>
+        )}
+
+        {!debtView && hasNextPage && (
           <div className="flex items-center justify-center gap-3 border-t border-gray-100 bg-white px-4 py-3">
             <span className="text-xs text-gray-500">
               Đã tải {invoices.length}/{invoiceMonthCounts[`${selectedYear}-${selectedMonth}`] || invoices.length} hóa đơn
@@ -1445,24 +1513,24 @@ export const InvoicesTab: React.FC<{
           <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 grid grid-cols-4 gap-4 text-center">
             <div>
               <div className="text-xs text-gray-500 mb-0.5">
-                Tổng hóa đơn{hasNextPage ? ' (đã tải)' : ''}
+                Tổng hóa đơn{!debtView && hasNextPage ? ' (đã tải)' : ''}
               </div>
               <div className="font-bold text-gray-800">{filteredInvoiceSummary.count}</div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Tổng tiền{hasNextPage ? ' (đã tải)' : ''}</div>
+              <div className="text-xs text-gray-500 mb-0.5">Tổng tiền{!debtView && hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-blue-600 tabular-nums">
                 {formatVND(filteredInvoiceSummary.total)} đ
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Đã thu{hasNextPage ? ' (đã tải)' : ''}</div>
+              <div className="text-xs text-gray-500 mb-0.5">Đã thu{!debtView && hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-emerald-600 tabular-nums">
                 {formatVND(filteredInvoiceSummary.paid)} đ
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-500 mb-0.5">Còn thu{hasNextPage ? ' (đã tải)' : ''}</div>
+              <div className="text-xs text-gray-500 mb-0.5">Còn thu{!debtView && hasNextPage ? ' (đã tải)' : ''}</div>
               <div className="font-bold text-red-500 tabular-nums">
                 {formatVND(filteredInvoiceSummary.remaining)} đ
               </div>
@@ -1478,10 +1546,10 @@ export const InvoicesTab: React.FC<{
           const isRefundMenu =
             Number(invoice.total_amount || 0) < 0 ||
             Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0) < 0
-          const canEditInvoice =
+          const canEditInvoice = !invoice.debt_confirmed_at && (
             (invoice.payment_status === 'unpaid' && Number(invoice.paid_amount || 0) <= 0) ||
-            (isPaidMenu && isAdmin)
-          const canDeleteInvoice = !isPaidMenu || isAdmin
+            (isPaidMenu && isAdmin))
+          const canDeleteInvoice = !invoice.debt_confirmed_at && (!isPaidMenu || isAdmin)
           return (
             <div
               ref={menuRef}
@@ -1507,6 +1575,21 @@ export const InvoicesTab: React.FC<{
                 >
                   <i className="fa-solid fa-money-bill-wave w-4"></i>
                   {isRefundMenu ? 'Hoàn tiền' : 'Thu tiền'}
+                </button>
+              )}
+              {invoice.debt_confirmed_at && isAdmin && invoice.payment_status === 'unpaid' && invoice.paid_amount === 0 && (
+                <button
+                  onClick={() => {
+                    if (!window.confirm('Hoàn tác chốt nợ để sửa hoặc hủy hóa đơn này?')) return
+                    setReopeningId(invoice.id)
+                    reopenMutation.mutate(invoice.id)
+                    setOpenMenuId(null)
+                  }}
+                  disabled={reopeningId === invoice.id || reopenMutation.isPending}
+                  className="flex w-full items-center gap-2 px-4 py-2 font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                >
+                  <i className="fa-solid fa-rotate-left w-4"></i>
+                  {reopeningId === invoice.id ? 'Đang hoàn tác...' : 'Hoàn tác chốt nợ'}
                 </button>
               )}
               <button

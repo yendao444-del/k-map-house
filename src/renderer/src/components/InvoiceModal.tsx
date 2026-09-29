@@ -12,7 +12,6 @@ import {
   type Room,
   type Tenant
 } from '../lib/db'
-import { playCreate } from '../lib/sound'
 import { PaymentModal } from './PaymentModal'
 
 interface InvoiceModalProps {
@@ -146,7 +145,8 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
     () =>
       firstMonthInvoice &&
       (firstMonthInvoice.payment_status === 'unpaid' ||
-        firstMonthInvoice.payment_status === 'partial')
+        firstMonthInvoice.payment_status === 'partial') &&
+      !firstMonthInvoice.debt_confirmed_at
         ? firstMonthInvoice
         : null,
     [firstMonthInvoice]
@@ -155,7 +155,9 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
   const hasPaidFirstMonthInvoice = useMemo(
     () =>
       !!firstMonthInvoice &&
-      (firstMonthInvoice.payment_status === 'paid' || firstMonthInvoice.paid_amount > 0),
+      (firstMonthInvoice.payment_status === 'paid' ||
+        firstMonthInvoice.paid_amount > 0 ||
+        !!firstMonthInvoice.debt_confirmed_at),
     [firstMonthInvoice]
   )
 
@@ -570,7 +572,6 @@ export function InvoiceModal({ room, tenant, onClose }: InvoiceModalProps) {
           }
         })
       }
-      playCreate()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })

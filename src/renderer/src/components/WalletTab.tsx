@@ -253,7 +253,7 @@ export function WalletTab({
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#047857]">
               Tài chính · Dòng tiền
             </div>
-            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#15231d]">Ví tiền</h1>
+            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#15231d]">Ví vận hành</h1>
             <p className="mt-0.5 text-xs text-slate-500">
               Quản lý số dư ngân hàng, tiền mặt và luân chuyển giữa các ví.
             </p>

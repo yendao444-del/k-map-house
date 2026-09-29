@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getContracts, getRooms, getAppSettings, getInvoices, getCollectedDepositAmount, updateContract, type Contract, type ContractStatus, type Invoice, type Room } from '../lib/db'
 import { ContractViewModal } from './ContractViewModal'
-import { playClick, playSuccess } from '../lib/sound'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(value)
 const formatDate = (value?: string) => (value ? new Date(value).toLocaleDateString('vi-VN') : '—')
@@ -50,7 +49,6 @@ const EditContractModal: React.FC<EditContractModalProps> = ({ contract, onClose
   const mutation = useMutation({
     mutationFn: (updates: Partial<Contract>) => updateContract(contract.id, updates),
     onSuccess: () => {
-      playSuccess()
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
@@ -203,7 +201,7 @@ export const ContractsTab: React.FC<ContractsTabProps> = ({ onCreateContract }) 
 
           <div className="flex flex-wrap gap-3 items-center">
             <button
-              onClick={() => { playClick(); setIsPickingRoom(true) }}
+              onClick={() => { setIsPickingRoom(true) }}
               className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
             >
               <i className="fa-solid fa-plus"></i>

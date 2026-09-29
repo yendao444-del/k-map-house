@@ -21,6 +21,7 @@ interface DbAPI {
 interface InvestmentAPI {
   read: () => Promise<unknown>
   write: (data: unknown) => Promise<boolean>
+  fundNav: (symbol: string) => Promise<{ priceVnd: number; quotedAt: string; source: string }>
 }
 
 type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'

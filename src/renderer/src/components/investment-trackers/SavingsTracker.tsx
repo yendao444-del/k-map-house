@@ -24,6 +24,18 @@ interface SavingsMeta {
   status: 'active' | 'settled'
 }
 
+function isSavingsTransaction(transaction: TransactionRecord, holding: HoldingRecord) {
+  if (transaction.assetSymbol.trim().toUpperCase() === holding.symbol.trim().toUpperCase()) return true
+  if (transaction.transactionType !== 'buy' && transaction.transactionType !== 'import-existing') return false
+  try {
+    const note = JSON.parse(transaction.note || '') as Partial<SavingsMeta>
+    const holdingMeta = holding.quantity.startsWith('{') ? JSON.parse(holding.quantity) as Partial<SavingsMeta> : undefined
+    return note.type === 'savings' && holdingMeta?.type === 'savings' && note.bank === holdingMeta.bank && Number(note.principal) === Number(holdingMeta.principal)
+  } catch {
+    return false
+  }
+}
+
 function formatMoney(value: number) {
   if (localStorage.getItem('dbyfinance-privacy-mode') === 'true') {
     return '******'
@@ -256,7 +268,7 @@ export function SavingsTracker({
                         <button
                           className="action-btn delete"
                           onClick={() => {
-                            const originalTx = transactions.find(t => t.assetSymbol === holding.symbol && (t.transactionType === 'buy' || t.transactionType === 'import-existing'))
+                            const originalTx = transactions.find(t => isSavingsTransaction(t, holding))
                             if (originalTx) {
                               onDeleteTransaction(originalTx.id)
                             } else {

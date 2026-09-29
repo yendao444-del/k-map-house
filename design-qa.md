@@ -45,6 +45,26 @@ Blocked for the same reason. The target region is the toolbar containing the tim
 
 final result: blocked
 
+## Debt Date Dropdown Flicker Fix (2026-09-28)
+
+- Reported issue: opening the calendar briefly showed a popup at the upper-left corner before moving to the date field.
+- Root cause: the portal was painted with the initial `{ top: 0, left: 0 }` position while its trigger geometry was still being measured.
+- Fix: `DebtDateTimePicker` now renders the portal as `visibility: hidden; pointer-events: none` until measured, uses `useLayoutEffect` for pre-paint placement, and focuses the selected date after positioning with `preventScroll`.
+- Regression coverage: `scripts/debt-time-picker.test.cjs` includes a hidden-before-measurement test; all 10 focused tests pass and `npm run typecheck:web` passes.
+- Browser visual capture remains blocked at the login screen, so this fix is code/test verified but not authenticated production-screen verified.
+
+---
+
+# Design QA — Securities trade ticket, phương án 2 — 2026-09-28
+
+- Source visual truth: `tmp-product-design/split.png` (selected phương án 2), 1440 × 1024.
+- Implementation: `src/renderer/src/components/InvestmentsTab.tsx` and `src/renderer/src/components/investment-trackers/investment-dark.css`.
+- Static review: passed. The securities modal now uses a wide two-column layout, direct asset and ticker buttons, icon wallet choices, a right-side transaction summary, and separate green buy/red sell accents.
+- Interaction review: passed by code inspection. Funding still runs through `validateFunding`, the selected wallet is submitted as `paymentMethod`, and the existing NAV/price calculation remains the source for totals.
+- Runtime screenshot: unavailable in this turn because the authenticated Electron investment state was not opened; pixel-level comparison remains pending.
+
+final result: blocked
+
 ---
 
 # Investment titlebar theme - 2026-09-26
@@ -711,5 +731,40 @@ Checks: typecheck, production build and four existing gold-price/history tests p
 - Initial pass: screenshot showed a green left menu against dark investment content.
 - Fix pass: added scoped `investment-dark` overrides for the complete investment shell and tracker surfaces; production build passed.
 - Final capture: blocked by unavailable authenticated Electron window.
+
+final result: blocked
+# Debt Closing Flow — approved demo comparison
+
+- Approved visual reference: `design-demos/debt-close-room-list.png`, generated from the user's room-list screenshot.
+- Room-list row keeps the existing An Khang Home hierarchy, with `Tổng nợ` shown in red and the next-period action shown as `Lập HĐ tháng 10` after debt confirmation.
+- The confirmation surface shows the unpaid amount, paid amount, invoice period, electricity and water readings, and the two actions `Thu tiền` and `Xác nhận chốt nợ`.
+- Implementation target: `src/renderer/src/components/DebtClosingModal.tsx`, `src/renderer/src/App.tsx`, and `src/renderer/src/components/InvoicesTab.tsx`.
+- Data protection target: `supabase/migrations/20260928130000_invoice_debt_closing.sql` keeps payment status separate from period closing and prevents an older payment from moving a newer meter baseline backward.
+
+## Debt Transaction Time Picker - option 2 (2026-09-28)
+
+- Source visual truth: `design-references/debt-time/calendar.png`.
+- Implementation: `src/renderer/src/components/DebtDateTimePicker.tsx`, used in the existing DebtReport transaction form.
+- Requested state: transaction modal with calendar open; separate hour/minute steppers.
+- Implementation screenshot: unavailable. In-app browser at `http://localhost:5174/` reaches the login screen, not the authenticated transaction modal.
+- Viewport and density normalization: not completed; no same-state implementation capture available.
+- Full-view and focused comparison: blocked, not inferred from code or passing tests.
+
+### Findings
+
+- [P2] Visual verification remains blocked by the authenticated app screen. Capture the modal and open calendar, compare alongside the approved image, and check a short viewport before visual acceptance.
+- Fonts/typography: existing app classes reused; rendered fidelity unverified.
+- Spacing/layout: compact calendar portal, viewport clamping and pre-paint placement implemented; clipping and focus behavior require browser verification.
+- Colors/tokens: existing slate/emerald styles reused; rendered contrast unverified.
+- Image quality/assets: no new raster assets needed; existing Font Awesome icons reused.
+- Copy/content: Vietnamese date/time controls and shortcuts implemented; visual wrapping unverified.
+
+### Checks and comparison history
+
+- Nine isolated tests pass for borrowing timestamp persistence, permissions, Monday-first calendar, leap year, year boundaries, time wrapping, date selection and shortcuts. These are not browser interaction tests.
+- Renderer TypeScript check passes. No measured frame timing or production performance claim.
+- Initial browser attempt stops at login; no visual comparison or post-fix screenshot is claimed.
+- Remaining checks: authenticated modal capture, Escape/click-away/focus, short viewport, rapid repeated clicking, actual paid/offset/edit saves, and browser console check in the target state.
+- No deployment, release artifact or database migration performed for this change.
 
 final result: blocked

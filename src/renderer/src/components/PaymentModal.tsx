@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as db from '../lib/db';
-import { playPayment } from '../lib/sound';
 
 interface PaymentModalProps {
   invoice: db.Invoice;
@@ -98,7 +97,6 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
         note: note || undefined,
       }),
     onSuccess: () => {
-      playPayment();
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['contracts'] });

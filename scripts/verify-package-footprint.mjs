@@ -1,19 +1,32 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { listPackage, statFile } from '@electron/asar'
+import { listPackage, statFile, extractFile } from '@electron/asar'
 
 const root = process.cwd()
+const sourcePackage = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const asarPath = path.join(root, 'dist', 'win-unpacked', 'resources', 'app.asar')
-const installerPath = path.join(root, 'dist', 'DBYHOME-1.0.94-setup.exe')
+const installerPath = path.join(root, 'dist', `DBYHOME-${sourcePackage.version}-setup.exe`)
 
 if (!fs.existsSync(asarPath)) throw new Error(`Missing ${asarPath}; run npm run build:win first.`)
+if (!fs.existsSync(installerPath)) throw new Error(`Missing ${installerPath}; run npm run build:win first.`)
+const packedPackage = JSON.parse(extractFile(asarPath, 'package.json').toString('utf8'))
+if (packedPackage.version !== sourcePackage.version) {
+  throw new Error(`Packaged version ${packedPackage.version} differs from source ${sourcePackage.version}`)
+}
 
 const entries = listPackage(asarPath).map((entry) => entry.replace(/^[/\\]+/, ''))
 const forbidden = [
   'node_modules/recharts/',
   'node_modules/lightweight-charts/',
   'node_modules/lucide-react/',
-  'service-price-zone-demo.png'
+  'service-price-zone-demo.png',
+  'node_modules/es-toolkit/',
+  'node_modules/@reduxjs/toolkit/',
+  'node_modules/victory-vendor/',
+  'node_modules/immer/',
+  'node_modules/react-redux/',
+  'node_modules/@tanstack/query-core/',
+  'node_modules/@tanstack/react-query/'
 ]
 const violations = entries.filter((entry) => forbidden.some((prefix) => entry === prefix || entry.startsWith(prefix)))
 if (violations.length) {
@@ -30,7 +43,8 @@ const fileBytes = entries.reduce((total, entry) => {
 }, 0)
 
 const report = {
-  installerBytes: fs.existsSync(installerPath) ? fs.statSync(installerPath).size : null,
+  version: packedPackage.version,
+  installerBytes: fs.statSync(installerPath).size,
   asarBytes: fs.statSync(asarPath).size,
   asarFileBytes: fileBytes,
   forbiddenEntries: 0,

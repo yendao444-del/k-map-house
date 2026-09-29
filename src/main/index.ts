@@ -12,6 +12,7 @@ import {
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { registerUpdateHandlers } from './update-handlers'
+import { fetchFundNav } from './fund-nav'
 import { startTelegramUltraViewerBot } from './telegram-ultraviewer'
 import { reportTelegramError } from './telegram-reporter'
 import {
@@ -198,7 +199,9 @@ function readInvestmentStore(): { data: InvestmentStore; importedFrom?: string }
 function setupInvestmentHandlers(): void {
   ipcMain.removeHandler('investment:read')
   ipcMain.removeHandler('investment:write')
+  ipcMain.removeHandler('investment:fundNav')
   ipcMain.handle('investment:read', () => readInvestmentStore())
+  ipcMain.handle('investment:fundNav', (_event, symbol: string) => fetchFundNav(symbol))
   ipcMain.handle('investment:write', (_event, data: InvestmentStore) => {
     mkdirSync(app.getPath('userData'), { recursive: true })
     writeFileSync(getInvestmentPath(), JSON.stringify(withoutCrypto(data), null, 2), 'utf-8')
@@ -1165,8 +1168,26 @@ function setupWindowThemeHandlers(): void {
 }
 
 // Avoid renderer/GPU crashes on production machines with unstable graphics drivers.
-app.disableHardwareAcceleration()
+// Keep the stable software path by default. Set KMAP_ENABLE_GPU=1 for an
+// isolated benchmark on a target machine; this makes the performance tradeoff
+// explicit and reversible without changing stored data or user profiles.
+if (process.env.KMAP_ENABLE_GPU !== '1') app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+
+// Prevent duplicate windows, background polling, and simultaneous writes to
+// the same local profile when the launcher is opened more than once.
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const mainWindow = BrowserWindow.getAllWindows()[0]
+    if (!mainWindow) return
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+  })
+}
 
 function createWindow(): void {
   const useSafeWindow = process.env.KMAP_SAFE_WINDOW === '1'
@@ -1321,7 +1342,7 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) app.whenReady().then(() => {
   // Keep the runtime app name aligned with electron-builder so Windows uses
   // the packaged DBY HOME identity for the taskbar entry and shortcuts.
   app.setName('DBY HOME')

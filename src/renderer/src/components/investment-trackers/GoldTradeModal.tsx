@@ -200,8 +200,8 @@ export function GoldTradeModal({
             <div className="mt-2 flex items-center justify-between gap-3 text-sm text-slate-600"><span>Giá {mode === 'buy' ? 'mua' : 'bán'} / chỉ</span><strong className="text-base text-[#15231d]">{unitPrice > 0 ? money(unitPrice) : 'Chưa có giá'}</strong></div>
             <div className="mt-3 flex items-center justify-between gap-3 border-t border-[#dfe9e4] pt-3"><span className="text-sm font-black text-[#15231d]">Tổng tiền {mode === 'buy' ? 'dự kiến' : 'thu về'}</span><strong className="text-xl font-black tabular-nums text-[#00ab60]">{money(total)}</strong></div>
             <p className="mt-2 text-[11px] text-slate-400">Giá tham khảo tại thời điểm ghi nhận, không phải lệnh giao dịch trực tuyến.</p>
-            <label className="mt-3 block text-xs font-bold">{mode === 'buy' ? 'Thanh toán từ ví' : 'Nhận tiền vào ví'}
-              <select value={paymentMethod} onChange={event => setPaymentMethod(event.target.value as FundingMethod)} className="mt-2 w-full rounded-xl border p-2">
+            <label className="mt-3 block text-xs font-bold">{mode === 'buy' ? 'Thanh toán từ Ví đầu tư' : 'Nhận tiền vào Ví đầu tư'}
+              <select hidden value={paymentMethod} onChange={event => setPaymentMethod(event.target.value as FundingMethod)} className="mt-2 w-full rounded-xl border p-2">
                 <option value="transfer">Ngân hàng · {money(walletSummary.bankBalance)}</option>
                 <option value="cash">Tiền mặt · {money(walletSummary.cashBalance)}</option>
               </select>

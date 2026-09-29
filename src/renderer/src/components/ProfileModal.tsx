@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { updateUser, type AppUser } from '../lib/db'
-import { playSuccess, playClick } from '../lib/sound'
 
 interface ProfileModalProps {
     currentUser: AppUser
@@ -34,7 +33,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     full_name: fullName,
                     avatar_url: avatarUrl
                 })
-                playSuccess()
                 onClose()
                 return
             }
@@ -44,7 +42,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 avatar_url: avatarUrl
             })
             onUpdate(updatedUser)
-            playSuccess()
             onClose()
         } catch (err: any) {
             setError(err.message || 'Không thể cập nhật hồ sơ')
@@ -174,7 +171,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                             <button
                                 type="button"
                                 onClick={() => {
-                                    playClick()
                                     document.getElementById('avatar-file-input')?.click()
                                 }}
                                 className="flex w-full items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50 py-3 text-sm font-bold text-emerald-600 transition-all hover:border-emerald-400 hover:bg-emerald-100 active:scale-95"
@@ -198,7 +194,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                         key={opt.name}
                                         type="button"
                                         onClick={() => {
-                                            playClick()
                                             setAvatarUrl(opt.url)
                                         }}
                                         className={`h-12 w-12 rounded-xl border-2 p-0.5 transition-all hover:scale-110 ${avatarUrl === opt.url ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-transparent'}`}
@@ -209,7 +204,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        playClick()
                                         setAvatarUrl('')
                                     }}
                                     className={`flex h-12 w-12 items-center justify-center rounded-xl border-2 text-[10px] font-bold transition-all hover:scale-110 ${!avatarUrl ? 'border-emerald-500 ring-4 ring-emerald-500/10 bg-emerald-50 text-emerald-600' : 'border-slate-100 text-slate-400'}`}

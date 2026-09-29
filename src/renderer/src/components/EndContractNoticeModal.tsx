@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { updateRoom, type Room } from '../lib/db'
-import { playSuccess } from '../lib/sound'
 
 interface Props {
   room: Room
@@ -32,7 +31,6 @@ export function EndContractNoticeModal({ room, onClose }: Props) {
         expected_end_date: endDate,
       } as any),
     onSuccess: () => {
-      playSuccess()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       onClose()
     },

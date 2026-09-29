@@ -292,6 +292,222 @@
 .investment-dark .investment-tracker-copy .mini-bar { background: #253448 !important; }
 
 /* Gold trade dialog is part of this screen and should not flash a light surface. */
+.investment-dark .security-trade-dialog {
+  --trade-accent: #42e5a0;
+  --trade-surface: #103c32;
+  border: 1px solid var(--trade-accent);
+}
+.investment-dark .security-trade-sell {
+  --trade-accent: #ff8c99;
+  --trade-surface: #48202c;
+}
+.investment-dark .security-trade-dialog .security-trade-heading {
+  background: var(--trade-surface) !important;
+  border-top: 5px solid var(--trade-accent);
+}
+.investment-dark .security-trade-dialog .security-trade-heading h2,
+.investment-dark .security-trade-dialog .security-trade-heading p {
+  color: var(--trade-accent) !important;
+}
+.investment-dark .security-trade-dialog .security-trade-total {
+  color: var(--trade-accent);
+}
+.investment-dark .security-trade-price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(145px, .65fr);
+  gap: 16px;
+  align-items: start;
+  border-top: 1px solid var(--investment-border);
+  padding-top: 18px;
+}
+.investment-dark .security-trade-price-row .security-trade-total {
+  min-height: 76px;
+  border-left: 1px solid var(--investment-border);
+  padding-left: 16px;
+}
+@media (max-width: 760px) {
+  .investment-dark .security-trade-price-row { grid-template-columns: 1fr; }
+  .investment-dark .security-trade-price-row .security-trade-total {
+    min-height: 0;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+.investment-dark .security-trade-body {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+}
+@media (min-width: 640px) {
+  .investment-dark .security-trade-body {
+    grid-template-columns: minmax(0, 1.45fr) minmax(260px, .85fr) !important;
+    align-items: start;
+  }
+  .investment-dark .security-trade-body > :not(.security-trade-summary) {
+    grid-column: 1 !important;
+  }
+  .investment-dark .security-trade-main {
+    min-width: 0;
+    grid-column: 1;
+  }
+  .investment-dark .security-trade-body > .security-trade-summary {
+    grid-column: 2 !important;
+    grid-row: 1;
+    position: sticky;
+    top: 0;
+  }
+}
+.investment-dark .security-trade-summary {
+  border-color: var(--investment-border) !important;
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark .security-trade-actions > button:first-child {
+  border-color: var(--investment-border);
+  color: var(--investment-text);
+}
+.investment-dark .security-trade-actions > button:last-child {
+  background: var(--trade-accent);
+  color: #071711;
+}
+.investment-dark .security-trade-actions > button:last-child:disabled {
+  border: 1px solid color-mix(in srgb, var(--trade-accent) 42%, var(--investment-border));
+  background: color-mix(in srgb, var(--trade-accent) 18%, var(--investment-panel-soft));
+  color: color-mix(in srgb, var(--trade-accent) 76%, var(--investment-text));
+  opacity: 1;
+}
+.investment-dark .security-trade-sell .security-trade-actions > button:last-child { color: #1d0c10; }
+.investment-dark .security-trade-symbol {
+  flex: 0 0 56px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--trade-accent) 55%, transparent);
+}
+.investment-dark .security-trade-summary > .flex > .min-w-0 {
+  min-width: 0;
+  overflow: hidden;
+}
+.investment-dark .security-trade-summary > .flex > .min-w-0 p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.investment-dark .security-wallet-choice {
+  display: grid;
+  min-height: 92px;
+  gap: 4px;
+  justify-items: start;
+  border: 1px solid var(--investment-border);
+  border-radius: 14px;
+  padding: 12px;
+  color: var(--investment-muted);
+  text-align: left;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.investment-dark .security-wallet-choice:hover,
+.investment-dark .security-wallet-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-wallet-choice svg { color: var(--trade-accent); }
+.investment-dark .security-wallet-choice span { font-size: 12px; font-weight: 800; }
+.investment-dark .security-wallet-choice strong { font-size: 12px; }
+.investment-dark .security-asset-choice {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--investment-border);
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--investment-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+.investment-dark .security-asset-choice:hover,
+.investment-dark .security-asset-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-asset-choice svg { color: var(--trade-accent); }
+.investment-dark .security-symbol-choice {
+  display: grid;
+  min-height: 64px;
+  gap: 3px;
+  justify-items: start;
+  border: 1px solid var(--investment-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--investment-muted);
+  text-align: left;
+}
+.investment-dark .security-symbol-choice:hover,
+.investment-dark .security-symbol-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-symbol-choice strong { color: var(--trade-accent); font-size: 13px; }
+.investment-dark .security-symbol-choice span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.investment-dark .security-mode-choice {
+  min-height: 38px;
+  border: 1px solid var(--investment-border);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: var(--investment-muted);
+}
+.investment-dark .security-mode-choice:hover,
+.investment-dark .security-mode-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-holdings-panel {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--security-accent) 45%, var(--investment-border));
+  border-radius: 14px;
+  background: var(--investment-panel);
+  color: var(--investment-text);
+}
+.investment-dark .security-holdings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--investment-border);
+  padding: 10px 16px;
+}
+.investment-dark .security-holdings-heading h2 { font-size: 14px; font-weight: 900; }
+.investment-dark .security-holdings-heading p { margin-top: 2px; color: var(--investment-muted); font-size: 11px; }
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button {
+  border-radius: 8px;
+  background: var(--security-accent);
+  padding: 6px 12px;
+  color: #071711;
+  font-size: 11px;
+  font-weight: 900;
+}
+.investment-dark .security-holdings-table-wrap { overflow-x: auto; }
+.investment-dark .security-holdings-panel table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12px; }
+.investment-dark .security-holdings-panel th { background: var(--investment-panel-soft); color: var(--investment-muted); font-size: 10px; font-weight: 900; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.investment-dark .security-holdings-panel th,
+.investment-dark .security-holdings-panel td { border-bottom: 1px solid var(--investment-border); padding: 9px 14px; }
+.investment-dark .security-holdings-panel tbody tr:last-child td { border-bottom: 0; }
+.investment-dark .security-holdings-panel td small { display: block; margin-top: 3px; color: var(--investment-muted); font-size: 11px; }
+.investment-dark .security-holdings-panel td.positive { color: var(--security-accent); font-weight: 800; }
+.investment-dark .security-holdings-panel td.negative { color: #ff8c99; font-weight: 800; }
+.investment-dark .security-holdings-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.investment-dark .security-holdings-actions button { border: 1px solid var(--investment-border); border-radius: 8px; padding: 6px 9px; color: var(--investment-muted); font-size: 11px; font-weight: 800; }
+.investment-dark .security-holdings-actions button:first-child:hover { border-color: var(--security-accent); color: var(--security-accent); }
+.investment-dark .security-holdings-actions button:last-child:hover { border-color: #ff8c99; color: #ff8c99; }
+.investment-dark .security-holdings-empty { display: grid; min-height: 130px; place-items: center; gap: 12px; padding: 28px; color: var(--investment-muted); font-size: 13px; text-align: center; }
 .investment-dark [role='dialog'] {
   background: var(--investment-panel) !important;
   color: var(--investment-text) !important;

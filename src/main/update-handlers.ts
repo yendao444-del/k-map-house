@@ -5,6 +5,7 @@ import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import {
   copyFileSync,
+  createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -20,6 +21,8 @@ import { get as httpsGet, request as httpsRequest } from 'https'
 import { cpus } from 'os'
 import { dirname, join, relative, resolve, sep } from 'path'
 import { reportTelegramError } from './telegram-reporter'
+import { pipeline } from 'stream/promises'
+import { Writable } from 'stream'
 
 interface ReleaseAsset {
   name: string
@@ -142,7 +145,15 @@ async function verifyFileChecksum(filePath: string, expected: string | null | un
   }
 
   const hash = createHash(algorithm.toLowerCase())
-  hash.update(readFileSync(filePath))
+  await pipeline(
+    createReadStream(filePath),
+    new Writable({
+      write(chunk: Buffer, _encoding, callback) {
+        hash.update(chunk)
+        callback()
+      }
+    })
+  )
   const actualHex = hash.digest('hex')
   const actualBase64 = Buffer.from(actualHex, 'hex').toString('base64')
   if (expectedValue !== actualHex && expectedValue !== actualBase64) {
@@ -681,7 +692,7 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
     uncompressedBytes += entry.header.size
     if (uncompressedBytes > 512 * 1024 * 1024) throw new Error('Gói cập nhật vượt quá giới hạn kích thước.')
   }
-  archive.extractAllTo(extractDir, true)
+  await archive.extractAllToAsync(extractDir, true)
 
   const sourceRoot = findAppRoot(extractDir) || extractDir
   const targetRoot = app.getAppPath()

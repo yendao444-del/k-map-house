@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactElement } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownLeft,
@@ -39,7 +39,8 @@ import {
   type InvestmentTransactionType
 } from '../lib/investment-store'
 import { GoldTracker } from './investment-trackers/GoldTracker'
-import { StockTracker } from './investment-trackers/StockTracker'
+import { StockTracker, VN_STOCK_SUGGESTIONS } from './investment-trackers/StockTracker'
+import { BOND_SUGGESTIONS } from '../lib/bondApi'
 import { BondTracker } from './investment-trackers/BondTracker'
 import { SavingsTracker } from './investment-trackers/SavingsTracker'
 import { GoldTradeModal } from './investment-trackers/GoldTradeModal'
@@ -48,8 +49,10 @@ import { GoldTransactionHistory } from './investment-trackers/GoldTransactionHis
 import './investment-trackers/original-trackers.css'
 import './investment-trackers/investment-dark.css'
 import { transactionsForCategory } from '../lib/investment-history'
+import { readSavings, savingsInterest, savingsMaturity } from '../lib/savings'
+import { fetchSecurityQuote } from '../lib/security-quote'
 import { createCashTransaction, deleteCashTransaction, getWalletBalanceSummary, type WalletBalanceSummary } from '../lib/db'
-import { commitFundedInvestment, investmentWalletImpact, validateFunding, type FundingMethod } from '../lib/investment-funding'
+import { commitInvestmentWallet, investmentBalance, investmentWalletImpact, validateFunding, type FundingMethod } from '../lib/investment-funding'
 
 type Screen = 'overview' | InvestmentCategory | 'transactions'
 const CATEGORY_ORDER: InvestmentCategory[] = ['cash', 'gold', 'stocks', 'bonds', 'savings']
@@ -57,15 +60,15 @@ const categoryMeta: Record<
   InvestmentCategory,
   { label: string; color: string; icon: typeof TrendingUp }
 > = {
-  cash: { label: 'Ví tiền', color: '#00ab60', icon: WalletCards },
+  cash: { label: 'Ví đầu tư', color: '#00ab60', icon: WalletCards },
   gold: { label: 'Vàng', color: '#d97706', icon: BarChart3 },
   stocks: { label: 'Cổ phiếu & Quỹ', color: '#16a34a', icon: TrendingUp },
   bonds: { label: 'Trái phiếu', color: '#2563eb', icon: Landmark },
   savings: { label: 'Tiết kiệm', color: '#0f766e', icon: PiggyBank }
 }
 const txLabel: Record<InvestmentTransactionType, string> = {
-  deposit: 'Nạp tiền',
-  withdraw: 'Rút tiền',
+  deposit: 'Chuyển vốn từ Ví vận hành',
+  withdraw: 'Chuyển về Ví vận hành',
   buy: 'Mua tài sản',
   sell: 'Bán tài sản',
   'import-existing': 'Nhập tài sản'
@@ -81,6 +84,8 @@ const formatDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN')
 }
 const parseQuantity = (value: string) => {
+  const savings = readSavings(value)
+  if (savings) return savings.status === 'settled' ? 0 : 1
   const match = value.match(/[\d.,]+/)
   if (!match) return 0
   const raw = match[0]
@@ -125,6 +130,11 @@ const isVisibleTransaction = (tx: InvestmentTransaction, filter: string) => {
   if (filter === 'all') return true
   return tx.transactionType === filter
 }
+const formatTime = (value: string) => {
+  if (!/[T ]\d{2}:\d{2}/.test(value)) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
 const transactionCashDelta = (tx: InvestmentTransaction) => tx.walletImpactVnd ?? tx.walletPosting?.amount ?? 0
 
 function TransactionModal({
@@ -134,6 +144,7 @@ function TransactionModal({
   forceTransaction,
   scopedCategory,
   walletSummary,
+  operatingWalletSummary,
   onClose,
   onSave,
   onSaveHolding
@@ -144,6 +155,7 @@ function TransactionModal({
   forceTransaction?: boolean
   scopedCategory?: InvestmentCategory
   walletSummary: WalletBalanceSummary
+  operatingWalletSummary: WalletBalanceSummary
   onClose: () => void
   onSave: (input: {
     category: InvestmentCategory
@@ -171,19 +183,74 @@ function TransactionModal({
   const [type, setType] = useState<InvestmentTransactionType>(transaction?.transactionType || initialType || (scopedCategory === 'cash' ? 'deposit' : 'buy'))
   const [amount, setAmount] = useState(String(transaction?.amountVnd || holding?.valueVnd || ''))
   const [quantity, setQuantity] = useState(
-    String(transaction?.quantity || (holding ? parseQuantity(holding.quantity) : ''))
+    String(transaction?.quantity || (holding ? parseQuantity(holding.quantity) : scopedCategory === 'stocks' || scopedCategory === 'bonds' ? 100 : ''))
   )
   const [unit, setUnit] = useState(
     transaction?.unit || holding?.quantity.split(' ').slice(1).join(' ') || 'đơn vị'
   )
   const [date, setDate] = useState(transaction?.date || new Date().toISOString().slice(0, 10))
   const [note, setNote] = useState(transaction?.note || '')
-  const [paymentMethod, setPaymentMethod] = useState<FundingMethod>(transaction?.walletPosting?.paymentMethod || 'transfer')
+  const [paymentMethod, setPaymentMethod] = useState<FundingMethod>(transaction?.walletPosting?.paymentMethod || (walletSummary.bankBalance >= walletSummary.cashBalance ? 'transfer' : 'cash'))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const isSecurity = category === 'stocks' || category === 'bonds'
+  const isSavings = category === 'savings'
+  const existingSavings = readSavings(holding?.quantity) || readSavings(transaction?.note)
+  const [bank, setBank] = useState(existingSavings?.bank || 'Vietcombank')
+  const [term, setTerm] = useState(existingSavings?.term || '12 tháng')
+  const [rate, setRate] = useState(String(existingSavings?.rate ?? 5.5))
+  const [maturityAction, setMaturityAction] = useState(existingSavings?.maturityAction || 'tat_toan_ve_vi')
+  const [priceMode, setPriceMode] = useState<'unit' | 'total'>('unit')
+  const [unitPrice, setUnitPrice] = useState(String(transaction?.unitPriceVnd || ''))
+  const [securityUnit, setSecurityUnit] = useState(transaction?.unit === 'CCQ' || holding?.quantity.includes('CCQ') || category === 'bonds' ? 'CCQ' : 'CP')
+  const [securityOptions, setSecurityOptions] = useState(false)
+  const [quoteLoading, setQuoteLoading] = useState(false)
+  const [quoteMessage, setQuoteMessage] = useState('')
+  useEffect(() => {
+    if (!isSecurity || transaction) return
+    const controller = new AbortController()
+    setUnitPrice('')
+    setQuoteMessage('')
+    const code = symbol.trim().toUpperCase()
+    if (!/^[A-Z0-9]{3,12}$/.test(code)) { setQuoteLoading(false); return }
+    // Unlisted equity fund NAVs are not supplied by the exchange feed.
+    if (category !== 'bonds' && ['DCDS', 'VESF', 'VEOF', 'VF1'].includes(code)) {
+      setQuoteLoading(false)
+      setQuoteMessage('Chưa có nguồn NAV trực tuyến cho quỹ này. Nhập NAV công bố thực tế.')
+      return
+    }
+    setQuoteLoading(true)
+    const timer = window.setTimeout(() => {
+      const request = category === 'bonds'
+        ? window.api.investment.fundNav(code)
+        : fetchSecurityQuote(code, controller.signal)
+      void request.then(quote => {
+        if (controller.signal.aborted) return
+        setUnitPrice(String(quote.priceVnd))
+        setQuoteMessage(`${quote.source} · ${formatDate(quote.quotedAt)}`)
+      }).catch(cause => {
+        if (!controller.signal.aborted) setQuoteMessage(`${cause instanceof Error ? cause.message : 'Không tải được giá.'} Nhập giá thực tế để tiếp tục.`)
+      }).finally(() => { if (!controller.signal.aborted) setQuoteLoading(false) })
+    }, 350)
+    return () => { controller.abort(); window.clearTimeout(timer) }
+  }, [symbol, category, isSecurity, transaction])
+  const effectiveAmount = isSecurity && priceMode === 'unit' ? Number(quantity) * Number(unitPrice) : Number(amount)
+  useEffect(() => {
+    if (isSavings && !transaction) {
+      setAmount(String(existingSavings?.principal || holding?.valueVnd || ''))
+      if (type !== 'sell' && existingSavings?.startDate) setDate(existingSavings.startDate)
+    }
+  }, [])
+  const isWalletTransaction = category === 'cash' || type === 'deposit' || type === 'withdraw'
+  const [walletTime, setWalletTime] = useState(() => new Date())
+  useEffect(() => {
+    if (!isWalletTransaction || transaction) return
+    const timer = window.setInterval(() => setWalletTime(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [isWalletTransaction, transaction])
   let fundingError = ''
-  if ((!holding || forceTransaction) && !transaction && (type === 'buy' || type === 'withdraw') && Number(amount) > 0) {
-    try { validateFunding(walletSummary, [{ paymentMethod, amount: -Number(amount) }]) }
+  if ((!holding || forceTransaction) && !transaction && (type === 'buy' || type === 'withdraw') && effectiveAmount > 0) {
+    try { validateFunding(walletSummary, [{ paymentMethod, amount: -effectiveAmount }]) }
     catch (cause) { fundingError = cause instanceof Error ? cause.message : '' }
   }
   const transactionTypes = scopedCategory === 'cash'
@@ -194,9 +261,13 @@ function TransactionModal({
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (saving) return
+    if (type === 'deposit' && effectiveAmount > 0) {
+      try { validateFunding(operatingWalletSummary, [{ paymentMethod, amount: -effectiveAmount }]) }
+      catch (cause) { setError(cause instanceof Error ? cause.message : 'Ví vận hành không đủ tiền.'); return }
+    }
     if (scopedCategory && category !== scopedCategory) return
-    if (!symbol.trim()) return
-    if (holding && !transaction && !forceTransaction) {
+    if (!isWalletTransaction && !isSavings && !symbol.trim()) return
+    if (!isWalletTransaction && !isSavings && !isSecurity && holding && !transaction && !forceTransaction) {
       onSaveHolding?.({
         category,
         symbol: symbol.trim().toUpperCase(),
@@ -206,20 +277,27 @@ function TransactionModal({
       })
       return
     }
-    if (Number(amount) <= 0) return
+    if (!Number.isFinite(effectiveAmount) || effectiveAmount <= 0) return
     setSaving(true)
     setError('')
     try {
     await onSave({
-      category,
-      symbol: symbol.trim().toUpperCase(),
-      name: name.trim() || symbol.trim().toUpperCase(),
-      type,
-      amount: Number(amount),
-      quantity: Number(quantity) || 0,
-      unit: unit.trim() || 'đơn vị',
-      date,
-      note,
+      category: isWalletTransaction ? 'cash' : category,
+      symbol: isWalletTransaction ? 'CASH' : isSavings ? holding?.symbol || transaction?.assetSymbol || `STK-${crypto.randomUUID()}` : symbol.trim().toUpperCase(),
+      name: isWalletTransaction ? 'Ví đầu tư' : isSavings ? `Tiết kiệm ${bank.trim()}` : name.trim() || symbol.trim().toUpperCase(),
+      type: isWalletTransaction ? (type === 'withdraw' ? 'withdraw' : 'deposit') : type,
+      amount: effectiveAmount,
+      quantity: isWalletTransaction ? 0 : isSavings ? 1 : Number(quantity) || 0,
+      unit: isWalletTransaction ? 'VND' : isSavings ? 'sổ' : isSecurity ? category === 'bonds' ? 'CCQ' : securityUnit : unit.trim() || 'đơn vị',
+      date: isWalletTransaction ? transaction?.date || new Date().toISOString() : date,
+      note: isSavings ? JSON.stringify({
+        ...(type === 'sell' ? existingSavings : {}),
+        type: 'savings', bank: bank.trim(), principal: type === 'sell' ? existingSavings?.principal || holding?.valueVnd : effectiveAmount,
+        term, rate: Number(rate), startDate: type === 'sell' ? existingSavings?.startDate : date,
+        maturityDate: type === 'sell' ? existingSavings?.maturityDate : savingsMaturity(date, term), maturityAction,
+        status: type === 'sell' ? 'settled' : 'active',
+        ...(type === 'sell' ? { settleDate: date, settleAmount: effectiveAmount } : {})
+      }) : note,
       paymentMethod
     })
     } catch (cause) {
@@ -234,26 +312,187 @@ function TransactionModal({
       <form
         onSubmit={submit}
         onMouseDown={(event) => event.stopPropagation()}
-        className="w-full max-w-xl overflow-hidden rounded-[24px] bg-white shadow-2xl"
+        className={`max-h-[calc(100vh-32px)] w-full ${isSecurity ? 'max-w-5xl' : 'max-w-xl'} overflow-y-auto rounded-[24px] bg-white shadow-2xl ${isSecurity ? `security-trade-dialog security-trade-${type === 'sell' ? 'sell' : 'buy'}` : ''}`}
       >
-        <div className="flex items-center justify-between bg-[#064a31] px-6 py-5 text-white">
+        <div className="security-trade-heading flex items-center justify-between bg-[#064a31] px-6 py-5 text-white">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.2em] text-emerald-200">
-              Danh mục đầu tư
+              {isSecurity ? (type === 'sell' ? 'BÁN TÀI SẢN · TIỀN VỀ VÍ' : 'MUA TÀI SẢN · THANH TOÁN TỪ VÍ') : 'Danh mục đầu tư'}
             </p>
             <h2 className="mt-1 text-xl font-black">
-              {transaction
+              {isSecurity ? `${transaction ? 'Sửa giao dịch ' : ''}${type === 'sell' ? 'Bán' : 'Mua'} ${category === 'bonds' ? 'trái phiếu' : securityUnit === 'CCQ' ? 'chứng chỉ quỹ / ETF' : 'cổ phiếu'}` : isWalletTransaction ? (transaction ? 'Sửa giao dịch ví' : 'Chuyển vốn đầu tư') : transaction
                 ? 'Sửa giao dịch'
                 : holding
                   ? `Cập nhật ${holding.symbol}`
                   : 'Ghi giao dịch mới'}
             </h2>
+            {isSecurity && <p className="security-trade-direction mt-2 flex items-center gap-2 text-xs font-semibold">
+              {type === 'sell' ? <ArrowDownLeft size={18} /> : <ArrowUpRight size={18} />}
+              {type === 'sell' ? 'Giảm tài sản nắm giữ, cộng tiền bán vào ví.' : 'Tăng tài sản nắm giữ, trừ tiền mua khỏi ví.'}
+            </p>}
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 hover:bg-white/10">
             <X size={20} />
           </button>
         </div>
-        <div className="grid gap-4 p-6 sm:grid-cols-2">
+        {isWalletTransaction ? (
+          <div className="space-y-4 p-6">
+            <div role="group" aria-label="Loại giao dịch" className="grid grid-cols-2 gap-3">
+              {(['deposit', 'withdraw'] as const).map(option => (
+                <button key={option} type="button" aria-pressed={type === option || (option === 'deposit' && type !== 'withdraw')} onClick={() => setType(option)} className={`h-11 rounded-xl border text-sm font-bold ${type === option || (option === 'deposit' && type !== 'withdraw') ? 'border-[#00ab60] bg-[#00ab60] text-white' : 'border-slate-200 text-slate-500'}`}>
+                  {option === 'deposit' ? 'Chuyển từ Ví vận hành' : 'Chuyển về Ví vận hành'}
+                </button>
+              ))}
+            </div>
+            <label className="block text-xs font-bold text-slate-600">Số tiền (VND)
+              <input autoFocus required type="number" min="1" step="1" inputMode="numeric" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Nhập số tiền" className="mt-2 h-12 w-full rounded-xl border border-slate-200 px-3 text-lg font-bold" />
+            </label>
+            <div role="group" aria-label="Chọn nhanh số tiền" className="flex flex-wrap gap-2">
+              {([
+                [500000, '500K'],
+                [1000000, '1 triệu'],
+                [2000000, '2 triệu'],
+                [5000000, '5 triệu'],
+                [10000000, '10 triệu']
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={Number(amount) === value}
+                  disabled={saving}
+                  onClick={() => { setAmount(String(value)); setError('') }}
+                  className={`min-h-10 rounded-xl border px-3 py-2 text-xs font-bold transition disabled:opacity-50 ${Number(amount) === value ? 'border-[#21d38a] bg-[#21d38a] text-[#052217]' : 'border-slate-200 text-slate-500 hover:border-[#21d38a]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="block text-xs font-bold text-slate-600">Ghi chú (không bắt buộc)
+              <input value={note} onChange={event => setNote(event.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3" />
+            </label>
+            <label className="block text-xs font-bold text-slate-600">Thời gian
+              <input
+                readOnly
+                value={transaction ? `${formatDate(transaction.date)} · ${formatTime(transaction.date)}` : walletTime.toLocaleString('vi-VN')}
+                className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 tabular-nums"
+              />
+            </label>
+            <p className="text-xs text-slate-500">Tự động ghi nhận thời gian khi lưu.</p>
+          </div>
+        ) : (isSecurity || isSavings) ? <div className={`grid gap-4 p-6 sm:grid-cols-2 ${isSecurity ? 'security-trade-body' : ''}`}>
+          <div className={isSecurity ? 'security-trade-main' : 'contents'}>
+          {isSecurity ? ((!initialType && !transaction) && <div className="flex gap-2 sm:col-span-2" role="group" aria-label="Thao tác mua bán">
+            {(['buy', 'sell'] as const).map(value => <button type="button" key={value} aria-pressed={type === value} onClick={() => setType(value)} className={`h-10 flex-1 rounded-xl border text-sm font-bold ${type === value ? value === 'sell' ? 'border-[#e04444] bg-[#e04444] text-white' : 'border-[#21d38a] bg-[#21d38a] text-[#052217]' : 'border-slate-200 text-slate-500'}`}>{value === 'buy' ? 'Mua' : 'Bán'}</button>)}
+          </div>) : <label className="text-xs font-bold text-slate-600">Thao tác
+            <select value={type} disabled={isSavings && Boolean(holding)} onChange={e => setType(e.target.value as InvestmentTransactionType)} className="mt-2 h-11 w-full rounded-xl border px-3">
+              <option value="buy">{isSavings ? 'Mở sổ tiết kiệm' : 'Mua'}</option>
+              {(!isSavings || holding) && <option value="sell">{isSavings ? 'Tất toán sổ' : 'Bán'}</option>}
+            </select>
+          </label>
+          }
+          {(isSavings || securityOptions) && <label className="text-xs font-bold text-slate-600">{isSavings ? type === 'sell' ? 'Ngày tất toán' : 'Ngày gửi' : 'Ngày giao dịch'}
+            <input required type="date" value={date.slice(0, 10)} onChange={e => setDate(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" />
+          </label>
+          }
+          {isSavings ? <>
+            <label className="text-xs font-bold text-slate-600">Ngân hàng
+              <input required list="savings-banks" disabled={type === 'sell'} value={bank} onChange={e => setBank(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" />
+              <datalist id="savings-banks">{['Vietcombank', 'Techcombank', 'BIDV', 'Agribank', 'VietinBank', 'MB Bank', 'VPBank', 'ACB', 'Sacombank', 'TPBank'].map(value => <option key={value} value={value} />)}</datalist>
+            </label>
+            <label className="text-xs font-bold text-slate-600">{type === 'sell' ? 'Số tiền thực nhận (gốc + lãi)' : 'Số tiền gửi (VND)'}
+              <input required type="number" min="1" step="1" value={amount} onChange={e => setAmount(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" />
+            </label>
+            <label className="text-xs font-bold text-slate-600">Kỳ hạn
+              <select disabled={type === 'sell'} value={term} onChange={e => setTerm(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{['Không kỳ hạn', '1 tháng', '3 tháng', '6 tháng', '9 tháng', '12 tháng', '18 tháng', '24 tháng', '36 tháng'].map(value => <option key={value}>{value}</option>)}</select>
+            </label>
+            <label className="text-xs font-bold text-slate-600">Lãi suất (%/năm)
+              <input required disabled={type === 'sell'} type="number" min="0" max="100" step="0.01" value={rate} onChange={e => setRate(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" />
+            </label>
+            {type !== 'sell' && <label className="text-xs font-bold text-slate-600 sm:col-span-2">Khi đáo hạn
+              <select value={maturityAction} onChange={e => setMaturityAction(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">
+                <option value="tat_toan_ve_vi">Tất toán về ví</option><option value="goc_lai_tai_tuc">Tái tục gốc và lãi</option><option value="goc_tai_tuc_lai_ve_vi">Tái tục gốc, lãi về ví</option>
+              </select>
+            </label>}
+            <p className="text-xs text-slate-500 sm:col-span-2">Đáo hạn: {type === 'sell' ? existingSavings?.maturityDate : savingsMaturity(date, term)} · Lãi dự kiến: {money(savingsInterest(type === 'sell' ? existingSavings?.principal || 0 : Number(amount), Number(rate), term))}. Khi tất toán, nhập đúng số tiền ngân hàng trả thực tế. Lựa chọn đáo hạn là thông tin theo dõi, không tự chuyển tiền.</p>
+          </> : <>
+            {category === 'stocks' && <div className="sm:col-span-2" role="group" aria-label="Loại tài sản">
+              <p className="text-xs font-bold text-slate-600">Chọn tài sản</p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {([['CP', 'Cổ phiếu', TrendingUp], ['CCQ', 'Quỹ / ETF', BarChart3] ] as const).map(([value, label, Icon]) => (
+                  <button key={value} type="button" aria-pressed={securityUnit === value} onClick={() => { setSecurityUnit(value); setSymbol(''); setName('') }} className={`security-asset-choice ${securityUnit === value ? 'selected' : ''}`}>
+                    <Icon size={20} /><span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>}
+            <div className="relative sm:col-span-2">
+            <label className="block text-xs font-bold text-slate-600">{category === 'stocks' ? securityUnit === 'CCQ' ? 'Mã quỹ / ETF' : 'Mã cổ phiếu' : 'Mã quỹ trái phiếu'}
+              <input required value={symbol} onChange={e => { setSymbol(e.target.value.toUpperCase()); setName('') }} placeholder="Nhập mã tài sản" aria-label="Nhập mã tài sản" className="mt-2 h-11 w-full rounded-xl border px-3" />
+            </label>
+            </div>
+            <p className="h-4 truncate text-xs text-emerald-600 sm:col-span-2" title={name ? `${symbol} · ${name}` : undefined}>{name ? `${symbol} · ${name}` : '\u00a0'}</p>
+            <div className="grid grid-cols-2 gap-2 sm:col-span-2 md:grid-cols-3" role="group" aria-label="Chọn nhanh mã tài sản">
+              {(category === 'bonds' ? BOND_SUGGESTIONS : VN_STOCK_SUGGESTIONS.filter(item => (securityUnit === 'CCQ') === ['DCDS', 'VESF', 'VEOF', 'VF1', 'E1VFVN30', 'FUEVFVND'].includes(item.symbol))).slice(0, 6).map(item => <button type="button" key={item.symbol} aria-pressed={symbol === item.symbol} title={item.name} onClick={() => { setSymbol(item.symbol); setName(item.name) }} className={`security-symbol-choice ${symbol === item.symbol ? 'selected' : ''}`}><strong>{item.symbol}</strong><span>{item.name}</span></button>)}
+            </div>
+            {securityOptions && <div className="text-xs font-bold text-slate-600" role="group" aria-label="Cách nhập giá"><span>Cách nhập giá</span><div className="mt-2 flex gap-2"><button type="button" aria-pressed={priceMode === 'unit'} onClick={() => setPriceMode('unit')} className={`security-mode-choice ${priceMode === 'unit' ? 'selected' : ''}`}>Đơn giá / NAV</button><button type="button" aria-pressed={priceMode === 'total'} onClick={() => setPriceMode('total')} className={`security-mode-choice ${priceMode === 'total' ? 'selected' : ''}`}>Tổng tiền</button></div></div>
+            }
+            <div className="text-xs font-bold text-slate-600 sm:col-span-2">
+              <label htmlFor="security-quantity">Số lượng ({category === 'bonds' ? 'CCQ' : securityUnit})</label>
+              <div className="mt-2 flex gap-2">
+                <button type="button" aria-label="Giảm số lượng" disabled={Number(quantity) <= 100} onClick={() => setQuantity(String(Math.max(100, (Number(quantity) || 100) - 100)))} className="h-11 w-12 rounded-xl border border-slate-200 text-xl disabled:opacity-40">−</button>
+                <input id="security-quantity" required type="number" min="0.000001" step="any" value={quantity} onChange={e => setQuantity(e.target.value)} className="h-11 min-w-0 flex-1 rounded-xl border px-3 text-center text-lg" />
+                <button type="button" aria-label="Tăng số lượng" onClick={() => setQuantity(String((Number(quantity) || 0) + 100))} className="h-11 w-12 rounded-xl border border-slate-200 text-xl">+</button>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2">{[100, 200, 500, 1000].map(value => <button key={value} type="button" aria-pressed={Number(quantity) === value} onClick={() => setQuantity(String(value))} className={`rounded-lg border px-3 py-2 ${Number(quantity) === value ? 'border-[#21d38a] text-emerald-600' : 'border-slate-200'}`}>{value}</button>)}</div>
+            </div>
+            <div className="security-trade-price-row sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-600">{priceMode === 'unit' ? category === 'stocks' && securityUnit === 'CP' ? 'Giá cổ phiếu hiện tại (VND/CP)' : 'Giá / NAV (VND/CCQ)' : 'Tổng tiền (VND)'}
+                <input required disabled={quoteLoading && priceMode === 'unit'} type="number" min="0.01" step="any" value={priceMode === 'unit' ? unitPrice : amount} onChange={e => { if (priceMode === 'unit') { setUnitPrice(e.target.value); setQuoteMessage('Giá giao dịch do bạn nhập.') } else setAmount(e.target.value) }} className="mt-2 h-11 w-full rounded-xl border px-3" />
+                <span className="mt-2 block font-normal text-slate-500">{quoteLoading ? 'Đang tải giá mới nhất...' : quoteMessage}</span>
+              </label>
+              <div className="security-trade-total">
+                <p className="text-xs font-bold">{type === 'sell' ? 'Tổng tiền bán' : 'Tổng tiền mua'}</p>
+                <p className="mt-1 text-xl font-black tabular-nums">{effectiveAmount > 0 ? money(effectiveAmount) : 'Chưa có giá'}</p>
+              </div>
+            </div>
+            <button type="button" aria-expanded={securityOptions} onClick={() => setSecurityOptions(!securityOptions)} className="text-left text-xs font-bold text-emerald-600 sm:col-span-2">{securityOptions ? 'Thu gọn tùy chọn' : 'Tùy chọn khác'}</button>
+            {securityOptions && <label className="text-xs font-bold text-slate-600 sm:col-span-2">Ghi chú (tùy chọn)<input value={note} onChange={e => setNote(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" /></label>}
+          </>}
+          </div>
+          {isSecurity && <aside className="security-trade-summary rounded-2xl border p-5" aria-label="Tóm tắt giao dịch">
+            <h3 className="mb-5 text-lg font-black">Tóm tắt giao dịch</h3>
+            <div className="flex items-start gap-3">
+              <div className="security-trade-symbol flex h-14 w-14 items-center justify-center rounded-xl text-lg font-black">{symbol || '—'}</div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black">{name || 'Chưa chọn mã tài sản'}</p>
+                <p className="mt-1 text-xs opacity-70">{Number(quantity) || 0} {category === 'bonds' ? 'CCQ' : securityUnit} × {unitPrice ? money(Number(unitPrice)) : '—'}</p>
+              </div>
+            </div>
+            <div className="my-5 border-t" />
+            <p className="text-xs font-bold">Ví đầu tư · {money(walletSummary.availableBalance)}</p>
+            <div className="hidden" role="group" aria-label="Chọn ví thanh toán">
+              {([['transfer', 'Ngân hàng', Landmark, walletSummary.bankBalance], ['cash', 'Tiền mặt', WalletCards, walletSummary.cashBalance]] as const).map(([method, label, Icon, balance]) => (
+                <button key={method} type="button" aria-pressed={paymentMethod === method} onClick={() => setPaymentMethod(method)} className={`security-wallet-choice ${paymentMethod === method ? 'selected' : ''}`}>
+                  <Icon size={22} />
+                  <span>{label}</span>
+                  <strong>{money(balance)}</strong>
+                </button>
+              ))}
+            </div>
+            <div className="mt-5 border-t pt-4">
+              <p className="text-xs opacity-70">{type === 'sell' ? 'Tổng tiền bán' : 'Tổng thanh toán'}</p>
+              <p className="mt-1 text-2xl font-black tabular-nums">{effectiveAmount > 0 ? money(effectiveAmount) : 'Chưa có giá'}</p>
+              <p className="mt-1 text-xs opacity-70">Số dư ví đã chọn sau giao dịch: {money((paymentMethod === 'transfer' ? walletSummary.bankBalance : walletSummary.cashBalance) + (type === 'sell' ? effectiveAmount : -effectiveAmount))}</p>
+            </div>
+            <p className="mt-5 text-xs opacity-70">Ngày ghi nhận: {formatDate(date)}</p>
+            {error && <p role="alert" className="mt-3 text-xs font-bold text-rose-400">{error}</p>}
+            {fundingError && <p role="alert" className="mt-3 text-xs font-bold text-rose-400">{fundingError}</p>}
+            <div className="security-trade-actions mt-6 flex gap-2">
+              <button type="button" onClick={onClose} className="h-11 rounded-xl border px-4 text-sm font-bold">Hủy</button>
+              <button type="submit" disabled={saving || Boolean(fundingError) || quoteLoading || effectiveAmount <= 0} className="h-11 flex-1 rounded-xl px-4 text-sm font-black disabled:opacity-50">{saving ? 'Đang lưu...' : type === 'sell' ? 'Xác nhận bán' : 'Xác nhận mua'}</button>
+            </div>
+          </aside>}
+        </div> : <div className="grid gap-4 p-6 sm:grid-cols-2">
           <label className="text-xs font-bold text-slate-600">
             Nhóm tài sản
             <select
@@ -347,19 +586,19 @@ function TransactionModal({
               className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3"
             />
           </label>
-        </div>
-        <div className="px-6 pb-3 text-xs">
-          <label className="font-bold">Ví thanh toán / nhận tiền
+        </div>}
+        {!isSecurity && <div className="px-6 pb-3 text-xs">
+          {isWalletTransaction && <label className="font-bold">{type === 'withdraw' ? 'Tài khoản vận hành nhận tiền' : 'Tài khoản vận hành chuyển vốn'}
             <select value={paymentMethod} onChange={event => setPaymentMethod(event.target.value as FundingMethod)} className="ml-2 rounded-lg border p-2">
-              <option value="transfer">Ngân hàng · {money(walletSummary.bankBalance)}</option>
-              <option value="cash">Tiền mặt · {money(walletSummary.cashBalance)}</option>
+              <option value="transfer">Ngân hàng · {money(operatingWalletSummary.bankBalance)}</option>
+              <option value="cash">Tiền mặt · {money(operatingWalletSummary.cashBalance)}</option>
             </select>
-          </label>
-          <p className="mt-2">Tổng khả dụng: {money(walletSummary.availableBalance)}. Mua tài sản sẽ trừ tiền từ Ví.</p>
+          </label>}
+          <p className="mt-2">Tổng khả dụng: {money(walletSummary.availableBalance)}.{!isWalletTransaction && (type === 'sell' ? ' Tiền bán sẽ được cộng vào ví đã chọn.' : ' Tiền mua sẽ được trừ từ ví đã chọn.')}</p>
           {error && <p role="alert" className="mt-2 font-bold text-rose-600">{error}</p>}
           {fundingError && <p role="alert" className="mt-2 font-bold text-rose-600">{fundingError}</p>}
-        </div>
-        <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
+        </div>}
+        {!isSecurity && <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
@@ -367,16 +606,44 @@ function TransactionModal({
           >
             Hủy
           </button>
-          <button disabled={saving || Boolean(fundingError)} className="h-10 rounded-xl bg-[#00ab60] px-5 text-xs font-black text-white disabled:opacity-50">
-            {holding && !transaction && !forceTransaction ? 'Lưu thông tin' : 'Lưu giao dịch'}
+          <button disabled={saving || Boolean(fundingError) || (isSecurity && quoteLoading)} className={`h-10 rounded-xl px-5 text-xs font-black text-white disabled:opacity-50 ${type === 'sell' ? 'bg-[#e04444] hover:bg-[#c93636]' : 'bg-[#00ab60]'}`}>
+            {saving ? 'Đang lưu...' : isSecurity ? type === 'sell' ? 'Xác nhận bán' : 'Xác nhận mua' : isSavings ? type === 'sell' ? 'Xác nhận tất toán' : transaction ? 'Lưu sổ tiết kiệm' : 'Mở sổ tiết kiệm' : 'Lưu giao dịch'}
           </button>
-        </div>
+        </div>}
       </form>
     </div>
   )
 }
 
-export function InvestmentsTab(): ReactElement {
+function SecurityHoldingsPanel({
+  rows,
+  title,
+  accent,
+  onBuy,
+  onSell
+}: {
+  rows: InvestmentHolding[]
+  title: string
+  accent: string
+  onBuy: () => void
+  onSell: (holding: InvestmentHolding) => void
+}) {
+  return <section className="security-holdings-panel" style={{ '--security-accent': accent } as CSSProperties}>
+    <div className="security-holdings-heading">
+      <div><h2>{title} đang nắm giữ</h2><p>Danh mục tài sản hiện có và giá trị đang theo dõi</p></div>
+      <button type="button" onClick={onBuy}>+ Mua thêm</button>
+    </div>
+    {rows.length ? <div className="security-holdings-table-wrap"><table><thead><tr><th>Tài sản</th><th>Số lượng</th><th>Giá trị</th><th>P/L</th><th /></tr></thead><tbody>{rows.map(row => <tr key={row.symbol}>
+      <td><strong>{row.symbol}</strong><small>{row.name}</small></td>
+      <td>{row.quantity}</td>
+      <td><strong>{money(row.valueVnd)}</strong></td>
+      <td className={row.pnlPercent >= 0 ? 'positive' : 'negative'}>{row.pnlPercent >= 0 ? '+' : ''}{row.pnlPercent.toFixed(2)}%</td>
+      <td><div className="security-holdings-actions"><button type="button" onClick={() => onBuy()}>Mua</button><button type="button" onClick={() => onSell(row)}>Bán</button></div></td>
+    </tr>)}</tbody></table></div> : <div className="security-holdings-empty"><p>Chưa có {title.toLowerCase()} đang nắm giữ</p><button type="button" onClick={onBuy}>Thêm tài sản đầu tiên</button></div>}
+  </section>
+}
+
+export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElement {
   const queryClient = useQueryClient()
   const savingTransaction = useRef(false)
   const [transactionError, setTransactionError] = useState('')
@@ -412,13 +679,24 @@ export function InvestmentsTab(): ReactElement {
     const timeout = window.setTimeout(() => setGoldTradeNotice(null), 6000)
     return () => window.clearTimeout(timeout)
   }, [goldTradeNotice])
-  const [walletSummary, setWalletSummary] = useState<WalletBalanceSummary>({
+  const [operatingSummary, setWalletSummary] = useState<WalletBalanceSummary>({
     bankBalance: 0,
     cashBalance: 0,
     totalBalance: 0,
     availableBalance: 0,
     entries: []
   })
+  const fundBalance = investmentBalance(store)
+  const walletSummary: WalletBalanceSummary = {
+    bankBalance: fundBalance, cashBalance: fundBalance,
+    totalBalance: fundBalance, availableBalance: Math.max(0, fundBalance),
+    entries: store.transactions.filter(tx => tx.fundingSource === 'investment-wallet').map(tx => ({
+      id: tx.id, date: tx.occurredAt || tx.date, title: txLabel[tx.transactionType],
+      amount: Math.abs(tx.walletPosting?.amount || 0),
+      type: (tx.walletPosting?.amount || 0) < 0 ? 'expense' : 'income',
+      paymentMethod: tx.walletPosting?.paymentMethod || 'cash', source: 'Ví đầu tư'
+    }))
+  }
   const load = async () => {
     setLoading(true)
     const [result, nextWalletSummary] = await Promise.all([readInvestmentStore(), getWalletBalanceSummary()])
@@ -451,7 +729,7 @@ export function InvestmentsTab(): ReactElement {
     if (nonCashHoldings.length === 0 && walletSummary.availableBalance <= 0) return []
     const walletHolding: InvestmentHolding = {
       symbol: 'CASH',
-      name: 'Ví tiền',
+      name: 'Ví đầu tư',
       category: 'cash',
       group: 'Ví thanh toán',
       valueVnd: walletSummary.availableBalance,
@@ -482,20 +760,7 @@ export function InvestmentsTab(): ReactElement {
   const categoryTransactions = useMemo(() => {
     if (screen === 'overview' || screen === 'transactions') return []
     if (screen === 'cash') {
-      return walletSummary.entries.map((entry) => ({
-        id: entry.id,
-        date: entry.date,
-        occurredAt: entry.date,
-        transactionType: (entry.type === 'income' ? 'deposit' : 'withdraw') as InvestmentTransactionType,
-        assetSymbol: 'CASH',
-        amountVnd: entry.amount,
-        status: 'done' as const,
-        note: `${entry.title}${entry.source ? ` · ${entry.source}` : ''}`,
-        quantity: 1,
-        unit: 'VND',
-        walletImpactVnd: entry.type === 'income' ? entry.amount : -entry.amount,
-        fundingSource: 'wallet' as const
-      }))
+      return transactions.filter(tx => tx.fundingSource === 'investment-wallet')
     }
     return transactionsForCategory(transactions, store.holdings, screen)
   }, [screen, transactions, store.holdings, walletSummary.entries])
@@ -585,6 +850,8 @@ export function InvestmentsTab(): ReactElement {
     try {
     const oldTx = modal?.transaction
     const walletImpact = investmentWalletImpact(input.type, input.amount)
+    const savingsMeta = input.category === 'savings' ? readSavings(input.note) : undefined
+    if (input.category === 'savings' && (!savingsMeta || !savingsMeta.bank || !Number.isFinite(savingsMeta.rate) || savingsMeta.rate < 0 || savingsMeta.rate > 100)) throw new Error('Thông tin sổ tiết kiệm không hợp lệ.')
     if (!['cash', 'transfer'].includes(input.paymentMethod)) throw new Error('Chọn ví thanh toán hợp lệ.')
     let assetValueImpact = input.type === 'buy' ? input.amount : 0
     if (input.type === 'buy' && (!Number.isFinite(input.quantity) || input.quantity <= 0)) throw new Error('Nhập số lượng tài sản lớn hơn 0.')
@@ -629,7 +896,7 @@ export function InvestmentsTab(): ReactElement {
                 : input.type === 'sell'
                   ? input.amount
                   : 0,
-        fundingSource: 'wallet' as const,
+        fundingSource: 'investment-wallet' as const,
         walletPosting: { paymentMethod: input.paymentMethod, amount: walletImpact },
         assetValueImpactVnd: assetValueImpact
       }
@@ -681,35 +948,37 @@ export function InvestmentsTab(): ReactElement {
     }
     const edited = nextHoldingsMap.get(normalizedSymbol)
     if (edited && input.quantity) nextHoldingsMap.set(normalizedSymbol, { ...edited, name: normalizedSymbol === 'CASH' ? 'Ví VND' : input.name, category: normalizedCategory, targetPercent: store.categoryTargets?.[normalizedCategory] || edited.targetPercent })
+    if (savingsMeta) {
+      const book = nextHoldingsMap.get(normalizedSymbol.toUpperCase())
+      if (book) nextHoldingsMap.set(normalizedSymbol.toUpperCase(), { ...book, name: input.name, quantity: JSON.stringify(savingsMeta), group: savingsMeta.status === 'settled' ? 'Đã tất toán' : 'Đang gửi', valueVnd: savingsMeta.status === 'settled' ? 0 : savingsMeta.principal })
+    }
     const nextHoldings = Array.from(nextHoldingsMap.values())
     await commitWalletChange(oldTx, newTx, { ...store, holdings: nextHoldings, transactions: nextTransactions })
     setModal(null)
     } finally { savingTransaction.current = false }
   }
   const commitWalletChange = async (previous: InvestmentTransaction | undefined, next: InvestmentTransaction | undefined, nextStore: InvestmentStore) => {
-    await commitFundedInvestment({
+    await commitInvestmentWallet({
+      actorRole: userRole,
       previous,
-      nextPosting: next?.walletPosting,
+      next,
       nextStore,
-      reference: `${next ? txLabel[next.transactionType] : 'Hoàn tác'} ${next?.assetSymbol || previous?.assetSymbol} · ${next?.id || previous?.id} · ${next?.note || previous?.note || ''}`,
-      date: new Date().toISOString(),
-      readBalances: async () => {
+      readCurrent: async () => {
         const latest = await readInvestmentStore()
         if (JSON.stringify(latest.data) !== JSON.stringify(store)) {
           throw new Error('Danh mục đã thay đổi ở cửa sổ khác. Hãy bấm Làm mới trước khi tiếp tục.')
         }
-        const summary = await getWalletBalanceSummary()
-        setWalletSummary(summary)
-        return summary
+        return latest.data
       },
-      createPosting: async (posting, reference, date) => {
+      readOperating: getWalletBalanceSummary,
+      createPosting: async (posting) => {
         const row = await createCashTransaction({
           type: posting.amount < 0 ? 'expense' : 'income',
           category: 'investment_transfer',
-          transaction_date: date,
+          transaction_date: new Date().toISOString(),
           amount: Math.abs(posting.amount),
           payment_method: posting.paymentMethod,
-          note: `[Đầu tư] ${reference}`
+          note: `[Đầu tư] ${!next && previous ? `Hoàn tác ${txLabel[previous.transactionType]} ${previous.assetSymbol}` : posting.amount < 0 ? 'Chuyển vốn sang Ví đầu tư' : 'Chuyển vốn về Ví vận hành'} · ${next?.id || previous?.id}`
         })
         return row.id
       },
@@ -723,6 +992,11 @@ export function InvestmentsTab(): ReactElement {
   }
   const deleteTransaction = async (tx: InvestmentTransaction) => {
     if (savingTransaction.current) return
+    if (tx.fundingSource !== 'investment-wallet' && userRole !== 'admin') {
+      setTransactionError('Chỉ admin được xóa giao dịch cũ thuộc Ví vận hành.')
+      return
+    }
+    if (!window.confirm(`Xóa giao dịch ${txLabel[tx.transactionType]} ${tx.assetSymbol} (${money(tx.amountVnd)})? Hệ thống sẽ hoàn tác tài sản và tiền ở ${tx.fundingSource === 'investment-wallet' ? 'Ví đầu tư' : 'Ví vận hành'}.`)) return
     savingTransaction.current = true
     setTransactionError('')
     try {
@@ -737,7 +1011,8 @@ export function InvestmentsTab(): ReactElement {
       const quantityDelta = tx.transactionType === 'sell' ? tx.quantity || 0 : tx.transactionType === 'buy' || tx.transactionType === 'import-existing' ? -(tx.quantity || 0) : 0
       const nextQuantity = parseQuantity(holding.quantity) + quantityDelta
       if (nextQuantity < -0.00000001) throw new Error('Không thể xóa giao dịch mua vì tài sản đã được bán. Hãy đối soát giao dịch bán trước.')
-      nextHoldingsMap.set(tx.assetSymbol.toUpperCase(), { ...holding, quantity: `${Math.max(0, nextQuantity)} ${tx.unit || 'đơn vị'}`, valueVnd: nextQuantity === 0 ? 0 : holding.valueVnd })
+      const savings = readSavings(holding.quantity)
+      nextHoldingsMap.set(tx.assetSymbol.toUpperCase(), { ...holding, quantity: savings ? JSON.stringify({ ...savings, status: nextQuantity > 0 ? 'active' : 'settled', settleDate: undefined, settleAmount: undefined }) : `${Math.max(0, nextQuantity)} ${tx.unit || 'đơn vị'}`, valueVnd: nextQuantity === 0 ? 0 : holding.valueVnd })
     }
     await commitWalletChange(tx, undefined, { ...store, holdings: Array.from(nextHoldingsMap.values()), transactions: store.transactions.filter((item) => item.id !== tx.id) })
     } catch (cause) {
@@ -779,6 +1054,20 @@ export function InvestmentsTab(): ReactElement {
   const openTrade = (symbol?: string, requestedType?: string) => {
     const holding = symbol ? store.holdings.find((item) => item.symbol.toUpperCase() === symbol.toUpperCase()) : undefined
     const lowered = requestedType?.toLowerCase() || ''
+    if (holding?.category === 'savings' && lowered.includes('chỉnh sửa')) {
+      const original = store.transactions.find(tx => {
+        if (tx.assetSymbol.trim().toUpperCase() === holding.symbol.trim().toUpperCase()) return tx.transactionType === 'buy' || tx.transactionType === 'import-existing'
+        if (tx.transactionType !== 'buy' && tx.transactionType !== 'import-existing') return false
+        try {
+          const note = readSavings(tx.note)
+          const meta = readSavings(holding.quantity)
+          return Boolean(note && meta && note.bank === meta.bank && note.principal === meta.principal)
+        } catch { return false }
+      })
+      if (!original) { setTransactionError('Sổ cũ chưa có giao dịch mở sổ để đối soát.'); return }
+      setModal({ holding, transaction: original, forceTransaction: true })
+      return
+    }
     const initialType: InvestmentTransactionType = lowered.includes('bán') || lowered.includes('sell') ? 'sell' : 'buy'
     setModal({ holding, initialType, forceTransaction: lowered.includes('bán') || lowered.includes('mua vào') })
   }
@@ -810,8 +1099,8 @@ export function InvestmentsTab(): ReactElement {
       <main className="min-w-0 flex-1 overflow-y-auto p-4 md:p-6">
         {transactionError && <p role="alert" className="mb-4 rounded-xl border border-rose-400 p-3 text-sm text-rose-400">{transactionError}</p>}
         {store.transactions.some(tx => tx.transactionType === 'buy' && !tx.walletPosting) && <p role="status" className="mb-4 rounded-xl border border-amber-500/40 p-3 text-sm text-amber-400">Có giao dịch mua cũ chưa trừ tiền Ví. Hãy kiểm tra tại Giao dịch và sửa để ghi nhận nguồn tiền, hoặc xóa nếu nhập nhầm. Số tài sản này chưa được đối soát với Ví.</p>}
-        <div className="mx-auto max-w-[1480px] space-y-5">
-          <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="mx-auto max-w-[1480px] space-y-3.5">
+          <header className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#00ab60]">
                 Tài chính · Đầu tư
@@ -827,6 +1116,58 @@ export function InvestmentsTab(): ReactElement {
                 Theo dõi giá trị, hiệu suất và tỷ trọng danh mục trên cùng một màn hình.
               </p>
             </div>
+            {screen === 'stocks' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModal({ initialType: 'buy', forceTransaction: true })}
+                  className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white transition hover:bg-[#009252] shadow-sm"
+                >
+                  Mua cổ phiếu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModal({ holding: visibleHoldings[0], initialType: 'sell', forceTransaction: true })}
+                  disabled={!visibleHoldings.length}
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+                >
+                  Bán cổ phiếu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScreen('transactions')}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                >
+                  Giao dịch
+                </button>
+              </div>
+            )}
+            {screen === 'bonds' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModal({ initialType: 'buy', forceTransaction: true })}
+                  className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white transition hover:bg-[#009252] shadow-sm"
+                >
+                  Mua trái phiếu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModal({ holding: visibleHoldings[0], initialType: 'sell', forceTransaction: true })}
+                  disabled={!visibleHoldings.length}
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 shadow-sm"
+                >
+                  Bán trái phiếu
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScreen('transactions')}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 shadow-sm"
+                >
+                  Giao dịch
+                </button>
+              </div>
+            )}
             {screen === 'transactions' && (
               <div className="flex gap-2">
                 <button
@@ -869,12 +1210,14 @@ export function InvestmentsTab(): ReactElement {
             <div className="rounded-2xl border border-dashed border-emerald-200 bg-white p-14 text-center">
               <Target className="mx-auto text-[#00ab60]" size={34} />
               <h2 className="mt-4 text-lg font-black text-[#15231d]">
-                Chưa kết nối được dữ liệu danh mục
+                Ví đầu tư đang trống
               </h2>
               <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">
-                Không tìm thấy dữ liệu DBY Finance trên máy này. Bạn vẫn có thể bắt đầu bằng nút Ghi
-                giao dịch.
+                Chưa có vốn trong Ví đầu tư. Hãy chuyển tiền từ Ví vận hành để bắt đầu mua tài sản.
               </p>
+              <button type="button" onClick={() => setScreen('cash')} className="mt-5 rounded-xl bg-[#00ab60] px-4 py-2 text-sm font-black text-white">
+                Chuyển vốn sang Ví đầu tư
+              </button>
             </div>
           ) : (
             <>
@@ -1068,7 +1411,8 @@ export function InvestmentsTab(): ReactElement {
                     </span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[780px] text-left">
+                    <table className="w-full min-w-[900px] table-fixed text-left">
+                      <colgroup><col /><col style={{ width: 140 }} /><col style={{ width: 150 }} /><col style={{ width: 160 }} /><col style={{ width: 110 }} /><col style={{ width: 64 }} /></colgroup>
                       <thead className="bg-[#f7faf8] text-[10px] font-black uppercase tracking-wider text-slate-400">
                         <tr>
                           <th className="px-5 py-3">Tài sản</th>
@@ -1082,29 +1426,34 @@ export function InvestmentsTab(): ReactElement {
                       <tbody className="divide-y divide-slate-100">
                         {visibleHoldings.map((item) => {
                           const meta = categoryMeta[item.category]
+                          const savings = item.category === 'savings' ? readSavings(item.quantity) : undefined
+                          const description = item.category === 'savings'
+                            ? savings ? `${savings.term} · ${savings.rate}%/năm · ${savings.status === 'settled' ? 'Đã tất toán' : 'Đang gửi'}` : 'Sổ tiết kiệm'
+                            : `${item.symbol} · ${item.quantity}`
                           const percent = total ? (item.valueVnd / total) * 100 : 0
                           return (
                             <tr key={item.symbol} className="hover:bg-emerald-50/30">
                               <td className="px-5 py-4">
                                 <div className="flex items-center gap-3">
                                   <span
-                                    className="flex h-9 w-9 items-center justify-center rounded-xl text-white"
+                                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white"
                                     style={{ background: meta.color }}
                                   >
                                     <meta.icon size={17} />
                                   </span>
-                                  <div>
-                                    <p className="text-sm font-black text-[#15231d]">{item.name}</p>
-                                    <p className="mt-0.5 text-xs text-slate-400">
-                                      {item.symbol} · {item.quantity}
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-black text-[#15231d]" title={item.name}>{item.name}</p>
+                                    <p className="mt-0.5 text-xs text-slate-400" title={description}>
+                                      {description}
                                     </p>
+                                    {savings && <p className="mt-1 text-xs text-slate-400">Đáo hạn: {formatDate(savings.maturityDate)}</p>}
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-4 py-4 text-xs font-bold text-slate-500">
+                              <td className="whitespace-nowrap px-4 py-4 text-xs font-bold text-slate-500">
                                 {meta.label}
                               </td>
-                              <td className="px-4 py-4 text-right text-sm font-black text-slate-800">
+                              <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-black tabular-nums text-slate-800">
                                 {money(item.valueVnd)}
                               </td>
                               <td className="px-4 py-4">
@@ -1130,7 +1479,7 @@ export function InvestmentsTab(): ReactElement {
                               </td>
                               <td className="px-5 py-4 text-right">
                                 <button
-                                  onClick={() => setModal({ holding: item })}
+                                  onClick={() => item.category === 'savings' ? openTrade(item.symbol, 'Chỉnh sửa') : setModal({ holding: item })}
                                   className="rounded-lg p-2 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"
                                 >
                                   <Pencil size={15} />
@@ -1148,18 +1497,44 @@ export function InvestmentsTab(): ReactElement {
               {screen !== 'overview' && screen !== 'transactions' && (
                 <>
                    {screen === 'gold' && <div className="investment-tracker-copy"><div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setGoldTradeMode('buy')} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Mua vàng</button><button type="button" onClick={() => setGoldTradeMode('sell')} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Bán vàng</button><button type="button" onClick={() => document.getElementById('investment-category-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Lịch sử giao dịch ({categoryTransactions.length})</button></div><GoldTracker /></div>}
-                   {screen === 'stocks' && <div className="investment-tracker-copy"><div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setModal({ initialType: 'buy', forceTransaction: true })} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Mua cổ phiếu</button><button type="button" onClick={() => setModal({ holding: visibleHoldings[0], initialType: 'sell', forceTransaction: true })} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Bán cổ phiếu</button><button type="button" onClick={() => setScreen('transactions')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Giao dịch</button></div><StockTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
-                   {screen === 'bonds' && <div className="investment-tracker-copy"><div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setModal({ initialType: 'buy', forceTransaction: true })} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Mua trái phiếu</button><button type="button" onClick={() => setModal({ holding: visibleHoldings[0], initialType: 'sell', forceTransaction: true })} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Bán trái phiếu</button><button type="button" onClick={() => setScreen('transactions')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Giao dịch</button></div><BondTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
+                   {screen === 'stocks' && <div className="investment-tracker-copy"><StockTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
+                   {screen === 'bonds' && <div className="investment-tracker-copy"><BondTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
                    {screen === 'savings' && <div className="investment-tracker-copy"><SavingsTracker holdings={savingsTrackerHoldings} transactions={savingsTrackerTransactions} onOpenModal={openTrade} onRefresh={load} onDeleteTransaction={(id) => { const tx = store.transactions.find((item) => item.id === id); if (tx) void deleteTransaction(tx) }} /></div>}
-                  {screen === 'cash' && <div className="space-y-3"><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setModal({ initialType: 'deposit' })} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Nạp tiền</button><button type="button" onClick={() => setModal({ initialType: 'withdraw' })} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Rút tiền</button><button type="button" onClick={() => setScreen('transactions')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Giao dịch</button></div><section className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
+                  {screen === 'cash' && <div className="space-y-3"><div className="flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setModal({ initialType: 'deposit' })} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Chuyển vốn từ Ví vận hành</button><button type="button" onClick={() => setModal({ initialType: 'withdraw' })} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Chuyển về Ví vận hành</button><button type="button" onClick={() => setScreen('transactions')} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Giao dịch</button></div><section className="grid gap-5 lg:grid-cols-[.7fr_1.3fr]">
                   <div className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
                     <h2 className="font-black text-[#15231d]">Tổng hợp {categoryMeta[screen].label}</h2>
+                    <p className="mt-2 text-xs text-slate-400">Quỹ riêng, chỉ dùng vốn đã chuyển từ Ví vận hành. Mua trừ quỹ; bán và tất toán trả về quỹ. Giao dịch cũ không được tính lại vào số dư này.</p>
                     <div className="mt-4 space-y-3 text-sm"><div className="flex items-center justify-between"><span className="text-slate-500">Giá trị hiện tại</span><strong className="text-[#15231d]">{money(visibleHoldings.reduce((sum, item) => sum + item.valueVnd, 0))}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Số khoản nắm giữ</span><strong>{visibleHoldings.length}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Số giao dịch</span><strong>{categoryTransactions.length}</strong></div>{screen === 'cash' && <><div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="text-slate-500">Tổng tiền vào</span><strong className="text-emerald-700">+{money(categoryTransactions.reduce((sum, tx) => sum + Math.max(0, transactionCashDelta(tx)), 0))}</strong></div><div className="flex items-center justify-between"><span className="text-slate-500">Tổng tiền ra</span><strong className="text-rose-600">-{money(categoryTransactions.reduce((sum, tx) => sum + Math.max(0, -transactionCashDelta(tx)), 0))}</strong></div></>}</div>
                   </div>
-                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-[#15231d]">Giao dịch của nhóm</h2><p className="mt-1 text-xs text-slate-400">Lịch sử riêng của {categoryMeta[screen].label.toLowerCase()}</p></div><div className="divide-y divide-slate-100">{categoryTransactions.length ? categoryTransactions.slice(0, 8).map((tx) => { const outgoing = ['sell', 'withdraw'].includes(tx.transactionType); return <button type="button" key={tx.id} onClick={screen === 'cash' ? undefined : () => { setModal({ transaction: tx, holding: store.holdings.find((item) => item.symbol === tx.assetSymbol) }) }} className={`flex w-full items-center justify-between gap-3 px-5 py-3 text-left ${screen === 'cash' ? '' : 'hover:bg-slate-50'}`}><div><p className="text-xs font-black text-slate-700">{tx.assetSymbol} · {txLabel[tx.transactionType]}</p><p className="mt-1 text-[11px] text-slate-400">{formatDate(tx.date)}{displayNote(tx.note) ? ` · ${displayNote(tx.note)}` : ''}</p></div><strong className={`text-xs ${outgoing ? 'text-rose-600' : 'text-emerald-700'}`}>{outgoing ? '-' : '+'}{money(tx.amountVnd)}</strong></button> }) : <p className="p-8 text-center text-sm text-slate-400">Chưa có giao dịch trong nhóm này.</p>}</div></div>
+                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+                    <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-black text-[#15231d]">Giao dịch của nhóm</h2><p className="mt-1 text-xs text-slate-400">Lịch sử riêng của ví tiền</p></div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[480px] text-left text-xs">
+                        <thead className="border-b border-slate-100 text-slate-400"><tr>
+                          <th className="px-5 py-3 font-semibold">Thời gian</th>
+                          <th className="px-5 py-3 font-semibold">Giao dịch</th>
+                          <th className="px-5 py-3 text-right font-semibold">Số tiền</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {categoryTransactions.slice(0, 8).map(tx => {
+                            const outgoing = (tx.walletPosting?.amount || 0) < 0
+                            const timestamp = tx.occurredAt || tx.date
+                            return <tr key={tx.id}>
+                              <td className="whitespace-nowrap px-5 py-3 tabular-nums"><p className="font-bold text-slate-700">{formatDate(timestamp)}</p><p className="mt-1 text-[11px] text-slate-400">{formatTime(timestamp)}</p></td>
+                              <td className="px-5 py-3"><p className="font-black text-slate-700">{txLabel[tx.transactionType]}</p><p className="mt-1 text-[11px] text-slate-400">{displayNote(tx.note)}</p></td>
+                              <td className={`whitespace-nowrap px-5 py-3 text-right font-bold ${outgoing ? 'text-rose-600' : 'text-emerald-700'}`}>{outgoing ? '-' : '+'}{money(tx.amountVnd)}</td>
+                            </tr>
+                          })}
+                          {!categoryTransactions.length && <tr><td colSpan={3} className="p-8 text-center text-sm text-slate-400">Chưa có giao dịch trong nhóm này.</td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </section></div>}
                  </>
               )}
+              {screen === 'stocks' && <SecurityHoldingsPanel rows={visibleHoldings} title="Cổ phiếu & Quỹ" accent="#21d38a" onBuy={() => setModal({ initialType: 'buy', forceTransaction: true })} onSell={(holding) => setModal({ holding, initialType: 'sell', forceTransaction: true })} />}
+              {screen === 'bonds' && <SecurityHoldingsPanel rows={visibleHoldings} title="Trái phiếu" accent="#60a5fa" onBuy={() => setModal({ initialType: 'buy', forceTransaction: true })} onSell={(holding) => setModal({ holding, initialType: 'sell', forceTransaction: true })} />}
               {screen === 'gold' && <GoldHoldings rows={visibleHoldings} onAdd={() => { setGoldTradeSymbol(undefined); setGoldTradeMode('buy') }} onTrade={(holding, initialType) => {
                 if (['VNHAN', 'PQHN24NTT', 'BT9999NTT'].includes(holding.symbol)) {
                   setGoldTradeSymbol(holding.symbol)
@@ -1240,6 +1615,7 @@ export function InvestmentsTab(): ReactElement {
           forceTransaction={modal.forceTransaction}
           scopedCategory={screen === 'overview' || screen === 'transactions' ? undefined : screen}
           walletSummary={walletSummary}
+          operatingWalletSummary={operatingSummary}
           onClose={() => setModal(null)}
           onSave={saveTransaction}
           onSaveHolding={(input) => void saveHoldingDetails(input)}

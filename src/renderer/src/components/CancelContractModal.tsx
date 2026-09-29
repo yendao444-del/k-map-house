@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { cancelContract, type Room } from '../lib/db'
-import { playDelete } from '../lib/sound'
 import { useQueryClient } from '@tanstack/react-query'
 
 interface Props {
@@ -18,7 +17,6 @@ export function CancelContractModal({ room, onClose }: Props) {
         setError('')
         try {
             await cancelContract(room.id)
-            playDelete()
             await Promise.all([
               queryClient.invalidateQueries({ queryKey: ['rooms'] }),
               queryClient.invalidateQueries({ queryKey: ['contracts'] }),

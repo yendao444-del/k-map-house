@@ -295,7 +295,6 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
       // Snapshot tài sản đã được lưu từ tab Tài sản rồi, không cần tạo lại
     },
     onSuccess: () => {
-      import('../lib/sound').then(({ playSuccess }) => playSuccess());
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
       queryClient.invalidateQueries({ queryKey: ['activeContracts'] })

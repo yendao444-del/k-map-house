@@ -9,7 +9,6 @@ import {
   type Room
 } from '../lib/db'
 import { buildInvoiceTransferDescription, normalizeTransferText } from '../lib/invoiceTransfer'
-import { playPayment } from '../lib/sound'
 import { LogoLoading } from './LogoLoading'
 
 interface SePaySyncModalProps {
@@ -372,7 +371,6 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
       setProcessingTxKeys((prev) => (prev.includes(txKey) ? prev : [...prev, txKey]))
     },
     onSuccess: (_, variables) => {
-      playPayment()
       queryClient.invalidateQueries({ queryKey: ['invoices'] })
       queryClient.invalidateQueries({ queryKey: ['invoices', variables.match.invoice.room_id] })
       queryClient.invalidateQueries({ queryKey: ['rooms'] })

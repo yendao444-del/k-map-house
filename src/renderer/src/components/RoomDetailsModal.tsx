@@ -16,7 +16,6 @@ import {
   type Contract,
   type Invoice
 } from '../lib/db'
-import { playSuccess } from '../lib/sound'
 import { PaymentModal } from './PaymentModal'
 import { RoomAssetsTab } from './RoomAssetsTab'
 import { RoomVehiclesTab } from './RoomVehiclesTab'
@@ -62,7 +61,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   const zoneUpdateMutation = useMutation({
     mutationFn: (zoneId: string) => updateRoom(room.id, { service_zone_id: zoneId }),
     onSuccess: () => {
-      playSuccess()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['room', room.id] })
       queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
@@ -82,7 +80,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Room> }) =>
       updateRoom(id, updates),
     onSuccess: () => {
-      playSuccess()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['room', room.id] })
       setIsEditingTenant(false)
@@ -210,7 +207,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
       }
     },
     onSuccess: (_result, nextRent) => {
-      playSuccess()
       setLocalRentOverride(nextRent)
       setIsEditingRent(false)
       setRentReason('')
@@ -260,7 +256,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
       }
     },
     onSuccess: (_result, nextDeposit) => {
-      playSuccess()
       setLocalDepositOverride(nextDeposit)
       setIsEditingDeposit(false)
       setDepositReason('')
@@ -296,7 +291,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
         adjusted_by_name: currentUser?.full_name || currentUser?.username
       }),
     onSuccess: () => {
-      playSuccess()
       setIsAdjustMeterOpen(false)
       setMeterReason('')
       setMeterError(null)

@@ -28,9 +28,10 @@ export type InvestmentTransaction = {
   capitalAmountVnd?: number
   walletImpactVnd?: number
   linkedAssetSymbol?: string
-  fundingSource?: 'wallet' | 'opening-balance'
+  fundingSource?: 'wallet' | 'opening-balance' | 'investment-wallet'
   walletPosting?: { paymentMethod: 'cash' | 'transfer'; amount: number }
   assetValueImpactVnd?: number
+  operatingPostingIds?: string[]
 }
 
 export type InvestmentSnapshot = {

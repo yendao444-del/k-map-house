@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { recordInvoicePayment, getRooms, type Invoice } from '../lib/db';
-import { playPayment } from '../lib/sound';
 
 interface ManualPaymentModalProps {
   invoice: Invoice;
@@ -37,7 +36,6 @@ export const ManualPaymentModal: React.FC<ManualPaymentModalProps> = ({ invoice,
     queryClient.invalidateQueries({ queryKey: ['rooms'] });
     queryClient.invalidateQueries({ queryKey: ['contracts'] });
     queryClient.invalidateQueries({ queryKey: ['activeContracts'] });
-    playPayment();
 
     setSaving(false);
     onClose();

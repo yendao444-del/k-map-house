@@ -131,6 +131,8 @@ export interface Invoice {
   note?: string
   paid_amount: number
   payment_status: PaymentStatus
+  debt_confirmed_at?: string | null
+  debt_confirmed_by?: string | null
   payment_method?: PaymentMethod
   payment_date?: string
   payment_records?: InvoicePaymentRecord[]
@@ -1613,6 +1615,29 @@ export async function getInvoices(options: InvoiceListOptions = {}): Promise<Inv
   return invoices
 }
 
+export const getOutstandingInvoices = async (): Promise<Invoice[]> => {
+  const pageSize = 1000
+  const invoices: Invoice[] = []
+  let offset = 0
+  while (true) {
+    const page = (await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .in('payment_status', ['unpaid', 'partial'])
+        .gt('total_amount', 0)
+        .order('year', { ascending: true })
+        .order('month', { ascending: true })
+        .order('created_at', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )) as Invoice[]
+    invoices.push(...page)
+    if (page.length < pageSize) break
+    offset += pageSize
+  }
+  return invoices.filter((invoice) => invoice.total_amount > invoice.paid_amount)
+}
+
 export const getInvoiceMonthCounts = async (): Promise<Record<string, number>> => {
   const counts: Record<string, number> = {}
   const pageSize = 1000
@@ -1703,6 +1728,30 @@ export const getInvoicesByRoom = async (roomId: string): Promise<Invoice[]> => {
       .order('created_at', { ascending: false })
   )
   return data || []
+}
+
+export const confirmInvoiceDebt = async (invoice: Invoice): Promise<Invoice> => {
+  const { data, error } = await supabase.rpc('confirm_invoice_debt_atomic', {
+    p_invoice_id: invoice.id,
+    p_expected_total: invoice.total_amount,
+    p_expected_paid: invoice.paid_amount,
+    p_expected_electric_new: invoice.electric_new,
+    p_expected_water_new: invoice.water_new
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+  const result = data as { invoice?: Invoice } | null
+  if (!result?.invoice) throw new Error('Không nhận được kết quả chốt nợ.')
+  return result.invoice
+}
+
+export const reopenInvoiceDebt = async (invoiceId: string): Promise<Invoice> => {
+  const { data, error } = await supabase.rpc('reopen_invoice_debt_atomic', {
+    p_invoice_id: invoiceId
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+  const result = data as { invoice?: Invoice } | null
+  if (!result?.invoice) throw new Error('Không nhận được kết quả hoàn tác chốt nợ.')
+  return result.invoice
 }
 
 export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invoice> => {
@@ -1927,6 +1976,11 @@ export const recordInvoicePayment = async (
     throw new Error('Ngày thanh toán không hợp lệ.')
   }
 
+  const { data: billingVersion, error: billingError } = await supabase.rpc('invoice_debt_schema_version')
+  if (billingError || billingVersion !== 1) {
+    throw new Error('Database chưa cập nhật nghiệp vụ chốt nợ. Cần chạy migration trước khi thu tiền; giao dịch này chưa được ghi nhận.')
+  }
+
   const { data: paymentResult, error } = await supabase.rpc('record_invoice_payment_atomic', {
     p_invoice_id: id,
     p_amount: amount,
@@ -1948,18 +2002,6 @@ export const recordInvoicePayment = async (
 
   const updated = rpcResult.invoice
   const transitionedToPaid = rpcResult.transitioned_to_paid === true
-
-  if (transitionedToPaid && updated.room_id && !updated.is_settlement) {
-    await supabase
-      .from('rooms')
-      .update({
-        electric_old: updated.electric_new,
-        electric_new: updated.electric_new,
-        water_old: updated.water_new,
-        water_new: updated.water_new
-      } as any)
-      .eq('id', updated.room_id)
-  }
 
   if (transitionedToPaid && updated.room_id && updated.is_settlement) {
     const [{ data: room }, { data: activeContract }] = await Promise.all([
@@ -2295,7 +2337,7 @@ export const createDebtEntry = async (entry: Omit<DebtEntryRecord, 'created_at'>
 
 export const updateDebtEntry = async (
   id: string,
-  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason'>
+  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason'> & { created_at?: string }
 ): Promise<DebtEntryRecord> => {
   const result = await safeQuery(() =>
     supabase

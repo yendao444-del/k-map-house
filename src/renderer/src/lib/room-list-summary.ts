@@ -40,6 +40,7 @@ export function getRoomListSummary(
     (invoice) =>
       invoice.is_first_month &&
       invoice.payment_status === 'unpaid' &&
+      !invoice.debt_confirmed_at &&
       (invoice.paid_amount || 0) === 0
   )
   const canCancel = Boolean(

@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { createInvoice, updateRoom, type Room } from '../lib/db';
-import { playCreate } from '../lib/sound';
 
 interface MoveInReceiptModalProps {
   room: Room;
@@ -103,7 +102,6 @@ export const MoveInReceiptModal: React.FC<MoveInReceiptModalProps> = ({ room, on
         paid_amount: 0,
         payment_status: 'unpaid',
       });
-      playCreate();
       queryClient.invalidateQueries({ queryKey: ['rooms'] });
       queryClient.invalidateQueries({ queryKey: ['invoices'] });
       queryClient.invalidateQueries({ queryKey: ['moveInReceipts'] });

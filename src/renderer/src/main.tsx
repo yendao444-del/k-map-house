@@ -4,11 +4,11 @@ import './assets/font-awesome.css'
 import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
-import { installGlobalSoundEffects, playError } from './lib/sound'
+import { installPaymentAudioUnlock } from './lib/sound'
 
-import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-installGlobalSoundEffects()
+installPaymentAudioUnlock()
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,11 +22,6 @@ const queryClient = new QueryClient({
       notifyOnChangeProps: ['data', 'status', 'error'],
     }
   },
-  mutationCache: new MutationCache({
-    onError: () => {
-      playError()
-    },
-  }),
 })
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {

@@ -7346,7 +7346,7 @@ tr.group-child-row td {
 }
 
 .investment-tracker-copy .gold-chart-panel {
-  min-height: 386px !important;
+  min-height: 300px !important;
 }
 
 .investment-tracker-copy .gold-chart-panel .svg-wrapper,

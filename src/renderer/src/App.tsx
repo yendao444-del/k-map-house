@@ -11,6 +11,7 @@ import {
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   getRooms,
+  getRoom,
   updateRoom,
   createRoom,
   deleteRoom,
@@ -36,14 +37,7 @@ import {
   type Invoice,
   type AppUser
 } from './lib/db'
-import {
-  playSuccess,
-  playCreate,
-  playDelete,
-  playClick,
-  playNotification,
-  announcePaymentAmount
-} from './lib/sound'
+import { announcePaymentAmount } from './lib/sound'
 import { EditableCell } from './components/EditableCell'
 import { LogoLoading } from './components/LogoLoading'
 
@@ -55,11 +49,15 @@ import {
   normalizeTransferText
 } from './lib/invoiceTransfer'
 import { getRoomListSummary } from './lib/room-list-summary'
+import { findDebtToConfirm, isOutstandingInvoice } from './lib/invoiceDebt'
 import logoNavbar from './assets/an_khang_home_logo.png'
 import { isPasswordRecoveryRedirect } from './lib/supabase'
 
 const InvoiceModal = lazy(() =>
   import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal }))
+)
+const DebtClosingModal = lazy(() =>
+  import('./components/DebtClosingModal').then((module) => ({ default: module.DebtClosingModal }))
 )
 const RoomDetailsModal = lazy(() =>
   import('./components/RoomDetailsModal').then((module) => ({ default: module.RoomDetailsModal }))
@@ -179,6 +177,26 @@ const hasInvoiceBalance = (
   // Positive invoices need more money; negative invoices still need a refund.
   return total > 0 ? paid < total : paid > total
 }
+
+type EndingDeadlineState = 'unknown' | 'upcoming' | 'due_today' | 'overdue'
+
+const getEndingDeadline = (expectedEndDate?: string | null, now = new Date()): {
+  state: EndingDeadlineState
+  daysUntil: number | null
+} => {
+  if (!expectedEndDate) return { state: 'unknown', daysUntil: null }
+
+  const dateOnly = expectedEndDate.slice(0, 10)
+  const deadline = new Date(`${dateOnly}T00:00:00`)
+  if (Number.isNaN(deadline.getTime())) return { state: 'unknown', daysUntil: null }
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const daysUntil = Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    state: daysUntil < 0 ? 'overdue' : daysUntil === 0 ? 'due_today' : 'upcoming',
+    daysUntil
+  }
+}
 const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
 const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
   snap.note || snap.room_asset_id
@@ -278,7 +296,6 @@ const AddRoomModal = ({
       return { room, moveInDate: payload.moveInDate || '' }
     },
     onSuccess: ({ room, moveInDate }) => {
-      playCreate()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       if (moveInDate) {
         onOpenContract({ room, moveInDate })
@@ -1386,7 +1403,10 @@ const App: React.FC = () => {
     queryFn: getInvoices,
     enabled: canLoadData,
     refetchOnWindowFocus: false,
-    refetchInterval: isPageVisible ? 60_000 : false,
+    // Realtime invalidation handles normal changes. Visibility refresh below
+    // remains the recovery path when a background event was missed, avoiding a
+    // full invoice history download every minute while the app is open.
+    refetchInterval: false,
     refetchIntervalInBackground: false
   })
 
@@ -1513,8 +1533,8 @@ const App: React.FC = () => {
     'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
   >('overview')
   const [financeSubTab, setFinanceSubTab] = useState<
-    'overview' | 'wallet' | 'investments' | 'debt'
-  >('overview')
+    'wallet' | 'investments' | 'debt'
+  >('wallet')
   const isInvestmentView = Boolean(
     currentUser && activeTab === 'finance' && financeSubTab === 'investments'
   )
@@ -1561,6 +1581,7 @@ const App: React.FC = () => {
 
   const [editRoom, setEditRoom] = useState<Room | null>(null)
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
+  const [debtClosing, setDebtClosing] = useState<{ invoice: Invoice; room: Room } | null>(null)
   const [invoiceGuardNotice, setInvoiceGuardNotice] = useState<{
     message: string
     invoice: Invoice
@@ -1600,7 +1621,6 @@ const App: React.FC = () => {
   const reportMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
   const rentalMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
   const rentalMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
-  const notificationCountRef = React.useRef<number | null>(null)
 
   useEffect(
     () => () => {
@@ -1816,7 +1836,6 @@ const App: React.FC = () => {
   const deleteMutation = useMutation({
     mutationFn: deleteRoom,
     onSuccess: () => {
-      playDelete()
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       queryClient.invalidateQueries({ queryKey: ['tenants'] })
       queryClient.invalidateQueries({ queryKey: ['contracts'] })
@@ -1853,12 +1872,23 @@ const App: React.FC = () => {
 
     const currentTenantId = activeContract?.tenant_id
     const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+    const today = new Date()
+    const debtToConfirm = findDebtToConfirm(
+      invoicesByRoomId.get(room.id) || [],
+      currentTenantId,
+      contractStartedAt,
+      today.getMonth() + 1,
+      today.getFullYear()
+    )
+    if (debtToConfirm && room.status === 'occupied') {
+      setDebtClosing({ invoice: debtToConfirm, room })
+      return
+    }
     const blockingInvoices = (invoicesByRoomId.get(room.id) || [])
       .filter(
         (i) =>
-          i.payment_status !== 'cancelled' &&
-          i.payment_status !== 'merged' &&
-          (i.payment_status === 'unpaid' || i.payment_status === 'partial') &&
+          isOutstandingInvoice(i) &&
+          !i.debt_confirmed_at &&
           (!currentTenantId || i.tenant_id === currentTenantId) &&
           (!contractStartedAt || i.created_at >= contractStartedAt)
       )
@@ -2327,22 +2357,25 @@ const App: React.FC = () => {
       return aTime - bTime
     })
     .map((room) => {
-      const daysLeft = room.expected_end_date
-        ? Math.ceil(
-            (new Date(room.expected_end_date).getTime() - new Date().setHours(0, 0, 0, 0)) /
-              (1000 * 60 * 60 * 24)
-          )
-        : null
+      const deadline = getEndingDeadline(room.expected_end_date)
+      const daysLeft = deadline.daysUntil
 
       return {
         id: `ending-${room.id}-${room.expected_end_date || 'unknown'}`,
         icon: 'fa-person-walking-luggage',
-        iconClass: 'text-orange-500',
-        title: `${room.name} sắp chuyển phòng`,
+        iconClass: deadline.state === 'overdue' ? 'text-red-500' : 'text-orange-500',
+        title:
+          deadline.state === 'overdue'
+            ? `${room.name} quá hạn trả phòng`
+            : deadline.state === 'due_today'
+              ? `${room.name} đến hạn trả phòng`
+              : `${room.name} sắp chuyển phòng`,
         description: room.expected_end_date
-          ? daysLeft !== null && daysLeft >= 0
-            ? `Dự kiến trả phòng ngày ${room.expected_end_date} (${daysLeft} ngày nữa).`
-            : `Đã quá ngày dự kiến trả phòng ${room.expected_end_date}.`
+          ? deadline.state === 'upcoming'
+            ? `Dự kiến trả phòng ngày ${room.expected_end_date} (còn ${daysLeft} ngày).`
+            : deadline.state === 'due_today'
+              ? `Hôm nay là ngày dự kiến trả phòng ${room.expected_end_date}. Cần bắt đầu đối chiếu trả phòng.`
+              : `Đã quá ngày dự kiến trả phòng ${room.expected_end_date} ${Math.abs(daysLeft || 0)} ngày.`
           : 'Phòng đang ở trạng thái sắp chuyển, chưa có ngày dự kiến cụ thể.',
         actionLabel: 'Xem phòng',
         onClick: () => {
@@ -2425,19 +2458,6 @@ const App: React.FC = () => {
     markNotificationReadMutation.mutate(nextIds)
     action()
   }
-
-  useEffect(() => {
-    if (notificationCountRef.current === null) {
-      notificationCountRef.current = notificationItems.length
-      return
-    }
-
-    if (notificationItems.length > notificationCountRef.current) {
-      playNotification()
-    }
-
-    notificationCountRef.current = notificationItems.length
-  }, [notificationItems.length])
 
   useEffect(() => {
     void window.api?.windowTheme?.setInvestmentTitleBar(isInvestmentView)
@@ -2678,6 +2698,29 @@ const App: React.FC = () => {
             onClose={() => setPaymentInvoice(null)}
           />
         )}
+        {debtClosing && (
+          <DebtClosingModal
+            invoice={debtClosing.invoice}
+            room={debtClosing.room}
+            onClose={() => setDebtClosing(null)}
+            onPay={() => {
+              setPaymentInvoice(debtClosing.invoice)
+              setDebtClosing(null)
+            }}
+            onConfirmed={async () => {
+              const roomId = debtClosing.room.id
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+                queryClient.invalidateQueries({ queryKey: ['invoices', roomId] }),
+                queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+                queryClient.invalidateQueries({ queryKey: ['room', roomId] })
+              ])
+              const freshRoom = await getRoom(roomId)
+              setDebtClosing(null)
+              if (freshRoom) setSelectedRoom(freshRoom)
+            }}
+          />
+        )}
         {roomToDelete && (
           <ConfirmDeleteModal
             room={roomToDelete}
@@ -2724,7 +2767,6 @@ const App: React.FC = () => {
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      playClick()
                       requestActiveTab(item.id)
                     }}
                     className={`my-2 flex h-10 shrink-0 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
@@ -2758,7 +2800,6 @@ const App: React.FC = () => {
                   type="button"
                   ref={rentalMenuButtonRef}
                   onClick={() => {
-                    playClick()
                     const rect = rentalMenuButtonRef.current?.getBoundingClientRect()
                     if (rect) setRentalMenuPosition({ top: rect.bottom + 4, left: rect.left })
                     setIsRentalMenuOpen(true)
@@ -2795,7 +2836,6 @@ const App: React.FC = () => {
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          playClick()
                           requestActiveTab(item.id)
                           setIsRentalMenuOpen(false)
                         }}
@@ -2832,7 +2872,6 @@ const App: React.FC = () => {
                   type="button"
                   ref={financeMenuButtonRef}
                   onClick={() => {
-                    playClick()
                     const rect = financeMenuButtonRef.current?.getBoundingClientRect()
                     if (rect) {
                       setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
@@ -2863,11 +2902,6 @@ const App: React.FC = () => {
                     style={{ top: financeMenuPosition.top, left: financeMenuPosition.left }}
                   >
                     {[
-                      {
-                        id: 'overview' as const,
-                        icon: 'fa-chart-pie',
-                        label: 'Tổng quan tài chính'
-                      },
                       { id: 'wallet' as const, icon: 'fa-wallet', label: 'Ví' },
                       { id: 'investments' as const, icon: 'fa-arrow-trend-up', label: 'Đầu tư' },
                       { id: 'debt' as const, icon: 'fa-coins', label: 'Công nợ' },
@@ -2877,7 +2911,6 @@ const App: React.FC = () => {
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          playClick()
                           if (item.id === 'cashflow') {
                             setReportSubTab(item.id)
                             requestActiveTab('reports')
@@ -2918,7 +2951,6 @@ const App: React.FC = () => {
                   type="button"
                   ref={reportMenuButtonRef}
                   onClick={() => {
-                    playClick()
                     setIsFinanceMenuOpen(false)
                     setIsRentalMenuOpen(false)
                     const rect = reportMenuButtonRef.current?.getBoundingClientRect()
@@ -3017,7 +3049,6 @@ const App: React.FC = () => {
 
             <button
               onClick={() => {
-                playClick()
                 setSettingsInitialTab('general')
                 requestActiveTab('settings')
               }}
@@ -3153,7 +3184,6 @@ const App: React.FC = () => {
                   key={item.id}
                   type="button"
                   onClick={() => {
-                    playClick()
                     setReportSubTab(item.id)
                     requestActiveTab('reports')
                     setIsReportMenuOpen(false)
@@ -3344,7 +3374,7 @@ const App: React.FC = () => {
                         </th>
                         <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
                           <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400/70"></i>{' '}
-                          Nợ cũ
+                          Tổng nợ
                         </th>
                         <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
                           <i className="fa-solid fa-users mr-1 text-teal-500/70"></i> KH thuê
@@ -3435,6 +3465,35 @@ const App: React.FC = () => {
                             cleaning_price: 0
                           }
                           const activeContract = activeContractByRoomId.get(room.id)
+                          const roomInvoices = invoicesByRoomId.get(room.id) || []
+                          const currentDate = new Date()
+                          const currentMonth = currentDate.getMonth() + 1
+                          const currentYear = currentDate.getFullYear()
+                          const currentOutstandingInvoice =
+                            roomInvoices
+                              .filter(
+                                (invoice) =>
+                                  invoice.month === currentMonth &&
+                                  invoice.year === currentYear &&
+                                  isOutstandingInvoice(invoice) &&
+                                  !invoice.debt_confirmed_at &&
+                                  invoice.payment_status !== 'cancelled' &&
+                                  invoice.payment_status !== 'merged' &&
+                                  (!activeContract?.tenant_id ||
+                                    invoice.tenant_id === activeContract.tenant_id)
+                              )
+                              .sort(
+                                (left, right) =>
+                                  new Date(right.created_at).getTime() -
+                                  new Date(left.created_at).getTime()
+                              )[0] || null
+                          const debtToConfirm = findDebtToConfirm(
+                            roomInvoices,
+                            activeContract?.tenant_id,
+                            activeContract?.created_at || activeContract?.move_in_date,
+                            currentMonth,
+                            currentYear
+                          )
                           const {
                             endingOutstandingInvoice,
                             unpaidFirstMonthForCurrentTenant,
@@ -3528,21 +3587,21 @@ const App: React.FC = () => {
                                 ) : (
                                   <>
                                     {/* === MENU PHÒNG ĐANG CÓ KHÁCH === */}
-                                    {(unpaidFirstMonthForCurrentTenant ||
-                                      endingOutstandingInvoice) && (
+                                    {(currentOutstandingInvoice ||
+                                      unpaidFirstMonthForCurrentTenant ||
+                                      (room.status === 'ending' && endingOutstandingInvoice)) && (
                                       <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800 min-w-0 overflow-hidden">
                                         <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
                                         <span className="min-w-0 break-words">
-                                          {endingOutstandingInvoice ? (
+                                          {room.status === 'ending' && endingOutstandingInvoice ? (
                                             <>
                                               <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần
                                               thu xong trước khi xác nhận trả phòng.
                                             </>
                                           ) : (
                                             <>
-                                              <strong>Hóa đơn chưa được thanh toán.</strong> Thu
-                                              tiền trước, sau đó mới có thể thực hiện các thao tác
-                                              khác.
+                                              <strong>Hóa đơn tháng {currentMonth} chưa thu.</strong>{' '}
+                                              Cần thu tiền trước khi lập kỳ tiếp theo.
                                               {canCancel && ' Hoặc hủy hợp đồng nếu nhập nhầm.'}
                                             </>
                                           )}
@@ -3553,8 +3612,10 @@ const App: React.FC = () => {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        if (endingOutstandingInvoice) {
+                                        if (room.status === 'ending' && endingOutstandingInvoice) {
                                           setPaymentInvoice(endingOutstandingInvoice)
+                                        } else if (currentOutstandingInvoice) {
+                                          setPaymentInvoice(currentOutstandingInvoice)
                                         } else {
                                           openInvoiceFlow(room)
                                         }
@@ -3563,8 +3624,12 @@ const App: React.FC = () => {
                                       className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
                                     >
                                       <i className="fa-solid fa-file-invoice-dollar w-4"></i>
-                                      {endingOutstandingInvoice
+                                      {room.status === 'ending' && endingOutstandingInvoice
                                         ? ' Thu tiền hóa đơn còn nợ'
+                                        : currentOutstandingInvoice
+                                          ? ' Thu tiền hóa đơn còn nợ'
+                                        : debtToConfirm
+                                          ? ` Chốt nợ tháng ${debtToConfirm.month}`
                                         : unpaidFirstMonthForCurrentTenant
                                           ? ' Thu tiền hóa đơn'
                                           : ' Lập hóa đơn'}
@@ -3623,7 +3688,6 @@ const App: React.FC = () => {
                                             status: 'occupied',
                                             expected_end_date: undefined
                                           } as any).then(() => {
-                                            playSuccess()
                                             queryClient.invalidateQueries({ queryKey: ['rooms'] })
                                           })
                                           setMenuOpenId(null)
@@ -3655,7 +3719,11 @@ const App: React.FC = () => {
                                       className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
                                     >
                                       <i className="fa-solid fa-door-closed w-4 text-red-400"></i>{' '}
-                                      Trả phòng
+                                      {room.status === 'ending' &&
+                                      (getEndingDeadline(room.expected_end_date).state === 'due_today' ||
+                                        getEndingDeadline(room.expected_end_date).state === 'overdue')
+                                        ? 'Bắt đầu trả phòng'
+                                        : 'Trả phòng'}
                                     </button>
                                     {/* Nhóm 4: Nguy hiểm */}
                                     <button
@@ -4088,6 +4156,8 @@ const App: React.FC = () => {
                                       (i) =>
                                         i.payment_status !== 'paid' &&
                                         i.payment_status !== 'cancelled' &&
+                                        i.payment_status !== 'merged' &&
+                                        hasInvoiceBalance(i) &&
                                         (!activeContract?.tenant_id ||
                                           i.tenant_id === activeContract.tenant_id)
                                     )
@@ -4194,17 +4264,21 @@ const App: React.FC = () => {
                                         : room.status === 'occupied' && !hasStartedBilling
                                           ? 'Chờ lập HĐ'
                                           : room.status === 'ending'
-                                            ? 'Sắp chuyển phòng'
+                                            ? (() => {
+                                                const deadline = getEndingDeadline(room.expected_end_date)
+                                                return deadline.state === 'overdue'
+                                                  ? 'Quá hạn trả phòng'
+                                                  : deadline.state === 'due_today'
+                                                    ? 'Đến hạn trả phòng'
+                                                    : 'Sắp chuyển phòng'
+                                              })()
                                             : 'Bảo trì'}
                                   </span>
                                   {room.status === 'ending' &&
                                     room.expected_end_date &&
                                     (() => {
-                                      const daysLeft = Math.ceil(
-                                        (new Date(room.expected_end_date).getTime() -
-                                          new Date().getTime()) /
-                                          (1000 * 60 * 60 * 24)
-                                      )
+                                      const deadline = getEndingDeadline(room.expected_end_date)
+                                      const daysLeft = deadline.daysUntil || 0
                                       const dateStr = new Date(
                                         room.expected_end_date
                                       ).toLocaleDateString('vi-VN', {
@@ -4213,9 +4287,13 @@ const App: React.FC = () => {
                                       })
                                       return (
                                         <div
-                                          className={`text-[10px] font-semibold mt-0.5 ${daysLeft <= 3 ? 'text-red-500' : 'text-orange-500'}`}
+                                          className={`text-[10px] font-semibold mt-0.5 ${deadline.state === 'upcoming' ? 'text-orange-500' : 'text-red-500'}`}
                                         >
-                                          Còn {daysLeft} ngày ({dateStr})
+                                          {deadline.state === 'upcoming'
+                                            ? `Còn ${daysLeft} ngày (${dateStr})`
+                                            : deadline.state === 'due_today'
+                                              ? `Đến hạn hôm nay (${dateStr})`
+                                              : `Quá hạn ${Math.abs(daysLeft)} ngày (${dateStr})`}
                                         </div>
                                       )
                                     })()}
@@ -4264,15 +4342,15 @@ const App: React.FC = () => {
                                   )
 
                                 const unpaidFirstMonthInvoice = currentTenantInvoices.find(
-                                  (i) => i.is_first_month && hasInvoiceBalance(i)
+                                  (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
                                 )
 
                                 const roomInvoice =
                                   unpaidFirstMonthInvoice ||
                                   roomMonthInvoices.find(
-                                    (i) => i.is_first_month && hasInvoiceBalance(i)
+                                    (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
                                   ) ||
-                                  roomMonthInvoices.find((i) => hasInvoiceBalance(i)) ||
+                                  roomMonthInvoices.find((i) => hasInvoiceBalance(i) && !i.debt_confirmed_at) ||
                                   roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
                                   null
 
@@ -4333,6 +4411,22 @@ const App: React.FC = () => {
                                   </td>
                                 )
 
+                                if (room.status === 'occupied' && debtToConfirm) {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                        className="room-primary-faceted bg-gradient-to-r from-amber-500 to-orange-600 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm"
+                                      >
+                                        Chốt nợ tháng {debtToConfirm.month}
+                                      </button>
+                                    </td>
+                                  )
+                                }
+
                                 if (!roomInvoice || room.status === 'vacant') {
                                   if (!room.move_in_date || room.status === 'vacant') {
                                     return (
@@ -4343,6 +4437,25 @@ const App: React.FC = () => {
                                   }
                                   // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
                                   if (room.status === 'ending') {
+                                    const deadline = getEndingDeadline(room.expected_end_date)
+                                    if (deadline.state === 'due_today' || deadline.state === 'overdue') {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setTerminateRoom(room)
+                                            }}
+                                            className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-door-closed mr-1"></i>
+                                            {deadline.state === 'overdue'
+                                              ? 'Bắt đầu trả phòng (quá hạn)'
+                                              : 'Bắt đầu trả phòng'}
+                                          </button>
+                                        </td>
+                                      )
+                                    }
                                     return (
                                       <td className="px-4 py-3 text-center">
                                         <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
@@ -4457,6 +4570,27 @@ const App: React.FC = () => {
                                   )
                                 }
 
+                                if (room.status === 'ending') {
+                                  const deadline = getEndingDeadline(room.expected_end_date)
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      {deadline.state === 'due_today' || deadline.state === 'overdue' ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setTerminateRoom(room)
+                                          }}
+                                          className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full uppercase"
+                                        >
+                                          Bắt đầu trả phòng
+                                        </button>
+                                      ) : (
+                                        <span className="text-gray-500 text-[10px]">Đã thu · Chờ trả phòng</span>
+                                      )}
+                                    </td>
+                                  )
+                                }
+
                                 // Đã thu (đủ hoặc thiếu)
                                 return (
                                   <td className="px-4 py-3 text-center">
@@ -4562,20 +4696,10 @@ const App: React.FC = () => {
                   }}
                   onOpenInvestments={() => setFinanceSubTab('investments')}
                 />
-              ) : financeSubTab === 'investments' ? (
-                <Suspense fallback={<TabLoading />}>
-                  <InvestmentsTab />
-                </Suspense>
               ) : (
-                <div className="flex-1 overflow-y-auto bg-[#f7faf8] p-6">
-                  <div className="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-                    <h1 className="text-xl font-black text-slate-900">Tổng quan tài chính</h1>
-                    <p className="mt-2 text-sm text-slate-500">
-                      Màn hình tài chính đang được chuẩn bị để kết nối với sổ giao dịch và số dư
-                      thực tế.
-                    </p>
-                  </div>
-                </div>
+                <Suspense fallback={<TabLoading />}>
+                  <InvestmentsTab userRole={currentUser.role} />
+                </Suspense>
               )}
             </Suspense>
           ) : activeTab === 'reports' ? (

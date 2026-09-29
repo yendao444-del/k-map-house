@@ -1,22 +1,4 @@
-/**
- * Lightweight UI sound system using Web Audio API.
- * No external audio files are needed, so Electron builds stay simple.
- */
-type SoundName =
-  | 'click'
-  | 'nav'
-  | 'focus'
-  | 'select'
-  | 'open'
-  | 'close'
-  | 'confirm'
-  | 'success'
-  | 'create'
-  | 'notification'
-  | 'payment'
-  | 'delete'
-  | 'error'
-
+/** Payment receipt chime and voice announcements. Routine UI actions stay silent. */
 type Note = {
   freq: number
   duration: number
@@ -30,7 +12,7 @@ const MIN_GAP_MS = 45
 
 let audioCtx: AudioContext | null = null
 let lastSoundAt = 0
-let globalEffectsInstalled = false
+let paymentAudioUnlockInstalled = false
 let paymentAnnouncementQueue: Promise<void> = Promise.resolve()
 
 function getCtx(): AudioContext | null {
@@ -82,222 +64,25 @@ function playTone(notes: Note[], fallbackType: OscillatorType = 'sine') {
   })
 }
 
-function textOf(el: Element): string {
-  return (el.textContent || '').trim().toLocaleLowerCase('vi-VN')
-}
+// A user gesture unlocks the receipt chime without playing a UI sound.
+export function installPaymentAudioUnlock(root: Document = document): () => void {
+  if (paymentAudioUnlockInstalled) return () => undefined
+  paymentAudioUnlockInstalled = true
 
-function hasAnyClass(el: Element, values: string[]): boolean {
-  const className = el.getAttribute('class') || ''
-  return values.some((value) => className.includes(value))
-}
-
-function inferButtonSound(el: HTMLElement): SoundName {
-  const explicit = el.dataset.sound as SoundName | 'off' | undefined
-  if (explicit && explicit !== 'off') return explicit
-
-  const label = textOf(el)
-  const icon = el.querySelector('i')?.getAttribute('class') || ''
-  const aria = (el.getAttribute('aria-label') || '').toLocaleLowerCase('vi-VN')
-  const combined = `${label} ${aria} ${icon}`
-
-  if (
-    /trash|xoa|xoá|huy|hủy|delete|remove|red-|bg-red/.test(combined) ||
-    hasAnyClass(el, ['text-red', 'bg-red'])
-  ) {
-    return 'delete'
-  }
-
-  if (/dong|đóng|huy|hủy|xmark|close|back|arrow-left/.test(combined)) {
-    return 'close'
-  }
-
-  if (/thu tien|thu tiền|thanh toan|thanh toán|payment|money|cash|bank/.test(combined)) {
-    return 'payment'
-  }
-
-  if (/tao|tạo|them|thêm|lap|lập|add|plus|file-invoice/.test(combined)) {
-    return 'open'
-  }
-
-  if (
-    /luu|lưu|xac nhan|xác nhận|check|save|submit/.test(combined) ||
-    el.getAttribute('type') === 'submit'
-  ) {
-    return 'confirm'
-  }
-
-  if (/tab|menu|chevron|filter|settings|gear/.test(combined)) {
-    return 'nav'
-  }
-
-  return 'click'
-}
-
-function isInteractive(el: Element | null): el is HTMLElement {
-  if (!(el instanceof HTMLElement)) return false
-  return Boolean(
-    el.closest(
-      'button, a, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"], select'
-    )
-  )
-}
-
-function nearestInteractive(target: EventTarget | null): HTMLElement | null {
-  if (!(target instanceof Element)) return null
-  return target.closest(
-    'button, a, [role="button"], [role="tab"], input[type="checkbox"], input[type="radio"], select'
-  )
-}
-
-function playInferredClick(target: EventTarget | null) {
-  const el = nearestInteractive(target)
-  if (!el || !isInteractive(el)) return
-  if (el.dataset.sound === 'off') return
-  if ('disabled' in el && (el as HTMLButtonElement).disabled) return
-  if (el.getAttribute('aria-disabled') === 'true') return
-
-  const tag = el.tagName.toLowerCase()
-  const input = el instanceof HTMLInputElement ? el : null
-
-  if (tag === 'select') {
-    playSelect()
-    return
-  }
-
-  if (input?.type === 'checkbox' || input?.type === 'radio') {
-    playSelect()
-    return
-  }
-
-  playUi(inferButtonSound(el))
-}
-
-function playFocusFor(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return
-  if (!target.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select')) return
-  if ((target as HTMLInputElement).readOnly || (target as HTMLInputElement).disabled) return
-  playFocus()
-}
-
-export function installGlobalSoundEffects(root: Document = document): () => void {
-  if (globalEffectsInstalled) return () => undefined
-  globalEffectsInstalled = true
-
-  const onPointerDown = () => {
+  const unlock = () => {
     void getCtx()?.resume()
   }
-  const onClick = (event: MouseEvent) => playInferredClick(event.target)
-  const onFocusIn = (event: FocusEvent) => playFocusFor(event.target)
-  const onInvalid = () => playError()
-
-  root.addEventListener('pointerdown', onPointerDown, { capture: true })
-  root.addEventListener('click', onClick, { capture: true })
-  root.addEventListener('focusin', onFocusIn, { capture: true })
-  root.addEventListener('invalid', onInvalid, { capture: true })
+  root.addEventListener('pointerdown', unlock, { capture: true })
+  root.addEventListener('keydown', unlock, { capture: true })
 
   return () => {
-    root.removeEventListener('pointerdown', onPointerDown, { capture: true })
-    root.removeEventListener('click', onClick, { capture: true })
-    root.removeEventListener('focusin', onFocusIn, { capture: true })
-    root.removeEventListener('invalid', onInvalid, { capture: true })
-    globalEffectsInstalled = false
+    root.removeEventListener('pointerdown', unlock, { capture: true })
+    root.removeEventListener('keydown', unlock, { capture: true })
+    paymentAudioUnlockInstalled = false
   }
 }
 
-export function playUi(name: SoundName) {
-  switch (name) {
-    case 'nav':
-      return playNav()
-    case 'focus':
-      return playFocus()
-    case 'select':
-      return playSelect()
-    case 'open':
-      return playOpen()
-    case 'close':
-      return playClose()
-    case 'confirm':
-      return playConfirm()
-    case 'success':
-      return playSuccess()
-    case 'create':
-      return playCreate()
-    case 'notification':
-      return playNotification()
-    case 'payment':
-      return playPayment()
-    case 'delete':
-      return playDelete()
-    case 'error':
-      return playError()
-    default:
-      return playClick()
-  }
-}
-
-export function playClick() {
-  playTone([{ freq: 620, duration: 0.045, gain: 0.12 }], 'sine')
-}
-
-export function playNav() {
-  playTone([{ freq: 480, duration: 0.055, gain: 0.14 }], 'triangle')
-}
-
-export function playFocus() {
-  playTone([{ freq: 760, duration: 0.035, gain: 0.08 }], 'sine')
-}
-
-export function playSelect() {
-  playTone(
-    [
-      { freq: 540, duration: 0.045, gain: 0.12 },
-      { freq: 680, duration: 0.055, gain: 0.1 }
-    ],
-    'triangle'
-  )
-}
-
-export function playOpen() {
-  playTone(
-    [
-      { freq: 392, duration: 0.055, gain: 0.13 },
-      { freq: 523, duration: 0.075, gain: 0.14 }
-    ],
-    'sine'
-  )
-}
-
-export function playClose() {
-  playTone(
-    [
-      { freq: 520, duration: 0.045, gain: 0.11 },
-      { freq: 360, duration: 0.065, gain: 0.1 }
-    ],
-    'triangle'
-  )
-}
-
-export function playConfirm() {
-  playTone(
-    [
-      { freq: 660, duration: 0.05, gain: 0.13 },
-      { freq: 880, duration: 0.075, gain: 0.14 }
-    ],
-    'triangle'
-  )
-}
-
-export function playSuccess() {
-  playTone(
-    [
-      { freq: 523, duration: 0.09, gain: 0.16 },
-      { freq: 784, duration: 0.15, gain: 0.18 }
-    ],
-    'sine'
-  )
-}
-
-export function playPayment() {
+function playPayment() {
   playTone(
     [
       { freq: 988, duration: 0.045, gain: 0.14 },
@@ -340,47 +125,4 @@ export function announcePaymentAmount(amount: number): Promise<void> {
 
   paymentAnnouncementQueue = paymentAnnouncementQueue.catch(() => undefined).then(announce)
   return paymentAnnouncementQueue
-}
-
-export function playCreate() {
-  playTone(
-    [
-      { freq: 440, duration: 0.07, gain: 0.14 },
-      { freq: 554, duration: 0.07, gain: 0.14 },
-      { freq: 659, duration: 0.08, gain: 0.15 },
-      { freq: 880, duration: 0.13, gain: 0.17 }
-    ],
-    'sine'
-  )
-}
-
-export function playNotification() {
-  playTone(
-    [
-      { freq: 740, duration: 0.06, gain: 0.13 },
-      { freq: 988, duration: 0.075, gain: 0.14 },
-      { freq: 880, duration: 0.11, gain: 0.12 }
-    ],
-    'triangle'
-  )
-}
-
-export function playDelete() {
-  playTone(
-    [
-      { freq: 440, duration: 0.075, gain: 0.14 },
-      { freq: 330, duration: 0.12, gain: 0.14 }
-    ],
-    'square'
-  )
-}
-
-export function playError() {
-  playTone(
-    [
-      { freq: 300, duration: 0.11, gain: 0.14 },
-      { freq: 250, duration: 0.16, gain: 0.14 }
-    ],
-    'sawtooth'
-  )
 }

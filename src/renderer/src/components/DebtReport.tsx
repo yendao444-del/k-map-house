@@ -9,6 +9,7 @@ import {
   YAxis
 } from 'recharts'
 import { supabase } from '../lib/supabase'
+import { DebtDateTimePicker } from './DebtDateTimePicker'
 import {
   createDebtEntry,
   deleteDebtEntry,
@@ -32,6 +33,7 @@ type PendingDebtChange = {
   amount: number
   reason: string
   mode: DebtChangeMode
+  createdAt: string
 }
 
 const reasonOptions: Record<EditableKey, string[]> = {
@@ -63,6 +65,13 @@ const formatDateDisplay = (value: string): string => {
   } catch {
     return value
   }
+}
+
+const toDateTimeLocal = (value?: string): string => {
+  const date = value ? new Date(value) : new Date()
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (part: number): string => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 const transactionLabel = (entry: DebtEntry): string => {
@@ -120,6 +129,7 @@ export function DebtReport({
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  const [transactionAt, setTransactionAt] = useState(toDateTimeLocal)
   const [isCustomReason, setIsCustomReason] = useState(false)
   const [expanded, setExpanded] = useState<EditableKey[]>(['offset'])
   const [pendingDelete, setPendingDelete] = useState<DebtEntry | null>(null)
@@ -225,6 +235,7 @@ export function DebtReport({
     setEditing(key)
     setEditingEntryId(null)
     setAmount('')
+    setTransactionAt(toDateTimeLocal())
     if (key === 'offset') {
       setReason('')
     } else {
@@ -243,6 +254,7 @@ export function DebtReport({
     setEditingEntryId(null)
     setIsOpeningSetup(false)
     setAmount('')
+    setTransactionAt(toDateTimeLocal())
     setReason('Vay thêm')
     setIsCustomReason(false)
   }
@@ -253,6 +265,7 @@ export function DebtReport({
     setEditingEntryId(null)
     setIsOpeningSetup(true)
     setAmount('')
+    setTransactionAt(toDateTimeLocal())
     setReason('Nợ gốc ban đầu')
     setIsCustomReason(true)
   }
@@ -262,6 +275,7 @@ export function DebtReport({
     setEditing(entry.type)
     setEditingEntryId(entry.id)
     setAmount(formatAmountInput(entry.amount))
+    setTransactionAt(toDateTimeLocal(entry.createdAt))
     const presets = reasonOptions[entry.type] || []
     const isPreset = presets.includes(entry.reason)
     setReason(entry.reason || (entry.type === 'offset' ? '' : presets[0] || ''))
@@ -313,7 +327,7 @@ export function DebtReport({
       type: 'totalDebt',
       amount: pendingDebtChange.mode === 'opening' ? pendingDebtChange.amount : signedAmount,
       reason: pendingDebtChange.mode === 'increase' ? 'Vay thêm' : pendingDebtChange.reason,
-      createdAt: new Date().toISOString()
+      createdAt: pendingDebtChange.createdAt
     }
     setEntries((current) => [entry, ...current])
     setValues((current) => ({ ...current, totalDebt: nextTotal }))
@@ -338,19 +352,27 @@ export function DebtReport({
     if (!canCreate || (editing === 'totalDebt' && !canIncreaseDebt) || (editingEntryId && !isAdmin)) return
     const normalizedAmount = amount.trim().replace(/[.\s,]/g, '')
     const parsed = Number(normalizedAmount)
+    const transactionDate = new Date(transactionAt)
     if (
       !editing ||
       !/^\d+$/.test(normalizedAmount) ||
       !Number.isSafeInteger(parsed) ||
       parsed <= 0 ||
-      !reason.trim()
+      !reason.trim() ||
+      !transactionAt || Number.isNaN(transactionDate.getTime())
     )
       return
 
     if (editing === 'totalDebt' && !editingEntryId) {
       const mode: DebtChangeMode = isOpeningSetup ? 'opening' : 'increase'
       if (!isAdmin && mode !== 'increase') return
-      setPendingDebtChange({ amount: parsed, reason: mode === 'increase' ? 'Vay thêm' : reason.trim(), mode })
+      if (!transactionAt) return
+      setPendingDebtChange({
+        amount: parsed,
+        reason: mode === 'increase' ? 'Vay thêm' : reason.trim(),
+        mode,
+        createdAt: new Date(transactionAt).toISOString()
+      })
       return
     }
 
@@ -360,7 +382,7 @@ export function DebtReport({
       setEntries((current) =>
         current.map((entry) =>
           entry.id === editingEntryId
-            ? { ...entry, type: editing, amount: parsed, reason: reason.trim() }
+            ? { ...entry, type: editing, amount: parsed, reason: reason.trim(), createdAt: transactionDate.toISOString() }
             : entry
         )
       )
@@ -374,7 +396,8 @@ export function DebtReport({
         void updateDebtEntry(editingEntryId, {
           type: editing,
           amount: parsed,
-          reason: reason.trim()
+          reason: reason.trim(),
+          created_at: new Date(transactionAt).toISOString()
         }).catch((error) => {
           setSyncError(error instanceof Error ? error.message : 'Không thể cập nhật giao dịch online.')
         })
@@ -388,7 +411,7 @@ export function DebtReport({
         type: editing,
         amount: parsed,
         reason: reason.trim(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date(transactionAt).toISOString()
       }
       setEntries((current) => [entry, ...current])
       setValues((current) => ({ ...current, [editing]: current[editing] + parsed }))
@@ -406,6 +429,7 @@ export function DebtReport({
     setEditingEntryId(null)
     setAmount('')
     setReason('')
+    setTransactionAt(toDateTimeLocal())
   }
 
   const editorTitle = isOpeningSetup
@@ -523,13 +547,14 @@ export function DebtReport({
 
         {/* Bảng báo cáo theo chuẩn tài chính (Statement Tree Table) */}
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-left text-[13px]">
+          <table className="w-full min-w-[760px] text-left text-[13px]">
             {/* Header cột */}
             <thead className="border-b border-slate-100 bg-slate-50/60 text-[12px] font-semibold text-slate-500">
               <tr>
-                <th className="w-[44%] px-6 py-3">Hạng mục</th>
-                <th className="w-[20%] px-4 py-3 text-right">Số tiền</th>
-                <th className="w-[14%] px-4 py-3 text-right">% Nợ</th>
+                <th className="w-[34%] px-6 py-3">Hạng mục</th>
+                <th className="w-[16%] px-4 py-3">Thời gian</th>
+                <th className="w-[18%] px-4 py-3 text-right">Số tiền</th>
+                <th className="w-[12%] px-4 py-3 text-right">% Nợ</th>
                 <th className="px-5 py-3 text-right">Lý do</th>
               </tr>
             </thead>
@@ -568,6 +593,7 @@ export function DebtReport({
                           </span>
                         </div>
                       </td>
+                      <td className="px-4 py-3.5 text-[12px] text-slate-400">—</td>
                       <td className={`px-4 py-3.5 text-right font-black tabular-nums ${sec.tone}`}>
                         {fmt(sec.value)} đ
                       </td>
@@ -596,7 +622,7 @@ export function DebtReport({
                       <>
                         {catEntries.length === 0 ? (
                           <tr className="bg-slate-50/30 text-[12px] italic text-slate-400">
-                            <td colSpan={4} className="py-2.5 pl-12 pr-6">
+                            <td colSpan={5} className="py-2.5 pl-12 pr-6">
                               <span className="mr-2 font-normal text-slate-300">↳</span>
                               Chưa có giao dịch phát sinh.
                             </td>
@@ -620,10 +646,10 @@ export function DebtReport({
                                 <td className="py-2.5 pl-12 pr-4">
                                   <div className="flex items-center gap-2">
                                     <span className="font-normal text-slate-400">↳</span>
-                                    <span className="font-semibold text-slate-600 text-[12px] whitespace-nowrap">
-                                      {formatDateDisplay(entry.createdAt)}
-                                    </span>
                                   </div>
+                                </td>
+                                <td className="px-4 py-2.5 text-[12px] font-semibold whitespace-nowrap text-slate-600">
+                                  {formatDateDisplay(entry.createdAt)}
                                 </td>
                                 <td className={`px-4 py-2.5 text-right font-bold tabular-nums ${sec.tone}`}>
                                   <span className="border-b border-dotted border-slate-300">
@@ -693,6 +719,7 @@ export function DebtReport({
                     </span>
                   </div>
                 </td>
+                <td className="px-4 py-4 text-[12px] text-slate-400">—</td>
                 <td className="px-4 py-4 text-right text-[16px] font-black tabular-nums text-emerald-900">
                   {remainingLabel}
                 </td>
@@ -1181,6 +1208,8 @@ export function DebtReport({
                   </span>
                 </p>
               </div>
+
+              <DebtDateTimePicker value={transactionAt} onChange={setTransactionAt} />
 
               {/* Lý do giao dịch (Bắt buộc dạng Dropdown) */}
               <div className="mb-5">

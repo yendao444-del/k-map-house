@@ -206,7 +206,7 @@ function BondChart({ symbol, resolution, chartType }: BondChartProps) {
 
   const isLight = false
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '420px' }}>
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '260px' }}>
       {loading && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: isLight ? 'rgba(255, 255, 255, 0.75)' : 'rgba(19, 23, 34, 0.7)', zIndex: 10, fontSize: '12px', color: isLight ? '#475569' : '#848e9c' }}>
           Đang tải biểu đồ...
@@ -475,7 +475,7 @@ export function BondTracker({
         {/* Left Side: TradingView style Watchlist */}
         <div className="price-widget-column tv-watchlist-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           
-          <div className="tv-watchlist-card" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '340px' }}>
+          <div className="tv-watchlist-card" style={{ background: 'var(--color-bg-panel)', border: '1px solid var(--color-border)', borderRadius: '8px', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '260px' }}>
             {/* Watchlist Header */}
             <div className="tv-watchlist-header" style={{ display: 'flex', alignItems: 'center', justifyItems: 'stretch', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.02)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
@@ -613,7 +613,7 @@ export function BondTracker({
         </div>
 
         {/* Right Side: Chart Widget */}
-        <div className="chart-panel gold-chart-panel" style={{ padding: '0', display: 'flex', flexDirection: 'column', minHeight: '480px' }}>
+        <div className="chart-panel gold-chart-panel" style={{ padding: '0', display: 'flex', flexDirection: 'column', minHeight: '320px' }}>
           <div className="chart-timeframe-bar" style={{ padding: '12px 16px 0 16px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <div className="chart-timeframe-tabs">
@@ -658,11 +658,11 @@ export function BondTracker({
             </div>
           </div>
 
-          <div className="tradingview-chart-wrapper" style={{ flex: 1, position: 'relative', width: '100%', height: '100%', minHeight: '420px', background: 'var(--color-bg-input)', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+          <div className="tradingview-chart-wrapper" style={{ flex: 1, position: 'relative', width: '100%', height: '100%', minHeight: '260px', background: 'var(--color-bg-input)', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
             <BondChart symbol={selectedSymbol} resolution={resolution} chartType={chartType} />
           </div>
           
-          <div className="chart-legend" style={{ padding: '10px 16px', background: 'var(--color-bg-card)', borderTop: '1px solid var(--color-border)', fontSize: '11px', color: 'var(--color-text-secondary)', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="chart-legend" style={{ padding: '6px 14px', background: 'var(--color-bg-card)', borderTop: '1px solid var(--color-border)', fontSize: '10.5px', color: 'var(--color-text-secondary)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <span>📈 Biểu đồ kỹ thuật NAV trái phiếu theo {chartType === 'candlestick' ? 'nến' : chartType === 'area' ? 'vùng' : 'đường'} {resolution === '60' ? '1 giờ (1H)' : resolution === '240' ? '4 giờ (4H)' : resolution === 'D' ? 'ngày (D)' : resolution === 'W' ? 'tuần (W)' : 'tháng (M)'} hiển thị tăng trưởng tài sản tích lũy.</span>
             <span>💡 Chọn các mã khác trong danh sách theo dõi để xem biểu đồ tương ứng.</span>
           </div>
