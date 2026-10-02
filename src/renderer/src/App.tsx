@@ -11,6 +11,10 @@ import {
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   getRooms,
+  getTenants,
+  getContracts,
+  getCashTransactions,
+  getAllRoomAssets,
   getRoom,
   updateRoom,
   createRoom,
@@ -52,6 +56,7 @@ import { getRoomListSummary } from './lib/room-list-summary'
 import { findDebtToConfirm, isOutstandingInvoice } from './lib/invoiceDebt'
 import logoNavbar from './assets/an_khang_home_logo.png'
 import { isPasswordRecoveryRedirect } from './lib/supabase'
+import { markAfterPaint, markStartup } from './lib/startup-perf'
 
 const InvoiceModal = lazy(() =>
   import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal }))
@@ -114,6 +119,30 @@ const WalletTab = lazy(() =>
 const InvestmentsTab = lazy(() =>
   import('./components/InvestmentsTab').then((module) => ({ default: module.InvestmentsTab }))
 )
+
+// Warm module code without mounting components or running their side effects.
+// Module data readiness is measured separately from successful imports.
+const backgroundChunkPreloaders = [
+  () => import('./components/InvoiceModal'),
+  () => import('./components/DebtClosingModal'),
+  () => import('./components/RoomDetailsModal'),
+  () => import('./components/PaymentModal'),
+  () => import('./components/NewContractModal'),
+  () => import('./components/EndContractNoticeModal'),
+  () => import('./components/TerminateContractModal'),
+  () => import('./components/CancelContractModal'),
+  () => import('./components/ChangeRoomModal'),
+  () => import('./components/TourOverlay'),
+  () => import('./components/ProfileModal'),
+  () => import('./components/TenantsTab'),
+  () => import('./components/InvoicesTab'),
+  () => import('./components/AssetsTab'),
+  () => import('./components/ContractsTab'),
+  () => import('./components/SettingsTab'),
+  () => import('./components/BusinessReport'),
+  () => import('./components/WalletTab'),
+  () => import('./components/InvestmentsTab')
+]
 const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
 
 class FeatureErrorBoundary extends Component<
@@ -1373,9 +1402,37 @@ const App: React.FC = () => {
   const [passwordRecovery, setPasswordRecovery] = useState(isPasswordRecoveryRedirect)
   const canLoadData = authReady && Boolean(currentUser)
 
+  useEffect(() => {
+    let disposed = false
+    let timer = 0
+    const idle = (callback: () => void) => {
+      // A zero-delay task yields the first React commit before loading optional
+      // chunks. It avoids waiting for idle, but does not guarantee paint order;
+      // login paint and module code timings must be checked separately.
+      timer = window.setTimeout(callback, 0)
+      return () => window.clearTimeout(timer)
+    }
+    // Start immediately after the first screen commit, then fetch feature chunks together.
+    // The work is still outside the active-screen path, while one wave avoids
+    // adding an artificial 400ms gap to the all-module readiness benchmark.
+    const cancel = idle(() => {
+      if (disposed) return
+      void Promise.allSettled(backgroundChunkPreloaders.map((load) => load())).then((results) => {
+        if (disposed) return
+        markStartup(results.every((result) => result.status === 'fulfilled')
+          ? 'module-code-ready' : 'module-code-error')
+      })
+    })
+    return () => {
+      disposed = true
+      cancel()
+    }
+  }, [])
+
   const {
     data: rooms = [],
     isLoading,
+    isSuccess: roomsSuccess,
     isError: roomsLoadFailed,
     error: roomsLoadError,
     refetch: refetchRooms
@@ -1387,7 +1444,7 @@ const App: React.FC = () => {
     refetchInterval: isPageVisible ? 60_000 : false,
     refetchIntervalInBackground: false
   })
-  const { data: serviceZones = [] } = useQuery({
+  const { data: serviceZones = [], isSuccess: serviceZonesSuccess } = useQuery({
     queryKey: ['serviceZones'],
     queryFn: getServiceZones,
     enabled: canLoadData
@@ -1395,6 +1452,7 @@ const App: React.FC = () => {
   const {
     data: invoices = [],
     isLoading: invoicesLoading,
+    isSuccess: invoicesSuccess,
     isError: invoicesLoadFailed,
     error: invoicesLoadError,
     refetch: refetchInvoices
@@ -1428,18 +1486,19 @@ const App: React.FC = () => {
   const {
     data: contracts = [],
     isFetched: isActiveContractsFetched,
+    isSuccess: contractsSuccess,
     isLoading: contractsLoading
   } = useQuery({
     queryKey: ['activeContracts'],
     queryFn: getActiveContracts,
     enabled: canLoadData
   })
-  const { data: moveInReceipts = [] } = useQuery({
+  const { data: moveInReceipts = [], isSuccess: receiptsSuccess } = useQuery({
     queryKey: ['moveInReceipts'],
     queryFn: getRoomMoveInReceiptRefs,
     enabled: canLoadData
   })
-  const { data: appSettings = {} } = useQuery({
+  const { data: appSettings = {}, isSuccess: settingsSuccess } = useQuery({
     queryKey: ['appSettings'],
     queryFn: getAppSettings,
     enabled: canLoadData
@@ -1465,7 +1524,7 @@ const App: React.FC = () => {
         .join('|'),
     [activeContractStartedAtByRoomId]
   )
-  const { data: roomAssetWorkflow = {} } = useQuery<
+  const { data: roomAssetWorkflow = {}, isSuccess: workflowSuccess } = useQuery<
     Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }>
   >({
     queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey, activeContractStartKey],
@@ -1526,6 +1585,33 @@ const App: React.FC = () => {
       return roomWorkflow
     }
   })
+
+  const primaryDataReady = canLoadData && roomsSuccess && invoicesSuccess &&
+    contractsSuccess && serviceZonesSuccess && receiptsSuccess && settingsSuccess &&
+    (rooms.length === 0 || workflowSuccess)
+  useEffect(() => {
+    if (!authReady) return
+    return markAfterPaint(currentUser ? 'authenticated-painted' : 'login-painted')
+  }, [authReady, currentUser])
+  useEffect(() => {
+    if (!primaryDataReady) return
+    return markAfterPaint('rooms-data-painted')
+  }, [primaryDataReady])
+  useEffect(() => {
+    if (!primaryDataReady) return
+    // Read-only warming uses exactly the cache keys used by these tabs.
+    // QueryClient deduplicates a prefetch if a tab opens at the same time.
+    void Promise.all([
+      queryClient.prefetchQuery({ queryKey: ['tenants'], queryFn: getTenants }),
+      queryClient.prefetchQuery({ queryKey: ['contracts'], queryFn: getContracts }),
+      queryClient.prefetchQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions }),
+      queryClient.prefetchQuery({ queryKey: ['allRoomAssets'], queryFn: getAllRoomAssets })
+    ]).then(() => {
+      const keys = ['tenants', 'contracts', 'cashTransactions', 'allRoomAssets']
+      markStartup(keys.every((key) => queryClient.getQueryState([key])?.status === 'success')
+        ? 'shared-data-prefetched' : 'shared-data-prefetch-error')
+    })
+  }, [primaryDataReady, queryClient])
 
   const [activeTab, setActiveTab] = useState<AppTab>('rooms')
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
@@ -1676,6 +1762,11 @@ const App: React.FC = () => {
   }, [])
 
   useEffect(() => {
+    if (window.api?.perf.benchmarkMode) {
+      // Isolated startup measurement must never restore a live session.
+      setAuthReady(true)
+      return undefined
+    }
     if (passwordRecovery) {
       setCurrentUser(null)
       setAuthReady(true)
@@ -2119,7 +2210,7 @@ const App: React.FC = () => {
     }
   }, [isSepayBackgroundSuccess, sepayBackgroundTransactions])
   useEffect(() => {
-    if (sepayBackgroundMatches.length === 0) return
+    if (window.api?.perf.benchmarkMode || sepayBackgroundMatches.length === 0) return
 
     let disposed = false
     const syncMatchedPayments = async () => {
@@ -2405,7 +2496,9 @@ const App: React.FC = () => {
 
   const unpaidNotificationItems = invoices
     .filter(
-      (invoice) => invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial'
+      (invoice) =>
+        new Date().getDate() >= 15 &&
+        (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial')
     )
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 5)
@@ -4371,14 +4464,16 @@ const App: React.FC = () => {
                                     (1000 * 60 * 60 * 24)
                                 )
 
-                                // Helper: phòng mới = có contract active nhưng chưa từng trả tiền lần nào
-                                const firstMonthInvoice = currentTenantInvoices.find(
-                                  (i) => i.is_first_month
-                                )
+                                // A contract is new only before its first real billing cycle.
+                                // Older/imported contracts may have their first invoice stored as
+                                // `monthly` rather than `is_first_month`, so use the shared room
+                                // summary instead of relying on that flag alone.
+                                const hasStartedBilling =
+                                  roomListSummaries.get(room.id)?.hasStartedBilling === true
                                 const isNewContract =
                                   !!hasActiveContract &&
                                   !hasActiveContract.is_migration &&
-                                  !firstMonthInvoice
+                                  !hasStartedBilling
                                 const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
                                 const hasDepositCollected =
                                   hasActiveContract?.deposit_pre_collected === true ||

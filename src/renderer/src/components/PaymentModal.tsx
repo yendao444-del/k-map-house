@@ -105,6 +105,12 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
     },
   });
 
+  const paymentError = mutation.error instanceof Error
+    ? mutation.error.message
+    : mutation.error
+      ? 'Không thể ghi nhận thanh toán. Vui lòng thử lại.'
+      : '';
+
   const workflowLoading = shouldCheckAssetWorkflow && (isMoveInLoading || isMoveOutLoading || isHandoverLoading || contractsFetching);
   const hasMoveInDone = moveInSnaps.length > 0;
   const hasMoveOutDone = currentMoveOutSnaps.length > 0;
@@ -258,6 +264,18 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
             </div>
           )}
 
+          {paymentError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="flex items-start gap-2">
+                <i className="fa-solid fa-circle-exclamation mt-0.5 text-red-500"></i>
+                <div>
+                  <p className="font-bold">Chưa ghi nhận được khoản thu</p>
+                  <p className="mt-1 break-words text-[12px]">{paymentError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Số tiền thu */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold text-gray-600">
@@ -329,8 +347,10 @@ export function PaymentModal({ invoice, room, onClose }: PaymentModalProps) {
             Hủy
           </button>
           <button
+            type="button"
             onClick={() => mutation.mutate()}
             disabled={!isValid || mutation.isPending}
+            title={!isValid && !mutation.isPending ? (paymentBlockReason || 'Số tiền thu chưa hợp lệ hoặc đang kiểm tra dữ liệu.') : undefined}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-bold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {mutation.isPending

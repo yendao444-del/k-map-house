@@ -16,6 +16,8 @@ files:
   - '!_tmp_min_pkg/**/*'
   - '!.update-check-latest/**/*'
   - '!tmp-product-design/**/*'
+  - '!generated_demos/**/*'
+  - '!design-demos/**/*'
   - '!design-references/**/*'
   - '!_backups/**/*'
   - '!_backup_work/**/*'
@@ -36,6 +38,16 @@ files:
   - '!node_modules/recharts/**/*'
   - '!node_modules/lightweight-charts/**/*'
   - '!node_modules/lucide-react/**/*'
+  # Gmail OAuth is a development-only integration; packaged builds explicitly
+  # report it unavailable and must not carry the Google API client tree.
+  - '!node_modules/googleapis/**/*'
+  - '!node_modules/google-auth-library/**/*'
+  - '!node_modules/googleapis-common/**/*'
+  - '!node_modules/gaxios/**/*'
+  - '!node_modules/gcp-metadata/**/*'
+  - '!node_modules/google-logging-utils/**/*'
+  - '!node_modules/jws/**/*'
+  - '!node_modules/gtoken/**/*'
   - '!node_modules/es-toolkit/**/*'
   - '!node_modules/@reduxjs/toolkit/**/*'
   - '!node_modules/victory-vendor/**/*'
@@ -54,6 +66,14 @@ files:
 asar: true
 asarUnpack:
   - resources/**
+  # Keep the main/preload entry and its lazy main chunks directly readable on
+  # Windows. This is an A/B packaging experiment; the runtime paths remain
+  # ASAR-compatible and the verifier checks the resulting artifact.
+  - out/main/**/*
+  - out/preload/**/*
+  # A/B test: only the renderer entry is unpacked; lazy feature chunks remain
+  # in ASAR so the cold path does not pay the cost of unpacking the full UI.
+  - out/renderer/assets/index-*.js
 # Keep Electron's full locale set. Windows uses locale-specific names such as
 # en-US and vi, and filtering by a generic language can leave users with no
 # matching .pak file and crash the renderer (exit code -36861).

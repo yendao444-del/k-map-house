@@ -5,7 +5,9 @@ import tailwindcss from '@tailwindcss/postcss'
 import autoprefixer from 'autoprefixer'
 
 export default defineConfig({
-  main: {},
+  main: {
+    build: { rollupOptions: { external: ['googleapis'] } }
+  },
   preload: {},
   renderer: {
     resolve: {

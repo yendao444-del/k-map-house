@@ -26,12 +26,14 @@ export type DebtEntry = {
   type: EditableKey
   amount: number
   reason: string
+  note?: string
   createdAt: string
 }
 
 type PendingDebtChange = {
   amount: number
   reason: string
+  note: string
   mode: DebtChangeMode
   createdAt: string
 }
@@ -129,6 +131,7 @@ export function DebtReport({
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null)
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
   const [transactionAt, setTransactionAt] = useState(toDateTimeLocal)
   const [isCustomReason, setIsCustomReason] = useState(false)
   const [expanded, setExpanded] = useState<EditableKey[]>(['offset'])
@@ -169,6 +172,7 @@ export function DebtReport({
               type: entry.type,
               amount: entry.amount,
               reason: entry.reason,
+              note: entry.note || '',
               created_at: entry.createdAt
             }))
           }
@@ -180,6 +184,7 @@ export function DebtReport({
           type: entry.type,
           amount: Number(entry.amount),
           reason: entry.reason,
+          note: entry.note || '',
           createdAt: entry.created_at
         }))
         localEditRef.current = nextEntries.length > 0
@@ -231,6 +236,7 @@ export function DebtReport({
   }
 
   const openEditor = (key: EditableKey) => {
+    setNote('')
     if (!canCreate || (key === 'totalDebt' && !canIncreaseDebt)) return
     setEditing(key)
     setEditingEntryId(null)
@@ -249,6 +255,7 @@ export function DebtReport({
   }
 
   const openDebtAdjustment = () => {
+    setNote('')
     if (!canIncreaseDebt) return
     setEditing('totalDebt')
     setEditingEntryId(null)
@@ -260,6 +267,7 @@ export function DebtReport({
   }
 
   const openOpeningDebtSetup = () => {
+    setNote('')
     if (!isAdmin || hasLockedOpeningDebt) return
     setEditing('totalDebt')
     setEditingEntryId(null)
@@ -275,6 +283,7 @@ export function DebtReport({
     setEditing(entry.type)
     setEditingEntryId(entry.id)
     setAmount(formatAmountInput(entry.amount))
+    setNote(entry.note || '')
     setTransactionAt(toDateTimeLocal(entry.createdAt))
     const presets = reasonOptions[entry.type] || []
     const isPreset = presets.includes(entry.reason)
@@ -327,6 +336,7 @@ export function DebtReport({
       type: 'totalDebt',
       amount: pendingDebtChange.mode === 'opening' ? pendingDebtChange.amount : signedAmount,
       reason: pendingDebtChange.mode === 'increase' ? 'Vay thêm' : pendingDebtChange.reason,
+      note: pendingDebtChange.note,
       createdAt: pendingDebtChange.createdAt
     }
     setEntries((current) => [entry, ...current])
@@ -336,6 +346,7 @@ export function DebtReport({
       type: entry.type,
       amount: entry.amount,
       reason: entry.reason,
+      note: entry.note || '',
       created_at: entry.createdAt
     }).catch((error) => {
       setSyncError(error instanceof Error ? error.message : 'Không thể lưu giao dịch online.')
@@ -345,6 +356,7 @@ export function DebtReport({
     setEditing(null)
     setAmount('')
     setReason('')
+    setNote('')
   }
 
   const submitEditor = (event: FormEvent<HTMLFormElement>) => {
@@ -370,6 +382,7 @@ export function DebtReport({
       setPendingDebtChange({
         amount: parsed,
         reason: mode === 'increase' ? 'Vay thêm' : reason.trim(),
+        note: note.trim(),
         mode,
         createdAt: new Date(transactionAt).toISOString()
       })
@@ -382,7 +395,7 @@ export function DebtReport({
       setEntries((current) =>
         current.map((entry) =>
           entry.id === editingEntryId
-            ? { ...entry, type: editing, amount: parsed, reason: reason.trim(), createdAt: transactionDate.toISOString() }
+            ? { ...entry, type: editing, amount: parsed, reason: reason.trim(), note: note.trim(), createdAt: transactionDate.toISOString() }
             : entry
         )
       )
@@ -397,6 +410,7 @@ export function DebtReport({
           type: editing,
           amount: parsed,
           reason: reason.trim(),
+          note: note.trim(),
           created_at: new Date(transactionAt).toISOString()
         }).catch((error) => {
           setSyncError(error instanceof Error ? error.message : 'Không thể cập nhật giao dịch online.')
@@ -411,6 +425,7 @@ export function DebtReport({
         type: editing,
         amount: parsed,
         reason: reason.trim(),
+        note: note.trim(),
         createdAt: new Date(transactionAt).toISOString()
       }
       setEntries((current) => [entry, ...current])
@@ -420,6 +435,7 @@ export function DebtReport({
         type: entry.type,
         amount: entry.amount,
         reason: entry.reason,
+        note: entry.note || '',
         created_at: entry.createdAt
       }).catch((error) => {
         setSyncError(error instanceof Error ? error.message : 'Không thể lưu giao dịch online.')
@@ -429,6 +445,7 @@ export function DebtReport({
     setEditingEntryId(null)
     setAmount('')
     setReason('')
+    setNote('')
     setTransactionAt(toDateTimeLocal())
   }
 
@@ -508,7 +525,7 @@ export function DebtReport({
         debt: curDebt,
         settled: curSettled,
         remaining: rem,
-        note: entry.reason || transactionLabel(entry)
+        note: [entry.reason || transactionLabel(entry), entry.note].filter(Boolean).join(' - ')
       }
     })
 
@@ -663,6 +680,7 @@ export function DebtReport({
                                   <div className="flex items-center justify-end gap-2">
                                     <span className="text-[12px] font-medium text-slate-700">
                                       {entry.reason || transactionLabel(entry)}
+                                      {entry.note && <span className="mt-1 block max-w-sm whitespace-pre-wrap break-words text-[11px] font-normal text-slate-500">{entry.note}</span>}
                                     </span>
                                     {entry.type === 'totalDebt' && !isAdditionalDebtEntry(entry) ? (
                                       <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400" title="Nợ gốc được khóa, không thể sửa hoặc xóa">
@@ -916,6 +934,7 @@ export function DebtReport({
               <div className="flex justify-between text-slate-500"><span>{pendingDebtChange.mode === 'opening' ? 'Mức nợ gốc thiết lập' : 'Số tiền vay thêm'}</span><strong className="text-emerald-700">{fmt(pendingDebtChange.amount)} đ</strong></div>
               <div className="flex justify-between border-t border-slate-200 pt-2 font-black text-slate-800"><span>Tổng nợ sau xác nhận</span><strong>{fmt(pendingDebtResult || 0)} đ</strong></div>
               <p className="pt-1 text-slate-600"><span className="font-semibold">Lý do:</span> {pendingDebtChange.reason}</p>
+              {pendingDebtChange.note && <p className="whitespace-pre-wrap break-words text-slate-600"><span className="font-semibold">Ghi chú:</span> {pendingDebtChange.note}</p>}
             </div>
             {pendingDebtInvalid && <p className="px-5 pt-3 text-[12px] font-semibold text-rose-600">Tổng nợ không thể nhỏ hơn 0 đ.</p>}
             <div className="flex justify-end gap-2 px-5 py-4">
@@ -1312,6 +1331,16 @@ export function DebtReport({
               </div>
 
               {/* Footer Actions */}
+              <div className="mb-5">
+                <label htmlFor="debt-note" className="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  Ghi chú <span className="font-normal normal-case tracking-normal">(không bắt buộc)</span>
+                </label>
+                <textarea id="debt-note" rows={2} value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Nhập ghi chú thêm cho giao dịch..."
+                  className="w-full resize-y rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-[13px] text-slate-800 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10" />
+              </div>
+
               <div className="flex items-center justify-between border-t border-slate-100 pt-4">
                 <div>
                   {editingEntryId && (

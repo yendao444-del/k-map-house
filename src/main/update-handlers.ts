@@ -1,6 +1,4 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
-import AdmZip from 'adm-zip'
-import { createPackage, extractAll } from '@electron/asar'
 import { spawn } from 'child_process'
 import { createHash } from 'crypto'
 import {
@@ -758,6 +756,7 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   await verifyFileChecksum(zipPath, checksum)
 
   sendToRenderer('update:status', { status: 'extracting', message: 'Đang giải nén...' })
+  const { default: AdmZip } = await import('adm-zip')
   const archive = new AdmZip(zipPath)
   const entries = archive.getEntries()
   if (entries.length > 10_000) throw new Error('Gói cập nhật chứa quá nhiều tệp.')
@@ -816,6 +815,7 @@ async function installWithZip(downloadUrl: string, checksum: string | null): Pro
   // app.getAppPath() points to the app.asar file in production. Build a replacement
   // archive instead of treating that file as a directory (which causes ENOTDIR).
   if (targetRoot.toLowerCase().endsWith('.asar')) {
+    const { createPackage, extractAll } = await import('@electron/asar')
     const mergedRoot = join(tempDir, 'merged-app')
     const replacementAsar = join(tempDir, 'replacement.asar')
     sendToRenderer('update:status', {
@@ -988,7 +988,7 @@ export function registerUpdateHandlers(): void {
     return { success: true, data: app.getVersion() }
   })
 
-  if (app.isPackaged) {
+  if (app.isPackaged && process.env.KMAP_BENCHMARK !== '1') {
     setTimeout(() => {
       void runAutoUpdateCheck()
     }, 8000)

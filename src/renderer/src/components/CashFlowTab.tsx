@@ -6,6 +6,7 @@ import {
   deleteCashTransaction,
   DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
+  getWalletBalanceSummary,
   getAppSettings,
   getInvoices,
   getInvoicePaymentRecords,
@@ -93,7 +94,10 @@ type ConfirmAction =
   | { type: 'edit'; transaction: CashTransaction }
   | { type: 'delete'; transaction: CashTransaction }
 
-const REPORT_LEDGER_PAGE_SIZE = 8
+// Keep the two ledgers dense so the report is useful as a history view.
+// 24 rows per page matches the approved design direction while pagination
+// still keeps the existing data set responsive.
+const REPORT_LEDGER_PAGE_SIZE = 24
 
 function ReportLedgerPanel({
   type,
@@ -154,52 +158,52 @@ function ReportLedgerPanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-[106px_minmax(0,1fr)_126px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] font-bold text-slate-500">
+      <div className="grid grid-cols-[92px_minmax(0,1fr)_112px_126px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500">
         <span>Ngày</span>
         <span>Nội dung</span>
+        <span>Ví / Phòng</span>
         <span className="text-right">Số tiền</span>
       </div>
 
-      <div className="min-h-[416px] divide-y divide-slate-100">
+      <div className="h-[680px] overflow-y-auto divide-y divide-slate-100">
         {pageRows.map((item) => {
           const isManual = item.source === 'manual' && !['wallet_transfer', 'investment_transfer'].includes(item.category)
           const target = getCashTargetLabel(item, roomById)
-          const subtitle = [target, item.note].filter(Boolean).join(' · ')
           return (
             <div
               key={item.id}
-              className="grid grid-cols-[106px_minmax(0,1fr)_126px] gap-3 px-4 py-2.5 transition hover:bg-slate-50"
+              className="grid h-7 grid-cols-[92px_minmax(0,1fr)_112px_126px] items-center gap-2 px-3 transition hover:bg-slate-50"
             >
-              <div className="pt-1 text-sm font-medium text-slate-500">
+              <div className="text-xs font-medium text-slate-500">
                 {formatDateToDDMMYYYY(item.transaction_date)}
               </div>
-              <div className="flex min-w-0 gap-3">
+              <div className="flex min-w-0 items-center gap-2">
                 <span
-                  className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}
+                  className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${isIncome ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}
                 >
-                  <i className={`fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-bolt'} text-sm`} />
+                  <i className={`fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-bolt'} text-[11px]`} />
                 </span>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-black text-slate-800">
+                <div className="flex min-w-0 items-center gap-1 overflow-hidden" title={item.note || undefined}>
+                  <div className="truncate text-xs font-bold text-slate-800">
                     {categoryLabel(item.category, categoryOptions)}
-                    {item.source === 'invoice' && (
-                      <button
-                        type="button"
-                        onClick={onNavigateToInvoices}
-                        className="ml-2 rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 hover:bg-blue-100"
-                      >
-                        Hóa đơn
-                      </button>
-                    )}
                   </div>
-                  <div className="truncate text-xs text-slate-500" title={subtitle}>
-                    {subtitle || 'Giao dịch ghi nhận thủ công'}
-                  </div>
+                  {item.source === 'invoice' && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToInvoices}
+                      className="shrink-0 rounded bg-blue-50 px-1 py-0.5 text-[9px] font-bold text-blue-600 hover:bg-blue-100"
+                    >
+                      Hóa đơn
+                    </button>
+                  )}
                 </div>
+              </div>
+              <div className="truncate text-[11px] text-slate-500" title={target}>
+                {target}
               </div>
               <div className="flex items-center justify-end gap-1">
                 <span
-                  className={`text-right text-sm font-black tabular-nums ${isIncome ? 'text-emerald-600' : 'text-red-500'}`}
+                  className={`text-right text-xs font-black tabular-nums ${isIncome ? 'text-emerald-600' : 'text-red-500'}`}
                 >
                   {isIncome ? '' : '-'}
                   {formatVND(item.amount)} đ
@@ -229,7 +233,7 @@ function ReportLedgerPanel({
           )
         })}
         {rows.length === 0 && (
-          <div className="flex min-h-[416px] items-center justify-center px-5 text-center text-sm text-slate-400">
+          <div className="flex h-full min-h-[416px] items-center justify-center px-5 text-center text-sm text-slate-400">
             Chưa có khoản {isIncome ? 'thu' : 'chi'} trong kỳ này.
           </div>
         )}
@@ -403,12 +407,19 @@ function CashTransactionModal({
   )
 
   const isExpense = type === 'expense'
+  const { data: walletBalances, isError: balanceError } = useQuery({
+    queryKey: ['walletExpenseBalances'],
+    queryFn: getWalletBalanceSummary,
+    staleTime: 0,
+    refetchOnMount: 'always'
+  })
 
   const mutation = useMutation({
     mutationFn: (payload: Partial<CashTransaction>) =>
       transaction ? updateCashTransaction(transaction.id, payload) : createCashTransaction(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
+      queryClient.invalidateQueries({ queryKey: ['walletExpenseBalances'] })
       onClose()
     },
     onError: (err: Error) => setError(err.message || 'Không thể lưu chứng từ.')
@@ -453,6 +464,10 @@ function CashTransactionModal({
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const amount = Number(amountDisplay.replace(/\D/g, '')) || 0
+    if (type === 'expense' && !form.get('payment_method')) {
+      setError('Vui lòng chọn ví chi tiền.')
+      return
+    }
     const roomId = String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '').trim()
     if (amount <= 0) {
       setError('Số tiền phải lớn hơn 0.')
@@ -602,17 +617,20 @@ function CashTransactionModal({
             <div className="grid grid-cols-2">
               <div className="p-4 space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Phương thức
+                  {isExpense ? 'Chi từ ví *' : 'Phương thức'}
                 </p>
                 <select
                   name="payment_method"
-                  defaultValue={transaction?.payment_method || 'cash'}
+                  key={type}
+                  defaultValue={isExpense ? '' : transaction?.payment_method || 'cash'}
+                  required={isExpense}
                   className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                 >
-                  <option value="">Không ghi nhận</option>
-                  <option value="cash">Tiền mặt</option>
-                  <option value="transfer">Chuyển khoản</option>
+                  <option value="" disabled>Chọn ví chi tiền</option>
+                  <option value="cash">Tiền mặt · {walletBalances ? `${formatVND(walletBalances.cashBalance)} đ` : 'Chưa tải được số dư'}</option>
+                  <option value="transfer">Tài khoản ngân hàng · {walletBalances ? `${formatVND(walletBalances.bankBalance)} đ` : 'Chưa tải được số dư'}</option>
                 </select>
+                {isExpense && <p className="text-xs text-slate-500">{balanceError ? 'Không tải được số dư. Khi lưu sẽ kiểm tra lại.' : 'Không đủ tiền? Vào Ví để chuyển tiền trước khi chi.'}</p>}
               </div>
               <div className="p-4 space-y-1 border-l border-slate-100">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">

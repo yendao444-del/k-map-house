@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactElement } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactElement } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowDownLeft,
@@ -53,6 +53,7 @@ import { readSavings, savingsInterest, savingsMaturity } from '../lib/savings'
 import { fetchSecurityQuote } from '../lib/security-quote'
 import { createCashTransaction, deleteCashTransaction, getWalletBalanceSummary, type WalletBalanceSummary } from '../lib/db'
 import { commitInvestmentWallet, investmentBalance, investmentWalletImpact, validateFunding, type FundingMethod } from '../lib/investment-funding'
+import { readCachedWalletBalanceSummary } from '../lib/wallet-summary-query'
 
 type Screen = 'overview' | InvestmentCategory | 'transactions'
 const CATEGORY_ORDER: InvestmentCategory[] = ['cash', 'gold', 'stocks', 'bonds', 'savings']
@@ -655,6 +656,9 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
   })
   const [screen, setScreen] = useState<Screen>('overview')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const pendingLoad = useRef<Promise<void> | null>(null)
+  const loadMounted = useRef(false)
   const [source, setSource] = useState<string>()
   const [modal, setModal] = useState<{
     holding?: InvestmentHolding
@@ -686,8 +690,8 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     availableBalance: 0,
     entries: []
   })
-  const fundBalance = investmentBalance(store)
-  const walletSummary: WalletBalanceSummary = {
+  const fundBalance = useMemo(() => investmentBalance(store), [store])
+  const walletSummary = useMemo<WalletBalanceSummary>(() => ({
     bankBalance: fundBalance, cashBalance: fundBalance,
     totalBalance: fundBalance, availableBalance: Math.max(0, fundBalance),
     entries: store.transactions.filter(tx => tx.fundingSource === 'investment-wallet').map(tx => ({
@@ -696,28 +700,46 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
       type: (tx.walletPosting?.amount || 0) < 0 ? 'expense' : 'income',
       paymentMethod: tx.walletPosting?.paymentMethod || 'cash', source: 'Ví đầu tư'
     }))
-  }
-  const load = async () => {
+  }), [store, fundBalance])
+  const load = useCallback((forceRefresh = false): Promise<void> => {
+    if (savingTransaction.current) return Promise.resolve()
+    if (pendingLoad.current) return pendingLoad.current
     setLoading(true)
-    const [result, nextWalletSummary] = await Promise.all([readInvestmentStore(), getWalletBalanceSummary()])
-    setStore(result.data)
-    setSource(result.importedFrom)
-    setWalletSummary(nextWalletSummary)
-    setLoading(false)
-  }
+    setLoadError('')
+    const task = (async () => {
+      try {
+        const [result, nextWalletSummary] = await Promise.all([
+          readInvestmentStore(), readCachedWalletBalanceSummary(queryClient, forceRefresh)
+        ])
+        if (!loadMounted.current) return
+        setStore(result.data)
+        setSource(result.importedFrom)
+        setWalletSummary(nextWalletSummary)
+      } catch (cause) {
+        if (loadMounted.current) setLoadError(cause instanceof Error ? cause.message : 'Không tải được danh mục đầu tư.')
+      } finally {
+        pendingLoad.current = null
+        if (loadMounted.current) setLoading(false)
+      }
+    })()
+    pendingLoad.current = task
+    return task
+  }, [queryClient])
   useEffect(() => {
+    loadMounted.current = true
     void load()
-  }, [])
+    return () => { loadMounted.current = false }
+  }, [load])
   useEffect(() => {
     let active = true
     const refreshWallet = () => {
       if (savingTransaction.current) return
-      void getWalletBalanceSummary().then(summary => { if (active) setWalletSummary(summary) }).catch(() => {})
+      void readCachedWalletBalanceSummary(queryClient).then(summary => { if (active && !savingTransaction.current) setWalletSummary(summary) }).catch(() => {})
     }
     const timer = window.setInterval(refreshWallet, 30000)
     window.addEventListener('focus', refreshWallet)
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refreshWallet) }
-  }, [])
+  }, [queryClient])
   useEffect(() => {
     const stored = Number(window.localStorage.getItem('dbyfinance-wealth-goal'))
     if (Number.isFinite(stored) && stored > 0) setWealthGoal(stored)
@@ -817,6 +839,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     return points.length > 1 ? points : [{ date: 'Hiện tại', value: total }]
   }, [store.portfolioSnapshots, transactions, total])
   const persist = async (next: InvestmentStore) => {
+    if (loading || loadError) throw new Error('Danh mục chưa tải thành công. Hãy bấm Thử lại trước khi ghi dữ liệu.')
     await writeInvestmentStore(next)
     setStore(next)
   }
@@ -958,6 +981,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     } finally { savingTransaction.current = false }
   }
   const commitWalletChange = async (previous: InvestmentTransaction | undefined, next: InvestmentTransaction | undefined, nextStore: InvestmentStore) => {
+    if (loading || loadError) throw new Error('Danh mục chưa tải thành công. Hãy bấm Thử lại trước khi ghi giao dịch.')
     await commitInvestmentWallet({
       actorRole: userRole,
       previous,
@@ -1071,6 +1095,15 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     const initialType: InvestmentTransactionType = lowered.includes('bán') || lowered.includes('sell') ? 'sell' : 'buy'
     setModal({ holding, initialType, forceTransaction: lowered.includes('bán') || lowered.includes('mua vào') })
   }
+  if (loadError) return (
+    <div className="m-6 rounded-xl border border-red-200 bg-red-50 p-5 text-red-900" role="alert">
+      <h2 className="font-bold">Chưa tải được danh mục đầu tư</h2>
+      <p className="mt-2 text-sm">{loadError}</p>
+      <button type="button" onClick={() => void load(true)} className="mt-3 rounded-lg bg-white px-4 py-2 text-sm font-bold">
+        Thử lại
+      </button>
+    </div>
+  )
   return (
     <div className="investment-dark flex min-h-0 flex-1 overflow-hidden bg-[#0b111b]">
       <aside className="hidden w-[220px] shrink-0 border-r border-[#20364f] bg-[#0b1727] p-3 text-white xl:block">
@@ -1171,7 +1204,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
             {screen === 'transactions' && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => void load()}
+                  onClick={() => void load(true)}
                   className="flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
                 >
                   <RefreshCw size={15} /> Làm mới

@@ -9,6 +9,7 @@ import {
   Layers3,
   LockKeyhole,
   MoreVertical,
+  Mail,
   PencilLine,
   Plus,
   Power,
@@ -48,6 +49,8 @@ import {
   type UserRole
 } from '../lib/db'
 import { LogoLoading } from './LogoLoading'
+import { EmailNotificationPanel } from './EmailNotificationPanel'
+import { normalizeEmailNotificationPreferences } from '../lib/email-notification-preferences'
 
 type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
 
@@ -1119,16 +1122,22 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   })
 
   const [editingUser, setEditingUser] = useState<AppUser | null>(null)
-  const [editForm, setEditForm] = useState({ full_name: '' })
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', notification_email: '', email_notifications_enabled: false, email_notification_preferences: normalizeEmailNotificationPreferences(null) })
   const [passwordUser, setPasswordUser] = useState<AppUser | null>(null)
   const [newPassword, setNewPassword] = useState('')
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id)
+  const [emailUser, setEmailUser] = useState<AppUser | null>(null)
+  const [detailUser, setDetailUser] = useState<AppUser | null>(null)
+  const { data: gmailAvailability } = useQuery({
+    queryKey: ['gmail-availability-global'],
+    queryFn: () => window.api.gmail.getAvailability()
+  })
 
   const editMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { full_name: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof updateUserProfile>[1] }) =>
       updateUserProfile(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -1247,7 +1256,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
             </div>
           )}
 
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)]">
             <section className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.35)]">
               <div className="border-b border-slate-100 px-5 py-4">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -1422,15 +1431,15 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                 </form>
               )}
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] border-collapse text-left">
+              <div className="overflow-hidden">
+                <table className="w-full table-fixed border-collapse text-left">
                   <thead>
                     <tr className="border-b border-slate-200 bg-[#f7f9fa] text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      <th className="px-5 py-3.5">Tài khoản</th>
-                      <th className="px-4 py-3.5">Vai trò</th>
-                      <th className="px-4 py-3.5">Trạng thái</th>
-                      <th className="px-4 py-3.5">Đăng nhập</th>
-                      <th className="px-4 py-3.5 text-right">Thao tác</th>
+                      <th className="w-[34%] px-5 py-3.5">Tài khoản</th>
+                      <th className="w-[16%] px-4 py-3.5">Vai trò</th>
+                      <th className="w-[18%] px-4 py-3.5">Trạng thái</th>
+                      <th className="w-[20%] px-4 py-3.5">Đăng nhập</th>
+                      <th className="w-[12%] px-4 py-3.5 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -1512,7 +1521,20 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                             {user.last_login_at ? accountFormatDateTime(user.last_login_at) : 'Chưa đăng nhập'}
                           </td>
                           <td className="px-4 py-3.5 text-right">
-                            <div className="relative inline-block">
+                            <div className="relative inline-flex items-center gap-2">
+                              {gmailAvailability?.available && <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  setEmailUser(user)
+                                  setOpenMenuId(null)
+                                }}
+                                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#06603f] transition hover:border-[#00ab60]/30 hover:bg-[#eaf8f3]"
+                                title={`Gmail: cài đặt và gửi cho ${user.full_name}`}
+                                aria-label={`Gmail: cài đặt và gửi cho ${user.full_name}`}
+                              >
+                                <Mail size={16} />
+                              </button>}
                               <button
                                 onClick={(event) => {
                                   event.stopPropagation()
@@ -1538,14 +1560,24 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                 <div
                                   className="fixed z-[9999] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-left shadow-xl"
                                   style={
-                                    menuAnchor.top + 176 < window.innerHeight
+                                    menuAnchor.top + 220 < window.innerHeight
                                       ? { top: menuAnchor.top + 4, right: menuAnchor.right }
                                       : { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
                                   }
                                 >
                                   <button
                                     onClick={() => {
-                                      setEditForm({ full_name: user.full_name })
+                                      setDetailUser(user)
+                                      setOpenMenuId(null)
+                                    }}
+                                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                                  >
+                                    <UserRound size={15} /> Xem chi tiết
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      editMutation.reset()
+                                      setEditForm({ full_name: user.full_name, phone: user.phone || '', notification_email: user.notification_email ?? user.email ?? '', email_notifications_enabled: user.email_notifications_enabled === true, email_notification_preferences: normalizeEmailNotificationPreferences(user.email_notification_preferences) })
                                       setEditingUser(user)
                                       setOpenMenuId(null)
                                     }}
@@ -1594,7 +1626,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
               </div>
             </section>
 
-            <aside className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_18px_50px_-34px_rgba(15,23,42,0.35)] xl:sticky xl:top-0">
+            <aside className="hidden">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
                   <h4 className="text-base font-black text-[#10233f]">Chi tiết tài khoản</h4>
@@ -1658,9 +1690,15 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                   <div className="my-5 h-px bg-slate-100" />
 
                   <div className="space-y-2.5">
+                    <div className="mb-4 space-y-2 text-sm">
+                      <div><span className="text-slate-500">Số điện thoại: </span><span className="font-semibold">{selectedUser.phone || 'Chưa cập nhật'}</span></div>
+                      <div><span className="text-slate-500">Gmail nhận thông báo: </span><span className="break-all font-semibold">{selectedUser.notification_email ?? selectedUser.email ?? 'Chưa cập nhật'}</span></div>
+                      <p className="text-xs text-slate-500">{selectedUser.email_notifications_enabled ? 'Đã bật nhận thông báo qua Gmail' : 'Chưa bật nhận thông báo qua Gmail'}</p>
+                    </div>
                     <button
                       onClick={() => {
-                        setEditForm({ full_name: selectedUser.full_name })
+                        editMutation.reset()
+                        setEditForm({ full_name: selectedUser.full_name, phone: selectedUser.phone || '', notification_email: selectedUser.notification_email ?? selectedUser.email ?? '', email_notifications_enabled: selectedUser.email_notifications_enabled === true, email_notification_preferences: normalizeEmailNotificationPreferences(selectedUser.email_notification_preferences) })
                         setEditingUser(selectedUser)
                       }}
                       className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#06603f] text-sm font-bold text-white shadow-sm transition hover:bg-[#064a31]"
@@ -1703,6 +1741,24 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
         </div>
       </div>
 
+          {detailUser && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailUser(null) }}>
+              <div className="w-full max-w-md rounded-[24px] bg-white p-6 shadow-2xl">
+                <div className="flex items-start justify-between"><div><h4 className="text-lg font-black text-[#10233f]">Chi tiết tài khoản</h4><p className="mt-1 text-sm text-slate-400">{detailUser.full_name}</p></div><button type="button" onClick={() => setDetailUser(null)} className="text-2xl text-slate-400">×</button></div>
+                <div className="mt-5 space-y-3 rounded-2xl bg-slate-50 p-4 text-sm"><p><span className="text-slate-500">Username: </span><strong>{detailUser.username}</strong></p><p><span className="text-slate-500">Họ và tên: </span><strong>{detailUser.full_name}</strong></p><p><span className="text-slate-500">Số điện thoại: </span><strong>{detailUser.phone || 'Chưa cập nhật'}</strong></p><p className="break-all"><span className="text-slate-500">Gmail nhận thông báo: </span><strong>{detailUser.notification_email || detailUser.email || 'Chưa cập nhật'}</strong></p><p><span className="text-slate-500">Trạng thái: </span><strong>{detailUser.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</strong></p></div>
+                <div className={`mt-5 grid gap-2 ${gmailAvailability?.available ? 'grid-cols-2' : 'grid-cols-1'}`}>{gmailAvailability?.available && <button type="button" onClick={() => { setEmailUser(detailUser); setDetailUser(null) }} className="rounded-xl bg-[#06603f] px-4 py-2.5 text-sm font-bold text-white"><Mail size={15} className="mr-2 inline" />Gửi email</button>}<button type="button" onClick={() => { setEditForm({ full_name: detailUser.full_name, phone: detailUser.phone || '', notification_email: detailUser.notification_email ?? detailUser.email ?? '', email_notifications_enabled: detailUser.email_notifications_enabled === true, email_notification_preferences: normalizeEmailNotificationPreferences(detailUser.email_notification_preferences) }); setEditingUser(detailUser); setDetailUser(null) }} className="rounded-xl border border-[#06603f] px-4 py-2.5 text-sm font-bold text-[#06603f]">Sửa thông tin</button></div>
+              </div>
+            </div>
+          )}
+
+          {emailUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setEmailUser(null) }}>
+          <div role="dialog" aria-modal="true" aria-label={`Gửi email cho ${emailUser.full_name}`} className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[24px] bg-white shadow-2xl">
+            <EmailNotificationPanel key={emailUser.id} user={emailUser} onClose={() => setEmailUser(null)} />
+          </div>
+        </div>
+      )}
+
       {/* Modal sửa thông tin */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -1711,9 +1767,12 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
               e.preventDefault()
               editMutation.mutate({ id: editingUser.id, data: editForm })
             }}
-            className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-account-title"
+            className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl"
           >
-            <div className="mb-5 text-base font-bold text-slate-800">Sửa thông tin tài khoản</div>
+            <div id="edit-account-title" className="mb-5 text-base font-bold text-slate-800">Sửa thông tin tài khoản</div>
             {editMutation.error && (
               <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {editMutation.error instanceof Error ? editMutation.error.message : 'Có lỗi xảy ra.'}
@@ -1721,14 +1780,20 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
             )}
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-600">Họ tên <span className="text-rose-500">*</span></label>
+                <label htmlFor="edit-account-name" className="text-xs font-bold text-slate-600">Họ và tên <span className="text-rose-500">*</span></label>
                 <input
+                  id="edit-account-name"
+                  autoComplete="name"
                   type="text"
                   required
                   value={editForm.full_name}
                   onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
                   className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                 />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="edit-account-phone" className="text-xs font-bold text-slate-600">Số điện thoại</label>
+                <input id="edit-account-phone" type="tel" autoComplete="tel" maxLength={20} value={editForm.phone} onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Nhập số điện thoại" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10" />
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-3">

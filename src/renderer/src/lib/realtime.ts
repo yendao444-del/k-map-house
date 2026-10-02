@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 export function setupRealtime(queryClient: QueryClient): () => void {
   const tableQueryKeys: Record<string, string[][]> = {
     rooms: [['rooms']],
-    invoices: [['invoices'], ['roomInvoices']],
+    invoices: [['invoices'], ['roomInvoices'], ['invoiceMonthCounts'], ['invoiceMonthSummary']],
     contracts: [['contracts'], ['activeContracts']],
     tenants: [['tenants']],
     service_zones: [['serviceZones']],

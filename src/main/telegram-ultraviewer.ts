@@ -104,6 +104,7 @@ const parseAllowedChatIds = (value: string): Set<number> =>
   )
 
 export const startTelegramUltraViewerBot = (): (() => void) => {
+  if (process.env.KMAP_BENCHMARK === '1') return () => {}
   const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim()
   const allowedChatIds = parseAllowedChatIds(process.env.TELEGRAM_ALLOWED_CHAT_ID || '')
   if (!token || !allowedChatIds.size) return () => undefined

@@ -1,0 +1,138 @@
+{
+  "CapturedAt": "2026-10-02T04:41:13.0943631+00:00",
+  "Executable": "G:\\PHONG TRO\\app\\dist\\win-unpacked\\DBY Home.exe",
+  "ExecutableSHA256": "570F3761D544A89CD51D7F248A210CD5FBC43DB2B750B109328601378CDF36FE",
+  "UnpackedFiles": [
+    {
+      "Path": "out\\main\\fund-nav-DAEEVgWo.js",
+      "SHA256": "AE24F4B2B79842D03FCA205BBC9EBB93AD84E06185E84E973448A6A899339020"
+    },
+    {
+      "Path": "out\\main\\index.js",
+      "SHA256": "FBDCDC2B4CDAA1CBE475317DA1F8DAFE9B71A1182F3176CB751D1778FC5314F3"
+    },
+    {
+      "Path": "out\\main\\market-crawler-dxxSeeJy.js",
+      "SHA256": "F765FD15749B1924E4502016A0E47D7A4AB07F681F500B7615730A85ECE39462"
+    },
+    {
+      "Path": "out\\main\\telegram-ultraviewer-86oBmkOC.js",
+      "SHA256": "A9A5589723EF47FB55DF0CD0F1615EAFB0A5C4F753EE34DA1E2F909C990D12E8"
+    },
+    {
+      "Path": "out\\main\\update-handlers-DEg7ADTL.js",
+      "SHA256": "7F80480B998CF3F96BE96A9B2141220D62732055BF9E3032D25FCB9392A693D2"
+    },
+    {
+      "Path": "out\\preload\\index.js",
+      "SHA256": "D33BE47972CEB18263AC90E9C71A8490F2FA92B21D07BB959A376DCF2AE6348F"
+    },
+    {
+      "Path": "out\\renderer\\assets\\index-DaLdGQ4z.js",
+      "SHA256": "C886494D4CA924A626E171ED747134FD0A09CAC66BFD3D1EBC6346C2DAB09A4E"
+    },
+    {
+      "Path": "resources\\icon.png",
+      "SHA256": "EDBA93C74C443CFAB3B80C37A0BF383CE003385DA3E321F430276D33A54A40A7"
+    }
+  ],
+  "Note": "These results do not prove authenticated modules are ready under 3 seconds.",
+  "Results": [
+    {
+      "Mode": "software",
+      "Run": 1,
+      "Status": "complete",
+      "Scope": "isolated fresh profile: login screen and module code only",
+      "MilestonesSeconds": {
+        "main-module-evaluated": 0.088,
+        "main-runtime-configured": 0.091,
+        "app-ready": 0.127,
+        "core-ipc-ready": 0.129,
+        "profile-isolated": 0.129,
+        "all-ipc-ready": 0.13,
+        "window-created": 0.211,
+        "renderer-document-loaded": 0.299,
+        "window-ready-to-show": 0.299,
+        "renderer-painted": 0.355,
+        "icon-style-ready": 0.364,
+        "login-painted": 0.383,
+        "module-code-ready": 0.394
+      },
+      "AuthenticatedDataTested": false,
+      "MainWorkingSetMB": 101.4,
+      "AsarSHA256": "F3977525EEB871CCA62229384562D60AFBFCC3DBFD11CA1F29811FC1B1EE6423"
+    },
+    {
+      "Mode": "software",
+      "Run": 2,
+      "Status": "complete",
+      "Scope": "isolated fresh profile: login screen and module code only",
+      "MilestonesSeconds": {
+        "main-module-evaluated": 0.095,
+        "main-runtime-configured": 0.096,
+        "app-ready": 0.14,
+        "core-ipc-ready": 0.141,
+        "profile-isolated": 0.142,
+        "all-ipc-ready": 0.142,
+        "window-created": 0.222,
+        "renderer-document-loaded": 0.306,
+        "window-ready-to-show": 0.307,
+        "renderer-painted": 0.353,
+        "icon-style-ready": 0.378,
+        "login-painted": 0.381,
+        "module-code-ready": 0.391
+      },
+      "AuthenticatedDataTested": false,
+      "MainWorkingSetMB": 104.1,
+      "AsarSHA256": "F3977525EEB871CCA62229384562D60AFBFCC3DBFD11CA1F29811FC1B1EE6423"
+    },
+    {
+      "Mode": "gpu",
+      "Run": 1,
+      "Status": "complete",
+      "Scope": "isolated fresh profile: login screen and module code only",
+      "MilestonesSeconds": {
+        "main-module-evaluated": 0.114,
+        "main-runtime-configured": 0.116,
+        "app-ready": 0.17,
+        "core-ipc-ready": 0.172,
+        "profile-isolated": 0.172,
+        "all-ipc-ready": 0.173,
+        "window-created": 0.258,
+        "renderer-document-loaded": 0.339,
+        "module-code-ready": 0.404,
+        "window-ready-to-show": 0.636,
+        "renderer-painted": 0.681,
+        "login-painted": 0.682,
+        "icon-style-ready": 0.683
+      },
+      "AuthenticatedDataTested": false,
+      "MainWorkingSetMB": 101.2,
+      "AsarSHA256": "F3977525EEB871CCA62229384562D60AFBFCC3DBFD11CA1F29811FC1B1EE6423"
+    },
+    {
+      "Mode": "gpu",
+      "Run": 2,
+      "Status": "complete",
+      "Scope": "isolated fresh profile: login screen and module code only",
+      "MilestonesSeconds": {
+        "main-module-evaluated": 0.081,
+        "main-runtime-configured": 0.082,
+        "app-ready": 0.123,
+        "core-ipc-ready": 0.125,
+        "profile-isolated": 0.126,
+        "all-ipc-ready": 0.127,
+        "window-created": 0.2,
+        "renderer-document-loaded": 0.283,
+        "module-code-ready": 0.345,
+        "window-ready-to-show": 0.361,
+        "renderer-painted": 0.39,
+        "login-painted": 0.391,
+        "icon-style-ready": 0.392
+      },
+      "AuthenticatedDataTested": false,
+      "MainWorkingSetMB": 101.6,
+      "AsarSHA256": "F3977525EEB871CCA62229384562D60AFBFCC3DBFD11CA1F29811FC1B1EE6423"
+    }
+  ]
+}

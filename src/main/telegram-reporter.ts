@@ -56,6 +56,7 @@ async function sendMessage(token: string, chatId: string, text: string): Promise
 }
 
 export async function reportTelegramError(scope: string, details: ReportDetails = {}): Promise<void> {
+  if (process.env.KMAP_BENCHMARK === '1') return
   try {
     const { token, chatIds } = readConfig()
     if (!token || !chatIds.length) return

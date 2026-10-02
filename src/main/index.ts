@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, clipboard, dialog, ClipboardItem } from 'electron'
 import 'dotenv/config'
-import { extname, join } from 'path'
+import { basename, dirname, extname, join, resolve } from 'path'
+import { tmpdir } from 'os'
 import {
   readFileSync,
   writeFileSync,
@@ -11,18 +12,44 @@ import {
 } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { registerUpdateHandlers } from './update-handlers'
-import { fetchFundNav } from './fund-nav'
-import { startTelegramUltraViewerBot } from './telegram-ultraviewer'
+import { registerDevGmailHandlers } from './gmail-dev'
 import { reportTelegramError } from './telegram-reporter'
-import {
-  crawlPhongTro123,
-  getMarketSnapshot,
-  scanMarket,
-  type MarketCrawlRequest,
-  type MarketScanRequest
-} from './market-crawler'
-import { EdgeTTS } from 'node-edge-tts'
+
+type MarketScanRequest = {
+  propertyAddress: string
+  maxPages?: number
+  sourceIds?: Array<'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'>
+}
+type MarketCrawlRequest = { locationUrl: string; maxPages?: number }
+
+const benchmarkMode = process.env.KMAP_BENCHMARK === '1'
+const startupMarkerPath = process.env.KMAP_STARTUP_MARKER
+const writeStartupMark = (name: string): void => {
+  if (!startupMarkerPath || !/^[a-z-]+$/.test(name)) return
+  try {
+    mkdirSync(dirname(startupMarkerPath), { recursive: true })
+    appendFileSync(startupMarkerPath, JSON.stringify({ name, at: Date.now() }) + '\n', 'utf-8')
+  } catch {
+    // Instrumentation must never affect application startup.
+  }
+}
+writeStartupMark('main-module-evaluated')
+if (benchmarkMode) {
+  const profile = resolve(process.env.KMAP_BENCHMARK_PROFILE || '.')
+  if (dirname(profile).toLowerCase() !== resolve(tmpdir()).toLowerCase() ||
+      !/^dbyhome-bench-[a-f0-9]{32}$/.test(basename(profile))) {
+    throw new Error('Benchmark requires a generated isolated profile in the OS temp directory.')
+  }
+  // Windows known-folder paths are not reliably overridden by APPDATA alone.
+  // Set Electron paths before locks, handlers, windows or migration helpers.
+  for (const [name, target] of [
+    ['appData', profile], ['userData', join(profile, 'user-data')],
+    ['sessionData', join(profile, 'session-data')], ['temp', join(profile, 'temp')]
+  ] as const) {
+    mkdirSync(target, { recursive: true })
+    app.setPath(name, target)
+  }
+}
 
 interface DBState {
   [key: string]: unknown
@@ -201,7 +228,10 @@ function setupInvestmentHandlers(): void {
   ipcMain.removeHandler('investment:write')
   ipcMain.removeHandler('investment:fundNav')
   ipcMain.handle('investment:read', () => readInvestmentStore())
-  ipcMain.handle('investment:fundNav', (_event, symbol: string) => fetchFundNav(symbol))
+  ipcMain.handle('investment:fundNav', async (_event, symbol: string) => {
+    const { fetchFundNav } = await import('./fund-nav')
+    return fetchFundNav(symbol)
+  })
   ipcMain.handle('investment:write', (_event, data: InvestmentStore) => {
     mkdirSync(app.getPath('userData'), { recursive: true })
     writeFileSync(getInvestmentPath(), JSON.stringify(withoutCrypto(data), null, 2), 'utf-8')
@@ -216,15 +246,19 @@ function setupMarketDataHandlers(): void {
 
   ipcMain.handle(
     'marketData:getSnapshot',
-    (_event, request?: string | { propertyAddress?: string }) =>
-      getMarketSnapshot(typeof request === 'string' ? request : request?.propertyAddress)
+    async (_event, request?: string | { propertyAddress?: string }) => {
+      const { getMarketSnapshot } = await import('./market-crawler')
+      return getMarketSnapshot(typeof request === 'string' ? request : request?.propertyAddress)
+    }
   )
-  ipcMain.handle('marketData:scanMarket', (_event, request: MarketScanRequest) =>
-    scanMarket(request)
-  )
-  ipcMain.handle('marketData:scanPhongTro123', (_event, request: MarketCrawlRequest) =>
-    crawlPhongTro123(request)
-  )
+  ipcMain.handle('marketData:scanMarket', async (_event, request: MarketScanRequest) => {
+    const { scanMarket } = await import('./market-crawler')
+    return scanMarket(request)
+  })
+  ipcMain.handle('marketData:scanPhongTro123', async (_event, request: MarketCrawlRequest) => {
+    const { crawlPhongTro123 } = await import('./market-crawler')
+    return crawlPhongTro123(request)
+  })
 }
 
 function normalizeVietnamPhone(phone: string): string {
@@ -1092,6 +1126,7 @@ function setupTtsHandlers(): void {
         if (cachedAudio.length > 100) return cachedAudio
       }
 
+      const { EdgeTTS } = await import('node-edge-tts')
       const tts = new EdgeTTS({
         voice: 'vi-VN-NamMinhNeural',
         lang: 'vi-VN',
@@ -1128,6 +1163,21 @@ function setupTtsHandlers(): void {
 
 function setupPerformanceHandlers(): void {
   ipcMain.removeHandler('perf:getMetrics')
+  ipcMain.removeAllListeners('perf:startup-mark')
+  ipcMain.on('perf:startup-mark', (_event, name: unknown) => {
+    const markerPath = process.env.KMAP_STARTUP_MARKER
+    if (!markerPath || typeof name !== 'string' || !/^[a-z-]+$/.test(name)) return
+    try {
+      mkdirSync(join(markerPath, '..'), { recursive: true })
+      appendFileSync(markerPath, JSON.stringify({ name, at: Date.now() }) + '\n', 'utf-8')
+    } catch {
+      // Benchmark instrumentation must never affect app startup.
+    }
+  })
+  if (benchmarkMode && process.env.KMAP_STARTUP_MARKER) {
+    appendFileSync(process.env.KMAP_STARTUP_MARKER,
+      JSON.stringify({ name: 'profile-isolated', at: Date.now() }) + '\n', 'utf-8')
+  }
   ipcMain.handle('perf:getMetrics', async (event) => {
     const senderWindow = BrowserWindow.fromWebContents(event.sender)
     const processes = app.getAppMetrics()
@@ -1173,6 +1223,7 @@ function setupWindowThemeHandlers(): void {
 // explicit and reversible without changing stored data or user profiles.
 if (process.env.KMAP_ENABLE_GPU !== '1') app.disableHardwareAcceleration()
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
+writeStartupMark('main-runtime-configured')
 
 // Prevent duplicate windows, background polling, and simultaneous writes to
 // the same local profile when the launcher is opened more than once.
@@ -1213,6 +1264,7 @@ function createWindow(): void {
         }
       : {}),
     webPreferences: {
+      additionalArguments: benchmarkMode ? ['--kmap-benchmark'] : [],
       preload: useSafeWindow ? undefined : join(__dirname, '../preload/index.js'),
       sandbox: true,
       nodeIntegration: false,
@@ -1221,6 +1273,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => {
+    writeStartupMark('window-ready-to-show')
     writeDebugLog('window:ready-to-show')
     mainWindow.show()
   })
@@ -1239,6 +1292,7 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.on('did-finish-load', () => {
+    writeStartupMark('renderer-document-loaded')
     writeDebugLog('webContents:did-finish-load', mainWindow.webContents.getURL())
   })
 
@@ -1343,6 +1397,7 @@ function createWindow(): void {
 }
 
 if (hasSingleInstanceLock) app.whenReady().then(() => {
+  writeStartupMark('app-ready')
   // Keep the runtime app name aligned with electron-builder so Windows uses
   // the packaged DBY HOME identity for the taskbar entry and shortcuts.
   app.setName('DBY HOME')
@@ -1362,6 +1417,8 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
     ipcMain.on('ping', () => console.log('pong'))
   }
 
+  writeStartupMark('core-ipc-ready')
+
   setupDBHandlers()
   setupInvestmentHandlers()
   setupMarketDataHandlers()
@@ -1371,11 +1428,18 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   setupTtsHandlers()
   setupPerformanceHandlers()
   setupWindowThemeHandlers()
-  // Privileged Supabase and SePay operations run through the authenticated Edge Function.
-  registerUpdateHandlers()
-  const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()
-  app.once('before-quit', stopTelegramUltraViewerBot)
+  registerDevGmailHandlers()
+  writeStartupMark('all-ipc-ready')
   createWindow()
+  writeStartupMark('window-created')
+
+  // Optional network/update services load after the first window is created;
+  // their IPC handlers are ready before the user can reach those settings.
+  void import('./update-handlers').then(({ registerUpdateHandlers }) => registerUpdateHandlers())
+  void import('./telegram-ultraviewer').then(({ startTelegramUltraViewerBot }) => {
+    const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()
+    app.once('before-quit', stopTelegramUltraViewerBot)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

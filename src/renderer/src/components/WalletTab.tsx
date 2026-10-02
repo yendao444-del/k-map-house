@@ -15,7 +15,6 @@ import {
   Landmark,
   MoreHorizontal,
   PieChart,
-  Plus,
   ReceiptText,
   RefreshCw,
   Search,
@@ -49,11 +48,7 @@ const formatDate = (value: string): string => {
   return year && month && day ? `${day}/${month}/${year}` : value
 }
 const paymentLabel = (value: string): string =>
-  value === 'cash'
-    ? 'Tiền mặt'
-    : value === 'transfer'
-      ? 'Chuyển khoản ngân hàng'
-      : 'Chưa xác định'
+  value === 'cash' ? 'Tiền mặt' : value === 'transfer' ? 'Chuyển khoản ngân hàng' : 'Chưa xác định'
 
 export function WalletTab({
   onRecordTransaction,
@@ -117,9 +112,9 @@ export function WalletTab({
         item.category === 'investment_transfer'
           ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
           : item.category === 'wallet_transfer'
-          ? 'Chuyển giữa các ví'
-          : categoryMap.get(item.category) ||
-            (item.type === 'income' ? 'Khoản thu khác' : 'Chi phí vận hành'),
+            ? 'Chuyển giữa các ví'
+            : categoryMap.get(item.category) ||
+              (item.type === 'income' ? 'Khoản thu khác' : 'Chi phí vận hành'),
       subtitle: item.note || 'Giao dịch ghi nhận thủ công',
       amount: Number(item.amount) || 0,
       type: item.type,
@@ -161,10 +156,14 @@ export function WalletTab({
   const safeCashBalance = cashBalance
   const positiveBalanceTotal = Math.max(0, bankBalance) + Math.max(0, cashBalance)
   const bankPercent =
-    positiveBalanceTotal > 0 ? ((Math.max(0, bankBalance) / positiveBalanceTotal) * 100).toFixed(1) : '0'
+    positiveBalanceTotal > 0
+      ? ((Math.max(0, bankBalance) / positiveBalanceTotal) * 100).toFixed(1)
+      : '0'
   const cashPercent =
-    positiveBalanceTotal > 0 ? ((Math.max(0, cashBalance) / positiveBalanceTotal) * 100).toFixed(1) : '0'
-  const copyWalletValue = async (value: string, label: string) => {
+    positiveBalanceTotal > 0
+      ? ((Math.max(0, cashBalance) / positiveBalanceTotal) * 100).toFixed(1)
+      : '0'
+  const copyWalletValue = async (value: string, label: string): Promise<void> => {
     try {
       await navigator.clipboard.writeText(value)
       setCopiedMessage(`${label} đã được sao chép`)
@@ -233,7 +232,7 @@ export function WalletTab({
     },
     onError: (error: Error) => setTransferError(error.message || 'Không thể ghi nhận chuyển tiền.')
   })
-  const submitTransfer = () => {
+  const submitTransfer = (): void => {
     const amount = Number(transferAmount.replace(/\D/g, ''))
     if (!amount || amount <= 0) {
       setTransferError('Nhập số tiền lớn hơn 0.')
@@ -255,7 +254,9 @@ export function WalletTab({
             <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[#047857]">
               Tài chính · Dòng tiền
             </div>
-            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#15231d]">Ví vận hành</h1>
+            <h1 className="mt-0.5 text-2xl font-black tracking-tight text-[#15231d]">
+              Ví vận hành
+            </h1>
             <p className="mt-0.5 text-xs text-slate-500">
               Quản lý số dư ngân hàng, tiền mặt và luân chuyển giữa các ví.
             </p>
@@ -328,7 +329,9 @@ export function WalletTab({
               </div>
               <div>
                 <h2 className="text-base font-black text-[#15231d]">Tiền đang nằm ở đâu?</h2>
-                <p className="text-[11px] text-slate-400">Số dư theo giao dịch đã ghi nhận; không phải truy vấn số dư trực tiếp từ ngân hàng</p>
+                <p className="text-[11px] text-slate-400">
+                  Số dư theo giao dịch đã ghi nhận; không phải truy vấn số dư trực tiếp từ ngân hàng
+                </p>
               </div>
             </div>
 
@@ -339,23 +342,33 @@ export function WalletTab({
           </div>
 
           {(bankBalance < 0 || cashBalance < 0) && (
-            <p role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              Sổ giao dịch đang có tài khoản âm. Chưa xác nhận được số dư thực tế của BIDV và tiền mặt.
-              Vui lòng đối soát số dư đầu kỳ và phương thức thu/chi; tổng bên dưới không phải xác nhận tiền thực có thể sử dụng.
+            <p
+              role="alert"
+              className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+            >
+              Sổ giao dịch đang có tài khoản âm. Chưa xác nhận được số dư thực tế của BIDV và tiền
+              mặt. Vui lòng đối soát số dư đầu kỳ và phương thức thu/chi; tổng bên dưới không phải
+              xác nhận tiền thực có thể sử dụng.
             </p>
           )}
 
           {/* BANNER SỐ DƯ KHẢ DỤNG TO RÕ RÀNG */}
-          <div className="mb-5 rounded-2xl bg-gradient-to-br from-[#06603f] via-[#064a31] to-[#003d29] p-5 sm:p-6 text-white shadow-lg shadow-emerald-950/10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative mb-5 rounded-2xl bg-gradient-to-br from-[#06603f] via-[#064a31] to-[#003d29] p-5 text-center text-white shadow-lg shadow-emerald-950/10 sm:p-6">
+            <div className="flex min-h-[126px] flex-col items-center justify-center">
               <div>
-                <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
+                <div className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
                   <WalletCards size={16} />
-                  <span>{bankBalance < 0 || cashBalance < 0 ? 'Tổng sổ sách · Cần đối soát' : 'Số dư theo sổ'}</span>
+                  <span>
+                    {bankBalance < 0 || cashBalance < 0
+                      ? 'Tổng sổ sách · Cần đối soát'
+                      : 'Số dư theo sổ'}
+                  </span>
                   <span className="text-emerald-300/60">•</span>
-                  <span className="text-[11px] font-bold normal-case text-emerald-100/80">Ngân hàng + tiền mặt</span>
+                  <span className="text-[11px] font-bold normal-case text-emerald-100/80">
+                    Ngân hàng + tiền mặt
+                  </span>
                 </div>
-                <div className="mt-2.5 flex items-baseline gap-3">
+                <div className="mt-2.5 flex items-center justify-center gap-3">
                   <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums text-white drop-shadow-sm">
                     {showBalance ? formatVND(totalBalance) : '••••••••••'}
                   </span>
@@ -377,22 +390,23 @@ export function WalletTab({
               </div>
 
               {/* Nút icon chuyển đổi giữa các ví */}
-              <div className="flex items-center self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setTransferOpen(true)}
-                  title="Chuyển đổi giữa các ví"
-                  aria-label="Chuyển đổi giữa các ví"
-                  className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-emerald-100 shadow-sm backdrop-blur-sm transition hover:bg-white/20 hover:border-white/40 hover:text-white hover:scale-105 active:scale-95"
-                >
-                  <ArrowLeftRight size={20} className="transition-transform duration-300 group-hover:rotate-180" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setTransferOpen(true)}
+                title="Chuyển đổi giữa các ví"
+                aria-label="Chuyển đổi giữa các ví"
+                className="group absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-emerald-100 shadow-sm backdrop-blur-sm transition hover:scale-105 hover:border-white/40 hover:bg-white/20 hover:text-white active:scale-95 sm:right-6"
+              >
+                <ArrowLeftRight
+                  size={20}
+                  className="transition-transform duration-300 group-hover:rotate-180"
+                />
+              </button>
             </div>
           </div>
 
           {/* Lưới các thẻ ví */}
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
             {/* Thẻ Ngân hàng */}
             <div
               role="button"
@@ -441,7 +455,9 @@ export function WalletTab({
               <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
                 <div className="flex items-center gap-1.5 font-bold text-[#047857]">
                   <CheckCircle2 size={13} />
-                  {appSettings?.bank_id && appSettings.account_no ? 'Đang hoạt động' : 'Cần cấu hình'}
+                  {appSettings?.bank_id && appSettings.account_no
+                    ? 'Đang hoạt động'
+                    : 'Cần cấu hình'}
                 </div>
                 <span className="font-bold text-slate-500">{bankPercent}% tổng ví</span>
               </div>
@@ -481,7 +497,9 @@ export function WalletTab({
                   </div>
                 </div>
                 <div className="mt-3 text-sm font-black text-[#15231d]">Tiền mặt</div>
-                <div className="mt-0.5 text-[11px] text-slate-500">Tiền mặt · Cập nhật thủ công</div>
+                <div className="mt-0.5 text-[11px] text-slate-500">
+                  Tiền mặt · Cập nhật thủ công
+                </div>
                 <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
                   {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
                 </div>
@@ -494,21 +512,6 @@ export function WalletTab({
                 <span className="font-bold text-slate-500">{cashPercent}% tổng ví</span>
               </div>
             </div>
-
-            {/* Thẻ Thêm ví hoặc tài khoản */}
-            <button
-              type="button"
-              onClick={onRecordTransaction}
-              className="group flex min-h-[160px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-emerald-200 bg-[#f5fff8] p-4 text-[#047857] transition hover:border-emerald-300 hover:bg-emerald-50/50"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E2F8EE] shadow-sm transition group-hover:scale-105">
-                <Plus size={20} />
-              </span>
-              <span className="mt-3 text-sm font-black">Thêm ví hoặc tài khoản</span>
-              <span className="mt-0.5 text-[10px] text-slate-400">
-                Ngân hàng · Tiền mặt · Ví điện tử
-              </span>
-            </button>
           </div>
         </section>
 
@@ -562,9 +565,7 @@ export function WalletTab({
                     <div className="truncate text-xs font-black text-[#15231d]">{row.title}</div>
                     <div className="truncate text-[10px] text-slate-500">
                       {formatDate(row.date)} ·{' '}
-                      {row.paymentMethod === 'cash'
-                        ? 'Tiền mặt'
-                        : `${bankName} · ${accountNo}`}
+                      {row.paymentMethod === 'cash' ? 'Tiền mặt' : `${bankName} · ${accountNo}`}
                     </div>
                   </div>
                   <div
@@ -672,13 +673,9 @@ export function WalletTab({
                 </button>
               </div>
               <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-center text-[11px] font-bold text-slate-500">
-                {transferDirection === 'cash-to-bank'
-                  ? 'Tiền mặt'
-                  : `${bankName} · ${accountNo}`}
+                {transferDirection === 'cash-to-bank' ? 'Tiền mặt' : `${bankName} · ${accountNo}`}
                 <span className="mx-2 text-[#047857]">→</span>
-                {transferDirection === 'cash-to-bank'
-                  ? `${bankName} · ${accountNo}`
-                  : 'Tiền mặt'}
+                {transferDirection === 'cash-to-bank' ? `${bankName} · ${accountNo}` : 'Tiền mặt'}
               </div>
               <label className="mt-4 block text-xs font-black text-slate-600">
                 Số tiền chuyển
@@ -696,6 +693,26 @@ export function WalletTab({
                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-base font-black outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                 />
               </label>
+              <button
+                type="button"
+                disabled={
+                  transferMutation.isPending ||
+                  !Number.isFinite(
+                    transferDirection === 'cash-to-bank' ? cashBalance : bankBalance
+                  ) ||
+                  (transferDirection === 'cash-to-bank' ? cashBalance : bankBalance) < 1
+                }
+                onClick={() => {
+                  const sourceBalance =
+                    transferDirection === 'cash-to-bank' ? cashBalance : bankBalance
+                  setTransferAmount(String(Math.floor(Math.max(0, sourceBalance))))
+                  setTransferError('')
+                }}
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+              >
+                <ArrowLeftRight size={18} aria-hidden="true" />
+                Chuyển tất cả
+              </button>
               {transferError && (
                 <div className="mt-2 text-xs font-bold text-red-600">{transferError}</div>
               )}

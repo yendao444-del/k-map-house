@@ -41,6 +41,11 @@ const api = {
     }): Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }> =>
       ipcRenderer.invoke('zalo:send', payload)
   },
+  gmail: {
+    getAvailability: (): Promise<{ available: boolean; authenticated?: boolean; reason?: string }> => ipcRenderer.invoke('gmail:getAvailability'),
+    reauthenticate: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('gmail:reauthenticate'),
+    sendNotification: (payload: { to: string; subject: string; html: string }): Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; messageId?: string }> => ipcRenderer.invoke('gmail:sendNotification', payload)
+  },
   invoice: {
     saveImage: (payload: {
       html: string
@@ -67,7 +72,9 @@ const api = {
       ipcRenderer.invoke('tts:synthesizePayment', amount)
   },
   perf: {
-    getMetrics: (): Promise<unknown> => ipcRenderer.invoke('perf:getMetrics')
+    benchmarkMode: process.argv.includes('--kmap-benchmark'),
+    getMetrics: (): Promise<unknown> => ipcRenderer.invoke('perf:getMetrics'),
+    markStartup: (name: string): void => ipcRenderer.send('perf:startup-mark', name)
   },
   update: {
     check: (): Promise<unknown> => ipcRenderer.invoke('update:check'),

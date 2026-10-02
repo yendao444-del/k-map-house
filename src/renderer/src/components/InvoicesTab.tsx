@@ -3,8 +3,6 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tansta
 import {
   getInvoices,
   getOutstandingInvoices,
-  getInvoiceMonthCounts,
-  getInvoiceMonthSummary,
   getRooms,
   getTenants,
   getAppSettings,
@@ -24,6 +22,7 @@ import { InvoiceDetailModal } from './InvoiceDetailModal'
 import { SePaySyncModal } from './SePaySyncModal'
 import { LogoLoading } from './LogoLoading'
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer'
+import { readInvoiceMonthCounts, readInvoiceMonthSummary, seedInvoiceMonthPage } from '../lib/invoice-summary-query'
 import logoNgang from '../assets/an_khang_home_logo_ngang.png'
 import logoMark from '../assets/an_khang_home_logo.png'
 
@@ -679,6 +678,8 @@ export const InvoicesTab: React.FC<{
         offset: pageParam
       }),
     initialPageParam: 0,
+    initialData: () => seedInvoiceMonthPage(queryClient, selectedMonth, selectedYear, INVOICE_PAGE_SIZE),
+    initialDataUpdatedAt: () => queryClient.getQueryState(['invoices'])?.dataUpdatedAt,
     getNextPageParam: (lastPage, allPages) =>
       lastPage.length < INVOICE_PAGE_SIZE ? undefined : allPages.length * INVOICE_PAGE_SIZE
   })
@@ -711,12 +712,12 @@ export const InvoicesTab: React.FC<{
   }
   const { data: invoiceMonthCounts = {} } = useQuery({
     queryKey: ['invoiceMonthCounts'],
-    queryFn: getInvoiceMonthCounts,
+    queryFn: () => readInvoiceMonthCounts(queryClient),
     staleTime: 60_000
   })
   const { data: invoiceMonthSummary } = useQuery({
     queryKey: ['invoiceMonthSummary', selectedYear, selectedMonth],
-    queryFn: () => getInvoiceMonthSummary(selectedMonth, selectedYear),
+    queryFn: () => readInvoiceMonthSummary(queryClient, selectedMonth, selectedYear),
     staleTime: 60_000
   })
   const { data: sepayInvoices = [] } = useQuery({

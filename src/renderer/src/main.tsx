@@ -1,12 +1,36 @@
 import './assets/main.css'
-import './assets/font-awesome.css'
 
-import { Component, StrictMode, type ErrorInfo, type ReactNode } from 'react'
+import { Component, StrictMode, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import { installPaymentAudioUnlock } from './lib/sound'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { markAfterPaint, markStartup } from './lib/startup-perf'
+
+function StartupPaint(): null {
+  useEffect(() => {
+    const cancelPaint = markAfterPaint('renderer-painted')
+    // Font Awesome is used by legacy detail/notification controls. It does
+    // not define the first screen layout, so fetch it after the first paint
+    // rather than making the initial CSS request render-blocking.
+    let secondFrame = 0
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        void import('./assets/font-awesome.css').then(
+          () => markStartup('icon-style-ready'),
+          () => markStartup('icon-style-error')
+        )
+      })
+    })
+    return () => {
+      cancelPaint()
+      cancelAnimationFrame(firstFrame)
+      cancelAnimationFrame(secondFrame)
+    }
+  }, [])
+  return null
+}
 
 installPaymentAudioUnlock()
 
@@ -32,6 +56,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
+    markStartup('renderer-error')
     console.error('[Renderer] React render error:', error, info.componentStack)
   }
 
@@ -72,6 +97,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <AppErrorBoundary>
+        <StartupPaint />
         <App />
       </AppErrorBoundary>
     </QueryClientProvider>

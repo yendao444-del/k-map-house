@@ -39,3 +39,11 @@ prunes prior artifacts and can publish. Consequently total speedup is unmeasured
 Existing runtime workaround, broad process termination, automatic staging of
 all Git changes and old-artifact retention behavior remain existing release
 behavior; these were not silently redesigned in a speed optimization.
+
+## Startup follow-up
+
+The Gmail IPC handlers remain registered in both environments. Google SDK is
+externalized and dynamically imported only during dev OAuth/send operations;
+packaged handlers return the original unavailable response. `node-edge-tts`
+loads on the first uncached speech request. Google SDK and demo folders are
+excluded from ASAR. See STARTUP-REVIEW-2026-10-01.md for measured startup scope.

@@ -1,4 +1,6 @@
-﻿import { supabase, safeQuery } from './supabase'
+import { supabase, safeQuery } from './supabase'
+import { normalizeEmailNotificationPreferences, type EmailNotificationPreferences } from './email-notification-preferences'
+import { fetchAllPages } from './paged-query'
 
 // =========================================================
 // TYPES & CONSTANTS
@@ -13,6 +15,10 @@ export interface AppUser {
   id: string
   username: string
   email?: string
+  phone?: string
+  notification_email?: string | null
+  email_notifications_enabled?: boolean
+  email_notification_preferences?: EmailNotificationPreferences
   full_name: string
   avatar_url?: string
   password_hash?: string
@@ -40,6 +46,7 @@ export interface DebtEntryRecord {
   type: DebtEntryType
   amount: number
   reason: string
+  note?: string
   created_at: string
 }
 export interface ServiceZone {
@@ -678,6 +685,10 @@ const buildAppUser = (
     id: String(row?.id || authUser?.id || ''),
     username,
     email,
+    phone: typeof row?.phone === 'string' ? row.phone : '',
+    notification_email: typeof row?.notification_email === 'string' ? row.notification_email : null,
+    email_notifications_enabled: row?.email_notifications_enabled === true,
+    email_notification_preferences: normalizeEmailNotificationPreferences(row?.email_notification_preferences),
     full_name: fullName,
     avatar_url: avatarUrl,
     password_hash: typeof row?.password_hash === 'string' ? row.password_hash : undefined,
@@ -984,10 +995,17 @@ export const deleteRoom = async (id: string): Promise<void> => {
 // TENANTS
 // =========================================================
 export const getTenants = async (): Promise<Tenant[]> => {
-  const data = await safeQuery(() =>
-    supabase.from('tenants').select('*').order('created_at', { ascending: false })
-  )
-  return data || []
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('tenants')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Tenant[]
+  })
 }
 
 export const createTenant = async (tenantData: Partial<Tenant>): Promise<Tenant> => {
@@ -1073,21 +1091,51 @@ export const deleteServiceZone = async (id: string): Promise<void> => {
 // CONTRACTS
 // =========================================================
 export const getContracts = async (): Promise<Contract[]> => {
-  const data = await safeQuery(() =>
-    supabase.from('contracts').select('*').order('created_at', { ascending: false })
-  )
-  return data || []
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Contract[]
+  })
 }
 
-export const getActiveContracts = async (): Promise<Contract[]> => {
-  const data = await safeQuery(() =>
-    supabase
-      .from('contracts')
-      .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-  )
-  return data || []
+// The room dashboard only needs the active contract identity, tenant display
+// fields, dates and deposit state. Keep history/detail queries on getContracts()
+// so this projection cannot remove fields from those modules.
+const ACTIVE_CONTRACT_LIST_FIELDS = [
+  'id',
+  'room_id',
+  'tenant_id',
+  'tenant_name',
+  'tenant_phone',
+  'move_in_date',
+  'deposit_amount',
+  'deposit_pre_collected',
+  'is_migration',
+  'status',
+  'created_at'
+] as const satisfies readonly (keyof Contract)[]
+export type ActiveContractListItem = Pick<Contract, (typeof ACTIVE_CONTRACT_LIST_FIELDS)[number]>
+const ACTIVE_CONTRACT_LIST_SELECT = ACTIVE_CONTRACT_LIST_FIELDS.join(',')
+
+export const getActiveContracts = async (): Promise<ActiveContractListItem[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select(ACTIVE_CONTRACT_LIST_SELECT)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as unknown as ActiveContractListItem[]
+  })
 }
 
 export const createContract = async (data: Partial<Contract>): Promise<Contract> => {
@@ -1593,12 +1641,9 @@ export async function getInvoices(options: InvoiceListOptions = {}): Promise<Inv
     return data || []
   }
 
-  // Supabase caps an unbounded response; walk pages so reports and exports do not
-  // silently omit invoices once the dataset grows beyond the API default.
-  const pageSize = 1000
-  const invoices: Invoice[] = []
-  let offset = 0
-  while (true) {
+  // Supabase caps an unbounded response. Read complete pages in bounded waves
+  // so long histories do not add one network round-trip per 1,000 rows.
+  return fetchAllPages(async (offset, pageSize) => {
     let query = supabase
       .from('invoices')
       .select('*')
@@ -1607,19 +1652,12 @@ export async function getInvoices(options: InvoiceListOptions = {}): Promise<Inv
       .range(offset, offset + pageSize - 1)
     if (options.month !== undefined) query = query.eq('month', options.month)
     if (options.year !== undefined) query = query.eq('year', options.year)
-    const page = ((await safeQuery(() => query)) || []) as Invoice[]
-    invoices.push(...page)
-    if (page.length < pageSize) break
-    offset += pageSize
-  }
-  return invoices
+    return ((await safeQuery(() => query)) || []) as Invoice[]
+  })
 }
 
 export const getOutstandingInvoices = async (): Promise<Invoice[]> => {
-  const pageSize = 1000
-  const invoices: Invoice[] = []
-  let offset = 0
-  while (true) {
+  const invoices = await fetchAllPages<Invoice>(async (offset, pageSize) => {
     const page = (await safeQuery(() =>
       supabase
         .from('invoices')
@@ -1629,32 +1667,29 @@ export const getOutstandingInvoices = async (): Promise<Invoice[]> => {
         .order('year', { ascending: true })
         .order('month', { ascending: true })
         .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
         .range(offset, offset + pageSize - 1)
     )) as Invoice[]
-    invoices.push(...page)
-    if (page.length < pageSize) break
-    offset += pageSize
-  }
+    return page || []
+  })
   return invoices.filter((invoice) => invoice.total_amount > invoice.paid_amount)
 }
 
 export const getInvoiceMonthCounts = async (): Promise<Record<string, number>> => {
   const counts: Record<string, number> = {}
-  const pageSize = 1000
-  let offset = 0
-  while (true) {
+  const rows = await fetchAllPages(async (offset, pageSize) => {
     const data = await safeQuery(() =>
-      supabase.from('invoices').select('month,year').range(offset, offset + pageSize - 1)
+      supabase.from('invoices').select('month,year').order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
     )
     const page = (data || []) as Array<{ month?: number; year?: number }>
-    for (const row of page) {
+    return page
+  })
+  for (const row of rows) {
       if (!row.month || !row.year) continue
       const key = `${row.year}-${row.month}`
       counts[key] = (counts[key] || 0) + 1
     }
-    if (page.length < pageSize) break
-    offset += pageSize
-  }
   return counts
 }
 
@@ -1681,22 +1716,23 @@ export const getInvoiceMonthSummary = async (
     merged: 0,
     cancelled: 0
   }
-  const pageSize = 1000
-  let offset = 0
-  while (true) {
+  const rows = await fetchAllPages(async (offset, pageSize) => {
     const data = await safeQuery(() =>
       supabase
         .from('invoices')
         .select('payment_status,is_settlement')
         .eq('month', month)
         .eq('year', year)
+        .order('id', { ascending: true })
         .range(offset, offset + pageSize - 1)
     )
     const page = (data || []) as Array<{
       payment_status?: Invoice['payment_status']
       is_settlement?: boolean
     }>
-    for (const invoice of page) {
+    return page
+  })
+  for (const invoice of rows) {
       summary.total++
       if (invoice.is_settlement) summary.settlement++
       if (invoice.payment_status === 'merged') summary.merged++
@@ -1706,28 +1742,36 @@ export const getInvoiceMonthSummary = async (
       if (invoice.payment_status === 'unpaid') summary.unpaid++
       if (invoice.payment_status === 'partial') summary.partial++
     }
-    if (page.length < pageSize) break
-    offset += pageSize
-  }
   return summary
 }
 
 export const getRoomInvoices = async (): Promise<Invoice[]> => {
-  const data = await safeQuery(() =>
-    supabase.from('invoices').select('*').order('created_at', { ascending: false })
-  )
-  return data || []
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Invoice[]
+  })
 }
 
 export const getInvoicesByRoom = async (roomId: string): Promise<Invoice[]> => {
-  const data = await safeQuery(() =>
-    supabase
-      .from('invoices')
-      .select('*')
-      .eq('room_id', roomId)
-      .order('created_at', { ascending: false })
-  )
-  return data || []
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Invoice[]
+  })
 }
 
 export const confirmInvoiceDebt = async (invoice: Invoice): Promise<Invoice> => {
@@ -1977,7 +2021,18 @@ export const recordInvoicePayment = async (
   }
 
   const { data: billingVersion, error: billingError } = await supabase.rpc('invoice_debt_schema_version')
-  if (billingError || billingVersion !== 1) {
+  // Older production databases already have the atomic payment RPC but may not
+  // have the later schema-version helper. Do not block valid payments solely
+  // because that optional compatibility check is missing.
+  const missingSchemaVersionFunction = billingError && (
+    billingError.code === 'PGRST202' ||
+    billingError.code === '42883' ||
+    /could not find the function|function .* does not exist|schema cache/i.test(billingError.message || '')
+  )
+  if (billingError && !missingSchemaVersionFunction) {
+    throw new Error(normalizeRemoteErrorMessage(billingError.message))
+  }
+  if (!billingError && billingVersion !== 1) {
     throw new Error('Database chưa cập nhật nghiệp vụ chốt nợ. Cần chạy migration trước khi thu tiền; giao dịch này chưa được ghi nhận.')
   }
 
@@ -2074,14 +2129,18 @@ export const getRoomAssets = async (roomId: string): Promise<RoomAsset[]> => {
 }
 
 export const getAllRoomAssets = async (): Promise<RoomAsset[]> => {
-  const data = await safeQuery(() =>
-    supabase
-      .from('room_assets')
-      .select('*')
-      .gt('quantity', 0)
-      .order('sort_order', { ascending: true })
-  )
-  return data || []
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('room_assets')
+        .select('*')
+        .gt('quantity', 0)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as RoomAsset[]
+  })
 }
 
 export const addRoomAsset = async (data: Partial<RoomAsset>): Promise<RoomAsset> => {
@@ -2315,39 +2374,70 @@ export const getInvoicePaymentRecords = (invoice: Invoice): InvoicePaymentRecord
   invoice.payment_records || []
 
 export const getDebtEntries = async (): Promise<DebtEntryRecord[]> => {
-  const data = await safeQuery(() =>
-    supabase
-      .from('debt_entries')
-      .select('id,type,amount,reason,created_at')
-      .order('created_at', { ascending: false })
-  )
-  return (data || []) as DebtEntryRecord[]
+  try {
+    const data = await safeQuery(() =>
+      supabase
+        .from('debt_entries')
+        .select('id,type,amount,reason,note,created_at')
+        .order('created_at', { ascending: false })
+    )
+    return (data || []) as DebtEntryRecord[]
+  } catch (error) {
+    // Older production databases may not have received the optional note migration yet.
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const legacyData = await safeQuery(() =>
+      supabase
+        .from('debt_entries')
+        .select('id,type,amount,reason,created_at')
+        .order('created_at', { ascending: false })
+    )
+    return ((legacyData || []) as Omit<DebtEntryRecord, 'note'>[]).map((entry) => ({
+      ...entry,
+      note: ''
+    }))
+  }
 }
 
-export const createDebtEntry = async (entry: Omit<DebtEntryRecord, 'created_at'> & { created_at?: string }): Promise<DebtEntryRecord> => {
-  const result = await safeQuery(() =>
-    supabase
-      .from('debt_entries')
-      .insert({ ...entry, created_at: entry.created_at || new Date().toISOString() })
-      .select('id,type,amount,reason,created_at')
-      .single()
+const isMissingDebtNoteColumn = (error: unknown): boolean =>
+  /debt_entries\.note|column .*note does not exist/i.test(
+    error instanceof Error ? error.message : String(error)
   )
-  return result as unknown as DebtEntryRecord
+
+export const createDebtEntry = async (entry: Omit<DebtEntryRecord, 'created_at'> & { created_at?: string }): Promise<DebtEntryRecord> => {
+  const payload = { ...entry, created_at: entry.created_at || new Date().toISOString() }
+  try {
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').insert(payload).select('id,type,amount,reason,note,created_at').single()
+    )
+    return result as unknown as DebtEntryRecord
+  } catch (error) {
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const { note: _note, ...legacyPayload } = payload
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').insert(legacyPayload).select('id,type,amount,reason,created_at').single()
+    )
+    return { ...(result as unknown as Omit<DebtEntryRecord, 'note'>), note: '' }
+  }
 }
 
 export const updateDebtEntry = async (
   id: string,
-  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason'> & { created_at?: string }
+  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason' | 'note'> & { created_at?: string }
 ): Promise<DebtEntryRecord> => {
-  const result = await safeQuery(() =>
-    supabase
-      .from('debt_entries')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('id,type,amount,reason,created_at')
-      .single()
-  )
-  return result as unknown as DebtEntryRecord
+  const payload = { ...updates, updated_at: new Date().toISOString() }
+  try {
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').update(payload).eq('id', id).select('id,type,amount,reason,note,created_at').single()
+    )
+    return result as unknown as DebtEntryRecord
+  } catch (error) {
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const { note: _note, ...legacyPayload } = payload
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').update(legacyPayload).eq('id', id).select('id,type,amount,reason,created_at').single()
+    )
+    return { ...(result as unknown as Omit<DebtEntryRecord, 'note'>), note: '' }
+  }
 }
 
 export const deleteDebtEntry = async (id: string): Promise<void> => {
@@ -2413,19 +2503,33 @@ export function getCashTransactions(options: CashTransactionListOptions): Promis
 export async function getCashTransactions(
   options: CashTransactionListOptions = {}
 ): Promise<CashTransaction[]> {
-  let query = supabase
-    .from('cash_transactions')
-    .select('*')
-    .order('transaction_date', { ascending: false })
-  if (options.startDate) query = query.gte('transaction_date', options.startDate)
-  if (options.endDateExclusive) query = query.lt('transaction_date', options.endDateExclusive)
-  else if (options.endDate) query = query.lte('transaction_date', options.endDate)
   if (options.limit !== undefined) {
+    let query = supabase
+      .from('cash_transactions')
+      .select('*')
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: false })
+    if (options.startDate) query = query.gte('transaction_date', options.startDate)
+    if (options.endDateExclusive) query = query.lt('transaction_date', options.endDateExclusive)
+    else if (options.endDate) query = query.lte('transaction_date', options.endDate)
     const offset = Math.max(0, options.offset || 0)
     query = query.range(offset, offset + Math.max(0, options.limit - 1))
+    const data = await safeQuery(() => query)
+    return data || []
   }
-  const data = await safeQuery(() => query)
-  return data || []
+
+  return fetchAllPages(async (offset, pageSize) => {
+    let query = supabase
+      .from('cash_transactions')
+      .select('*')
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (options.startDate) query = query.gte('transaction_date', options.startDate)
+    if (options.endDateExclusive) query = query.lt('transaction_date', options.endDateExclusive)
+    else if (options.endDate) query = query.lte('transaction_date', options.endDate)
+    return ((await safeQuery(() => query)) || []) as CashTransaction[]
+  })
 }
 
 const validateCashTransactionTarget = (
@@ -2447,6 +2551,7 @@ export const createCashTransaction = async (
   data: Partial<CashTransaction>
 ): Promise<CashTransaction> => {
   validateCashTransactionTarget(data)
+  await validateCashExpenseBalance(data)
   const newTx = {
     ...data,
     id: createEntityId('tx'),
@@ -2464,9 +2569,10 @@ export const updateCashTransaction = async (
   updates: Partial<CashTransaction>
 ): Promise<CashTransaction> => {
   const current = (await safeQuery(() =>
-    supabase.from('cash_transactions').select('type,category,room_id').eq('id', id).single()
-  )) as Pick<CashTransaction, 'type' | 'category' | 'room_id'>
+    supabase.from('cash_transactions').select('*').eq('id', id).single()
+  )) as CashTransaction
   validateCashTransactionTarget({ ...current, ...updates })
+  await validateCashExpenseBalance({ ...current, ...updates }, current)
   const result = await safeQuery(() =>
     supabase
       .from('cash_transactions')
@@ -2480,6 +2586,32 @@ export const updateCashTransaction = async (
 
 export const deleteCashTransaction = async (id: string): Promise<void> => {
   await safeQuery(() => supabase.from('cash_transactions').delete().eq('id', id))
+}
+
+async function validateCashExpenseBalance(
+  next: Partial<CashTransaction>,
+  previous?: CashTransaction
+): Promise<void> {
+  if (next.type !== 'expense') return
+  if (next.payment_method !== 'cash' && next.payment_method !== 'transfer') {
+    throw new Error('Vui lòng chọn ví chi tiền.')
+  }
+  const amount = Number(next.amount)
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Số tiền phải lớn hơn 0.')
+  const summary = await getWalletBalanceSummary()
+  const balances = { cash: summary.cashBalance, transfer: summary.bankBalance }
+  // Remove the old entry before validating its replacement, including a source change.
+  if (previous) {
+    const settings = await getAppSettings()
+    if (!settings.opening_balance_date || previous.transaction_date >= settings.opening_balance_date) {
+      const method = previous.payment_method || 'cash'
+      balances[method] -= previous.type === 'income' ? previous.amount : -previous.amount
+    }
+  }
+  const available = balances[next.payment_method]
+  if (!Number.isFinite(available) || amount > available) {
+    throw new Error('Ví đã chọn không đủ tiền. Vào Ví để chuyển tiền giữa các ví trước khi chi.')
+  }
 }
 
 // =========================================================
@@ -2501,12 +2633,17 @@ export const getRoomMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
 
 export const getRoomMoveInReceiptRefs = async (): Promise<
   Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
-> => {
+> => fetchAllPages(async (offset, pageSize) => {
   const data = await safeQuery(() =>
-    supabase.from('move_in_receipts').select('id,room_id').order('created_at', { ascending: false })
+    supabase
+      .from('move_in_receipts')
+      .select('id,room_id')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
   )
   return (data || []) as Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
-}
+})
 
 export const getMoveInReceiptsByTenant = async (tenantId: string): Promise<MoveInReceipt[]> => {
   const data = await safeQuery(() =>
@@ -2582,6 +2719,15 @@ export const getWalletBalanceSummary = async (): Promise<WalletBalanceSummary> =
     getInvoices(),
     getAppSettings()
   ])
+  return buildWalletBalanceSummary(cashTransactions, invoices, appSettings)
+}
+
+/** Pure display calculation. Transaction validation still uses fresh remote reads above. */
+export const buildWalletBalanceSummary = (
+  cashTransactions: CashTransaction[],
+  invoices: Invoice[],
+  appSettings: AppSettings
+): WalletBalanceSummary => {
   const invoiceRows = invoices
     .filter((invoice) => invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged')
     .flatMap((invoice) =>
@@ -2735,9 +2881,78 @@ export const updateUserStatus = async (userId: string, status: UserStatus): Prom
 }
 export const updateUserProfile = async (
   userId: string,
-  data: { full_name: string }
+  data: { full_name: string; phone: string; notification_email: string; email_notifications_enabled: boolean; email_notification_preferences: EmailNotificationPreferences }
 ): Promise<AppUser> => {
-  return updateUser(userId, data)
+  const full_name = data.full_name.trim()
+  const phone = data.phone.trim()
+  const notification_email = data.notification_email.trim().toLowerCase()
+  if (!full_name) throw new Error('Vui lòng nhập họ và tên.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notification_email)) {
+    throw new Error('Vui lòng nhập Gmail nhận thông báo hợp lệ.')
+  }
+  if (phone && !/^\+?[\d\s().-]{8,20}$/.test(phone)) {
+    throw new Error('Số điện thoại không hợp lệ.')
+  }
+  return updateUser(userId, { full_name, phone, notification_email, email_notifications_enabled: data.email_notifications_enabled, email_notification_preferences: normalizeEmailNotificationPreferences(data.email_notification_preferences) })
+}
+
+export type EmailDeliveryStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'skipped'
+export interface EmailNotificationDelivery {
+  id: string
+  recipient_user_id: string
+  recipient_email: string
+  recipient_name: string
+  event_type: string
+  dedupe_key: string
+  subject: string
+  payload: Record<string, unknown>
+  status: EmailDeliveryStatus
+  provider?: string | null
+  error_message?: string | null
+  created_at: string
+  sent_at?: string | null
+}
+
+export const getEmailNotificationDeliveries = async (recipientUserId?: string): Promise<EmailNotificationDelivery[]> => {
+  let query = supabase.from('email_notification_deliveries').select('*').order('created_at', { ascending: false }).limit(100)
+  if (recipientUserId) query = query.eq('recipient_user_id', recipientUserId)
+  return (await safeQuery(() => query)) as EmailNotificationDelivery[]
+}
+
+export const sendEmailNotification = async (payload: {
+  recipientUserId: string
+  eventType: string
+  subject: string
+  html: string
+  dedupeKey: string
+  payload?: Record<string, unknown>
+  resend?: boolean
+}): Promise<{ ok: boolean; status?: string; error?: string; deliveryId?: string }> => {
+  const localGmail = typeof window !== 'undefined' ? window.api?.gmail : undefined
+  if (localGmail) {
+    const availability = await localGmail.getAvailability().catch(() => ({ available: false }))
+    if (availability.available) {
+      const { data: recipient, error: recipientError } = await supabase
+        .from('users')
+        .select('id,full_name,notification_email,email_notifications_enabled,email_notification_preferences')
+        .eq('id', payload.recipientUserId)
+        .single()
+      if (recipientError || !recipient?.notification_email) return { ok: false, error: 'Tài khoản chưa có Gmail nhận thông báo.' }
+      if (!recipient.email_notifications_enabled || recipient.email_notification_preferences?.[payload.eventType] === false) return { ok: false, error: 'Tài khoản đã tắt loại thông báo này.' }
+      if (!payload.resend) {
+        const { data: existing } = await supabase.from('email_notification_deliveries').select('id,status').eq('dedupe_key', payload.dedupeKey).maybeSingle()
+        if (existing) return { ok: true, status: 'skipped', deliveryId: existing.id }
+      }
+      const { data: sessionData } = await supabase.auth.getSession()
+      const { data: row, error: insertError } = await supabase.from('email_notification_deliveries').insert({ recipient_user_id: recipient.id, recipient_email: recipient.notification_email, recipient_name: recipient.full_name, event_type: payload.eventType, dedupe_key: payload.resend ? `${payload.dedupeKey}:${crypto.randomUUID()}` : payload.dedupeKey, subject: payload.subject, payload: payload.payload || {}, status: 'sending', created_by: sessionData.session?.user.id || null }).select('id').single()
+      if (insertError) return { ok: false, error: insertError.message }
+      const sent = await localGmail.sendNotification({ to: recipient.notification_email, subject: payload.subject, html: payload.html })
+      await supabase.from('email_notification_deliveries').update(sent.ok ? { status: 'sent', provider: 'gmail-local', provider_message_id: sent.messageId, sent_at: new Date().toISOString() } : { status: 'failed', error_message: sent.error || 'Gửi Gmail thất bại.' }).eq('id', row.id)
+      return sent.ok ? { ok: true, status: 'sent', deliveryId: row.id } : { ok: false, error: sent.error || 'Gửi Gmail thất bại.' }
+    }
+    return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
+  }
+  return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
 }
 export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
   const result = await invokeAdminBridge('admin_reset_password', { userId, password: newPassword })
@@ -2789,7 +3004,9 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
 
   const { data: profile, error: profileError } = await supabase
     .from('users')
-    .select('*')
+    .select(
+      'id,username,email,phone,notification_email,email_notifications_enabled,email_notification_preferences,full_name,avatar_url,role,status,last_login_at,created_at'
+    )
     .eq('id', user.id)
     .maybeSingle()
 
@@ -2921,7 +3138,13 @@ export const invokeAdminBridge = async (
       headers: { Authorization: `Bearer ${await getCurrentAccessToken()}` }
     }
   )
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    const message = String(error.message || '')
+    if (/failed to send (a )?request|edge function|function not found|404/i.test(message)) {
+      return { ok: false, error: 'Máy chủ gửi email chưa được triển khai. Hãy deploy Edge Function send-email-notification trên Supabase rồi thử lại.' }
+    }
+    return { ok: false, error: message || 'Không kết nối được máy chủ gửi email.' }
+  }
   return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ.' }
 }
 

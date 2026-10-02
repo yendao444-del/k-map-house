@@ -116,6 +116,12 @@ interface ZaloAPI {
   ) => Promise<{ ok: boolean; error?: string; imagePath?: string; phone?: string }>
 }
 
+interface GmailAPI {
+  getAvailability: () => Promise<{ available: boolean; authenticated?: boolean; reason?: string }>
+  reauthenticate: () => Promise<{ ok: boolean; error?: string }>
+  sendNotification: (payload: { to: string; subject: string; html: string }) => Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; messageId?: string }>
+}
+
 interface UpdateCheckResult {
   currentVersion: string
   latestVersion: string
@@ -201,6 +207,8 @@ interface TtsAPI {
 }
 
 interface PerfAPI {
+  markStartup: (name: string) => void
+  benchmarkMode: boolean
   getMetrics: () => Promise<{
     capturedAt: string
     sender?: {
@@ -231,6 +239,7 @@ declare global {
       investment: InvestmentAPI
       marketData: MarketDataAPI
       zalo: ZaloAPI
+      gmail: GmailAPI
       invoice: InvoiceAPI
       tts: TtsAPI
       perf: PerfAPI

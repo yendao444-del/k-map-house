@@ -1,5 +1,10 @@
 # Review toc do va dung luong Electron - 2026-09-28
 
+> Đính chính 2026-10-01: các số startup 2.09s/2.04s ở cuối báo cáo này
+> đến từ sleep/safe-window smoke test, không đo readiness của ứng dụng.
+> Không dùng chúng để tính mức tăng tốc hay kết luận đạt mục tiêu dưới 3 giây.
+> Báo cáo và phép đo thay thế: STARTUP-REVIEW-2026-10-01.md.
+
 ## Pham vi va bang chung
 
 Review tinh tren source hien tai va artifact co san; khong sua code app, khong build de ghi de artifact, khong chay app hay ghi Supabase. Worktree co nhieu thay doi dang do; bao cao khong hoan tac cac thay doi do.

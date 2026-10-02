@@ -1,0 +1,7 @@
+Invoke-RestMethod: 
+{
+  "error": {
+    "message": "[codex/gpt-5.6-sol-image] [502]: fetch failed (cause: SELF_SIGNED_CERT_IN_CHAIN: self-signed certificate in certificate chain) (reset after 30s)"
+  }
+}
+
