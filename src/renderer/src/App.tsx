@@ -4254,7 +4254,7 @@ const App: React.FC = () => {
                                   if (room.status === 'vacant') {
                                     return <span className="text-gray-300 text-xs">—</span>
                                   }
-                                  const debt = (invoicesByRoomId.get(room.id) || [])
+                                  const outstandingInvoices = (invoicesByRoomId.get(room.id) || [])
                                     .filter(
                                       (i) =>
                                         i.payment_status !== 'paid' &&
@@ -4264,12 +4264,70 @@ const App: React.FC = () => {
                                         (!activeContract?.tenant_id ||
                                           i.tenant_id === activeContract.tenant_id)
                                     )
-                                    .reduce(
-                                      (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
-                                      0
-                                    )
+                                  const debt = outstandingInvoices.reduce(
+                                    (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
+                                    0
+                                  )
+                                  const debtTooltip = outstandingInvoices
+                                    .filter((invoice) => invoice.total_amount > invoice.paid_amount)
+                                    .sort((a, b) => a.year - b.year || a.month - b.month)
+                                    .map((invoice) => {
+                                      const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                                      const status = invoice.payment_status === 'partial' ? 'Còn thiếu' : 'Chưa thu'
+                                      const purpose = isDepositOnlyInvoice(invoice)
+                                        ? 'tiền cọc '
+                                        : invoice.is_settlement || invoice.billing_reason === 'contract_end'
+                                          ? 'hóa đơn tất toán '
+                                          : ''
+                                      return `${status} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`
+                                    })
+                                    .join('\n')
+                                  const debtMonths = new Map<string, { month: number; year: number; amount: number; details: string[] }>()
+                                  const monthChipColors = [
+                                    'from-sky-500 to-blue-600 shadow-sky-200/80 ring-sky-300/70',
+                                    'from-violet-500 to-purple-600 shadow-violet-200/80 ring-violet-300/70',
+                                    'from-fuchsia-500 to-pink-600 shadow-fuchsia-200/80 ring-fuchsia-300/70',
+                                    'from-pink-500 to-rose-600 shadow-pink-200/80 ring-pink-300/70',
+                                    'from-rose-500 to-red-600 shadow-rose-200/80 ring-rose-300/70',
+                                    'from-orange-500 to-amber-600 shadow-orange-200/80 ring-orange-300/70',
+                                    'from-amber-500 to-yellow-600 shadow-amber-200/80 ring-amber-300/70',
+                                    'from-lime-500 to-green-600 shadow-lime-200/80 ring-lime-300/70',
+                                    'from-emerald-500 to-green-600 shadow-emerald-200/80 ring-emerald-300/70',
+                                    'from-teal-500 to-cyan-600 shadow-teal-200/80 ring-teal-300/70',
+                                    'from-cyan-500 to-sky-600 shadow-cyan-200/80 ring-cyan-300/70',
+                                    'from-indigo-500 to-blue-700 shadow-indigo-200/80 ring-indigo-300/70'
+                                  ]
+                                  for (const invoice of outstandingInvoices) {
+                                    const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                                    if (remaining <= 0) continue
+                                    const key = `${invoice.year}-${invoice.month}`
+                                    const period = debtMonths.get(key) || { month: invoice.month, year: invoice.year, amount: 0, details: [] }
+                                    period.amount += remaining
+                                    const purpose = isDepositOnlyInvoice(invoice) ? 'tiền cọc ' : invoice.is_settlement || invoice.billing_reason === 'contract_end' ? 'hóa đơn tất toán ' : ''
+                                    period.details.push(`${invoice.payment_status === 'partial' ? 'Còn thiếu' : 'Chưa thu'} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`)
+                                    debtMonths.set(key, period)
+                                  }
                                   return debt > 0 ? (
-                                    <span className="text-red-500">{formatVND(debt)} đ</span>
+                                    <span className="inline-flex flex-col items-end gap-0.5">
+                                      <span className="flex max-w-[120px] flex-wrap items-center justify-end gap-1" aria-label={debtTooltip.replace(/\n/g, '. ')}>
+                                        {Array.from(debtMonths.values()).sort((a, b) => a.year - b.year || a.month - b.month).map((period) => (
+                                            <span
+                                              key={`${period.year}-${period.month}`}
+                                              title={period.details.join('\n')}
+                                              aria-label={`Tháng ${period.month}/${period.year}`}
+                                              className={`inline-flex h-[18px] min-w-[23px] cursor-help items-center justify-center rounded-md bg-gradient-to-br px-1.5 text-[10px] font-black leading-none tracking-tight text-white shadow-sm ring-1 ring-inset transition-transform hover:-translate-y-px hover:shadow-md ${monthChipColors[(period.month - 1) % monthChipColors.length]}`}
+                                            >
+                                              {period.month}{period.year !== new Date().getFullYear() ? `/${String(period.year).slice(-2)}` : ''}
+                                            </span>
+                                        ))}
+                                      </span>
+                                      <span
+                                        className="cursor-help text-red-500 underline decoration-dotted underline-offset-2"
+                                        title={`${debtTooltip}\nTổng còn phải thu: ${formatVND(debt)} đ`}
+                                      >
+                                        {formatVND(debt)} đ
+                                      </span>
+                                    </span>
                                   ) : (
                                     <span className="text-gray-400">0 đ</span>
                                   )

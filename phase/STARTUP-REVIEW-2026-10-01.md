@@ -273,10 +273,27 @@ wave có giới hạn, thứ tự ổn định và đầy đủ trang. Việc n�
 vượt ngưỡng PostgREST, đồng thời cho phép cache dùng chung của các tab nhận đúng
 tập dữ liệu. Không thay đổi các truy vấn ghi hoặc dữ liệu production.
 
-Cập nhật phạm vi kiểm thử: test reader/cache sau C10 đạt **15/15**. Cấu hình
-benchmark hiện vẫn ghi đè một file và hash riêng ASAR; chưa đủ để so sánh cold
-giữa máy. Không tính mốc `<3s` cho authenticated data, DOM hay module click-to-
-interactive cho tới khi có fixture/e2e cô lập tương ứng.
+Cập nhật phạm vi kiểm thử: reader/cache và fixture database đạt **18/18**.
+Fixture dùng chính export của `db.ts`, mô phỏng PostgREST cắt response ở 1.000
+dòng và xác nhận đủ 2.505 dòng từng reader. Không tính mốc `<3s` cho dữ liệu sau
+đăng nhập, DOM hay thao tác từng module cho tới khi có e2e cô lập tương ứng.
+
+### Cập nhật Phase C12 — giảm chờ preload và sửa chứng cứ đo
+
+Vấn đề: sau paint, code tab có thể bị chậm thêm giây khi chờ idle và nạp chunk.
+Đã bỏ requestIdleCallback/fallback 1,2s, nạp nền 19 import bằng task sau React
+commit. Không mount tab hoặc chạy effect nghiệp vụ. Task này không đảm bảo
+paint chạy trước import; vì vậy hai mốc được đo riêng. Phiên nóng cho thấy
+code không còn chờ 400ms giữa hai wave. Biến thiên giữa các lượt đầu vẫn lớn,
+không quy toàn bộ cải thiện cold cho thay đổi preload.
+
+Benchmark lưu bản riêng trong `phase/benchmarks` mỗi lần, ngoài file kết quả
+mới nhất. Hash ASAR/EXE/unpacked được tính sau các lượt đo để tránh chủ động
+đọc và làm nóng file trước launch. Verifier ghi cả tổng dung lượng cài đặt,
+không coi chuyển byte từ ASAR sang unpacked là giảm dung lượng tổng.
+
+Version source đổi sang 1.0.98 trong lúc đóng gói; verifier đã từ chối artifact
+1.0.97 thiếu đồng bộ. Đã đóng gói lại và verifier xác nhận bản 1.0.98 hiện tại.
 
 ### Đo lại sau C10
 
@@ -316,24 +333,25 @@ chốt mục tiêu toàn bộ module dưới 3 giây.
 
 ## Phép đo bản cuối
 
-`scripts/benchmark-electron-start.ps1 -Runs 5 -Mode software -TimeoutSeconds 10`,
-profile test mới mỗi lần, sau đó `-Runs 3 -Mode gpu`. Các lần sau vẫn được lợi từ
+`scripts/benchmark-electron-start.ps1 -Runs 3 -Mode both -TimeoutSeconds 12`,
+profile test mới mỗi lần. Các lần sau vẫn được lợi từ
 cache OS; không coi profile mới là cold boot toàn máy. Toàn bộ lượt hoàn thành
 scope login/code, không có marker authenticated hay data-ready.
 
 | Chế độ / lần | Login sau paint (s) | Code module ready (s) | Main working set (MB) |
 |---|---:|---:|---:|
-| Software 1–2 — lần chạy mới nhất | 0.38–0.38 | 0.39–0.39 | 101.4–104.1 |
-| GPU 1–2 | 0.39–0.68 | 0.34–0.40 | 101.2–101.6 |
+| Software 1 — package profile mới nhất | 3.53 | 3.54 | 99.5 |
+| Software 2–3 — warm | 0.32–0.40 | 0.33–0.41 | 99.5–102.6 |
+| GPU 1–3 | 0.35–0.64 | 0.31–0.34 | 99.3–102.1 |
 
-Hash ASAR: `F3977525EEB871CCA62229384562D60AFBFCC3DBFD11CA1F29811FC1B1EE6423`.
+Hash ASAR: `299FC3B956ADAA79008C1D8417923C6F627033540DDCD6D0F2DC8170D42B2C91`.
 Raw report: `electron-start-benchmark.json`. Không có benchmark before/after
 cùng source/dataset/máy nên **chưa tính phần trăm tăng tốc**. RAM trên đây chỉ
 main và được lấy ở một thời điểm; không so sánh tổng RAM/scroll FPS bằng nó.
 
-Verifier package hiện tại: installer **113,813,320 bytes**, ASAR vật lý
-**4,379,083 bytes**, file logic trong ASAR **5,243,491 bytes**, phần unpacked
-**944,792 bytes**, tổng cây `dist/win-unpacked` **390,647,930 bytes**. Byte
+Verifier package hiện tại: installer **113,813,597 bytes**, ASAR vật lý
+**4,380,390 bytes**, file logic trong ASAR **5,244,862 bytes**, phần unpacked
+**944,856 bytes**, tổng cây dist/win-unpacked **390,649,301 bytes**. Byte
 unpacked là phần tách khỏi ASAR, không được tính là giảm tổng dung lượng cài đặt.
 
 ## Kiểm chứng và thứ tự tiếp theo
@@ -341,11 +359,14 @@ unpacked là phần tách khỏi ASAR, không được tính là giảm tổng d
 - Typecheck node/web và Vite build: đạt; package Windows dùng `--publish never`.
 - Verifier package: đạt với version và size bên trên; runtime graph không
   có dependency Google bị loại.
-- Toàn bộ suite chạy với `node --test scripts/*.test.cjs scripts/room-list-summary.test.mjs`:
-  **70 test đạt, 1 skip có chủ ý, 0 lỗi**. Nhóm mới bao gồm startup/Gmail/
+- Toàn bộ suite chạy với `node --test scripts/*.test.cjs scripts/*.test.mjs`:
+  **74 test đạt, 1 skip có chủ ý, 0 lỗi**. Nhóm mới bao gồm startup/Gmail/
   isolation, cache/ledger, SePay safety, invoice debt, room summary và release
   artifacts. Test dùng mock/fixture, không kết nối database production.
 - Không chạy thử gửi mail, gọi TTS, updater install hoặc giao dịch đầu tư thật.
+- `npm run lint` trước đó không đạt: 571 errors, 16.666 warnings trên toàn repo.
+  Chưa xác định hết nguồn gốc từng lỗi; không tự format hàng loạt hoặc gọi kết
+  quả lint là đạt. Typecheck và test đạt không thay thế kiểm tra này.
 - Package smoke benchmark cuối: 3/3 software và 3/3 GPU đạt `login-painted` và
   `module-code-ready`; trước đó có thêm lượt software 5/5 đạt cùng mốc. Không
   còn tiến trình DBY HOME sau cleanup. Môi trường PowerShell được khôi phục.
@@ -356,12 +377,3 @@ module và tránh request trùng ở số dư đầu tư; (4) đo cold-start/DOM
 quyết định virtualization/GPU. Chỉ chốt đạt mục tiêu khi từng module thao tác
 được với dữ liệu đúng dưới 3s trong bộ kịch bản được ghi rõ. Mất mạng/API ngoài
 không thể đảm bảo có dữ liệu mới trong 3s; cache cũ phải được nhận diện rõ.
-
-
-Lượt đầu sau build/package ngay trước lần đo này từng ghi **1,86s paint / 1,87s
-module code**; hai lần hiện tại đã hưởng cache hệ điều hành. Không coi bảng warm
-trên là bằng chứng cold boot toàn máy.
-Đã thêm fixture reader chạy qua chính export database với mô phỏng giới hạn
-1.000 dòng: 2.505 dòng được trả đủ cho từng reader, kiểm tra boundary ngày ví,
-projection active contract và loại trang speculative. Bộ test này không khởi tạo
-Supabase/auth và không gọi writer.

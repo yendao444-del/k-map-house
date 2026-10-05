@@ -21,6 +21,8 @@ import { EditInvoiceModal } from './EditInvoiceModal'
 import { InvoiceDetailModal } from './InvoiceDetailModal'
 import { SePaySyncModal } from './SePaySyncModal'
 import { LogoLoading } from './LogoLoading'
+import { PriorInvoiceDebt } from './PriorInvoiceDebt'
+import { getPriorOutstandingInvoices } from '../lib/invoiceDebt'
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer'
 import { readInvoiceMonthCounts, readInvoiceMonthSummary, seedInvoiceMonthPage } from '../lib/invoice-summary-query'
 import logoNgang from '../assets/an_khang_home_logo_ngang.png'
@@ -687,12 +689,15 @@ export const InvoicesTab: React.FC<{
     () => invoicePages?.pages.flatMap((page) => page) || [],
     [invoicePages]
   )
-  const { data: outstandingInvoices = [], isLoading: outstandingLoading } = useQuery({
+  const { data: outstandingInvoices = [], isLoading: outstandingLoading, error: outstandingError, refetch: refetchOutstanding } = useQuery({
     queryKey: ['invoices', 'outstanding'],
     queryFn: getOutstandingInvoices,
-    enabled: debtView,
     staleTime: 15_000
   })
+  const priorOutstandingInvoices = useMemo(
+    () => getPriorOutstandingInvoices(outstandingInvoices, selectedMonth, selectedYear),
+    [outstandingInvoices, selectedMonth, selectedYear]
+  )
   const loadingAllPagesRef = useRef<Promise<void> | null>(null)
   const loadAllInvoicePages = async (): Promise<void> => {
     if (loadingAllPagesRef.current) return loadingAllPagesRef.current
@@ -908,7 +913,7 @@ export const InvoicesTab: React.FC<{
   const [visibleInvoiceCount, setVisibleInvoiceCount] = useState(100)
   useEffect(() => {
     setVisibleInvoiceCount(100)
-  }, [debtView, searchQuery, sortOrder, filters])
+  }, [debtView, selectedMonth, selectedYear, searchQuery, sortOrder, filters])
   const visibleInvoices = useMemo(
     () => filteredInvoices.slice(0, visibleInvoiceCount),
     [filteredInvoices, visibleInvoiceCount]
@@ -1173,6 +1178,27 @@ export const InvoicesTab: React.FC<{
             <i className="fa-solid fa-magnifying-glass absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
           </div>
         </div>
+
+        {!debtView && (
+          <>
+            <PriorInvoiceDebt
+              invoices={priorOutstandingInvoices}
+              month={selectedMonth}
+              year={selectedYear}
+              roomById={roomById}
+              tenantById={tenantById}
+              searchQuery={searchQuery}
+              loading={outstandingLoading}
+              error={outstandingError}
+              onRetry={() => { void refetchOutstanding() }}
+              onPay={setPayingInvoice}
+              onView={setViewingInvoice}
+            />
+            <h3 className="border-b border-gray-100 px-4 py-3 text-sm font-bold text-gray-800">
+              Hóa đơn tháng {selectedMonth}/{selectedYear}
+            </h3>
+          </>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto min-h-[300px]">

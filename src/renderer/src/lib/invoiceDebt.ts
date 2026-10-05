@@ -9,6 +9,23 @@ export const isOutstandingInvoice = (
   (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial') &&
   Number(invoice.total_amount || 0) > Number(invoice.paid_amount || 0)
 
+export const getPriorOutstandingInvoices = (
+  invoices: Invoice[],
+  month: number,
+  year: number
+): Invoice[] =>
+  invoices
+    .filter(
+      (invoice) =>
+        isOutstandingInvoice(invoice) && invoicePeriodNumber(invoice) < year * 12 + month
+    )
+    .sort(
+      (left, right) =>
+        invoicePeriodNumber(left) - invoicePeriodNumber(right) ||
+        left.created_at.localeCompare(right.created_at) ||
+        left.id.localeCompare(right.id)
+    )
+
 export const isBillingPeriodInvoice = (
   invoice: Pick<Invoice, 'billing_reason' | 'is_first_month' | 'is_settlement'>
 ): boolean =>
