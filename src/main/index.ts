@@ -12,8 +12,10 @@ import {
 } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { registerDevGmailHandlers } from './gmail-dev'
+import { registerDevGmailHandlers, startDevGmailOAuth } from './gmail-dev'
 import { reportTelegramError } from './telegram-reporter'
+import { registerTenantIdentityHandlers } from './tenant-identity-handlers'
+import { registerContractTestLauncher } from './contract-test-launcher'
 
 type MarketScanRequest = {
   propertyAddress: string
@@ -34,6 +36,16 @@ const writeStartupMark = (name: string): void => {
   }
 }
 writeStartupMark('main-module-evaluated')
+const contractTestMode = process.env.KMAP_CONTRACT_TEST === '1'
+if (contractTestMode) {
+  if (process.env.VITE_SUPABASE_URL !== 'https://gsianbstkmyutnhromwc.supabase.co' || process.env.VITE_CONTRACT_DB_SCHEMA !== 'ankhang_contract_test') throw new Error('Invalid Electron TEST backend.')
+  const profile = resolve(process.env.KMAP_CONTRACT_TEST_PROFILE || '')
+  if (basename(profile) !== '.contract-test-profile' || basename(dirname(profile)) !== 'webmobile') throw new Error('TEST requires its own webmobile profile.')
+  app.setName('ankhang-contract-test')
+  for (const [name, target] of [['userData', profile], ['sessionData', join(profile,'sessions')]] as const) {
+    mkdirSync(target,{recursive:true}); app.setPath(name,target)
+  }
+}
 if (benchmarkMode) {
   const profile = resolve(process.env.KMAP_BENCHMARK_PROFILE || '.')
   if (dirname(profile).toLowerCase() !== resolve(tmpdir()).toLowerCase() ||
@@ -1248,9 +1260,9 @@ function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: false,
+    show: contractTestMode,
     autoHideMenuBar: true,
-    title: 'AN KHANG HOME',
+    title: contractTestMode ? 'AN KHANG HOME · ELECTRON TEST · Phòng 999' : 'AN KHANG HOME',
     backgroundColor: '#ffffff',
     icon: useSafeWindow ? undefined : icon,
     ...(useCustomTitleBar
@@ -1270,6 +1282,10 @@ function createWindow(): void {
       nodeIntegration: false,
       contextIsolation: true
     }
+  })
+
+  if (contractTestMode) mainWindow.on('page-title-updated', event => {
+    event.preventDefault()
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -1400,12 +1416,12 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   writeStartupMark('app-ready')
   // Keep the runtime app name aligned with electron-builder so Windows uses
   // the packaged DBY HOME identity for the taskbar entry and shortcuts.
-  app.setName('DBY HOME')
+  app.setName(contractTestMode ? 'ankhang-contract-test' : 'DBY HOME')
   writeCrashLog('app:startup', {
     version: app.getVersion(), appPath: app.getAppPath(), executable: process.execPath,
     electron: process.versions.electron, hardwareAcceleration: app.isHardwareAccelerationEnabled()
   })
-  electronApp.setAppUserModelId('com.kmaphouse.app')
+  electronApp.setAppUserModelId(contractTestMode ? 'com.kmaphouse.contracttest' : 'com.kmaphouse.app')
   writeDebugLog('app:ready', { version: app.getVersion(), userData: app.getPath('userData') })
   ensureDBLocation()
 
@@ -1429,14 +1445,31 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   setupPerformanceHandlers()
   setupWindowThemeHandlers()
   registerDevGmailHandlers()
+  registerTenantIdentityHandlers()
+  registerContractTestLauncher()
   writeStartupMark('all-ipc-ready')
   createWindow()
   writeStartupMark('window-created')
 
+  // Explicit local TEST diagnostic: consent is completed by the user in the
+  // browser; tokens remain encrypted in this Electron TEST profile.
+  if ((contractTestMode && process.env.KMAP_TEST_GMAIL_CONNECT === '1') || process.env.KMAP_GMAIL_CONNECT === '1') {
+    void startDevGmailOAuth({ openBrowser: false }).then(result => {
+      writeFileSync(join(app.getPath('userData'), 'gmail-connect-result.json'), JSON.stringify(result))
+    })
+  }
+
   // Optional network/update services load after the first window is created;
   // their IPC handlers are ready before the user can reach those settings.
-  void import('./update-handlers').then(({ registerUpdateHandlers }) => registerUpdateHandlers())
-  void import('./telegram-ultraviewer').then(({ startTelegramUltraViewerBot }) => {
+  if (!contractTestMode) void import('./update-handlers').then(({ registerUpdateHandlers }) => registerUpdateHandlers())
+  else {
+    ipcMain.handle('update:getResult', () => null)
+    ipcMain.handle('update:getCurrentVersion', () => app.getVersion())
+    ipcMain.handle('update:getHistory', () => [])
+    ipcMain.handle('update:check', () => ({ ok: false, error: 'Môi trường TEST không kiểm tra cập nhật.' }))
+    ipcMain.handle('update:installLatest', () => ({ ok: false, error: 'Môi trường TEST không cài cập nhật.' }))
+  }
+  if (!contractTestMode) void import('./telegram-ultraviewer').then(({ startTelegramUltraViewerBot }) => {
     const stopTelegramUltraViewerBot = startTelegramUltraViewerBot()
     app.once('before-quit', stopTelegramUltraViewerBot)
   })

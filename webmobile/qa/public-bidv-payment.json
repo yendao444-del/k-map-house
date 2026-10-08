@@ -1,0 +1,42 @@
+{
+  "checkedAt": "2026-10-07T04:28:36.143Z",
+  "host": "https://phongtroankhang.com",
+  "realBankQr": true,
+  "realSettlement": false,
+  "checks": [
+    {
+      "meter": "electric",
+      "status": 200,
+      "ok": true,
+      "reading": 12692
+    },
+    {
+      "meter": "water",
+      "status": 200,
+      "ok": true,
+      "reading": 287
+    },
+    {
+      "step": "invoice",
+      "status": 200,
+      "total": 3472000,
+      "qrKind": "bank",
+      "bank": "BIDV",
+      "owner": "Đỗ Kim Ngân",
+      "accountMatchesElectron": true
+    },
+    {
+      "step": "reload",
+      "status": 200,
+      "qrPreserved": true,
+      "recipientPreserved": true
+    }
+  ],
+  "decodedQrChecks": {
+    "decoded": true,
+    "bankMatches": true,
+    "accountMatches": true,
+    "amountMatches": true,
+    "contentMatches": true
+  }
+}

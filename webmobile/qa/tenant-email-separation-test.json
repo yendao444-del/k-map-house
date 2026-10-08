@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-08T04:18:06.855Z",
+  "project": "gsianbstkmyutnhromwc",
+  "passed": true,
+  "checks": [
+    "case/trim normalization",
+    "inactive staff reserved",
+    "tenant insert and update",
+    "draft insert and update",
+    "legacy send blocked without confirmation row",
+    "legacy acceptance rolls back room activation",
+    "legacy claim blocked before Auth creation",
+    "reciprocal staff creation blocked",
+    "portal provision and enrollment allowed",
+    "anonymous lookup denied",
+    "staff-only verdict RPC"
+  ],
+  "access": {
+    "anon_check": false,
+    "staff_internal": false,
+    "staff_check": true
+  },
+  "fixturesRolledBack": true,
+  "emailsSent": false
+}

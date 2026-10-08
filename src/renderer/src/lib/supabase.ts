@@ -27,7 +27,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Thiếu biến môi trường Supabase.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: { schema: import.meta.env.VITE_CONTRACT_DB_SCHEMA || 'public' }
+})
 
 export const isPasswordRecoveryRedirect = (): boolean => openedFromPasswordRecoveryLink
 

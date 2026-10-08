@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-10-07T03:58:08.624Z",
+  "results": [
+    {
+      "target": "https://phongtroankhang.com",
+      "healthStatus": 200,
+      "state": {
+        "ok": true,
+        "mode": "demo",
+        "backend": "online",
+        "ocrConfigured": true,
+        "provider": "gemini",
+        "realPayments": false,
+        "realTenantData": false
+      }
+    },
+    {
+      "target": "https://www.phongtroankhang.com",
+      "healthStatus": 200,
+      "state": {
+        "ok": true,
+        "mode": "demo",
+        "backend": "online",
+        "ocrConfigured": true,
+        "provider": "gemini",
+        "realPayments": false,
+        "realTenantData": false
+      }
+    },
+    {
+      "target": "https://ankhanghome-payment.pages.dev",
+      "healthStatus": 200,
+      "state": {
+        "ok": true,
+        "mode": "demo",
+        "backend": "online",
+        "ocrConfigured": true,
+        "provider": "gemini",
+        "realPayments": false,
+        "realTenantData": false
+      }
+    }
+  ],
+  "ocrFlowEvidence": "qa/public-cloud-ocr-flow.json"
+}

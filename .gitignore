@@ -41,6 +41,11 @@ typings/
 .env.test.local
 .env.production.local
 .env.local
+.env.contract-test.local
+.contract-test-profile/
+.contract-test-out/
+dist-contract-test/
+webmobile/qa/private/
 
 # next.js
 .next
@@ -87,6 +92,13 @@ desktop.ini
 dist
 release
 out
+
+# Local identity-card fixtures and generated test evidence may contain PII.
+webmobile/test image/
+webmobile/qa/private/
+webmobile/qa/implementation-populated.jpg
+webmobile/qa/design-comparison.jpg
+webmobile/.ocr-cache/
 
 # Build files
 *.exe

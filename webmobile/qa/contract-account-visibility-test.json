@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-08T04:18:05.401Z",
+  "passed": true,
+  "project": "gsianbstkmyutnhromwc",
+  "checks": [
+    "confirmed contract remains visible when no account",
+    "pending account visible to staff",
+    "unchanged email cannot justify cancellation",
+    "updated profile warns old link uses old email",
+    "incorrect reference rejected",
+    "wrong email cancellation audited",
+    "room released and old link revoked",
+    "notice retained for original recipient without sending"
+  ],
+  "fixturesRolledBack": true,
+  "emailsSent": false
+}

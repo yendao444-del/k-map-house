@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-07T13:35:35.707Z",
+  "checks": [
+    {
+      "url": "https://pay.phongtroankhang.com/contract-confirmation",
+      "status": 200
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/api/contract-confirmation",
+      "status": 410
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/api/contract-confirmation",
+      "status": 400
+    },
+    {
+      "url": "https://wtrycmiojsiliyjxsewz.supabase.co/functions/v1/contract-confirmation/availability",
+      "status": 401
+    },
+    {
+      "url": "https://wtrycmiojsiliyjxsewz.supabase.co/rest/v1/rpc/contract_confirmation_accept",
+      "status": 401
+    }
+  ],
+  "wroteBusinessData": false,
+  "sentEmail": false
+}

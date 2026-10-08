@@ -1,0 +1,1 @@
+import '../email-premium/review'

@@ -44,6 +44,7 @@ import {
 import { announcePaymentAmount } from './lib/sound'
 import { EditableCell } from './components/EditableCell'
 import { LogoLoading } from './components/LogoLoading'
+import { ContractLeaveDialog } from './components/ContractLeaveDialog'
 
 import { LoginScreen } from './components/LoginScreen'
 import { setupRealtime } from './lib/realtime'
@@ -54,6 +55,8 @@ import {
 } from './lib/invoiceTransfer'
 import { getRoomListSummary } from './lib/room-list-summary'
 import { findDebtToConfirm, isOutstandingInvoice } from './lib/invoiceDebt'
+import { useSepayEmailNotifications } from './lib/use-sepay-email-notifications'
+import type { ContractDraft } from './lib/contract-draft'
 import logoNavbar from './assets/an_khang_home_logo.png'
 import { isPasswordRecoveryRedirect } from './lib/supabase'
 import { markAfterPaint, markStartup } from './lib/startup-perf'
@@ -71,6 +74,7 @@ const PaymentModal = lazy(() =>
   import('./components/PaymentModal').then((module) => ({ default: module.PaymentModal }))
 )
 const NewContractModal = lazy(() => import('./components/NewContractModal'))
+const NewContractPage = lazy(() => import('./components/NewContractPage'))
 const EndContractNoticeModal = lazy(() =>
   import('./components/EndContractNoticeModal').then((module) => ({
     default: module.EndContractNoticeModal
@@ -128,6 +132,7 @@ const backgroundChunkPreloaders = [
   () => import('./components/RoomDetailsModal'),
   () => import('./components/PaymentModal'),
   () => import('./components/NewContractModal'),
+  () => import('./components/NewContractPage'),
   () => import('./components/EndContractNoticeModal'),
   () => import('./components/TerminateContractModal'),
   () => import('./components/CancelContractModal'),
@@ -1491,6 +1496,9 @@ const App: React.FC = () => {
   } = useQuery({
     queryKey: ['activeContracts'],
     queryFn: getActiveContracts,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: isPageVisible ? 15000 : false,
     enabled: canLoadData
   })
   const { data: moveInReceipts = [], isSuccess: receiptsSuccess } = useQuery({
@@ -1681,7 +1689,10 @@ const App: React.FC = () => {
   const [newContractSeed, setNewContractSeed] = useState<{
     tenantId?: string
     moveInDate?: string
+    draft?: ContractDraft
   } | null>(null)
+  const contractPageDirtyRef = React.useRef(false)
+  const [contractLeaveTarget, setContractLeaveTarget] = useState<AppTab | null>(null)
   const [endNoticeRoom, setEndNoticeRoom] = useState<Room | null>(null)
   const [terminateRoom, setTerminateRoom] = useState<Room | null>(null)
   const [cancelContractRoom, setCancelContractRoom] = useState<Room | null>(null)
@@ -1725,7 +1736,12 @@ const App: React.FC = () => {
     []
   )
 
-  const requestActiveTab = (tab: AppTab) => {
+  const completeActiveTab = (tab: AppTab) => {
+    if (newContractRoom) {
+      setNewContractRoom(null)
+      setNewContractSeed(null)
+      contractPageDirtyRef.current = false
+    }
     const pendingAssetReceive = assetReceivePendingRef.current || assetReceivePending
     if (activeTab === 'assets' && tab !== 'assets' && pendingAssetReceive) {
       setAssetLeavePrompt({ pending: pendingAssetReceive, targetTab: tab })
@@ -1733,6 +1749,14 @@ const App: React.FC = () => {
     }
 
     setActiveTab(tab)
+  }
+
+  const requestActiveTab = (tab: AppTab) => {
+    if (newContractRoom && contractPageDirtyRef.current) {
+      setContractLeaveTarget(tab)
+      return
+    }
+    completeActiveTab(tab)
   }
 
   const openPendingAssetReceive = () => {
@@ -2113,6 +2137,15 @@ const App: React.FC = () => {
       }
       return res.data?.transactions || []
     }
+  })
+
+  useSepayEmailNotifications({
+    enabled: canLoadData && currentUser?.role === 'admin' && !window.api?.perf.benchmarkMode,
+    userId: currentUser?.id,
+    invoices,
+    rooms,
+    transactions: sepayBackgroundTransactions,
+    transactionsReady: isSepayBackgroundSuccess
   })
 
   const sepayBackgroundMatches = useMemo<SepayBackgroundMatch[]>(() => {
@@ -2589,6 +2622,7 @@ const App: React.FC = () => {
   return (
     <Suspense fallback={<TabLoading />}>
       <div className="text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
+        {import.meta.env.VITE_CONTRACT_TEST === '1' && <div className="shrink-0 bg-amber-100 px-4 py-1 text-center text-xs font-semibold text-amber-900">MÔI TRƯỜNG TEST · Phòng 999 · Dữ liệu riêng, không kết nối SePay thật</div>}
         {invoiceGuardNotice &&
           (() => {
             const inv = invoiceGuardNotice.invoice
@@ -2737,6 +2771,15 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
+        {contractLeaveTarget && (
+          <ContractLeaveDialog
+            onCancel={() => setContractLeaveTarget(null)}
+            onLeave={() => {
+              completeActiveTab(contractLeaveTarget)
+              setContractLeaveTarget(null)
+            }}
+          />
+        )}
         {assetLeavePrompt && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
@@ -2782,6 +2825,7 @@ const App: React.FC = () => {
               setIsAddRoomOpen(false)
               setNewContractRoom(room)
               setNewContractSeed({ moveInDate })
+              setActiveTab('contracts')
             }}
           />
         )}
@@ -3310,7 +3354,42 @@ const App: React.FC = () => {
           key={activeTab}
           className="min-h-0 flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]"
         >
-          {activeTab === 'rooms' ? (
+          {newContractRoom ? (
+            <Suspense fallback={<TabLoading />}>
+              <NewContractPage
+                room={newContractRoom}
+                zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
+                lastInvoice={
+              invoices
+                .filter((i) => i.room_id === newContractRoom.id)
+                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
+            }
+                initialTenantId={newContractSeed?.tenantId}
+                initialMoveInDate={newContractSeed?.moveInDate}
+                initialDraft={newContractSeed?.draft}
+                onDirtyChange={(dirty) => {
+                  contractPageDirtyRef.current = dirty
+                }}
+                onClose={() => {
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+            }}
+                onNavigateToTenants={() => {
+                  setNewContractRoom(null)
+                  setNewContractSeed(null)
+                  setActiveTab('tenants')
+                }}
+                onNavigateToAssets={() => {
+              const targetRoom = newContractRoom
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+              setAssetModuleInitialRoomId(targetRoom.id)
+              setAssetModuleGuideMode('move_in')
+              setActiveTab('assets')
+            }}
+              />
+            </Suspense>
+          ) : activeTab === 'rooms' ? (
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {dueRoomsCount > 0 && (
                 <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
@@ -3626,6 +3705,7 @@ const App: React.FC = () => {
                                         e.stopPropagation()
                                         setNewContractSeed(null)
                                         setNewContractRoom(room)
+                                        setActiveTab('contracts')
                                         setMenuOpenId(null)
                                       }}
                                       className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
@@ -3951,10 +4031,10 @@ const App: React.FC = () => {
                                 </tr>
                               )}
                               <tr className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative">
-                              <td className="px-3 py-2 text-center text-gray-400">
+                                <td className="px-3 py-2 text-center text-gray-400">
                                 <i className="fa-solid fa-bars"></i>
                               </td>
-                              <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
+                                <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
                                 <div
                                   className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
                                 >
@@ -4000,7 +4080,7 @@ const App: React.FC = () => {
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-2">
+                                <td className="px-3 py-2">
                                 <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
                                   {formatVND(room.base_rent)} đ
                                 </div>
@@ -4022,7 +4102,7 @@ const App: React.FC = () => {
                                     )
                                   })()}
                               </td>
-                              <td className="px-3 py-2">
+                                <td className="px-3 py-2">
                                 {(() => {
                                   // Bảng màu cho mỗi vùng
                                   const zoneColors = [
@@ -4126,7 +4206,7 @@ const App: React.FC = () => {
                                 })()}
                               </td>
 
-                              <td className="px-3 py-2">
+                                <td className="px-3 py-2">
                                 {(() => {
                                   // Chỉ tính tiền cọc khi phòng đang có người ở
                                   if (room.status === 'vacant') {
@@ -4247,14 +4327,14 @@ const App: React.FC = () => {
                                   )
                                 })()}
                               </td>
-                              <td className="px-3 py-2 font-semibold">
-                                {(() => {
-                                  // Nợ thuộc về tenant, không thuộc phòng.
-                                  // Phòng trống → không hiển thị nợ cũ.
-                                  if (room.status === 'vacant') {
+                                <td className="px-3 py-2 font-semibold">
+                                  {(() => {
+                                    // Nợ thuộc về tenant, không thuộc phòng.
+                                    // Phòng trống → không hiển thị nợ cũ.
+                                    if (room.status === 'vacant') {
                                     return <span className="text-gray-300 text-xs">—</span>
                                   }
-                                  const outstandingInvoices = (invoicesByRoomId.get(room.id) || [])
+                                    const outstandingInvoices = (invoicesByRoomId.get(room.id) || [])
                                     .filter(
                                       (i) =>
                                         i.payment_status !== 'paid' &&
@@ -4264,11 +4344,11 @@ const App: React.FC = () => {
                                         (!activeContract?.tenant_id ||
                                           i.tenant_id === activeContract.tenant_id)
                                     )
-                                  const debt = outstandingInvoices.reduce(
+                                    const debt = outstandingInvoices.reduce(
                                     (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
                                     0
                                   )
-                                  const debtTooltip = outstandingInvoices
+                                    const debtTooltip = outstandingInvoices
                                     .filter((invoice) => invoice.total_amount > invoice.paid_amount)
                                     .sort((a, b) => a.year - b.year || a.month - b.month)
                                     .map((invoice) => {
@@ -4282,8 +4362,16 @@ const App: React.FC = () => {
                                       return `${status} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`
                                     })
                                     .join('\n')
-                                  const debtMonths = new Map<string, { month: number; year: number; amount: number; details: string[] }>()
-                                  const monthChipColors = [
+                                    const debtMonths = new Map<
+                                      string,
+                                      {
+                                        month: number
+                                        year: number
+                                        amount: number
+                                        details: string[]
+                                      }
+                                    >()
+                                    const monthChipColors = [
                                     'from-sky-500 to-blue-600 shadow-sky-200/80 ring-sky-300/70',
                                     'from-violet-500 to-purple-600 shadow-violet-200/80 ring-violet-300/70',
                                     'from-fuchsia-500 to-pink-600 shadow-fuchsia-200/80 ring-fuchsia-300/70',
@@ -4297,7 +4385,7 @@ const App: React.FC = () => {
                                     'from-cyan-500 to-sky-600 shadow-cyan-200/80 ring-cyan-300/70',
                                     'from-indigo-500 to-blue-700 shadow-indigo-200/80 ring-indigo-300/70'
                                   ]
-                                  for (const invoice of outstandingInvoices) {
+                                    for (const invoice of outstandingInvoices) {
                                     const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
                                     if (remaining <= 0) continue
                                     const key = `${invoice.year}-${invoice.month}`
@@ -4307,7 +4395,7 @@ const App: React.FC = () => {
                                     period.details.push(`${invoice.payment_status === 'partial' ? 'Còn thiếu' : 'Chưa thu'} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`)
                                     debtMonths.set(key, period)
                                   }
-                                  return debt > 0 ? (
+                                    return debt > 0 ? (
                                     <span className="inline-flex flex-col items-end gap-0.5">
                                       <span className="flex max-w-[120px] flex-wrap items-center justify-end gap-1" aria-label={debtTooltip.replace(/\n/g, '. ')}>
                                         {Array.from(debtMonths.values()).sort((a, b) => a.year - b.year || a.month - b.month).map((period) => (
@@ -4331,9 +4419,9 @@ const App: React.FC = () => {
                                   ) : (
                                     <span className="text-gray-400">0 đ</span>
                                   )
-                                })()}
-                              </td>
-                              <td className="px-3 py-2 text-gray-600">
+                                  })()}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
                                 <EditableCell
                                   value={room.max_occupants || 2}
                                   type="select"
@@ -4352,7 +4440,7 @@ const App: React.FC = () => {
                                   }
                                 />
                               </td>
-                              <td className="px-3 py-2 text-gray-600 text-sm">
+                                <td className="px-3 py-2 text-gray-600 text-sm">
                                 {(() => {
                                   if (room.status === 'vacant') {
                                     return (
@@ -4381,7 +4469,7 @@ const App: React.FC = () => {
                                   )
                                 })()}
                               </td>
-                              <td
+                                <td
                                 className="px-3 py-2 text-center"
                                 onClick={(e) => e.stopPropagation()}
                               >
@@ -4423,7 +4511,7 @@ const App: React.FC = () => {
                                       : room.status === 'occupied' && hasStartedBilling
                                         ? 'Đang ở'
                                         : room.status === 'occupied' && !hasStartedBilling
-                                          ? 'Chờ lập HĐ'
+                                          ? activeContract ? 'Chờ bàn giao' : 'Chờ lập HĐ'
                                           : room.status === 'ending'
                                             ? (() => {
                                                 const deadline = getEndingDeadline(room.expected_end_date)
@@ -4460,15 +4548,15 @@ const App: React.FC = () => {
                                     })()}
                                 </div>
                               </td>
-                              {(() => {
-                                const today = new Date()
-                                const currentMonth = today.getMonth() + 1
-                                const currentYear = today.getFullYear()
-                                const hasActiveContract = activeContract
-                                const contractStartedAt =
+                                {(() => {
+                                  const today = new Date()
+                                  const currentMonth = today.getMonth() + 1
+                                  const currentYear = today.getFullYear()
+                                  const hasActiveContract = activeContract
+                                  const contractStartedAt =
                                   hasActiveContract?.created_at || hasActiveContract?.move_in_date
-                                const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
-                                const roomMonthInvoices = roomInvoicesAll
+                                  const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
+                                  const roomMonthInvoices = roomInvoicesAll
                                   .filter(
                                     (i) =>
                                       i.month === currentMonth &&
@@ -4487,7 +4575,7 @@ const App: React.FC = () => {
                                       new Date(a.created_at).getTime()
                                   )
 
-                                const currentTenantInvoices = roomInvoicesAll
+                                  const currentTenantInvoices = roomInvoicesAll
                                   .filter(
                                     (i) =>
                                       i.payment_status !== 'cancelled' &&
@@ -4502,11 +4590,11 @@ const App: React.FC = () => {
                                       new Date(a.created_at).getTime()
                                   )
 
-                                const unpaidFirstMonthInvoice = currentTenantInvoices.find(
+                                  const unpaidFirstMonthInvoice = currentTenantInvoices.find(
                                   (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
                                 )
 
-                                const roomInvoice =
+                                  const roomInvoice =
                                   unpaidFirstMonthInvoice ||
                                   roomMonthInvoices.find(
                                     (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
@@ -4515,25 +4603,25 @@ const App: React.FC = () => {
                                   roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
                                   null
 
-                                // Tính ngày đầu tháng sau
-                                const nextMonthFirst = new Date(currentYear, currentMonth, 1)
-                                const daysUntilNext = Math.ceil(
+                                  // Tính ngày đầu tháng sau
+                                  const nextMonthFirst = new Date(currentYear, currentMonth, 1)
+                                  const daysUntilNext = Math.ceil(
                                   (nextMonthFirst.getTime() - today.getTime()) /
                                     (1000 * 60 * 60 * 24)
                                 )
 
-                                // A contract is new only before its first real billing cycle.
-                                // Older/imported contracts may have their first invoice stored as
-                                // `monthly` rather than `is_first_month`, so use the shared room
-                                // summary instead of relying on that flag alone.
-                                const hasStartedBilling =
+                                  // A contract is new only before its first real billing cycle.
+                                  // Older/imported contracts may have their first invoice stored as
+                                  // `monthly` rather than `is_first_month`, so use the shared room
+                                  // summary instead of relying on that flag alone.
+                                  const hasStartedBilling =
                                   roomListSummaries.get(room.id)?.hasStartedBilling === true
-                                const isNewContract =
+                                  const isNewContract =
                                   !!hasActiveContract &&
                                   !hasActiveContract.is_migration &&
                                   !hasStartedBilling
-                                const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
-                                const hasDepositCollected =
+                                  const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
+                                  const hasDepositCollected =
                                   hasActiveContract?.deposit_pre_collected === true ||
                                   currentTenantInvoices.some(
                                     (i) =>
@@ -4542,7 +4630,7 @@ const App: React.FC = () => {
                                       i.paid_amount > 0
                                   )
 
-                                const btnNewContract = (
+                                  const btnNewContract = (
                                   <td className="px-4 py-3 text-center">
                                     <button
                                       onClick={(e) => {
@@ -4557,7 +4645,7 @@ const App: React.FC = () => {
                                   </td>
                                 )
 
-                                const btnReceiveRoom = (
+                                  const btnReceiveRoom = (
                                   <td className="px-4 py-3 text-center">
                                     <button
                                       onClick={(e) => {
@@ -4574,7 +4662,7 @@ const App: React.FC = () => {
                                   </td>
                                 )
 
-                                if (room.status === 'occupied' && debtToConfirm) {
+                                  if (room.status === 'occupied' && debtToConfirm) {
                                   return (
                                     <td className="px-4 py-3 text-center">
                                       <button
@@ -4590,16 +4678,16 @@ const App: React.FC = () => {
                                   )
                                 }
 
-                                if (!roomInvoice || room.status === 'vacant') {
-                                  if (!room.move_in_date || room.status === 'vacant') {
+                                  if (!roomInvoice || room.status === 'vacant') {
+                                    if (!room.move_in_date || room.status === 'vacant') {
                                     return (
                                       <td className="px-4 py-3 text-center">
                                         <span className="text-gray-400 text-[10px] italic">—</span>
                                       </td>
                                     )
                                   }
-                                  // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
-                                  if (room.status === 'ending') {
+                                    // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
+                                    if (room.status === 'ending') {
                                     const deadline = getEndingDeadline(room.expected_end_date)
                                     if (deadline.state === 'due_today' || deadline.state === 'overdue') {
                                       return (
@@ -4627,13 +4715,13 @@ const App: React.FC = () => {
                                       </td>
                                     )
                                   }
-                                  if (
+                                    if (
                                     hasActiveContract &&
                                     room.status === 'occupied' &&
                                     !hasReceivedAssets
                                   )
                                     return btnReceiveRoom
-                                  if (isNewContract) {
+                                    if (isNewContract) {
                                     if (hasDepositCollected) {
                                       return (
                                         <td className="px-4 py-3 text-center">
@@ -4656,22 +4744,22 @@ const App: React.FC = () => {
                                     }
                                     return btnNewContract
                                   }
-                                  return (
-                                    <td className="px-4 py-3 text-center">
-                                      <button
-                                        onClick={(e) => {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={(e) => {
                                           e.stopPropagation()
                                           openInvoiceFlow(room)
                                         }}
-                                        className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                      >
-                                        Có thể lập HĐ ngay
-                                      </button>
-                                    </td>
-                                  )
-                                }
+                                          className="room-invoice-faceted bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                        >
+                                          Có thể lập HĐ ngay
+                                        </button>
+                                      </td>
+                                    )
+                                  }
 
-                                if (
+                                  if (
                                   hasActiveContract &&
                                   room.status === 'occupied' &&
                                   !hasReceivedAssets
@@ -4679,8 +4767,42 @@ const App: React.FC = () => {
                                   return btnReceiveRoom
                                 }
 
-                                if (hasInvoiceBalance(roomInvoice)) {
-                                  if (room.status === 'ending') {
+                                  if (hasInvoiceBalance(roomInvoice)) {
+                                    if (room.status === 'ending') {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                            e.stopPropagation()
+                                            setPaymentInvoice(roomInvoice)
+                                          }}
+                                            className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                            Thu hóa đơn còn nợ
+                                          </button>
+                                        </td>
+                                      )
+                                    }
+                                    // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
+                                    if (roomInvoice.is_first_month) {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                            className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                          {roomInvoice.payment_status === 'partial'
+                                            ? 'Tháng đầu còn nợ'
+                                            : 'Chưa thu tiền tháng đầu'}
+                                        </button>
+                                        </td>
+                                      )
+                                    }
                                     return (
                                       <td className="px-4 py-3 text-center">
                                         <button
@@ -4688,52 +4810,18 @@ const App: React.FC = () => {
                                             e.stopPropagation()
                                             setPaymentInvoice(roomInvoice)
                                           }}
-                                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
                                         >
                                           <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                          Thu hóa đơn còn nợ
-                                        </button>
-                                      </td>
-                                    )
-                                  }
-                                  // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
-                                  if (roomInvoice.is_first_month) {
-                                    return (
-                                      <td className="px-4 py-3 text-center">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            openInvoiceFlow(room)
-                                          }}
-                                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                        >
-                                          <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
-                                          {roomInvoice.payment_status === 'partial'
-                                            ? 'Tháng đầu còn nợ'
-                                            : 'Chưa thu tiền tháng đầu'}
-                                        </button>
-                                      </td>
-                                    )
-                                  }
-                                  return (
-                                    <td className="px-4 py-3 text-center">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          setPaymentInvoice(roomInvoice)
-                                        }}
-                                        className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
-                                      >
-                                        <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
                                         {roomInvoice.payment_status === 'partial'
                                           ? `Còn nợ tháng ${roomInvoice.month}`
                                           : `Chưa thu tháng ${roomInvoice.month}`}
                                       </button>
-                                    </td>
-                                  )
-                                }
+                                      </td>
+                                    )
+                                  }
 
-                                if (room.status === 'ending') {
+                                  if (room.status === 'ending') {
                                   const deadline = getEndingDeadline(room.expected_end_date)
                                   return (
                                     <td className="px-4 py-3 text-center">
@@ -4754,8 +4842,8 @@ const App: React.FC = () => {
                                   )
                                 }
 
-                                // Đã thu (đủ hoặc thiếu)
-                                return (
+                                  // Đã thu (đủ hoặc thiếu)
+                                  return (
                                   <td className="px-4 py-3 text-center">
                                     {daysUntilNext > 0 ? (
                                       <span className="room-primary-faceted inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
@@ -4778,8 +4866,8 @@ const App: React.FC = () => {
                                     )}
                                   </td>
                                 )
-                              })()}
-                              <td className="px-4 py-3 text-center">
+                                })()}
+                                <td className="px-4 py-3 text-center">
                                 <div className="relative inline-block">
                                   {menuOpenId === room.id && (
                                     <div
@@ -4833,7 +4921,12 @@ const App: React.FC = () => {
             </FeatureErrorBoundary>
           ) : activeTab === 'contracts' ? (
             <Suspense fallback={<TabLoading />}>
-              <ContractsTab onCreateContract={(room) => setNewContractRoom(room)} />
+              <ContractsTab
+                onCreateContract={(room, draft) => {
+                  setNewContractSeed(draft ? { draft } : null)
+                  setNewContractRoom(room)
+                }}
+              />
             </Suspense>
           ) : activeTab === 'finance' ? (
             <Suspense fallback={<TabLoading />}>
@@ -4982,39 +5075,6 @@ const App: React.FC = () => {
               setDetailRoom(null)
               setDetailRoomInitialTab('info')
               openInvoiceFlow(r)
-            }}
-          />
-        )}
-        {newContractRoom && (
-          <NewContractModal
-            room={newContractRoom}
-            zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
-            onClose={() => {
-              setNewContractRoom(null)
-              setNewContractSeed(null)
-            }}
-            lastInvoice={
-              invoices
-                .filter((i) => i.room_id === newContractRoom.id)
-                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
-            }
-            initialTenantId={newContractSeed?.tenantId}
-            initialMoveInDate={newContractSeed?.moveInDate}
-            onNavigateToTenants={() => {
-              setNewContractRoom(null)
-              setNewContractSeed(null)
-              setActiveTab('tenants')
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('start-tour', { detail: 'create_tenant' }))
-              }, 300)
-            }}
-            onNavigateToAssets={() => {
-              const targetRoom = newContractRoom
-              setNewContractRoom(null)
-              setNewContractSeed(null)
-              setAssetModuleInitialRoomId(targetRoom.id)
-              setAssetModuleGuideMode('move_in')
-              setActiveTab('assets')
             }}
           />
         )}

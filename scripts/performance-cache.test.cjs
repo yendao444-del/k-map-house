@@ -27,6 +27,8 @@ function client() {
 function builder() {
   const source = db.slice(db.indexOf('export const buildWalletBalanceSummary'), db.indexOf('export const updateAppSettings'))
   return evaluate(source, {
+    ...evaluate(read('src/renderer/src/lib/wallet-accounting.ts')),
+    ...evaluate(read('src/renderer/src/lib/invoice-payment-flow.ts')),
     getInvoicePaymentRecords: invoice => invoice.payment_records || [],
     DEFAULT_EXPENSE_CATEGORIES: [{ value: 'maintenance', name: 'Bảo trì' }]
   }).buildWalletBalanceSummary
@@ -50,10 +52,12 @@ test('wallet display retains ledger dates, cancellations, transfers, deposits an
   ].map(row => ({ ...row, transaction_date: '2026-10-01' }))
   const before = JSON.stringify({ invoices, cash })
   const result = builder()(cash, invoices, { opening_balance_cash: 100, opening_balance_bank: 1000, opening_balance_date: '2026-10-01' })
-  assert.equal(result.cashBalance, -1150)
+  assert.equal(result.cashBalance, -1100)
   assert.equal(result.bankBalance, 2450)
   assert.equal(result.totalBalance, 1300)
-  assert.equal(result.availableBalance, 1300)
+  assert.equal(result.availableBalance, 0)
+  assert.equal(result.unassignedCount, 1)
+  assert.equal(result.unassignedBalance, -50)
   assert.equal(result.entries.length, 8)
   assert.equal(result.entries.find(entry => entry.id === 'cash-three').title, 'Chuyển vốn')
   assert.equal(result.entries.find(entry => entry.id === 'cash-four').title, 'Bảo trì')

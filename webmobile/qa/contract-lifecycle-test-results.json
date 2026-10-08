@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-07T13:26:29.389Z",
+  "project": "gsianbstkmyutnhromwc",
+  "schema": "ankhang_contract_test",
+  "checks": [
+    "admin and reason required",
+    "one pending amendment per contract",
+    "cannot replace tenant or handover readings",
+    "saving amendment leaves active terms intact",
+    "direct overwrite of confirmed terms denied",
+    "tenant sees old and proposed terms",
+    "atomic and idempotent amendment keeps contract ID and meters",
+    "private history with immutable old/new and reason",
+    "existing account and password retained after amendment",
+    "unpaid invoice blocks cancellation with no partial writes",
+    "recorded money blocks even on cancelled invoice",
+    "cash transactions and move-in receipts block cancellation",
+    "concurrent confirmation/cancellation never revives cancelled contract",
+    "cancellation locks tenant access and existing sessions",
+    "cancellation is idempotent; preserves finance/history and revokes all links",
+    "corrected contract reuses same tenant account only after new confirmation",
+    "deliberate admin lock survives new contract confirmation attempt",
+    "legacy contracts create sanitized amendment without changing source"
+  ],
+  "gmailSent": false,
+  "sepayUsed": false
+}

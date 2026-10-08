@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-08T04:37:13.476Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "schema": "public",
+  "before": {
+    "rooms": 25,
+    "drafts": 4,
+    "tenants": 30,
+    "accounts": 0,
+    "authUsers": 5,
+    "contracts": 51,
+    "confirmations": 3
+  },
+  "after": {
+    "rooms": 25,
+    "drafts": 4,
+    "tenants": 30,
+    "accounts": 0,
+    "authUsers": 5,
+    "contracts": 51,
+    "confirmations": 3
+  },
+  "emailsSent": false
+}

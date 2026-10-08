@@ -3,6 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTenants, createTenant, updateTenant, deleteTenant, markTenantLeft, getRooms, getContracts, getInvoices, getCollectedDepositAmount, getMoveInReceiptsByTenant, type Contract, type Invoice, type Tenant, type MoveInReceipt } from '../lib/db';
 import { ConfirmModal } from './ConfirmModal';
 import { LogoLoading } from './LogoLoading';
+import { TenantFormModal } from './TenantFormModal';
+import { TenantIdentityPreview } from './TenantIdentityPreview';
+import { useTenantEmailCheck } from '../lib/use-tenant-email-check';
 
 const getContractSortTime = (contract: Contract) =>
   new Date(contract.end_date || contract.created_at || contract.move_in_date).getTime();
@@ -89,6 +92,7 @@ export const TenantsTab: React.FC = () => {
   // addModalKey: mỗi lần mở modal mới thì tăng key để force remount hoàn toàn, tránh bug không gõ được phím
   const [addModalKey, setAddModalKey] = useState(0);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
@@ -165,6 +169,7 @@ export const TenantsTab: React.FC = () => {
   const openAddModal = useCallback(() => {
     setMenuOpenId(null); // đóng dropdown trước
     setSelectedTenant(null);
+    setEditingTenant(null);
     setCccdHover(null);
     setCreateError(null);
     setIsAddModalOpen(false);
@@ -591,8 +596,9 @@ export const TenantsTab: React.FC = () => {
                               onClick={(e) => { e.stopPropagation(); setSelectedTenant(tenant); setMenuOpenId(null); }}
                               className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
                             >
-                              <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem / Sửa hồ sơ
+                              <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem hồ sơ
                             </button>
+                            <button onClick={(e) => { e.stopPropagation(); setEditingTenant(tenant); setSelectedTenant(null); setMenuOpenId(null); }} className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"><i className="fa-solid fa-pen-to-square w-4 text-slate-400" />Sửa hồ sơ</button>
 
                             {tenant.is_active ? (
                               <button
@@ -674,8 +680,9 @@ export const TenantsTab: React.FC = () => {
               onClick={() => { setSelectedTenant(tenant); setMenuOpenId(null); }}
               className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"
             >
-              <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem / Sửa hồ sơ
+              <i className="fa-solid fa-eye font-sm w-4 text-slate-400"></i> Xem hồ sơ
             </button>
+            <button type="button" onClick={() => { setEditingTenant(tenant); setSelectedTenant(null); setMenuOpenId(null); }} className="w-full text-left px-3 py-2 text-[15px] font-medium text-slate-700 hover:bg-slate-50 hover:text-primary rounded-lg transition flex items-center gap-2"><i className="fa-solid fa-pen-to-square w-4 text-slate-400" aria-hidden="true" />Sửa hồ sơ</button>
 
             {/* Nút đánh dấu đã chuyển đi thủ công - chỉ hiện khi đang có hợp đồng active */}
             {!hasLeft && (
@@ -748,6 +755,7 @@ export const TenantsTab: React.FC = () => {
           onClose={() => setSelectedTenant(null)}
         />
       )}
+      {editingTenant && <TenantEditModal key={editingTenant.id} tenant={editingTenant} onClose={() => setEditingTenant(null)} />}
 
       {confirmDelete && (
         <ConfirmModal
@@ -788,179 +796,29 @@ export const TenantsTab: React.FC = () => {
   );
 };
 
-const TenantFormModal = ({ onClose, onSubmit, isPending, error }: { onClose: () => void, onSubmit: (d: any) => void, isPending: boolean, error?: string | null }) => {
-  const [imageBase64, setImageBase64] = useState<string>('');
-  const [localError, setLocalError] = useState<string | null>(null);
-  const fullNameRef = useRef<HTMLInputElement>(null);
+function trapTenantDialogFocus(event: React.KeyboardEvent, root: HTMLElement | null) {
+  if (event.key !== 'Tab') return;
+  const controls = Array.from(root?.querySelectorAll<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), [href], input:not([type="hidden"]), textarea, [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  if (event.shiftKey && (document.activeElement === first || document.activeElement === root)) { event.preventDefault(); last?.focus(); }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+}
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      fullNameRef.current?.focus();
-    }, 30);
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Vui lòng chọn ảnh dưới 5MB để đảm bảo hiệu suất lưu trữ offline.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const fullName = (fd.get('full_name') as string).trim();
-    if (!fullName) {
-      setLocalError('Vui lòng nhập họ và tên khách thuê.');
-      return;
-    }
-    setLocalError(null);
-    onSubmit({
-      full_name: fullName,
-      phone: (fd.get('phone') as string).trim(),
-      email: (fd.get('email') as string).trim(),
-      identity_card: (fd.get('identity_card') as string).trim(),
-      identity_image_url: imageBase64,
-      notes: (fd.get('notes') as string).trim(),
-      is_active: false
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={onClose}>
-      <form noValidate onSubmit={handleSubmit} className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-gray-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50/50">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-              <i className="fa-solid fa-user-plus"></i>
-            </div>
-            Thêm khách thuê mới
-          </h3>
-          <button type="button" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition text-gray-500">
-            <i className="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5 overflow-y-auto max-h-[70vh]">
-          {/* Tên */}
-          <div>
-            <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
-            <input ref={fullNameRef} autoFocus name="full_name" type="text" placeholder="Nhập tên khách thuê (vd: Nguyễn Văn A)" className="w-full border border-emerald-500 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-emerald-500/20 outline-none transition bg-white shadow-sm" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
-              <input name="phone" type="tel" placeholder="vd: 0912 345 678" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
-            </div>
-            <div>
-              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
-              <input name="email" type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
-            </div>
-          </div>
-
-
-
-          <div className="bg-slate-50/50 rounded-xl border border-slate-200 p-4">
-            <h4 className="text-[15px] font-bold text-slate-800 mb-3 flex items-center gap-2">
-              <div className="w-5 h-5 rounded bg-slate-200 text-slate-500 flex justify-center items-center">
-                <i className="fa-regular fa-id-card text-[10px]"></i>
-              </div>
-              Định danh cá nhân (CCCD/CMND)
-            </h4>
-            <div className="space-y-3">
-              <div>
-                <input name="identity_card" type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm" />
-
-              </div>
-              <div
-                className="w-full flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-lg bg-white hover:bg-slate-50 transition cursor-pointer group relative overflow-hidden h-28"
-              >
-                <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-
-                {imageBase64 ? (
-                  <>
-                    <img src={imageBase64} alt="CCCD Preview" className="absolute inset-0 w-full h-full object-cover rounded-lg z-0 opacity-40 group-hover:opacity-20 transition" />
-                    <div className="relative z-10 flex flex-col items-center">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2 border border-emerald-200">
-                        <i className="fa-solid fa-check"></i>
-                      </div>
-                      <div className="text-[12px] font-bold text-emerald-700">Đã cập nhật ảnh</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="w-8 h-8 rounded-full bg-slate-100/80 flex items-center justify-center text-slate-400 mb-2 group-hover:bg-primary/10 group-hover:text-primary transition shadow-sm border border-slate-200">
-                      <i className="fa-solid fa-cloud-arrow-up text-[11px]"></i>
-                    </div>
-                    <div className="text-sm font-bold text-slate-600">Nhấp để tải ảnh lên</div>
-                    <div className="text-xs text-slate-400 mt-0.5">Hỗ trợ JPG, PNG, tối đa 5MB</div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
-            <textarea name="notes" placeholder="Biển số xe, thói quen sinh hoạt..." rows={2} className="w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white shadow-sm resize-none"></textarea>
-          </div>
-        </div>
-
-        {(localError || error) && (
-          <div className="px-6 pb-3">
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
-              <i className="fa-solid fa-circle-exclamation shrink-0"></i>
-              <span>{localError || error}</span>
-            </div>
-          </div>
-        )}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
-          <button type="button" onClick={onClose} className="px-5 py-2.5 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-          <button type="submit" data-tour="tenant-submit-btn" disabled={isPending} className="px-6 py-2.5 rounded-xl text-[15px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
-            {isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Tạo khách hàng
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-};
-
-const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant; onClose: () => void }) => {
+const TenantEditModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant; onClose: () => void }) => {
   const queryClient = useQueryClient();
-  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
-  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
-  const { data: depositReceipts = [] } = useQuery<MoveInReceipt[]>({
-    queryKey: ['move_in_receipts', initialTenant.id],
-    queryFn: () => getMoveInReceiptsByTenant(initialTenant.id),
-  });
-
-  const [isEditing, setIsEditing] = useState(false);
   const [tenant, setTenant] = useState<Tenant>(initialTenant);
-  const [showAllHistory, setShowAllHistory] = useState(false);
-
-  const tenantContracts = useMemo(() => {
-    return contracts
-      .filter(c => c.tenant_id === tenant.id)
-      .sort((a, b) => getContractSortTime(b) - getContractSortTime(a));
-  }, [contracts, tenant.id]);
-
-  const displayedContracts = showAllHistory ? tenantContracts : tenantContracts.slice(0, 3);
-  const hasActiveContract = tenantContracts.some(contract => contract.status === 'active');
-  const latestContract = tenantContracts[0] || null;
-  const latestRoom = latestContract ? rooms.find(room => room.id === latestContract.room_id) : null;
-  const hasLeft = !hasActiveContract && (!!tenant.left_at || !!tenant.last_room_name || tenantContracts.some(contract => contract.status !== 'active'));
-
+  const emailCheck = useTenantEmailCheck(tenant.email);
+  const editRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    editRef.current?.querySelector<HTMLInputElement>('input[name="full_name"]')?.focus();
+    return () => previousFocus?.focus();
+  }, []);
+  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    trapTenantDialogFocus(event, editRef.current);
+  };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -984,13 +842,13 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
       );
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setTenant(updatedTenant);
-      setIsEditing(false);
       onClose();
     }
   });
 
   const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (emailCheck.blocked || updateMut.isPending) return;
     const fd = new FormData(e.currentTarget);
     updateMut.mutate({
       full_name: (fd.get('full_name') as string).trim(),
@@ -1002,18 +860,17 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
     });
   };
 
-  if (isEditing) {
     return (
-      <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={() => setIsEditing(false)}>
-        <form onSubmit={handleEditSubmit} className="bg-white flex flex-col rounded-2xl w-full max-w-md overflow-hidden max-h-[90vh] shadow-2xl border border-slate-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
+      <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={onClose}>
+        <form ref={editRef} role="dialog" aria-modal="true" aria-labelledby="tenant-edit-title" onKeyDown={handleEditKeyDown} onSubmit={handleEditSubmit} className="bg-white flex flex-col rounded-2xl w-full max-w-md overflow-hidden max-h-[90vh] shadow-2xl border border-slate-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
           <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 z-10">
-            <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+            <h3 id="tenant-edit-title" className="font-bold text-xl text-slate-800 flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
                 <i className="fa-solid fa-pen-to-square text-xs"></i>
               </div>
-              Cập nhật thông tin
+              Sửa hồ sơ
             </h3>
-            <button type="button" onClick={() => setIsEditing(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-500">
+            <button type="button" aria-label="Đóng sửa hồ sơ" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-500">
               <i className="fa-solid fa-xmark"></i>
             </button>
           </div>
@@ -1031,7 +888,8 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
               </div>
               <div>
                 <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
-                <input name="email" defaultValue={tenant.email} type="text" placeholder="example@email.com" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
+                <input name="email" value={tenant.email || ""} onChange={event => setTenant(prev => ({ ...prev, email: event.target.value }))} type="email" aria-invalid={Boolean(emailCheck.error)} aria-describedby="tenant-edit-email-help" placeholder="example@email.com" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
+                <p id="tenant-edit-email-help" role="status" className={`mt-2 text-xs leading-5 ${emailCheck.error ? "text-red-600" : "text-slate-500"}`}>{emailCheck.error || (emailCheck.checking ? "Đang kiểm tra email…" : "Email người thuê phải khác tài khoản hệ thống.")}</p>
               </div>
             </div>
 
@@ -1081,88 +939,111 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
             </div>
           </div>
 
-          <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
-            <button type="button" onClick={() => setIsEditing(false)} className="px-5 py-2 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-            <button type="submit" disabled={updateMut.isPending} className="px-5 py-2 bg-primary text-white rounded-xl text-[15px] font-bold shadow-sm hover:bg-primary-dark flex items-center gap-2">
+          {updateMut.isError && <p role="alert" className="px-6 pb-3 text-sm text-red-600">{updateMut.error instanceof Error ? updateMut.error.message : 'Không thể lưu hồ sơ. Vui lòng thử lại.'}</p>}
+          <div className="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
+            <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
+            <button type="submit" disabled={updateMut.isPending || emailCheck.blocked} className="disabled:opacity-40 px-5 py-2 bg-primary text-white rounded-xl text-[15px] font-bold shadow-sm hover:bg-primary-dark flex items-center gap-2">
               {updateMut.isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Lưu thay đổi
             </button>
           </div>
         </form>
       </div>
     );
-  }
+};
+
+const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant; onClose: () => void }) => {
+  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms });
+  const { data: contracts = [] } = useQuery({ queryKey: ['contracts'], queryFn: getContracts });
+  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
+  const { data: depositReceipts = [] } = useQuery<MoveInReceipt[]>({
+    queryKey: ['move_in_receipts', initialTenant.id],
+    queryFn: () => getMoveInReceiptsByTenant(initialTenant.id),
+  });
+
+  const tenant = initialTenant;
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'deposits' | 'contracts'>('profile');
+  const contentRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    detailRef.current?.focus();
+    return () => previousFocus?.focus();
+  }, []);
+
+  useEffect(() => { contentRef.current?.scrollTo({ top: 0 }); }, [activeTab]);
+
+  const tenantContracts = useMemo(() => {
+    return contracts
+      .filter(c => c.tenant_id === tenant.id)
+      .sort((a, b) => getContractSortTime(b) - getContractSortTime(a));
+  }, [contracts, tenant.id]);
+
+  const displayedContracts = showAllHistory ? tenantContracts : tenantContracts.slice(0, 3);
+  const hasActiveContract = tenantContracts.some(contract => contract.status === 'active');
+  const latestContract = tenantContracts[0] || null;
+  const latestRoom = latestContract ? rooms.find(room => room.id === latestContract.room_id) : null;
+  const hasLeft = !hasActiveContract && (!!tenant.left_at || !!tenant.last_room_name || tenantContracts.some(contract => contract.status !== 'active'));
+  const statusLabel = hasActiveContract ? 'Đang ở' : hasLeft ? 'Đã rời đi' : 'Chưa ở';
+  const statusIcon = hasActiveContract ? 'fa-house-user' : hasLeft ? 'fa-person-walking' : 'fa-user-clock';
+  const statusClass = hasLeft ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-[#175653] bg-[#edf6f4] border-[#dcebe8]';
+
+  const handleDetailKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    trapTenantDialogFocus(event, detailRef.current);
+  };
+
 
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] shadow-2xl border border-slate-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-6 border-b border-slate-100 flex justify-between items-start bg-white shrink-0 z-10">
-          <div className="flex gap-4 items-center">
-            <div className="w-[52px] h-[52px] rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-400 text-white flex items-center justify-center text-2xl font-bold shadow-sm shadow-indigo-200 ring-2 ring-white">
+      <div ref={detailRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="tenant-detail-title" onKeyDown={handleDetailKeyDown} className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] shadow-2xl border border-slate-200 outline-none animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
+        <div className="relative px-6 py-6 flex items-center gap-4 bg-[#005440] shrink-0">
+          <div className="flex min-w-0 flex-1 gap-4 items-center pr-7">
+            <div className="w-[60px] h-[60px] shrink-0 rounded-xl bg-[#00ad79] text-white flex items-center justify-center text-3xl font-bold">
               {tenant.full_name?.charAt(0).toUpperCase() || '?'}
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{tenant.full_name}</h2>
-              <div className="flex items-center gap-4 mt-1 text-sm text-slate-500 font-medium tracking-wide">
-                {tenant.phone && <span className="flex items-center gap-1.5"><i className="fa-solid fa-phone text-[10px] text-slate-400"></i>{tenant.phone}</span>}
-                {tenant.identity_card && <span className="flex items-center gap-1.5"><i className="fa-regular fa-id-card text-[10px] text-slate-400"></i>{tenant.identity_card}</span>}
-              </div>
+            <div className="min-w-0">
+              <h2 id="tenant-detail-title" className="text-2xl font-bold text-white tracking-tight break-words">{tenant.full_name}</h2>
+              <span className={`mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-1 text-sm font-bold ${statusClass}`}><i className={`fa-solid ${statusIcon}`} aria-hidden="true" />{statusLabel}</span>
             </div>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-400">
+          <button type="button" aria-label="Đóng hồ sơ khách thuê" onClick={onClose} className="absolute right-5 top-5 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition text-white text-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
             <i className="fa-solid fa-xmark"></i>
           </button>
         </div>
 
-        <div className="p-6 bg-[#fbfcfd] space-y-6 overflow-y-auto">
+        <div role="tablist" aria-label="Thông tin khách thuê" className="grid shrink-0 grid-cols-3 border-b border-slate-100 bg-white px-3">
+          {([
+            { id: 'profile', label: 'Hồ sơ', icon: 'fa-regular fa-user', count: null },
+            { id: 'deposits', label: 'Tiền cọc', icon: 'fa-solid fa-coins', count: depositReceipts.length },
+            { id: 'contracts', label: 'Hợp đồng', icon: 'fa-regular fa-file-lines', count: tenantContracts.length },
+          ] as const).map((tab, index, tabs) => <button key={tab.id} id={`tenant-tab-${tab.id}`} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`tenant-panel-${tab.id}`} tabIndex={activeTab === tab.id ? 0 : -1} onClick={() => setActiveTab(tab.id)} onKeyDown={event => {
+            const next = event.key === 'ArrowRight' ? (index + 1) % tabs.length : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+            if (next === null) return;
+            event.preventDefault(); setActiveTab(tabs[next].id); document.getElementById(`tenant-tab-${tabs[next].id}`)?.focus();
+          }} className={`flex min-w-0 items-center justify-center gap-2 border-b-2 px-1 py-4 text-sm font-bold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-emerald-600 ${activeTab === tab.id ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-[#526972] hover:bg-slate-50 hover:text-emerald-700'}`}><i className={tab.icon} aria-hidden="true" /><span>{tab.label}</span>{tab.count !== null && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-[#526972]">{tab.count}</span>}</button>)}
+        </div>
+        <div ref={contentRef} className="h-[550px] min-h-0 p-6 bg-white overflow-y-auto">
           {/* Notes / Detail Box */}
-          <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm flex flex-col gap-3 text-[15px]">
-            {tenant.identity_image_url && (
-              <div className="w-full pb-3 border-b border-slate-100 flex flex-col gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-bold text-[11px] uppercase tracking-wider"><i className="fa-regular fa-image mr-1"></i> Phân loại: Ảnh định danh cá nhân</span>
-                </div>
-                <div className="border border-slate-200 rounded-lg overflow-hidden max-h-48 flex justify-center bg-slate-100">
-                  <img src={tenant.identity_image_url} className="w-full h-full object-contain max-h-48" alt="CCCD" />
-                </div>
-              </div>
-            )}
-            {tenant.email && (
-              <div className="flex gap-4 items-center">
-                <span className="text-slate-400 font-medium w-20 shrink-0">Email:</span>
-                <span className="font-bold text-slate-700 bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{tenant.email}</span>
-              </div>
-            )}
-            <div className="flex gap-4 items-center">
-              <span className="text-slate-400 font-medium w-20 shrink-0">Ngày tạo:</span>
-              <span className="font-bold text-slate-700">{new Date(tenant.created_at).toLocaleDateString('vi-VN')}</span>
-            </div>
-            {latestContract && (
-              <>
-                <div className="flex gap-4 items-center">
-                  <span className="text-slate-400 font-medium w-20 shrink-0">Phòng:</span>
-                  <span className="font-bold text-slate-700">{latestRoom?.name || tenant.last_room_name || 'Phòng không rõ'}</span>
-                </div>
-                <div className="flex gap-4 items-center">
-                  <span className="text-slate-400 font-medium w-20 shrink-0">Thời gian:</span>
-                  <span className="font-bold text-slate-700">
-                    {formatDate(latestContract.move_in_date)} - {latestContract.status === 'active' ? 'Đang ở' : formatDate(tenant.left_at || latestContract.end_date)}
-                  </span>
-                </div>
-              </>
-            )}
-            {tenant.notes && (
-              <div className="flex gap-4 border-t border-slate-100 pt-3 mt-1 items-start">
-                <span className="text-slate-400 font-medium w-20 shrink-0">Ghi chú:</span>
-                <span className="text-slate-600 font-medium">{tenant.notes}</span>
-              </div>
-            )}
+          <div id="tenant-panel-profile" role="tabpanel" aria-labelledby="tenant-tab-profile" hidden={activeTab !== 'profile'} tabIndex={0} className="text-[15px] outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+            <h3 className="mb-3 flex items-center gap-3 border-b border-slate-100 pb-3 text-lg font-bold text-slate-900"><i className="fa-solid fa-user text-[#526972]" aria-hidden="true" />Thông tin cá nhân</h3>
+            <dl className="divide-y divide-slate-100 border-b border-slate-100">
+              {[
+                ['Số điện thoại', tenant.phone || 'Chưa cập nhật'],
+                ['CCCD / CMND', tenant.identity_card || 'Chưa cập nhật'],
+                ['Email', tenant.email || 'Chưa cập nhật'],
+                ['Ngày tạo', formatDate(tenant.created_at)],
+              ].map(([label, value]) => <div key={label} className="grid grid-cols-[28%_1fr] items-start gap-3 py-3"><dt className="font-medium text-slate-500">{label}</dt><dd className="min-w-0 break-words font-semibold text-slate-900">{value}</dd></div>)}
+            </dl>
+            <h3 className="mb-3 mt-6 flex items-center gap-3 text-lg font-bold text-slate-900"><i className="fa-regular fa-image text-[#526972]" aria-hidden="true" />Ảnh giấy tờ</h3>
+            <TenantIdentityPreview source={tenant.identity_image_url} />
+            {tenant.notes && <div className="mt-4 border-t border-slate-100 pt-3"><h4 className="mb-1 font-semibold text-slate-700">Ghi chú</h4><p className="whitespace-pre-wrap break-words text-slate-600">{tenant.notes}</p></div>}
           </div>
 
           {/* Lịch sử tiền cọc */}
-          <div className="space-y-3">
-            <h3 className="font-bold text-slate-800 text-[15px] flex items-center gap-2">
-              <i className="fa-solid fa-hand-holding-dollar text-slate-400"></i> LỊCH SỬ TIỀN CỌC
-            </h3>
+          <div id="tenant-panel-deposits" role="tabpanel" aria-labelledby="tenant-tab-deposits" hidden={activeTab !== 'deposits'} tabIndex={0} className="outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+            <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900"><i className="fa-solid fa-coins text-[#526972]" aria-hidden="true" />Lịch sử tiền cọc</h3>
             {depositReceipts.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {depositReceipts.map(r => {
@@ -1204,17 +1085,16 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
                 })}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl p-5 text-center text-slate-400 shadow-sm flex flex-col items-center">
-                <i className="fa-solid fa-coins text-2xl mb-2 opacity-30"></i>
-                <p className="text-[15px] font-medium">Chưa có phiếu thu tiền cọc nào.</p>
+              <div className="bg-white border border-[#dce9e8] rounded-lg py-4 px-3 text-center text-slate-500 flex flex-col items-center">
+                <i className="fa-solid fa-coins text-2xl mb-2 text-slate-300" aria-hidden="true"></i>
+                <p className="text-sm font-medium">Chưa có phiếu thu tiền cọc nào.</p>
               </div>
             )}
           </div>
 
-          <div className="space-y-3">
-            <h3 className="font-bold text-slate-800 text-[15px] flex items-center gap-2">
-              <i className="fa-solid fa-clock-rotate-left text-slate-400"></i> LỊCH SỬ HỢP ĐỒNG
-            </h3>
+          <div id="tenant-panel-contracts" role="tabpanel" aria-labelledby="tenant-tab-contracts" hidden={activeTab !== 'contracts'} tabIndex={0} className="outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
+            <h3 className="mb-4 flex items-center gap-3 text-lg font-bold text-slate-900"><i className="fa-regular fa-file-lines text-[#526972]" aria-hidden="true" />Lịch sử hợp đồng</h3>
+            {latestContract && <p className="mb-4 text-sm text-slate-500">Phòng gần nhất: <span className="font-semibold text-slate-700">{latestRoom?.name || tenant.last_room_name || 'Phòng không rõ'}</span> · {formatDate(latestContract.move_in_date)} – {latestContract.status === 'active' ? 'Đang ở' : formatDate(tenant.left_at || latestContract.end_date)}</p>}
 
             {tenantContracts.length > 0 ? (
               <div className="flex flex-col gap-3">
@@ -1273,14 +1153,14 @@ const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant;
           </div>
         </div>
 
-        <div className="px-6 py-4 bg-white border-t border-slate-100 flex justify-between items-center rounded-b-2xl">
-          <div className={`px-4 py-2 rounded-xl text-[15px] font-bold border flex items-center gap-2 ${hasActiveContract ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : hasLeft ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-slate-500 bg-slate-50 border-slate-200'}`}>
-            <i className={`fa-solid ${hasActiveContract ? 'fa-house-user' : hasLeft ? 'fa-person-walking' : 'fa-user-clock'}`}></i>
-            {hasActiveContract ? 'Đang ở theo hợp đồng' : hasLeft ? 'Đã rời đi' : 'Chưa ở'}
+        <div className="shrink-0 px-6 py-4 bg-white border-t border-slate-100 flex flex-wrap gap-2 justify-between items-center rounded-b-2xl">
+          <div className={`px-3 py-2 rounded-lg text-sm font-semibold border flex items-center gap-2 ${statusClass}`}>
+            <i className={`fa-solid ${statusIcon}`} aria-hidden="true"></i>
+            {statusLabel}
           </div>
 
-          <button onClick={() => setIsEditing(true)} className="px-6 py-2.5 rounded-xl text-[15px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500 shadow-[0_2px_10px_-3px_rgba(16,185,129,0.5)] hover:shadow-[0_4px_12px_-3px_rgba(16,185,129,0.6)] hover:-translate-y-0.5 transition-all flex items-center gap-2">
-            <i className="fa-solid fa-pen-to-square"></i> Cập nhật hồ sơ
+          <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-lg border border-[#dce9e8] text-sm font-bold text-[#526972] bg-white hover:bg-slate-50 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600">
+            Đóng
           </button>
         </div>
       </div>

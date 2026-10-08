@@ -1,0 +1,17 @@
+{
+  "electron": "44.4.5",
+  "packagedDependencies": true,
+  "localModels": true,
+  "results": [
+    {
+      "label": "QR",
+      "nameExact": true,
+      "idExact": true
+    },
+    {
+      "label": "OCR",
+      "nameExact": true,
+      "idExact": true
+    }
+  ]
+}

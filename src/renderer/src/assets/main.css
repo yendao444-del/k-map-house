@@ -251,6 +251,46 @@ button.bg-green-600 {
     0 5px 12px rgba(0, 169, 96, 0.2) !important;
 }
 
+/* Unpaid actions keep the original orange-to-red state, with the same crisp
+   faceted finish used by the green primary controls above. */
+.room-unpaid-faceted {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0 16%, transparent 16.5% 35%, rgba(255, 255, 255, 0.08) 35.5% 43%, transparent 43.5%),
+    linear-gradient(315deg, rgba(154, 0, 29, 0.16) 0 22%, transparent 22.5% 55%, rgba(255, 184, 140, 0.07) 55.5% 68%, transparent 68.5%),
+    linear-gradient(90deg, var(--color-orange-500), var(--color-red-500)) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.2),
+    inset 0 -2px 4px rgba(166, 0, 33, 0.1),
+    0 4px 10px rgba(244, 73, 55, 0.13) !important;
+}
+
+button.room-unpaid-faceted:not(:disabled):hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0 16%, transparent 16.5% 35%, rgba(255, 255, 255, 0.1) 35.5% 43%, transparent 43.5%),
+    linear-gradient(315deg, rgba(154, 0, 29, 0.2) 0 22%, transparent 22.5% 55%, rgba(255, 184, 140, 0.1) 55.5% 68%, transparent 68.5%),
+    linear-gradient(90deg, var(--color-orange-600), var(--color-red-600)) !important;
+  box-shadow: 0 4px 10px rgba(244, 73, 55, 0.24) !important;
+}
+
+.room-invoice-faceted {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0 16%, transparent 16.5% 35%, rgba(255, 255, 255, 0.07) 35.5% 43%, transparent 43.5%),
+    linear-gradient(315deg, rgba(28, 55, 175, 0.12) 0 22%, transparent 22.5% 55%, rgba(133, 174, 255, 0.08) 55.5% 68%, transparent 68.5%),
+    linear-gradient(90deg, var(--color-blue-500), var(--color-indigo-500)) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.16),
+    inset 0 -2px 4px rgba(28, 55, 175, 0.08),
+    0 4px 10px rgba(59, 91, 219, 0.12) !important;
+}
+
+button.room-invoice-faceted:not(:disabled):hover {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.23) 0 16%, transparent 16.5% 35%, rgba(255, 255, 255, 0.1) 35.5% 43%, transparent 43.5%),
+    linear-gradient(315deg, rgba(28, 55, 175, 0.16) 0 22%, transparent 22.5% 55%, rgba(133, 174, 255, 0.1) 55.5% 68%, transparent 68.5%),
+    linear-gradient(90deg, var(--color-blue-600), var(--color-indigo-600)) !important;
+  box-shadow: 0 4px 10px rgba(59, 91, 219, 0.2) !important;
+}
+
 button.room-primary-faceted:not(:disabled):hover,
 button.brand-nav-active:not(:disabled):hover,
 button.bg-primary:not(:disabled):hover,

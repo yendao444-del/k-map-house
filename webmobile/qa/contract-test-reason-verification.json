@@ -1,0 +1,57 @@
+{
+  "at": "2026-10-08T04:20:53.619Z",
+  "before": {
+    "id": "contract_5f951395-b5a5-4f2c-9fd2-766b0aa388de",
+    "status": "active",
+    "room_id": "room-1791197579415-sgwfup89",
+    "tenant_id": "tenant-1791206769026-rqk3wsos",
+    "room": "Phòng 999",
+    "eligibility": {
+      "notice": null,
+      "reason": "Đủ điều kiện kiểm tra hủy do lập nhầm. Chọn lý do và hồ sơ đối chiếu; backend kiểm tra lại khi hủy.",
+      "status": "active",
+      "allowed": true,
+      "deadline": "2026-10-09T03:35:10.691516+00:00",
+      "invoices": 0,
+      "receipts": 0,
+      "confirmedAt": "2026-10-08T03:35:10.691516+00:00",
+      "usageEvidence": 0,
+      "isTestContract": false,
+      "cashTransactions": 0
+    }
+  },
+  "after": {
+    "id": "contract_5f951395-b5a5-4f2c-9fd2-766b0aa388de",
+    "status": "active",
+    "room_id": "room-1791197579415-sgwfup89",
+    "tenant_id": "tenant-1791206769026-rqk3wsos",
+    "room": "Phòng 999",
+    "eligibility": {
+      "notice": null,
+      "reason": "Hợp đồng đã được đánh dấu thử nghiệm. Có thể hủy test khi chưa có tài chính hoặc bàn giao; giữ toàn bộ lịch sử.",
+      "status": "active",
+      "allowed": true,
+      "deadline": "2026-10-09T03:35:10.691516+00:00",
+      "invoices": 0,
+      "receipts": 0,
+      "confirmedAt": "2026-10-08T03:35:10.691516+00:00",
+      "usageEvidence": 0,
+      "isTestContract": true,
+      "cashTransactions": 0
+    }
+  },
+  "beforeCounts": {
+    "notices": 1,
+    "invoices": 202,
+    "contracts": 50,
+    "designations": 1
+  },
+  "afterCounts": {
+    "notices": 1,
+    "invoices": 202,
+    "contracts": 50,
+    "designations": 2
+  },
+  "contractCancelled": false,
+  "emailsSent": false
+}

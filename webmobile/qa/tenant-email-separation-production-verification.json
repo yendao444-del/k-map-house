@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-08T04:19:04.953Z",
+  "policyMatchesTest": true,
+  "reservedEmailBlocked": true,
+  "correctedEmailAllowed": true,
+  "room999": {
+    "reason": "Email nhận hợp đồng trùng tài khoản hệ thống. Cần xử lý hợp đồng lập nhầm và gửi lại bằng email riêng của khách.",
+    "status": "pending",
+    "tenantId": "tenant-1791206769026-rqk3wsos",
+    "contractId": "contract_5f951395-b5a5-4f2c-9fd2-766b0aa388de"
+  },
+  "publishedTables": [
+    {
+      "tablename": "contract_drafts"
+    },
+    {
+      "tablename": "contracts"
+    },
+    {
+      "tablename": "tenant_web_accounts"
+    }
+  ],
+  "emailsSent": false,
+  "businessDataWritten": false
+}

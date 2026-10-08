@@ -24,6 +24,7 @@ files:
   - '!LOGO/**/*'
   - '!RAG/**/*'
   - '!phase/**/*'
+  - '!webmobile/**/*'
   - '!node_modules/**/*.map'
   - '!node_modules/**/@types/**/*'
   - '!node_modules/**/{README,CHANGELOG,CHANGELOG.*}.md'
@@ -66,6 +67,11 @@ files:
 asar: true
 asarUnpack:
   - resources/**
+  - node_modules/sharp/**
+  - node_modules/@img/**
+  - node_modules/tesseract.js/**
+  - node_modules/tesseract.js-core/**
+  - node_modules/zxing-wasm/**
   # Keep the main/preload entry and its lazy main chunks directly readable on
   # Windows. This is an A/B packaging experiment; the runtime paths remain
   # ASAR-compatible and the verifier checks the resulting artifact.
@@ -74,6 +80,9 @@ asarUnpack:
   # A/B test: only the renderer entry is unpacked; lazy feature chunks remain
   # in ASAR so the cold path does not pay the cost of unpacking the full UI.
   - out/renderer/assets/index-*.js
+extraResources:
+  - from: resources/identity-ocr
+    to: identity-ocr
 # Keep Electron's full locale set. Windows uses locale-specific names such as
 # en-US and vi, and filtering by a generic language can leave users with no
 # matching .pak file and crash the renderer (exit code -36861).

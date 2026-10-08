@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
+  buildWalletBalanceSummary,
   getAppSettings,
   getCashTransactions,
   getInvoicePaymentRecords,
@@ -315,30 +316,8 @@ export function OverviewTab({
     [categories, invoices, period.end, period.start, transactions]
   )
   const cashPosition = useMemo(() => {
-    const openingDate = appSettings?.opening_balance_date || ''
-    let bank = Number(appSettings?.opening_balance_bank || 0)
-    let cash = Number(appSettings?.opening_balance_cash || 0)
-
-    invoices
-      .filter((invoice) => !['cancelled', 'merged'].includes(invoice.payment_status))
-      .flatMap(getInvoicePaymentRecords)
-      .forEach((record) => {
-        const date = record.payment_date || record.created_at
-        if (openingDate && date < openingDate) return
-        const amount = Number(record.amount || 0)
-        if (record.payment_method === 'cash') cash += amount
-        else bank += amount
-      })
-
-    transactions.forEach((transaction) => {
-      const date = transaction.transaction_date || transaction.created_at
-      if (openingDate && date < openingDate) return
-      const amount = transaction.type === 'income' ? Number(transaction.amount || 0) : -Number(transaction.amount || 0)
-      if (transaction.payment_method === 'cash') cash += amount
-      else bank += amount
-    })
-
-    return { bank, cash, total: bank + cash }
+    const summary = buildWalletBalanceSummary(transactions, invoices, appSettings || {})
+    return { ...summary, bank: summary.bankBalance, cash: summary.cashBalance, total: summary.totalBalance }
   }, [appSettings, invoices, transactions])
   const priorRange = useMemo(
     () => previousRange(period.start, period.end),
@@ -495,14 +474,14 @@ export function OverviewTab({
                   cashPosition.total >= 0 ? 'text-slate-950' : 'text-rose-600'
                 }`}
               >
-                {fmt(cashPosition.total)} đ
+                {cashPosition.reconciliationRequired ? 'Cần đối soát' : `${fmt(cashPosition.total)} đ`}
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold tabular-nums">
                 <span className="rounded-lg bg-slate-100 px-3 py-2 text-slate-600">
-                  Ngân hàng: {fmt(cashPosition.bank)} đ
+                  Ngân hàng: {cashPosition.bank < 0 ? 'Cần đối soát' : `${fmt(cashPosition.bank)} đ`}
                 </span>
                 <span className="rounded-lg bg-amber-50 px-3 py-2 text-amber-700">
-                  Tiền mặt: {fmt(cashPosition.cash)} đ
+                  Tiền mặt: {cashPosition.cash < 0 ? 'Cần đối soát' : `${fmt(cashPosition.cash)} đ`}
                 </span>
               </div>
               <p className="mt-6 text-sm font-bold text-slate-500 tabular-nums">

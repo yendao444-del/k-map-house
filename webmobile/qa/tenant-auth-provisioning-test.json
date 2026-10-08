@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-08T04:36:28.350Z",
+  "project": "gsianbstkmyutnhromwc",
+  "passed": true,
+  "checks": [
+    "reproduces original GoTrue insertion failure",
+    "untrusted user_metadata cannot bypass system-email guard",
+    "anonymous cannot reserve Auth identity",
+    "reservation requires actual active admin",
+    "admin creation succeeds for email already in tenant profile",
+    "creation never grants staff profile and consumes reservation",
+    "admin-created identity enrolls in tenant account",
+    "tenant Auth creation consumes a verified reservation",
+    "reserved identity can be enrolled after Auth creation",
+    "reservation table unavailable to browser and staff JWTs"
+  ],
+  "fixturesRemoved": true,
+  "emailsSent": false,
+  "productionWrites": false
+}

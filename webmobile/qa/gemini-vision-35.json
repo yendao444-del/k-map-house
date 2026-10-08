@@ -1,0 +1,17 @@
+{
+  "model": "gemini-3.5-flash",
+  "checkedAt": "2026-10-06T13:52:17.458Z",
+  "durationMs": 3021,
+  "result": {
+    "ok": false,
+    "error": "provider_failed",
+    "name": "Error"
+  },
+  "statuses": [
+    {
+      "http": 503,
+      "error": "UNAVAILABLE",
+      "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+    }
+  ]
+}

@@ -7,6 +7,13 @@ const electronAPI = {
 
 // Custom APIs for renderer - Database IPC
 const api = {
+  contractTest: {
+    open: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('contractTest:open')
+  },
+  tenantIdentity: {
+    read: (dataUrl: string) => ipcRenderer.invoke('tenantIdentity:read', dataUrl),
+    clipboard: (): Promise<string | null> => ipcRenderer.invoke('tenantIdentity:clipboard')
+  },
   windowTheme: {
     setInvestmentTitleBar: (active: boolean): Promise<void> =>
       ipcRenderer.invoke('window:setInvestmentTitleBar', active)
@@ -44,7 +51,7 @@ const api = {
   gmail: {
     getAvailability: (): Promise<{ available: boolean; authenticated?: boolean; reason?: string }> => ipcRenderer.invoke('gmail:getAvailability'),
     reauthenticate: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('gmail:reauthenticate'),
-    sendNotification: (payload: { to: string; subject: string; html: string }): Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; messageId?: string }> => ipcRenderer.invoke('gmail:sendNotification', payload)
+    sendNotification: (payload: { to: string; subject: string; html: string }): Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; notSent?: boolean; messageId?: string }> => ipcRenderer.invoke('gmail:sendNotification', payload)
   },
   invoice: {
     saveImage: (payload: {

@@ -5,6 +5,7 @@ interface ContractPrintTemplateProps {
     contract: Contract
     room: Room
     settings: AppSettings
+    compact?: boolean
 }
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(value)
@@ -52,13 +53,13 @@ const formatDateShort = (dateStr?: string) => {
 }
 
 export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTemplateProps>(
-    ({ contract, room, settings }, ref) => {
+    ({ contract, room, settings, compact = false }, ref) => {
         const landlordName = settings.property_owner_name || 'AN KHANG HOME'
         const landlordPhone = settings.property_owner_phone || '.....................'
-        const landlordIdCard = settings.property_owner_id_card || '034300002743'
-        const propertyAddress = settings.property_address || 'Số nhà 8, ngách 132b, ngõ 28, tổ dân phố 18, phường Đại Mỗ, Hà Nội'
+        const landlordIdCard = settings.property_owner_id_card || '.....................'
+        const propertyAddress = settings.property_address || '..........................................'
         const bankName = settings.bank_id || 'BIDV'
-        const bankAccountNo = settings.account_no || '8856782931'
+        const bankAccountNo = settings.account_no || '.....................'
         const bankAccountName = settings.account_name || 'AN KHANG HOME'
         const invoiceDay = contract.invoice_day || 5
 
@@ -67,7 +68,7 @@ export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTem
                 ref={ref}
                 className="text-black font-serif leading-relaxed w-full"
                 style={{
-                    fontSize: '14pt',
+                    fontSize: compact ? '10pt' : '14pt',
                     lineHeight: '1.5',
                     fontFamily: '"Times New Roman", Times, serif',
                 }}
@@ -109,9 +110,11 @@ export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTem
                     </p>
                     <p style={{ margin: '0 0 4px 0' }}>
                         CMND/CCCD số: {contract.tenant_id_card || '.............................'}
-                        &nbsp;&nbsp;&nbsp;&nbsp;Ngày cấp: {contract.tenant_dob || '.......................'}
+                        &nbsp;&nbsp;&nbsp;&nbsp;Ngày cấp: {contract.tenant_id_card_issued_date ? formatDateShort(contract.tenant_id_card_issued_date) : '.......................'}
                     </p>
+                    <p style={{ margin: '0 0 4px 0' }}>Nơi cấp: {contract.tenant_id_card_issued_place || '..........................................'}</p>
                     <p style={{ margin: '0 0 4px 0' }}>Số điện thoại: {contract.tenant_phone || '..........................................'}</p>
+                    <p style={{ margin: '0 0 4px 0' }}>Địa chỉ: {contract.tenant_address || '..........................................'}</p>
                 </div>
 
                 <p style={{ marginBottom: '16px', fontWeight: 600, fontStyle: 'italic' }}>
@@ -125,7 +128,7 @@ export const ContractPrintTemplate = forwardRef<HTMLDivElement, ContractPrintTem
                         1.1. Bên A cho Bên B thuê nhà tại địa chỉ: <strong>{propertyAddress}</strong>
                     </p>
                     <p style={{ margin: '0 0 4px 0', paddingLeft: '16px' }}>
-                        Phòng số: <strong>{room.name}</strong> &nbsp;&nbsp; Diện tích: .............. m².
+                        Phòng số: <strong>{room.name}</strong> &nbsp;&nbsp; Diện tích: {room.area || '..............'} m².
                     </p>
                     <p style={{ margin: '6px 0' }}>
                         1.2. <em><strong>Mục đích thuê:</strong></em> Chỉ sử dụng để ở, sinh hoạt cá nhân và hộ gia đình. Không được sử dụng căn nhà vào các mục đích:

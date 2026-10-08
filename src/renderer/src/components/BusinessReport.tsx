@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState, useRef, useEffect } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
+  buildWalletBalanceSummary,
   getCashTransactions,
   getAppSettings,
   getContracts,
@@ -20,6 +21,7 @@ import {
   type AppUser
 } from '../lib/db'
 import { CashFlowTab } from './CashFlowTab'
+import { getInvoicePaymentFlow } from '../lib/invoice-payment-flow'
 import { OverviewTab } from './OverviewTab'
 import { DebtReport } from './DebtReport'
 
@@ -574,7 +576,8 @@ export function BusinessReport({
   }, [initialTab])
 
   const today = new Date()
-  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('all')
+  // Reports open on the current month so the default view reflects the active operating period.
+  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>('range')
   const [startDate, setStartDate] = useState(
     iso(new Date(today.getFullYear(), today.getMonth(), 1))
   )
@@ -593,7 +596,7 @@ export function BusinessReport({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Temp states for Shopee-style date selector
-  const [tempPeriodMode, setTempPeriodMode] = useState<ReportPeriodMode>('all')
+  const [tempPeriodMode, setTempPeriodMode] = useState<ReportPeriodMode>('range')
   const [tempStartDate, setTempStartDate] = useState(startDate)
   const [tempEndDate, setTempEndDate] = useState(endDate)
   const [tempSelectedDate, setTempSelectedDate] = useState(selectedDate)
@@ -786,6 +789,8 @@ export function BusinessReport({
         if (invoice.payment_status === 'cancelled' || invoice.payment_status === 'merged') return []
         return getInvoicePaymentRecords(invoice)
           .filter((record) => {
+            // Returning held deposits reduces cash, not operating revenue/profit.
+            if (getInvoicePaymentFlow(invoice, record).isDepositRefund) return false
             const date = toDate(record.payment_date || record.created_at)
             return isDateInPeriod(date, period)
           })
@@ -1059,41 +1064,11 @@ export function BusinessReport({
     [depositRows, pendingRefundRows]
   )
 
-  // Mirror the Wallet tab's cash position so the deposit report uses the same source of truth.
-  const walletPosition = useMemo(() => {
-    const openingDate = appSettings?.opening_balance_date || ''
-    let bank = Number(appSettings?.opening_balance_bank || 0)
-    let cash = Number(appSettings?.opening_balance_cash || 0)
-
-    invoices
-      .filter(
-        (invoice) =>
-          invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged'
-      )
-      .flatMap(getInvoicePaymentRecords)
-      .forEach((record) => {
-        const date = record.payment_date || record.created_at
-        if (openingDate && date < openingDate) return
-        const amount = Number(record.amount || 0)
-        if (record.payment_method === 'cash') cash += amount
-        else bank += amount
-      })
-
-    walletTransactions.forEach((transaction) => {
-      const date = transaction.transaction_date || transaction.created_at
-      if (openingDate && date < openingDate) return
-      const amount =
-        transaction.type === 'income'
-          ? Number(transaction.amount || 0)
-          : -Number(transaction.amount || 0)
-      if (transaction.payment_method === 'cash') cash += amount
-      else bank += amount
-    })
-
-    return { bank, cash, total: bank + cash }
-  }, [appSettings, invoices, walletTransactions])
-
-  const walletBalance = Math.max(0, walletPosition.total)
+  const walletPosition = useMemo(
+    () => buildWalletBalanceSummary(walletTransactions, invoices, appSettings || {}),
+    [appSettings, invoices, walletTransactions]
+  )
+  const walletBalance = walletPosition.totalBalance
   const reservedDeposit = depositSummary.totalHeld + depositSummary.pendingRefund
   const availableBalance = walletBalance - reservedDeposit
 
@@ -1609,9 +1584,9 @@ export function BusinessReport({
                   Số dư hiện tại
                 </div>
                 <p className="text-2xl font-black tabular-nums text-slate-900">
-                  {fmt(walletBalance)} đ
+                  {walletPosition.reconciliationRequired ? 'Cần đối soát' : `${fmt(walletBalance)} đ`}
                 </p>
-                <p className="mt-1 text-xs text-slate-400">Theo số dư thực tế trong Ví tiền</p>
+                <p className="mt-1 text-xs text-slate-400">Theo sổ giao dịch trong Ví tiền</p>
               </div>
             </div>
 
@@ -1649,7 +1624,7 @@ export function BusinessReport({
                 <p
                   className={`text-2xl font-black tabular-nums ${availableBalance >= 0 ? 'text-emerald-800' : 'text-red-700'}`}
                 >
-                  {fmt(availableBalance)} đ
+                  {walletPosition.reconciliationRequired ? 'Cần đối soát' : `${fmt(availableBalance)} đ`}
                 </p>
                 <p
                   className={`mt-1 text-xs ${availableBalance >= 0 ? 'text-emerald-700/70' : 'text-red-700/70'}`}

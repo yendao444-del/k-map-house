@@ -1,0 +1,10 @@
+{
+  "created": "2026-10-07",
+  "surface": "Gmail contract confirmation email",
+  "status": "awaiting user selection; no email implementation changes",
+  "options": [
+    { "number": 1, "file": "emerald-illustration.png" },
+    { "number": 2, "file": "mint-editorial.png" },
+    { "number": 3, "file": "home-photo.png" }
+  ]
+}

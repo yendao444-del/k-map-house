@@ -7,6 +7,7 @@ import {
   DEFAULT_EXPENSE_CATEGORIES,
   getCashTransactions,
   getWalletBalanceSummary,
+  buildWalletBalanceSummary,
   getAppSettings,
   getInvoices,
   getInvoicePaymentRecords,
@@ -22,6 +23,8 @@ import {
   type AppUser
 } from '../lib/db'
 import type { ReportPeriod } from './BusinessReport'
+import { getInvoicePaymentFlow, INVOICE_REFUND_LABELS } from '../lib/invoice-payment-flow'
+import { resolveWalletMethod } from '../lib/wallet-accounting'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const dateKey = (date: Date) => {
@@ -55,11 +58,12 @@ const toCategoryOptions = (categories: ExpenseCategory[]): CategoryOption[] =>
   categories.map((item) => ({ value: item.value, label: item.name, type: item.type }))
 
 const categoryLabel = (category: CashTransactionCategory, options: CategoryOption[]) =>
-  category === 'investment_transfer'
+  INVOICE_REFUND_LABELS[category] ||
+  (category === 'investment_transfer'
     ? 'Chuyển vốn đầu tư'
     : category === 'wallet_transfer'
-    ? 'Chuyển giữa các ví'
-    : options.find((item) => item.value === category)?.label || 'Khác'
+      ? 'Chuyển giữa các ví'
+      : options.find((item) => item.value === category)?.label || 'Khác')
 
 const isUtilityBuildingCategory = (category?: string) =>
   category === 'electric' || category === 'water'
@@ -88,7 +92,41 @@ type CashFlowRow =
       invoiceId: string
       invoiceStatus: Invoice['payment_status']
       paymentRecordId: string
+      recordedAt?: string
     })
+
+function TransactionDate({
+  item
+}: {
+  item: CashTransaction & { source?: 'manual' | 'invoice'; recordedAt?: string }
+}): React.JSX.Element {
+  // Accounting dates can be backdated. Use the payment/receipt's own timestamp,
+  // never the invoice creation time, and identify it as the recording time.
+  const timestamp = /[T ]\d{2}:\d{2}/.test(item.transaction_date)
+    ? item.transaction_date
+    : item.source === 'invoice'
+      ? item.recordedAt
+      : item.created_at
+  const recorded = timestamp && /[T ]\d{2}:\d{2}/.test(timestamp) ? new Date(timestamp) : null
+  const hasTime = recorded !== null && !isNaN(recorded.getTime())
+  const time = hasTime
+    ? `${String(recorded.getHours()).padStart(2, '0')}:${String(recorded.getMinutes()).padStart(2, '0')}`
+    : 'Chưa có giờ'
+
+  return (
+    <div
+      className="whitespace-nowrap tabular-nums"
+      title={
+        hasTime
+          ? `Giờ ghi nhận: ${formatDateToDDMMYYYY(recorded)} ${time}`
+          : 'Giao dịch chưa lưu thời gian ghi nhận'
+      }
+    >
+      <div>{formatDateToDDMMYYYY(item.transaction_date)}</div>
+      <div className="text-[10px] font-normal leading-3 text-slate-400">{time}</div>
+    </div>
+  )
+}
 
 type ConfirmAction =
   | { type: 'edit'; transaction: CashTransaction }
@@ -159,7 +197,7 @@ function ReportLedgerPanel({
       </div>
 
       <div className="grid grid-cols-[92px_minmax(0,1fr)_112px_126px] gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-500">
-        <span>Ngày</span>
+        <span>Ngày / Giờ</span>
         <span>Nội dung</span>
         <span>Ví / Phòng</span>
         <span className="text-right">Số tiền</span>
@@ -172,10 +210,10 @@ function ReportLedgerPanel({
           return (
             <div
               key={item.id}
-              className="grid h-7 grid-cols-[92px_minmax(0,1fr)_112px_126px] items-center gap-2 px-3 transition hover:bg-slate-50"
+              className="grid h-10 grid-cols-[92px_minmax(0,1fr)_112px_126px] items-center gap-2 px-3 transition hover:bg-slate-50"
             >
               <div className="text-xs font-medium text-slate-500">
-                {formatDateToDDMMYYYY(item.transaction_date)}
+                <TransactionDate item={item} />
               </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span
@@ -326,9 +364,9 @@ function ConfirmActionModal({
             </span>
           </div>
           <div className="flex justify-between gap-4">
-            <span className="text-slate-500">Ngày</span>
+            <span className="text-slate-500">Ngày / Giờ</span>
             <span className="font-semibold text-slate-800">
-              {formatDateToDDMMYYYY(action.transaction.transaction_date)}
+              <TransactionDate item={action.transaction} />
             </span>
           </div>
         </div>
@@ -355,7 +393,7 @@ function ConfirmActionModal({
   )
 }
 
-const buildInvoiceIncomeRows = (invoices: Invoice[]): CashFlowRow[] =>
+const buildInvoicePaymentRows = (invoices: Invoice[]): CashFlowRow[] =>
   invoices
     .filter(
       (invoice) => invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged'
@@ -367,15 +405,17 @@ const buildInvoiceIncomeRows = (invoices: Invoice[]): CashFlowRow[] =>
         invoiceId: invoice.id,
         invoiceStatus: invoice.payment_status,
         paymentRecordId: record.id,
-        type: 'income' as const,
-        category: 'other_income' as const,
+        recordedAt: record.created_at,
+        type: getInvoicePaymentFlow(invoice, record).type,
+        category: getInvoicePaymentFlow(invoice, record).category,
         transaction_date: record.payment_date,
-        amount: record.amount || 0,
+        amount: getInvoicePaymentFlow(invoice, record).amount,
         room_id: invoice.room_id,
-        payment_method: record.payment_method,
+        payment_method: resolveWalletMethod(record.payment_method, record.source) === 'unknown'
+          ? undefined : resolveWalletMethod(record.payment_method, record.source) as PaymentMethod,
         note:
           record.note ||
-          `Thu từ hóa đơn T${String(invoice.month).padStart(2, '0')}/${invoice.year}`,
+          `${getInvoicePaymentFlow(invoice, record).label} · Hóa đơn T${String(invoice.month).padStart(2, '0')}/${invoice.year}`,
         created_at: record.created_at || invoice.created_at,
         updated_at: record.created_at || invoice.created_at
       }))
@@ -464,8 +504,8 @@ function CashTransactionModal({
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const amount = Number(amountDisplay.replace(/\D/g, '')) || 0
-    if (type === 'expense' && !form.get('payment_method')) {
-      setError('Vui lòng chọn ví chi tiền.')
+    if (!form.get('payment_method')) {
+      setError(type === 'expense' ? 'Vui lòng chọn ví chi tiền.' : 'Vui lòng chọn ví nhận tiền.')
       return
     }
     const roomId = String(form.get(isBuildingTarget ? 'building_id' : 'room_id') || '').trim()
@@ -622,13 +662,13 @@ function CashTransactionModal({
                 <select
                   name="payment_method"
                   key={type}
-                  defaultValue={isExpense ? '' : transaction?.payment_method || 'cash'}
-                  required={isExpense}
+                  defaultValue={transaction?.payment_method || ''}
+                  required
                   className="w-full text-sm font-semibold text-slate-800 bg-transparent outline-none"
                 >
-                  <option value="" disabled>Chọn ví chi tiền</option>
-                  <option value="cash">Tiền mặt · {walletBalances ? `${formatVND(walletBalances.cashBalance)} đ` : 'Chưa tải được số dư'}</option>
-                  <option value="transfer">Tài khoản ngân hàng · {walletBalances ? `${formatVND(walletBalances.bankBalance)} đ` : 'Chưa tải được số dư'}</option>
+                  <option value="" disabled>{isExpense ? 'Chọn ví chi tiền' : 'Chọn ví nhận tiền'}</option>
+                  <option value="cash">Tiền mặt · {walletBalances ? walletBalances.cashBalance < 0 ? 'Cần đối soát' : `${formatVND(walletBalances.cashBalance)} đ` : 'Chưa tải được số dư'}</option>
+                  <option value="transfer">Tài khoản ngân hàng · {walletBalances ? walletBalances.bankBalance < 0 ? 'Cần đối soát' : `${formatVND(walletBalances.bankBalance)} đ` : 'Chưa tải được số dư'}</option>
                 </select>
                 {isExpense && <p className="text-xs text-slate-500">{balanceError ? 'Không tải được số dư. Khi lưu sẽ kiểm tra lại.' : 'Không đủ tiền? Vào Ví để chuyển tiền trước khi chi.'}</p>}
               </div>
@@ -748,13 +788,20 @@ export function CashFlowTab({
         }
       : undefined
   const cashRangeKey = cashRange ? `${cashRange.startDate}:${cashRange.endDate}` : 'all'
-  const { data: transactions = [] } = useQuery({
+  const { data: transactions = [], isLoading: transactionsLoading, isError: transactionsError } = useQuery({
     queryKey: ['cashTransactions', 'range', cashRangeKey],
     queryFn: () => getCashTransactions(cashRange || {})
   })
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
+  const { data: invoices = [], isLoading: invoicesLoading, isError: invoicesError } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices })
   const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
   const { data: appSettings } = useQuery({ queryKey: ['appSettings'], queryFn: getAppSettings })
+  const { data: walletTransactions = [] } = useQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions })
+  const reportLoading = invoicesLoading || transactionsLoading
+  const reportError = invoicesError || transactionsError
+  const walletSummary = useMemo(
+    () => buildWalletBalanceSummary(walletTransactions, invoices, appSettings || {}),
+    [walletTransactions, invoices, appSettings]
+  )
   const [editing, setEditing] = useState<CashTransaction | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
@@ -773,16 +820,14 @@ export function CashFlowTab({
   const categoryOptions = useMemo(() => toCategoryOptions(DEFAULT_EXPENSE_CATEGORIES), [])
 
   const roomById = useMemo(() => new Map(rooms.map((room) => [room.id, room])), [rooms])
-  const invoiceIncomeRows = useMemo(() => buildInvoiceIncomeRows(invoices), [invoices])
+  const invoicePaymentRows = useMemo(() => buildInvoicePaymentRows(invoices), [invoices])
   const allRows = useMemo<CashFlowRow[]>(
     () =>
       [
-        ...invoiceIncomeRows,
+        ...invoicePaymentRows,
         ...transactions.map((item) => ({
           ...item,
-          // Rows entered outside SePay are cash-at-fund by default. A bank
-          // entry must explicitly be marked as `transfer`.
-          payment_method: item.payment_method || 'cash',
+          payment_method: appSettings?.wallet_accounting_basis?.method_overrides[`cash-${item.id}`] || item.payment_method,
           source: 'manual' as const
         }))
       ].sort((a, b) => {
@@ -791,7 +836,7 @@ export function CashFlowTab({
         if (dateDiff !== 0) return dateDiff
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       }),
-    [invoiceIncomeRows, transactions]
+    [invoicePaymentRows, transactions, appSettings]
   )
 
   const filtered = useMemo(
@@ -830,20 +875,18 @@ export function CashFlowTab({
       })
   }, [allRows, openingDate])
 
-  const { balanceMap, currentCashBalance, currentBankBalance } = useMemo(() => {
-    let cashBal = openingCash
-    let bankBal = openingBank
+  const { balanceMap } = useMemo(() => {
     let totalBal = openingCash + openingBank
     const map = new Map<string, number>()
     for (const row of rowsFromOpening) {
       const delta = row.type === 'income' ? row.amount : -row.amount
       totalBal += delta
-      if ((row.payment_method || 'cash') === 'cash') cashBal += delta
-      else if (row.payment_method === 'transfer') bankBal += delta
       map.set(row.id, totalBal)
     }
-    return { balanceMap: map, currentCashBalance: cashBal, currentBankBalance: bankBal }
+    return { balanceMap: map }
   }, [rowsFromOpening, openingCash, openingBank])
+  const currentCashBalance = walletSummary.cashBalance
+  const currentBankBalance = walletSummary.bankBalance
 
   const openCreate = () => {
     setEditing(null)
@@ -894,7 +937,7 @@ export function CashFlowTab({
               <p
                 className={`text-lg font-black tabular-nums ${currentCashBalance >= 0 ? 'text-gray-800' : 'text-red-600'}`}
               >
-                {formatVND(currentCashBalance)} đ
+                {currentCashBalance < 0 ? 'Cần đối soát' : `${formatVND(currentCashBalance)} đ`}
               </p>
             </div>
           </div>
@@ -909,7 +952,7 @@ export function CashFlowTab({
               <p
                 className={`text-lg font-black tabular-nums ${currentBankBalance >= 0 ? 'text-gray-800' : 'text-red-600'}`}
               >
-                {formatVND(currentBankBalance)} đ
+                {currentBankBalance < 0 ? 'Cần đối soát' : `${formatVND(currentBankBalance)} đ`}
               </p>
             </div>
           </div>
@@ -924,7 +967,7 @@ export function CashFlowTab({
               <p
                 className={`text-lg font-black tabular-nums ${currentCashBalance + currentBankBalance >= 0 ? 'text-emerald-700' : 'text-red-600'}`}
               >
-                {formatVND(currentCashBalance + currentBankBalance)} đ
+                {walletSummary.reconciliationRequired ? 'Cần đối soát' : `${formatVND(walletSummary.totalBalance)} đ`}
               </p>
             </div>
           </div>
@@ -957,14 +1000,17 @@ export function CashFlowTab({
         <section className="flex min-h-[92px] items-center bg-[#06603f] px-6 text-white">
           <div className="min-w-[330px] border-r border-white/45 pr-7">
             <div className="text-xs font-black uppercase tracking-wide text-white/90">
-              Số dư khả dụng (Chênh lệch)
+              Dòng tiền ròng trong kỳ
             </div>
             <div
               className={`mt-1 text-2xl font-black tabular-nums ${
                 totalIncome - totalExpense >= 0 ? 'text-white' : 'text-[#FFB8AC]'
               }`}
             >
-              {formatVND(totalIncome - totalExpense)} đ
+              {reportLoading ? 'Đang tải...' : reportError ? 'Không tải được giao dịch' : `${formatVND(totalIncome - totalExpense)} đ`}
+            </div>
+            <div className="mt-1 text-[10px] font-semibold text-white/70">
+              Tổng thu − tổng chi theo kỳ đang chọn
             </div>
           </div>
           <div className="ml-auto flex items-center divide-x divide-white/35">
@@ -1022,6 +1068,11 @@ export function CashFlowTab({
                 {item.label}
               </option>
             ))}
+            {Object.entries(INVOICE_REFUND_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -1046,7 +1097,7 @@ export function CashFlowTab({
               <div className="absolute bottom-12 top-14 border-l border-dashed border-emerald-200" />
               <div className="relative z-10 my-auto flex items-center bg-white py-3 pl-3 text-center">
                 <div>
-                  <div className="text-sm font-bold text-slate-800">Còn lại</div>
+                  <div className="text-sm font-bold text-slate-800">Dòng tiền ròng trong kỳ</div>
                   <div
                     className={`mt-1 text-base font-black tabular-nums ${totalIncome >= totalExpense ? 'text-[#047857]' : 'text-[#E04444]'}`}
                   >
@@ -1080,7 +1131,7 @@ export function CashFlowTab({
             <table className="w-full text-left text-sm">
               <thead className="sticky top-0 z-10 border-b border-[#B8DDC8] bg-[#EAF5EE] text-xs font-bold text-[#235D46]">
                 <tr>
-                  <th className="px-4 py-3">Ngày</th>
+                  <th className="px-4 py-3">Ngày / Giờ</th>
                   <th className="px-4 py-3">Loại</th>
                   <th className="px-4 py-3">Nhóm</th>
                   <th className="px-4 py-3">Phòng / Tòa</th>
@@ -1095,7 +1146,7 @@ export function CashFlowTab({
                 {filtered.map((item) => (
                   <tr key={item.id} className="transition-colors hover:bg-[#F4F8F6]">
                     <td className="px-4 py-3 font-semibold text-gray-700">
-                      {formatDateToDDMMYYYY(item.transaction_date)}
+                      <TransactionDate item={item} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -1138,7 +1189,7 @@ export function CashFlowTab({
                         ? 'Tiền mặt'
                         : item.payment_method === 'transfer'
                           ? 'Chuyển khoản'
-                          : '—'}
+                          : 'Chưa xác định ví'}
                     </td>
                     {hasOpeningBalance && (
                       <td className="px-4 py-3 text-right tabular-nums">

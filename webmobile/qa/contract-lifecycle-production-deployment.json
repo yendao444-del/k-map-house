@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-07T10:44:27.936Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "schema": "public",
+  "before": {
+    "rooms": 25,
+    "drafts": 2,
+    "tenants": 30,
+    "contracts": 49
+  },
+  "after": {
+    "rooms": 25,
+    "drafts": 2,
+    "tenants": 30,
+    "contracts": 49
+  },
+  "access": {
+    "rls": true,
+    "anon_select": false,
+    "staff_direct": false
+  },
+  "emailsSent": false,
+  "contractsCreated": false
+}

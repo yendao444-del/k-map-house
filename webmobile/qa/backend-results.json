@@ -1,0 +1,38 @@
+{
+  "outcomes": [
+    {
+      "label": "original back",
+      "ok": true,
+      "source": "qr",
+      "nameExact": true,
+      "idExact": true,
+      "ms": 254
+    },
+    {
+      "label": "back resized to 1200 px",
+      "ok": true,
+      "source": "qr",
+      "nameExact": true,
+      "idExact": true,
+      "ms": 107
+    },
+    {
+      "label": "back rotated 90 degrees",
+      "ok": true,
+      "source": "qr",
+      "nameExact": true,
+      "idExact": true,
+      "ms": 226
+    },
+    {
+      "label": "front only OCR",
+      "ok": true,
+      "source": "ocr",
+      "nameExact": true,
+      "idExact": true,
+      "ms": 968
+    }
+  ],
+  "invalidInputRejected": true,
+  "networkCallsForIdentity": 0
+}

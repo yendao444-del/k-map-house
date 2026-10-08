@@ -1,0 +1,11 @@
+{
+  "function": "webmobile-demo",
+  "mode": "demo",
+  "provider": "gemini",
+  "cloudKeyProvided": true,
+  "publicGateway": "https://phongtroankhang.com/api/health",
+  "deployedAt": "2026-10-07T05:25:27.233Z",
+  "storage": "isolated Supabase demo sessions, no image storage",
+  "realPayments": false,
+  "realTenantData": false
+}

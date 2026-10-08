@@ -1,0 +1,6 @@
+/* The website owns these screens; device and keyboard runtime remain intact. */
+body { padding: 0; }
+:root { background: #fff; }
+.tenant-app.framed-app { height: 100%; min-height: 0; }
+.framed-app .brand-header, .framed-app .flow-header { flex-shrink: 0; }
+.framed-app .app-scroll { position: relative; inset: auto; height: 0; width: 100%; flex: 1; }

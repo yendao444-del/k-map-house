@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-07T03:51:22.882Z",
+  "credentialChecks": [
+    {
+      "source": "root-file-new-token",
+      "http": 200
+    }
+  ],
+  "healthStatus": 200,
+  "health": {
+    "ok": true,
+    "mode": "demo",
+    "backend": "online",
+    "ocrConfigured": true,
+    "provider": "gemini",
+    "realPayments": false,
+    "realTenantData": false
+  },
+  "resolved": true,
+  "publicFlowEvidence": "qa/public-cloud-ocr-flow.json"
+}

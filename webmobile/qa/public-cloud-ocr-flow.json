@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-10-07T03:51:22.882Z",
+  "host": "https://phongtroankhang.com",
+  "model": "gemini-3.1-flash-lite",
+  "realPhotos": true,
+  "realPayments": false,
+  "checks": [
+    {
+      "meter": "electric",
+      "status": 200,
+      "ok": true,
+      "reading": 12692,
+      "digits": "12692",
+      "assessment": {
+        "status": "pass",
+        "reason": "",
+        "usage": 92
+      },
+      "aiMs": 2525,
+      "totalMs": 4380,
+      "hasReviewToken": true
+    },
+    {
+      "meter": "electric",
+      "step": "confirm",
+      "status": 200,
+      "ok": true,
+      "hasConfirmationToken": true
+    },
+    {
+      "meter": "water",
+      "status": 200,
+      "ok": true,
+      "reading": 287,
+      "digits": "00287",
+      "assessment": {
+        "status": "pass",
+        "reason": "",
+        "usage": 7
+      },
+      "aiMs": 1848,
+      "totalMs": 3145,
+      "hasReviewToken": true
+    },
+    {
+      "meter": "water",
+      "step": "confirm",
+      "status": 200,
+      "ok": true,
+      "hasConfirmationToken": true
+    },
+    {
+      "step": "invoice",
+      "status": 200,
+      "ok": true,
+      "total": 3472000,
+      "readings": {
+        "electric": {
+          "old": 12600,
+          "new": 12692,
+          "source": "ai-ocr"
+        },
+        "water": {
+          "old": 280,
+          "new": 287,
+          "source": "ai-ocr"
+        }
+      },
+      "detailsPresent": true,
+      "demo": true
+    },
+    {
+      "step": "simulate",
+      "status": 200,
+      "queued": true
+    },
+    {
+      "step": "settled",
+      "status": 200,
+      "invoiceStatus": "paid",
+      "paid": 3472000,
+      "remaining": 0,
+      "receiptPresent": true
+    }
+  ]
+}

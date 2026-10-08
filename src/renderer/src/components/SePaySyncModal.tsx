@@ -9,6 +9,7 @@ import {
   type Room
 } from '../lib/db'
 import { buildInvoiceTransferDescription, normalizeTransferText } from '../lib/invoiceTransfer'
+import { announcePaymentAmount } from '../lib/sound'
 import { LogoLoading } from './LogoLoading'
 
 interface SePaySyncModalProps {
@@ -83,6 +84,17 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
   const [processingTxKeys, setProcessingTxKeys] = useState<string[]>([])
   const [recordedTxKeys, setRecordedTxKeys] = useState<string[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [isTestingSound, setIsTestingSound] = useState(false)
+
+  const handleTestSound = async (): Promise<void> => {
+    if (isTestingSound) return
+    setIsTestingSound(true)
+    try {
+      await announcePaymentAmount(1_500_000)
+    } finally {
+      setIsTestingSound(false)
+    }
+  }
 
   const roomNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -875,12 +887,25 @@ export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms,
               </span>
             ) : null}
           </div>
-          <button
-            onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition text-sm"
-          >
-            Đóng bảng
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleTestSound()}
+              disabled={isTestingSound}
+              aria-busy={isTestingSound}
+              title="Nghe thử chuông và giọng đọc nhận 1.500.000 đồng"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 transition text-sm disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+              <i className="fa-solid fa-volume-high" aria-hidden="true"></i>
+              <span>{isTestingSound ? 'Đang phát…' : 'Nghe thử'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition text-sm"
+            >
+              Đóng bảng
+            </button>
+          </div>
         </div>
       </div>
     </div>

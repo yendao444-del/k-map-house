@@ -1,0 +1,103 @@
+{
+  "at": "2026-10-08T04:19:08.124Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "fingerprints": [
+    {
+      "name": "contract_cancel",
+      "sha256": "c3692966b076b310a033e812a423287f25f7f430bfa739694281466d891d583d"
+    },
+    {
+      "name": "contract_cancel_internal",
+      "sha256": "f7bb522f28d4a190578bcf22ae40ddeeec4e772d5dfa2d51426cbfee589d2058"
+    },
+    {
+      "name": "contract_cancellation_check",
+      "sha256": "4a1d33313e9eeba5f581a7718a9c10933bfa747495d47a1eea725bb9c92841a2"
+    },
+    {
+      "name": "contract_cancellation_notice",
+      "sha256": "d9a01f994ecbe35f0485d9163703400d8e2059cde1a37b09f7f87ac21b10eed6"
+    },
+    {
+      "name": "contract_capture_usage",
+      "sha256": "c0df0116c96a514067ee4061f950bbb127c711421d0dc6b565ecea900354ac52"
+    },
+    {
+      "name": "contract_original_confirmation",
+      "sha256": "f14bdccfb80bb26b9043fe60b3914c8a4426e3443970152983f909d50486bbd4"
+    },
+    {
+      "name": "guard_contract_cancellation_metadata",
+      "sha256": "4f03a53a48e2ea3bb691fca46b1de917c58c8628bd49bb4462f1d8b417c9ba4c"
+    }
+  ],
+  "access": [
+    {
+      "tablename": "contract_cancellation_notices",
+      "rowsecurity": true,
+      "anon_select": false,
+      "staff_update": false
+    },
+    {
+      "tablename": "contract_lifecycle_events",
+      "rowsecurity": true,
+      "anon_select": false,
+      "staff_update": false
+    },
+    {
+      "tablename": "contract_usage_evidence",
+      "rowsecurity": true,
+      "anon_select": false,
+      "staff_update": false
+    }
+  ],
+  "internal": {
+    "unsafe_direct": false,
+    "legacy_removed": true
+  },
+  "endpoints": [
+    {
+      "action": "cancel",
+      "status": 401
+    },
+    {
+      "action": "cancel_check",
+      "status": 401
+    },
+    {
+      "action": "cancel_notice",
+      "status": 401
+    },
+    {
+      "action": "cancel_notices",
+      "status": 401
+    }
+  ],
+  "counts": {
+    "rooms": 25,
+    "drafts": 3,
+    "notices": 1,
+    "tenants": 30,
+    "contracts": 50
+  },
+  "room999": [
+    {
+      "name": "Phòng 999",
+      "eligibility": {
+        "notice": null,
+        "reason": "Đủ điều kiện kiểm tra hủy do lập nhầm. Chọn lý do và hồ sơ đối chiếu; backend kiểm tra lại khi hủy.",
+        "status": "active",
+        "allowed": true,
+        "deadline": "2026-10-09T03:35:10.691516+00:00",
+        "invoices": 0,
+        "receipts": 0,
+        "confirmedAt": "2026-10-08T03:35:10.691516+00:00",
+        "usageEvidence": 0,
+        "isTestContract": false,
+        "cashTransactions": 0
+      }
+    }
+  ],
+  "wroteBusinessData": false,
+  "sentEmail": false
+}

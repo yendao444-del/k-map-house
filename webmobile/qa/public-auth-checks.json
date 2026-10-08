@@ -1,0 +1,86 @@
+{
+  "origin": "https://pay.phongtroankhang.com",
+  "checkedAt": "2026-10-07T04:56:25.887Z",
+  "checks": [
+    {
+      "name": "unauthenticated invoice blocked",
+      "pass": true
+    },
+    {
+      "name": "wrong password rejected",
+      "pass": true
+    },
+    {
+      "name": "101 authenticated",
+      "pass": true
+    },
+    {
+      "name": "101 secret tokens absent from JSON",
+      "pass": true
+    },
+    {
+      "name": "101 secure session cookie",
+      "pass": true
+    },
+    {
+      "name": "101 session reload",
+      "pass": true
+    },
+    {
+      "name": "101 other contract rejected",
+      "pass": true
+    },
+    {
+      "name": "101 public simulation disabled",
+      "pass": true
+    },
+    {
+      "name": "session refresh with Supabase",
+      "pass": true
+    },
+    {
+      "name": "101 logout",
+      "pass": true
+    },
+    {
+      "name": "101 old cookie revoked",
+      "pass": true
+    },
+    {
+      "name": "102 authenticated",
+      "pass": true
+    },
+    {
+      "name": "102 secret tokens absent from JSON",
+      "pass": true
+    },
+    {
+      "name": "102 secure session cookie",
+      "pass": true
+    },
+    {
+      "name": "102 session reload",
+      "pass": true
+    },
+    {
+      "name": "102 other contract rejected",
+      "pass": true
+    },
+    {
+      "name": "102 public simulation disabled",
+      "pass": true
+    },
+    {
+      "name": "102 logout",
+      "pass": true
+    },
+    {
+      "name": "102 old cookie revoked",
+      "pass": true
+    },
+    {
+      "name": "old domain redirects preserving path/query",
+      "pass": true
+    }
+  ]
+}

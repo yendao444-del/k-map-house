@@ -23,13 +23,15 @@ import {
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   getAppSettings,
-  createCashTransaction,
-  deleteCashTransaction,
+  reconcileWalletBalances,
+  transferBetweenWallets,
   getCashTransactions,
   getInvoicePaymentRecords,
   getInvoices,
   getRooms
 } from '../lib/db'
+import { getInvoicePaymentFlow } from '../lib/invoice-payment-flow'
+import { resolveWalletMethod, summarizeWalletEntries, assertSingleWalletExpense, type WalletMethod } from '../lib/wallet-accounting'
 
 type WalletRow = {
   id: string
@@ -38,7 +40,7 @@ type WalletRow = {
   subtitle: string
   amount: number
   type: 'income' | 'expense'
-  paymentMethod: string
+  paymentMethod: WalletMethod
   source: string
 }
 const formatVND = (value: number): string =>
@@ -72,6 +74,10 @@ export function WalletTab({
   )
   const [transferAmount, setTransferAmount] = useState('')
   const [transferError, setTransferError] = useState('')
+  const [reconcileOpen, setReconcileOpen] = useState(false)
+  const [reconcileError, setReconcileError] = useState('')
+  const [confirmedBalances, setConfirmedBalances] = useState(false)
+  const [transferRequestId, setTransferRequestId] = useState(() => crypto.randomUUID())
   const queryClient = useQueryClient()
   const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
     queryKey: ['cashTransactions'],
@@ -96,18 +102,18 @@ export function WalletTab({
       .flatMap((invoice) =>
         getInvoicePaymentRecords(invoice).map((record) => ({
           id: `invoice-${invoice.id}-${record.id}`,
-          date: record.payment_date,
-          title: `Thu tiền phòng · ${roomById.get(invoice.room_id) || 'Không xác định'}`,
-          subtitle: record.note || `Thu qua ${paymentLabel(record.payment_method || 'transfer')}`,
-          amount: Number(record.amount) || 0,
-          type: 'income' as const,
-          paymentMethod: record.payment_method || 'transfer',
-          source: 'Sepay'
+          date: record.payment_date || record.created_at,
+          title: `${getInvoicePaymentFlow(invoice, record).label} · ${roomById.get(invoice.room_id) || 'Không xác định'}`,
+          subtitle: record.note || `${getInvoicePaymentFlow(invoice, record).label} · ${paymentLabel(resolveWalletMethod(record.payment_method, record.source))}`,
+          amount: getInvoicePaymentFlow(invoice, record).amount,
+          type: getInvoicePaymentFlow(invoice, record).type,
+          paymentMethod: resolveWalletMethod(record.payment_method, record.source),
+          source: record.source === 'sepay' ? 'Sepay' : 'Hóa đơn'
         }))
       )
     const manualRows = transactions.map((item) => ({
       id: `cash-${item.id}`,
-      date: item.transaction_date,
+      date: item.transaction_date || item.created_at,
       title:
         item.category === 'investment_transfer'
           ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
@@ -118,15 +124,29 @@ export function WalletTab({
       subtitle: item.note || 'Giao dịch ghi nhận thủ công',
       amount: Number(item.amount) || 0,
       type: item.type,
-      // A manually entered row belongs to the cash fund unless it explicitly
-      // records a bank transfer (SePay rows are explicit `transfer`).
-      paymentMethod: item.payment_method || 'cash',
+      paymentMethod: resolveWalletMethod(item.payment_method),
       source: 'Thủ công'
     }))
-    return [...invoiceRows, ...manualRows].sort(
+    const checkpoint = appSettings?.wallet_accounting_basis ? undefined : appSettings?.wallet_checkpoint
+    const adjustmentRows: WalletRow[] = checkpoint ? [{
+      id: `reconciliation-${checkpoint.id}`, date: checkpoint.confirmed_at,
+      title: 'Điều chỉnh phân bổ số dư', subtitle: checkpoint.reason,
+      amount: Math.abs(checkpoint.bank_balance - checkpoint.bank_balance_before),
+      type: 'income', paymentMethod: 'unknown', source: 'Đối soát'
+    }] : []
+    const basis = appSettings?.wallet_accounting_basis
+    const basisRows: WalletRow[] = basis ? [{
+      id: `basis-${basis.id}`, date: basis.confirmed_at,
+      title: `Mốc tính sổ: ${formatDate(basis.starts_on)}`, subtitle: basis.reason,
+      amount: 0, type: 'income', paymentMethod: 'unknown', source: 'Đối soát'
+    }] : []
+    const ledgerRows = [...invoiceRows, ...manualRows].map(row => ({ ...row,
+      paymentMethod: basis?.method_overrides[row.id] || row.paymentMethod
+    }))
+    return [...ledgerRows, ...adjustmentRows, ...basisRows].sort(
       (a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)
     )
-  }, [categoryMap, invoices, roomById, transactions])
+  }, [categoryMap, invoices, roomById, transactions, appSettings])
   const filteredRows = useMemo(() => {
     const query = search.trim().toLocaleLowerCase('vi-VN')
     return rows.filter(
@@ -136,24 +156,10 @@ export function WalletTab({
           `${row.title} ${row.subtitle} ${row.source}`.toLocaleLowerCase('vi-VN').includes(query))
     )
   }, [rows, search, selectedMonth])
-  const openingDate = appSettings?.opening_balance_date || ''
-  const openingBank = Number(appSettings?.opening_balance_bank || 0)
-  const openingCash = Number(appSettings?.opening_balance_cash || 0)
-  const ledgerRows = rows.filter((row) => !openingDate || row.date >= openingDate)
-  const bankBalance = ledgerRows.reduce(
-    (sum, row) =>
-      row.paymentMethod === 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
-    openingBank
-  )
-  const cashBalance = ledgerRows.reduce(
-    (sum, row) =>
-      row.paymentMethod !== 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
-    openingCash
-  )
-  const totalBalance = bankBalance + cashBalance
-  // Keep the real account balances (including a negative bank ledger) visible.
-  const safeBankBalance = bankBalance
-  const safeCashBalance = cashBalance
+  const walletSummary = useMemo(() => summarizeWalletEntries(rows.filter(row => row.source !== 'Đối soát'), appSettings || {}), [rows, appSettings])
+  const { bankBalance, cashBalance, totalBalance, reconciliationRequired, unassignedCount } = walletSummary
+  const bankNeedsReconciliation = bankBalance < 0
+  const cashNeedsReconciliation = cashBalance < 0
   const positiveBalanceTotal = Math.max(0, bankBalance) + Math.max(0, cashBalance)
   const bankPercent =
     positiveBalanceTotal > 0
@@ -188,7 +194,20 @@ export function WalletTab({
     ? bankNames[appSettings.bank_id] || appSettings.bank_id
     : 'Tài khoản ngân hàng'
   const accountNo = appSettings?.account_no?.trim() || 'Chưa cấu hình số tài khoản'
-  const isLoading = transactionsLoading || invoicesLoading
+  const isLoading = transactionsLoading || invoicesLoading || !appSettings
+  const balanceText = (balance: number): string =>
+    !showBalance ? '••••••••••' : isLoading ? 'Đang tải...' : balance < 0 ? 'Cần đối soát' : formatVND(balance)
+  const reconcileMutation = useMutation({
+    mutationFn: () => reconcileWalletBalances(6814063, 0, totalBalance,
+      'Điều chỉnh phân bổ ví theo số dư thực tế chủ tài khoản xác nhận: BIDV 6.814.063 đ, tiền mặt 0 đ. Không phát sinh chuyển tiền thực tế.'),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['appSettings'] })
+      await queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
+      await queryClient.invalidateQueries({ queryKey: ['walletExpenseBalances'] })
+      setReconcileOpen(false)
+    },
+    onError: (error: Error) => setReconcileError(error.message)
+  })
   const transferMutation = useMutation({
     mutationFn: async ({
       amount,
@@ -197,38 +216,16 @@ export function WalletTab({
       amount: number
       direction: 'cash-to-bank' | 'bank-to-cash'
     }) => {
-      const stamp = new Date().toISOString()
       const cashToBank = direction === 'cash-to-bank'
-      const sourceLabel = cashToBank ? 'Tiền mặt' : `${bankName} · ${accountNo}`
-      const targetLabel = cashToBank ? `${bankName} · ${accountNo}` : 'Tiền mặt'
-      const note = `Chuyển giữa các ví: ${sourceLabel} → ${targetLabel}`
-      const sourceRow = await createCashTransaction({
-        type: 'expense',
-        category: 'wallet_transfer',
-        transaction_date: stamp,
-        amount,
-        payment_method: cashToBank ? 'cash' : 'transfer',
-        note
-      })
-      try {
-        return await createCashTransaction({
-          type: 'income',
-          category: 'wallet_transfer',
-          transaction_date: stamp,
-          amount,
-          payment_method: cashToBank ? 'transfer' : 'cash',
-          note
-        })
-      } catch (error) {
-        await deleteCashTransaction(sourceRow.id)
-        throw error
-      }
+      return transferBetweenWallets(cashToBank ? 'cash' : 'transfer', amount, transferRequestId)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
       setTransferOpen(false)
       setTransferAmount('')
       setTransferError('')
+      setTransferRequestId(crypto.randomUUID())
+      queryClient.invalidateQueries({ queryKey: ['walletExpenseBalances'] })
     },
     onError: (error: Error) => setTransferError(error.message || 'Không thể ghi nhận chuyển tiền.')
   })
@@ -238,9 +235,10 @@ export function WalletTab({
       setTransferError('Nhập số tiền lớn hơn 0.')
       return
     }
-    const sourceBalance = transferDirection === 'cash-to-bank' ? cashBalance : bankBalance
-    if (amount > sourceBalance) {
-      setTransferError('Số tiền chuyển lớn hơn số dư của ví nguồn.')
+    try {
+      assertSingleWalletExpense(amount, transferDirection === 'cash-to-bank' ? 'cash' : 'transfer', walletSummary)
+    } catch (error) {
+      setTransferError((error as Error).message)
       return
     }
     transferMutation.mutate({ amount, direction: transferDirection })
@@ -311,7 +309,10 @@ export function WalletTab({
             </button>
             <button
               type="button"
-              onClick={onReconcile}
+              onClick={() => {
+                if (appSettings?.wallet_checkpoint) onReconcile()
+                else { setReconcileOpen(true); setReconcileError(''); setConfirmedBalances(false) }
+              }}
               className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <RefreshCw size={13} className="text-[#047857]" />
@@ -337,18 +338,23 @@ export function WalletTab({
 
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700">
               <CheckCircle2 size={13} className="text-emerald-600" />
-              {bankBalance < 0 || cashBalance < 0 ? 'Cần đối soát số dư' : 'Theo sổ giao dịch'}
+              {reconciliationRequired ? 'Cần đối soát số dư' : 'Theo sổ giao dịch'}
             </span>
           </div>
 
-          {(bankBalance < 0 || cashBalance < 0) && (
+          {!isLoading && reconciliationRequired && (
             <p
               role="alert"
               className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
             >
-              Sổ giao dịch đang có tài khoản âm. Chưa xác nhận được số dư thực tế của BIDV và tiền
-              mặt. Vui lòng đối soát số dư đầu kỳ và phương thức thu/chi; tổng bên dưới không phải
-              xác nhận tiền thực có thể sử dụng.
+              {unassignedCount > 0
+                ? `${unassignedCount} giao dịch chưa xác định ví; hệ thống không tự gán vào tiền mặt hay ngân hàng. `
+                : 'Có khoản chi cũ vượt số dư theo sổ của ví. '}
+              Cần kiểm tra ví thanh toán và số dư đầu kỳ. Mỗi khoản chi chỉ dùng một ví đủ tiền;
+              không tự cộng gộp hoặc đổi ví.
+              <button type="button" onClick={onRecordTransaction} className="ml-2 font-bold underline">
+                Kiểm tra giao dịch
+              </button>
             </p>
           )}
 
@@ -359,9 +365,7 @@ export function WalletTab({
                 <div className="flex items-center justify-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
                   <WalletCards size={16} />
                   <span>
-                    {bankBalance < 0 || cashBalance < 0
-                      ? 'Tổng sổ sách · Cần đối soát'
-                      : 'Số dư theo sổ'}
+                    {reconciliationRequired ? 'Chưa xác nhận số dư' : 'Số dư theo sổ'}
                   </span>
                   <span className="text-emerald-300/60">•</span>
                   <span className="text-[11px] font-bold normal-case text-emerald-100/80">
@@ -370,7 +374,7 @@ export function WalletTab({
                 </div>
                 <div className="mt-2.5 flex items-center justify-center gap-3">
                   <span className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight tabular-nums text-white drop-shadow-sm">
-                    {showBalance ? formatVND(totalBalance) : '••••••••••'}
+                    {reconciliationRequired && !isLoading && showBalance ? 'Cần đối soát' : balanceText(totalBalance)}
                   </span>
                   <button
                     type="button"
@@ -383,9 +387,9 @@ export function WalletTab({
                   </button>
                 </div>
                 <div className="mt-2 text-xs text-emerald-100/70">
-                  {selectedMonth === 'all'
-                    ? 'Cập nhật theo toàn bộ sổ giao dịch thực tế'
-                    : `Cập nhật theo giao dịch trong ${selectedMonth.slice(5)}/${selectedMonth.slice(0, 4)}`}
+                  {appSettings?.wallet_accounting_basis
+                    ? `Thu − chi từ ${formatDate(appSettings.wallet_accounting_basis.starts_on)}; lịch sử trước mốc giữ nguyên, không cộng vào số dư`
+                    : 'Số dư tính trên toàn bộ giao dịch từ mốc đầu kỳ; bộ lọc chỉ áp dụng lịch sử'}
                 </div>
               </div>
 
@@ -449,17 +453,17 @@ export function WalletTab({
                     : 'Chưa cấu hình tài khoản nhận tiền'}
                 </div>
                 <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
-                  {showBalance ? formatVND(safeBankBalance) : '••••••••••'}
+                  {balanceText(bankBalance)}
                 </div>
               </div>
               <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
                 <div className="flex items-center gap-1.5 font-bold text-[#047857]">
                   <CheckCircle2 size={13} />
-                  {appSettings?.bank_id && appSettings.account_no
+                  {bankNeedsReconciliation ? 'Cần đối soát' : appSettings?.bank_id && appSettings.account_no
                     ? 'Đang hoạt động'
                     : 'Cần cấu hình'}
                 </div>
-                <span className="font-bold text-slate-500">{bankPercent}% tổng ví</span>
+                <span className="font-bold text-slate-500">{reconciliationRequired ? 'Chưa xác nhận tổng ví' : `${bankPercent}% tổng ví`}</span>
               </div>
             </div>
 
@@ -468,7 +472,7 @@ export function WalletTab({
               role="button"
               tabIndex={0}
               onClick={() => setSelectedWallet('cash')}
-              onDoubleClick={() => copyWalletValue(String(safeCashBalance), 'Số dư tiền mặt')}
+              onDoubleClick={() => { if (!isLoading && !cashNeedsReconciliation) void copyWalletValue(String(cashBalance), 'Số dư tiền mặt') }}
               title="Click để chọn · Double-click để sao chép số dư"
               className={`group relative flex flex-col justify-between rounded-xl border p-4 text-left transition cursor-pointer ${
                 selectedWallet === 'cash'
@@ -486,9 +490,10 @@ export function WalletTab({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
-                        copyWalletValue(String(safeCashBalance), 'Số dư tiền mặt')
+                        copyWalletValue(String(cashBalance), 'Số dư tiền mặt')
                       }}
                       title="Sao chép số dư"
+                      disabled={isLoading || cashNeedsReconciliation}
                       className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
                     >
                       <i className="fa-regular fa-copy text-xs"></i>
@@ -501,15 +506,15 @@ export function WalletTab({
                   Tiền mặt · Cập nhật thủ công
                 </div>
                 <div className="mt-3 text-2xl font-black tabular-nums text-[#15231d]">
-                  {showBalance ? formatVND(safeCashBalance) : '••••••••••'}
+                  {balanceText(cashBalance)}
                 </div>
               </div>
               <div className="mt-3.5 flex items-center justify-between border-t border-slate-100/80 pt-2.5 text-[11px]">
                 <div className="flex items-center gap-1.5 font-bold text-[#D27B20]">
                   <CheckCircle2 size={13} />
-                  Đang hoạt động
+                  {cashNeedsReconciliation ? 'Cần đối soát' : 'Đang hoạt động'}
                 </div>
-                <span className="font-bold text-slate-500">{cashPercent}% tổng ví</span>
+                <span className="font-bold text-slate-500">{reconciliationRequired ? 'Chưa xác nhận tổng ví' : `${cashPercent}% tổng ví`}</span>
               </div>
             </div>
           </div>
@@ -565,14 +570,13 @@ export function WalletTab({
                     <div className="truncate text-xs font-black text-[#15231d]">{row.title}</div>
                     <div className="truncate text-[10px] text-slate-500">
                       {formatDate(row.date)} ·{' '}
-                      {row.paymentMethod === 'cash' ? 'Tiền mặt' : `${bankName} · ${accountNo}`}
+                      {row.source === 'Đối soát' ? 'Bản điều chỉnh một lần · Lịch sử trước mốc đã khóa' : row.paymentMethod === 'cash' ? 'Tiền mặt' : row.paymentMethod === 'transfer' ? `${bankName} · ${accountNo}` : 'Chưa xác định ví'}
                     </div>
                   </div>
                   <div
                     className={`text-xs font-black tabular-nums ${row.type === 'income' ? 'text-[#047857]' : 'text-[#E04444]'}`}
                   >
-                    {row.type === 'income' ? '+' : '−'}
-                    {formatVND(row.amount)}
+                    {row.source === 'Đối soát' ? 'Tổng không đổi' : `${row.type === 'income' ? '+' : '−'}${formatVND(row.amount)}`}
                   </div>
                 </div>
               ))}
@@ -584,6 +588,32 @@ export function WalletTab({
           <div className="fixed bottom-5 left-1/2 z-[140] -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white shadow-xl">
             <i className="fa-solid fa-check mr-2 text-emerald-300" />
             {copiedMessage}
+          </div>
+        )}
+        {reconcileOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+            <div role="dialog" aria-modal="true" aria-labelledby="wallet-reconcile-title" className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
+              <h3 id="wallet-reconcile-title" className="text-lg font-black text-slate-900">Chốt số dư và khóa lịch sử</h3>
+              <p className="mt-2 text-sm text-slate-600">Ghi một bản điều chỉnh phân bổ, không sửa giao dịch cũ, không tính doanh thu/chi phí và không tạo chuyển tiền thực tế.</p>
+              <div className="mt-4 space-y-2 rounded-xl bg-emerald-50 p-4 text-sm">
+                <p>BIDV: <strong>{formatVND(6814063)}</strong></p>
+                <p>Tiền mặt: <strong>{formatVND(0)}</strong></p>
+                <p>Tổng không đổi: <strong>{formatVND(6814063)}</strong></p>
+              </div>
+              {!appSettings?.wallet_guard_ready && <p role="alert" className="mt-3 text-sm text-red-700">Database chưa cập nhật bảo vệ ví. Chưa thể xác nhận; cần áp dụng migration.</p>}
+              {totalBalance !== 6814063 && <p role="alert" className="mt-3 text-sm text-red-700">Tổng sổ hiện tại {formatVND(totalBalance)} không khớp mốc đã xác nhận. Không tự điều chỉnh; cần kiểm tra giao dịch mới.</p>}
+              <label className="mt-4 flex items-start gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={confirmedBalances} onChange={event => setConfirmedBalances(event.target.checked)} />
+                Tôi xác nhận số dư thực tế trên và khóa giao dịch trước mốc chốt. Chỉ xác nhận một lần.
+              </label>
+              {reconcileError && <p role="alert" className="mt-3 text-sm text-red-700">{reconcileError}</p>}
+              <div className="mt-5 flex justify-end gap-2">
+                <button type="button" disabled={reconcileMutation.isPending} onClick={() => setReconcileOpen(false)} className="rounded-lg border px-4 py-2 text-sm font-bold">Hủy</button>
+                <button type="button" disabled={isLoading || !appSettings?.wallet_guard_ready || !confirmedBalances || totalBalance !== 6814063 || reconcileMutation.isPending} onClick={() => reconcileMutation.mutate()} className="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-40">
+                  {reconcileMutation.isPending ? 'Đang ghi nhận...' : 'Xác nhận và khóa'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
         {transferOpen && (
@@ -653,7 +683,7 @@ export function WalletTab({
                       {wallet.label}
                     </div>
                     <div className="mt-1 text-[10px] font-semibold text-slate-500">
-                      Số dư {formatVND(wallet.balance)}
+                      Số dư {balanceText(wallet.balance)}
                     </div>
                   </button>
                 ))}

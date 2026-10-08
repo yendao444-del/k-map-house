@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-08T03:21:28.803Z",
+  "project": "gsianbstkmyutnhromwc",
+  "schema": "ankhang_contract_test",
+  "checks": [
+    "first confirmation starts a backend 24-hour deadline",
+    "invalid admin, kind, reason and mismatched references reject without mutation",
+    "anonymous access and the arbitrary-reason legacy RPC are forbidden",
+    "staff cannot reset the first confirmation timestamp",
+    "new amendment confirmation never resets the original cancellation deadline",
+    "legacy contracts without original confirmation cannot quick-cancel",
+    "test reset requires server designation; permits late clean test cancellation without fake reference; still blocks invoices and never marks other leases",
+    "open invoice blocks; cancelled empty invoice allowed; cleared payment still blocks permanently",
+    "cancelled paid move-in receipt and cleared room cash history remain blocking",
+    "meter usage and actual asset handover block cancellation",
+    "room debt and transfer history block quick cancellation",
+    "concurrent invoice/cancellation cannot both succeed; late stale billing is rejected",
+    "admin cancels without tenant approval; racing amendment cannot revive; old links and sessions revoked",
+    "cancelled contract cannot be revived by direct staff status update",
+    "atomic cancellation creates one notice to original recipient and preserves original audit",
+    "notice claim prevents duplicate sends; known failure retries; ambiguous send never blindly retries",
+    "wrong-tenant reference works; synthetic Gmail success recorded once and cannot resend",
+    "duplicate cancellation requires same tenant, room and terms and retains other active lease",
+    "new corrected confirmed lease safely reuses tenant account and password"
+  ],
+  "realEmailsSent": false,
+  "bankTransactions": false
+}

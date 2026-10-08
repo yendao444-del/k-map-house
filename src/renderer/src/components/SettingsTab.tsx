@@ -51,29 +51,28 @@ import {
 import { LogoLoading } from './LogoLoading'
 import { EmailNotificationPanel } from './EmailNotificationPanel'
 import { normalizeEmailNotificationPreferences } from '../lib/email-notification-preferences'
+import TenantWebAccountsTab from './TenantWebAccountsTab'
 
-type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
+type SettingsSection = 'general' | 'zones' | 'users' | 'tenant-accounts' | 'account' | 'updates'
 
 export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: AppUser }> = ({
   currentUser,
   initialTab = 'general'
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsSection>(initialTab)
+  const [accountOpen, setAccountOpen] = useState(() => initialTab === 'users' || initialTab === 'tenant-accounts')
 
   useEffect(() => {
     setActiveTab(initialTab)
+    if (initialTab === 'users' || initialTab === 'tenant-accounts') setAccountOpen(true)
   }, [initialTab])
 
-  const navItems: { id: SettingsSection; icon: string; label: string }[] = [
+  const navItems: { id: Exclude<SettingsSection, 'users' | 'tenant-accounts'>; icon: string; label: string }[] = [
     { id: 'general', icon: 'fa-building', label: 'Thông tin chung' },
     { id: 'zones', icon: 'fa-tags', label: 'Vùng giá dịch vụ' },
-    ...(currentUser.role === 'admin'
-      ? [{ id: 'users' as const, icon: 'fa-users-gear', label: 'Tài khoản' }]
-      : []),
     ...(currentUser.role !== 'admin'
       ? [{ id: 'account' as const, icon: 'fa-user-lock', label: 'Tài khoản' }]
       : []),
-    { id: 'updates', icon: 'fa-cloud-arrow-down', label: 'Cập nhật' }
   ]
 
   return (
@@ -83,7 +82,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
           <h2 className="text-lg font-bold text-gray-800">Quản trị hệ thống</h2>
           <p className="mt-1 text-xs text-gray-500">Cấu hình, tài khoản và cập nhật.</p>
         </div>
-        <nav className="flex gap-1 overflow-y-auto p-3 md:block">
+        <nav className="flex flex-col gap-1 overflow-y-auto p-3">
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -97,6 +96,14 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
               {item.label}
             </button>
           ))}
+          {currentUser.role === 'admin' && <div>
+            <button type="button" aria-expanded={accountOpen} aria-controls="settings-account-submenu" onClick={() => setAccountOpen(value => !value)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${accountOpen ? 'text-primary' : 'text-gray-600 hover:bg-gray-100'}`}><i className="fa-solid fa-users-gear w-4 text-center" /><span className="flex-1">Tài khoản</span><i className={`fa-solid fa-chevron-${accountOpen ? 'down' : 'right'} text-[10px]`} /></button>
+            {accountOpen && <div id="settings-account-submenu" className="ml-4 space-y-1 border-l border-emerald-100 pl-2">
+              <button type="button" onClick={() => setActiveTab('users')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${activeTab === 'users' ? 'bg-white font-semibold text-primary shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}><i className="fa-solid fa-shield-halved w-4 text-center text-xs" />Tài khoản hệ thống</button>
+              <button type="button" onClick={() => setActiveTab('tenant-accounts')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition ${activeTab === 'tenant-accounts' ? 'bg-white font-semibold text-primary shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}><i className="fa-solid fa-user-lock w-4 text-center text-xs" />Tài khoản khách thuê</button>
+            </div>}
+          </div>}
+          <button type="button" onClick={() => setActiveTab('updates')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${activeTab === 'updates' ? 'border border-gray-100 bg-white text-primary shadow-sm' : 'text-gray-600 hover:bg-gray-100'}`}><i className="fa-solid fa-cloud-arrow-down w-4 text-center" />Cập nhật</button>
         </nav>
       </div>
 
@@ -104,6 +111,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
         {activeTab === 'general' && <GeneralSettingsSafe />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
         {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel currentUser={currentUser} />}
+        {activeTab === 'tenant-accounts' && currentUser.role === 'admin' && <TenantWebAccountsTab />}
         {activeTab === 'account' && <MyAccountPanel currentUser={currentUser} />}
         {activeTab === 'updates' && <ProductionUpdateSettings />}
       </div>
@@ -1127,7 +1135,11 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   const [newPassword, setNewPassword] = useState('')
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
-  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number; bottom: number } | null>(null)
+  const [menuAnchor, setMenuAnchor] = useState<{
+    top: number
+    right: number
+    bottom: number
+  } | null>(null)
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id)
   const [emailUser, setEmailUser] = useState<AppUser | null>(null)
   const [detailUser, setDetailUser] = useState<AppUser | null>(null)
@@ -1220,7 +1232,9 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                   <UserRound size={25} strokeWidth={2.2} />
                 </div>
                 <div>
-                  <h3 className="text-[28px] font-black tracking-[-0.04em] text-[#10233f]">Tài khoản</h3>
+                  <h3 className="text-[28px] font-black tracking-[-0.04em] text-[#10233f]">
+                    Tài khoản hệ thống
+                  </h3>
                   <p className="mt-0.5 text-sm text-slate-500">
                     Quản lý quyền truy cập và bảo mật tài khoản trong hệ thống.
                   </p>
@@ -1398,7 +1412,10 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       <select
                         value={newUserForm.role}
                         onChange={(event) =>
-                          setNewUserForm((form) => ({ ...form, role: event.target.value as UserRole }))
+                          setNewUserForm((form) => ({
+                            ...form,
+                            role: event.target.value as UserRole
+                          }))
                         }
                         className="account-form-input"
                       >
@@ -1413,7 +1430,13 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       type="button"
                       onClick={() => {
                         setShowAddForm(false)
-                        setNewUserForm({ email: '', username: '', password: '', full_name: '', role: 'user' })
+                        setNewUserForm({
+                          email: '',
+                          username: '',
+                          password: '',
+                          full_name: '',
+                          role: 'user'
+                        })
                         createUserMutation.reset()
                       }}
                       className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
@@ -1494,7 +1517,10 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                               value={user.role}
                               onClick={(event) => event.stopPropagation()}
                               onChange={(event) =>
-                                roleMutation.mutate({ userId: user.id, role: event.target.value as UserRole })
+                                roleMutation.mutate({
+                                  userId: user.id,
+                                  role: event.target.value as UserRole
+                                })
                               }
                               disabled={isUpdatingRole}
                               className={`h-8 max-w-[145px] cursor-pointer appearance-none rounded-lg border-0 px-3 text-xs font-bold outline-none transition focus:ring-4 disabled:opacity-60 ${
@@ -1741,7 +1767,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
         </div>
       </div>
 
-          {detailUser && (
+      {detailUser && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailUser(null) }}>
               <div className="w-full max-w-md rounded-[24px] bg-white p-6 shadow-2xl">
                 <div className="flex items-start justify-between"><div><h4 className="text-lg font-black text-[#10233f]">Chi tiết tài khoản</h4><p className="mt-1 text-sm text-slate-400">{detailUser.full_name}</p></div><button type="button" onClick={() => setDetailUser(null)} className="text-2xl text-slate-400">×</button></div>
@@ -1751,7 +1777,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
             </div>
           )}
 
-          {emailUser && (
+      {emailUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setEmailUser(null) }}>
           <div role="dialog" aria-modal="true" aria-label={`Gửi email cho ${emailUser.full_name}`} className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[24px] bg-white shadow-2xl">
             <EmailNotificationPanel key={emailUser.id} user={emailUser} onClose={() => setEmailUser(null)} />
@@ -2524,7 +2550,6 @@ const ProductionUpdateSettings = (): React.JSX.Element => {
   )
 }
 
-
 const Field = ({
   label,
   value,
@@ -2782,4 +2807,3 @@ const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.El
     </div>
   )
 }
-

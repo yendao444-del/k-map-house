@@ -301,6 +301,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
       <WeatherBackdrop onSceneStyleChange={setWeatherScene} />
       <section className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-5 py-10 sm:px-8">
         <div className="login-panel w-full max-w-[486px] rounded-[28px] border border-white/70 bg-[#fcfefd] px-7 py-7 text-slate-800 shadow-[0_24px_64px_-30px_rgba(0,21,18,0.9)] sm:px-10 sm:py-8">
+          {import.meta.env.VITE_CONTRACT_TEST === '1' && <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-900">ELECTRON TEST · Phòng 999 · Đăng nhập bằng tài khoản TEST</p>}
           <div className="login-hero mb-6 text-center">
             <span className="login-logo mx-auto flex h-[72px] w-[86px] items-center justify-center rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_14px_32px_-20px_rgba(0,91,69,0.45)]"><img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain" /></span>
             <h2 className="mt-5 text-[36px] font-extrabold leading-none tracking-[-0.035em] drop-shadow-[0_3px_10px_rgba(0,91,69,0.12)]">

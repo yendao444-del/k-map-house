@@ -1,0 +1,63 @@
+{
+  "project": "ankhanghome-payment",
+  "url": "https://ankhanghome-payment.pages.dev",
+  "primaryUrl": "https://pay.phongtroankhang.com",
+  "customDomains": [
+    {
+      "name": "pay.phongtroankhang.com",
+      "status": "active",
+      "validation": "active"
+    },
+    {
+      "name": "phongtroankhang.com",
+      "status": "active",
+      "validation": "active"
+    },
+    {
+      "name": "www.phongtroankhang.com",
+      "status": "active",
+      "validation": "active"
+    }
+  ],
+  "verified": [
+    {
+      "url": "https://ankhanghome-payment.pages.dev",
+      "httpStatus": 200,
+      "entryAsset": "/assets/index-CzZXwzdL.js",
+      "assetStatus": 200
+    },
+    {
+      "url": "https://pay.phongtroankhang.com",
+      "httpStatus": 200,
+      "entryAsset": "/assets/index-CzZXwzdL.js",
+      "assetStatus": 200
+    },
+    {
+      "url": "https://phongtroankhang.com",
+      "httpStatus": 200,
+      "entryAsset": "/assets/index-CzZXwzdL.js",
+      "assetStatus": 200
+    },
+    {
+      "url": "https://www.phongtroankhang.com",
+      "httpStatus": 200,
+      "entryAsset": "/assets/index-CzZXwzdL.js",
+      "assetStatus": 200
+    }
+  ],
+  "backend": {
+    "ok": true,
+    "mode": "demo",
+    "backend": "online",
+    "ocrConfigured": true,
+    "provider": "gemini",
+    "authRequired": true,
+    "realPayments": false,
+    "realTenantData": true,
+    "realTenantAccounts": true
+  },
+  "deployedAt": "2026-10-07T10:36:51.880Z",
+  "httpStatus": 200,
+  "mode": "production-contract-confirmation-and-isolated-payment-demo",
+  "note": "Production contract confirmation and tenant account activation on pay.phongtroankhang.com. Supabase login supports Electron-provisioned tenants and isolated demo accounts. Real tenants see only their profile/current room; real invoices, OCR submission and SePay settlement are not connected. Email recovery awaits configuration."
+}

@@ -1,0 +1,7 @@
+import type { AppSettings, Contract, Room, RoomAsset, Tenant } from '../../../src/renderer/src/lib/db'
+export const room: Room = { id:'qa-room',name:'Phòng 999',floor:1,area:25,status:'vacant',base_rent:3500000,default_deposit:3500000,invoice_day:5,created_at:'2026-10-05',service_zone_id:'qa-zone' }
+export const occupiedRoom: Room = { ...room,id:'qa-occupied',name:'Phòng 101',status:'occupied' }
+export const tenants: Tenant[] = [{ id:'qa-tenant',full_name:'Nguyễn Minh Anh',phone:'0901234567',email:'tenant@example.com',identity_card:'001200000123',address:'Địa chỉ mẫu — Hà Nội',id_card_issued_date:'2025-11-24',is_active:true,created_at:'2026-10-05',updated_at:'2026-10-05' },{id:'qa-assigned',full_name:'Khách đang ở phòng khác',is_active:true,created_at:'2026-10-05',updated_at:'2026-10-05'}]
+export const contracts: Contract[] = [{ id:'qa-contract',room_id:'qa-occupied',tenant_id:'qa-assigned',tenant_name:'Khách đang ở phòng khác',occupant_count:1,move_in_date:'2026-01-01',duration_months:12,base_rent:3500000,deposit_amount:3500000,billing_cycle:1,invoice_day:5,electric_init:0,water_init:0,status:'active',created_at:'2026-01-01' }]
+export const settings: AppSettings = { property_name:'AN KHANG HOME',property_owner_name:'Nguyễn An',property_owner_phone:'0900000000',property_address:'Địa chỉ nhà trọ mẫu — Hà Nội',property_owner_id_card:'001200000999',bank_id:'BIDV',account_no:'0000000000',account_name:'NGUYEN AN' }
+export const assets: RoomAsset[] = [{id:'qa-asset',room_id:'qa-room',name:'Điều hòa',quantity:1,status:'ok',sort_order:0}]

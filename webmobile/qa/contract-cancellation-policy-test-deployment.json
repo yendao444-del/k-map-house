@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-08T04:46:27.487Z",
+  "project": "gsianbstkmyutnhromwc",
+  "schema": "ankhang_contract_test",
+  "before": {
+    "rooms": 95,
+    "drafts": 134,
+    "tenants": 95,
+    "contracts": 103
+  },
+  "after": {
+    "rooms": 95,
+    "drafts": 134,
+    "tenants": 95,
+    "contracts": 103
+  },
+  "access": {
+    "rls": true,
+    "anon_select": false,
+    "staff_direct": false,
+    "unsafe_direct": false
+  },
+  "emailsSent": false,
+  "contractsCreated": false
+}

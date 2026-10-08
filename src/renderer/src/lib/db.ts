@@ -1,6 +1,9 @@
 import { supabase, safeQuery } from './supabase'
 import { normalizeEmailNotificationPreferences, type EmailNotificationPreferences } from './email-notification-preferences'
 import { fetchAllPages } from './paged-query'
+import { assertTenantEmail, normalizeTenantEmail } from './tenant-email'
+import { getInvoicePaymentFlow } from './invoice-payment-flow'
+import { assertSingleWalletExpense, resolveWalletMethod, summarizeWalletEntries, type WalletMethod, type WalletCheckpoint, type WalletAccountingBasis } from './wallet-accounting'
 
 // =========================================================
 // TYPES & CONSTANTS
@@ -328,6 +331,9 @@ export interface AppSettings {
   opening_balance_cash?: number
   opening_balance_bank?: number
   opening_balance_date?: string
+  wallet_checkpoint?: WalletCheckpoint
+  wallet_accounting_basis?: WalletAccountingBasis
+  wallet_guard_ready?: boolean
 }
 
 // List views do not need room notes or image arrays. Keep those payloads in the detail query.
@@ -1009,8 +1015,10 @@ export const getTenants = async (): Promise<Tenant[]> => {
 }
 
 export const createTenant = async (tenantData: Partial<Tenant>): Promise<Tenant> => {
+  await assertTenantEmail(tenantData.email)
   const newTenant = {
     ...tenantData,
+    email: normalizeTenantEmail(tenantData.email),
     id: createEntityId('tenant'),
     is_active: true,
     created_at: new Date().toISOString(),
@@ -1021,6 +1029,10 @@ export const createTenant = async (tenantData: Partial<Tenant>): Promise<Tenant>
 }
 
 export const updateTenant = async (id: string, updates: Partial<Tenant>): Promise<Tenant> => {
+  if ('email' in updates) {
+    await assertTenantEmail(updates.email)
+    updates = { ...updates, email: normalizeTenantEmail(updates.email) }
+  }
   const result = await safeQuery(() =>
     supabase
       .from('tenants')
@@ -1272,74 +1284,12 @@ export const updateContract = async (id: string, updates: Partial<Contract>): Pr
   return result as any as Contract
 }
 
-export const cancelContract = async (id: string, notes?: string): Promise<void> => {
-  const { data: contractById, error: contractByIdError } = await supabase
-    .from('contracts')
-    .select('id,room_id,tenant_id')
-    .eq('id', id)
-    .maybeSingle()
-  if (contractByIdError) throw new Error(contractByIdError.message)
-
-  let contract = contractById
-  if (!contract) {
-    const { data: contractByRoom, error: contractByRoomError } = await supabase
-      .from('contracts')
-      .select('id,room_id,tenant_id')
-      .eq('room_id', id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (contractByRoomError) throw new Error(contractByRoomError.message)
-    contract = contractByRoom
-  }
-
-  if (!contract) {
-    throw new Error('Không tìm thấy hợp đồng đang hiệu lực để hủy.')
-  }
-
-  if (contract?.room_id && contract?.tenant_id) {
-    const paidInvoices = await safeQuery(() =>
-      supabase
-        .from('invoices')
-        .select('id')
-        .eq('room_id', contract.room_id)
-        .eq('tenant_id', contract.tenant_id)
-        .in('payment_status', ['paid', 'partial'])
-        .limit(1)
-    )
-    if ((paidInvoices || []).length > 0) {
-      throw new Error(
-        'Không thể hủy hợp đồng đã có hóa đơn đã thanh toán hoặc thanh toán một phần. Vui lòng dùng chức năng chấm dứt hợp đồng.'
-      )
-    }
-  }
-
-  if (contract?.room_id) {
-    await supabase
-      .from('rooms')
-      .update({
-        status: 'vacant',
-        tenant_name: null,
-        tenant_phone: null,
-        move_in_date: null
-      } as any)
-      .eq('id', contract.room_id)
-  }
-  if (contract?.room_id && contract?.tenant_id) {
-    await supabase
-      .from('invoices')
-      .update({ payment_status: 'cancelled', note: '[Hủy theo hợp đồng]' } as any)
-      .eq('room_id', contract.room_id)
-      .eq('tenant_id', contract.tenant_id)
-      .in('payment_status', ['unpaid'])
-  }
-  await safeQuery(() =>
-    supabase
-      .from('contracts')
-      .update({ status: 'cancelled', notes: notes || '[Hủy hợp đồng]' })
-      .eq('id', contract.id)
-  )
+export const cancelContract = async (id: string, notes: string, kind: import('./contract-confirmation').CancellationKind, referenceId: string): Promise<void> => {
+  const rows = await getContracts()
+  const contract = rows.find(item => item.id === id) || rows.find(item => item.room_id === id && item.status === 'active')
+  if (!contract) throw new Error('Không tìm thấy hợp đồng đang hiệu lực.')
+  const { cancelContractWithReason } = await import('./contract-confirmation')
+  await cancelContractWithReason(contract.id, notes, kind, referenceId)
 }
 
 export const terminateContract = async (data: {
@@ -1895,6 +1845,7 @@ export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invo
 }
 
 export const updateInvoice = async (id: string, updates: Partial<Invoice>): Promise<Invoice> => {
+  await requireWalletGuards()
   const { data: current, error } = await supabase
     .from('invoices')
     .select('*')
@@ -1945,6 +1896,7 @@ export const updateInvoice = async (id: string, updates: Partial<Invoice>): Prom
 }
 
 export const deleteInvoice = async (id: string): Promise<Invoice> => {
+  await requireWalletGuards()
   const { data: current, error } = await supabase
     .from('invoices')
     .select('*')
@@ -2013,8 +1965,12 @@ export const recordInvoicePayment = async (
     source?: string
   }
 ): Promise<Invoice> => {
+  await requireWalletGuards()
   const amount = Number(data.amount || 0)
   if (!Number.isFinite(amount) || amount === 0) throw new Error('Số tiền thu không hợp lệ.')
+  if (amount < 0) {
+    assertSingleWalletExpense(Math.abs(amount), data.payment_method, await getWalletBalanceSummary())
+  }
   const normalizedPaymentDate = data.payment_date.slice(0, 10)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedPaymentDate)) {
     throw new Error('Ngày thanh toán không hợp lệ.')
@@ -2550,6 +2506,10 @@ const validateCashTransactionTarget = (
 export const createCashTransaction = async (
   data: Partial<CashTransaction>
 ): Promise<CashTransaction> => {
+  await requireWalletGuards()
+  if (resolveWalletMethod(data.payment_method) === 'unknown') {
+    throw new Error(data.type === 'income' ? 'Vui lòng chọn ví nhận tiền.' : 'Vui lòng chọn ví chi tiền.')
+  }
   validateCashTransactionTarget(data)
   await validateCashExpenseBalance(data)
   const newTx = {
@@ -2564,10 +2524,29 @@ export const createCashTransaction = async (
   return result as any as CashTransaction
 }
 
+async function requireAdminCashTransactionChange(): Promise<void> {
+  // Recheck the authenticated identity and database role at save time, not
+  // only the role used to show buttons when the report was first rendered.
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) {
+    throw new Error('Vui lòng đăng nhập bằng tài khoản admin để sửa/xóa giao dịch.')
+  }
+  const { data: profile, error } = await supabase
+    .from('users')
+    .select('role,status')
+    .eq('id', authData.user.id)
+    .maybeSingle()
+  if (error || profile?.role !== 'admin' || profile.status !== 'active') {
+    throw new Error('Chỉ admin đang hoạt động mới được sửa/xóa giao dịch.')
+  }
+}
+
 export const updateCashTransaction = async (
   id: string,
   updates: Partial<CashTransaction>
 ): Promise<CashTransaction> => {
+  await requireAdminCashTransactionChange()
+  await requireWalletGuards()
   const current = (await safeQuery(() =>
     supabase.from('cash_transactions').select('*').eq('id', id).single()
   )) as CashTransaction
@@ -2585,6 +2564,8 @@ export const updateCashTransaction = async (
 }
 
 export const deleteCashTransaction = async (id: string): Promise<void> => {
+  await requireAdminCashTransactionChange()
+  await requireWalletGuards()
   await safeQuery(() => supabase.from('cash_transactions').delete().eq('id', id))
 }
 
@@ -2599,19 +2580,24 @@ async function validateCashExpenseBalance(
   const amount = Number(next.amount)
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Số tiền phải lớn hơn 0.')
   const summary = await getWalletBalanceSummary()
-  const balances = { cash: summary.cashBalance, transfer: summary.bankBalance }
+  const balances = { ...summary }
   // Remove the old entry before validating its replacement, including a source change.
   if (previous) {
     const settings = await getAppSettings()
     if (!settings.opening_balance_date || previous.transaction_date >= settings.opening_balance_date) {
-      const method = previous.payment_method || 'cash'
-      balances[method] -= previous.type === 'income' ? previous.amount : -previous.amount
+      const method = resolveWalletMethod(previous.payment_method)
+      const delta = previous.type === 'income' ? previous.amount : -previous.amount
+      if (method === 'cash') balances.cashBalance -= delta
+      else if (method === 'transfer') balances.bankBalance -= delta
+      else balances.unassignedCount = Math.max(0, (balances.unassignedCount || 0) - 1)
+    }
+    // Reclassifying an already recorded expense does not spend new money.
+    // Let users resolve legacy entries one by one even if others remain pending.
+    if (previous.type === 'expense' && amount <= Number(previous.amount)) {
+      balances.unassignedCount = 0
     }
   }
-  const available = balances[next.payment_method]
-  if (!Number.isFinite(available) || amount > available) {
-    throw new Error('Ví đã chọn không đủ tiền. Vào Ví để chuyển tiền giữa các ví trước khi chi.')
-  }
+  assertSingleWalletExpense(amount, next.payment_method, balances)
 }
 
 // =========================================================
@@ -2684,6 +2670,28 @@ export const deleteMoveInReceipt = async (id: string): Promise<void> => {
 // =========================================================
 // SETTINGS & USERS
 // =========================================================
+async function requireWalletGuards(): Promise<void> {
+  const { data, error } = await supabase.rpc('wallet_guard_version')
+  if (error || ![1, 2].includes(data)) {
+    throw new Error('Database chưa cập nhật bảo vệ số dư ví. Cần áp dụng migration đối soát ví trước khi ghi giao dịch.')
+  }
+}
+
+export const reconcileWalletBalances = async (bank: number, cash: number, expectedTotal: number, reason: string): Promise<WalletCheckpoint> => {
+  await requireWalletGuards()
+  const { data, error } = await supabase.rpc('reconcile_wallet_balances', {
+    p_bank: bank, p_cash: cash, p_expected_total: expectedTotal, p_reason: reason
+  })
+  if (error) throw new Error(error.message)
+  return data as WalletCheckpoint
+}
+
+export const transferBetweenWallets = async (source: PaymentMethod, amount: number, requestId: string): Promise<void> => {
+  await requireWalletGuards()
+  const { error } = await supabase.rpc('transfer_between_wallets', { p_source: source, p_amount: amount, p_request_id: requestId })
+  if (error) throw new Error(error.message)
+}
+
 export const getAppSettings = async (): Promise<AppSettings> => {
   const data = await safeQuery<any[]>(() =>
     supabase
@@ -2693,7 +2701,12 @@ export const getAppSettings = async (): Promise<AppSettings> => {
       )
       .limit(1)
   )
-  return (data?.[0] as AppSettings) || {}
+  const { data: checkpoint, error } = await supabase.from('wallet_reconciliations').select('*').limit(1).maybeSingle()
+  if (error && !['PGRST205', '42P01'].includes(error.code)) throw new Error(error.message)
+  const { data: basis, error: basisError } = await supabase.from('wallet_accounting_basis').select('*').limit(1).maybeSingle()
+  if (basisError && !['PGRST205', '42P01'].includes(basisError.code)) throw new Error(basisError.message)
+  return { ...((data?.[0] as AppSettings) || {}), wallet_checkpoint: checkpoint || undefined,
+    wallet_accounting_basis: basis || undefined, wallet_guard_ready: !error }
 }
 
 export type WalletBalanceSummary = {
@@ -2701,13 +2714,16 @@ export type WalletBalanceSummary = {
   cashBalance: number
   totalBalance: number
   availableBalance: number
+  unassignedBalance?: number
+  unassignedCount?: number
+  reconciliationRequired?: boolean
   entries: Array<{
     id: string
     date: string
     title: string
     amount: number
     type: 'income' | 'expense'
-    paymentMethod: PaymentMethod
+    paymentMethod: WalletMethod
     source: string
   }>
 }
@@ -2733,17 +2749,17 @@ export const buildWalletBalanceSummary = (
     .flatMap((invoice) =>
       getInvoicePaymentRecords(invoice).map((record) => ({
         id: `invoice-${invoice.id}-${record.id}`,
-        date: record.payment_date,
-        title: 'Thu tiền phòng',
-        amount: Number(record.amount) || 0,
-        type: 'income' as const,
-        paymentMethod: record.payment_method || 'transfer',
+        date: record.payment_date || record.created_at,
+        title: getInvoicePaymentFlow(invoice, record).label,
+        amount: getInvoicePaymentFlow(invoice, record).amount,
+        type: getInvoicePaymentFlow(invoice, record).type,
+        paymentMethod: resolveWalletMethod(record.payment_method, record.source),
         source: 'Hóa đơn'
       }))
     )
   const manualRows = cashTransactions.map((item) => ({
     id: `cash-${item.id}`,
-    date: item.transaction_date,
+    date: item.transaction_date || item.created_at,
     title:
       item.category === 'investment_transfer'
         ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
@@ -2754,40 +2770,27 @@ export const buildWalletBalanceSummary = (
           'Giao dịch ví',
     amount: Number(item.amount) || 0,
     type: item.type,
-    // Manual cash-ledger entries without a method are cash-at-fund entries.
-    // Bank/SePay records always carry `transfer` explicitly.
-    paymentMethod: item.payment_method || 'cash',
+    paymentMethod: resolveWalletMethod(item.payment_method),
     source: 'Thủ công'
   }))
-  const openingDate = appSettings.opening_balance_date || ''
-  const ledgerRows = [...invoiceRows, ...manualRows].filter(
-    (row) => !openingDate || row.date >= openingDate
-  )
-  const bankBalance = ledgerRows.reduce(
-    (sum, row) =>
-      row.paymentMethod === 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
-    Number(appSettings.opening_balance_bank || 0)
-  )
-  const cashBalance = ledgerRows.reduce(
-    (sum, row) =>
-      row.paymentMethod !== 'cash' ? sum : sum + (row.type === 'income' ? row.amount : -row.amount),
-    Number(appSettings.opening_balance_cash || 0)
-  )
-  const totalBalance = bankBalance + cashBalance
+  const openingDate = appSettings.wallet_accounting_basis?.starts_on || appSettings.opening_balance_date || ''
+  const ledgerRows = [...invoiceRows, ...manualRows]
+    .filter((row) => !openingDate || row.date >= openingDate)
+    .map(row => ({ ...row,
+      paymentMethod: appSettings.wallet_accounting_basis?.method_overrides[row.id] || row.paymentMethod
+    }))
   return {
-    bankBalance,
-    cashBalance,
-    totalBalance,
-    availableBalance: Math.max(0, totalBalance),
-    entries: [...invoiceRows, ...manualRows]
-      .filter((row) => !openingDate || row.date >= openingDate)
-      .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+    ...summarizeWalletEntries(ledgerRows, appSettings),
+    entries: ledgerRows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
   }
 }
 
 export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
   const safeUpdates = { ...updates }
   delete safeUpdates.sepay_api_token
+  delete safeUpdates.wallet_checkpoint
+  delete safeUpdates.wallet_accounting_basis
+  delete safeUpdates.wallet_guard_ready
   const existingRows = await safeQuery<any[]>(() =>
     supabase.from('app_settings').select('id').limit(1)
   )
@@ -2913,6 +2916,14 @@ export interface EmailNotificationDelivery {
   sent_at?: string | null
 }
 
+export const getEmailDeliveryAvailability = async (): Promise<{available:boolean;authenticated:boolean;server?:boolean}> => {
+  const {data,error}=await supabase.rpc('email_server_status')
+  if(!error&&data?.enabled)return {available:true,authenticated:true,server:true}
+  if(error && !['PGRST202','42883'].includes(String(error.code||''))) return {available:false,authenticated:false}
+  const gmail=typeof window!=='undefined'?window.api?.gmail:undefined
+  return gmail?gmail.getAvailability().then(value=>({...value,authenticated:value.authenticated===true})).catch(()=>({available:false,authenticated:false})):{available:false,authenticated:false}
+}
+
 export const getEmailNotificationDeliveries = async (recipientUserId?: string): Promise<EmailNotificationDelivery[]> => {
   let query = supabase.from('email_notification_deliveries').select('*').order('created_at', { ascending: false }).limit(100)
   if (recipientUserId) query = query.eq('recipient_user_id', recipientUserId)
@@ -2928,6 +2939,15 @@ export const sendEmailNotification = async (payload: {
   payload?: Record<string, unknown>
   resend?: boolean
 }): Promise<{ ok: boolean; status?: string; error?: string; deliveryId?: string }> => {
+  const { data: serverStatus, error: statusError } = await supabase.rpc('email_server_status')
+  if (!statusError && serverStatus?.enabled) {
+    const { data, error } = await supabase.functions.invoke('send-email-notification', { body: payload })
+    if (error) return { ok: false, error: 'Không gửi được email trên máy chủ. Vui lòng kiểm tra lịch sử gửi.' }
+    return data || { ok: false, error: 'Máy chủ không trả kết quả gửi email.' }
+  }
+  if (statusError && !['PGRST202', '42883'].includes(String(statusError.code || ''))) {
+    return { ok: false, error: 'Không xác định được trạng thái máy chủ email.' }
+  }
   const localGmail = typeof window !== 'undefined' ? window.api?.gmail : undefined
   if (localGmail) {
     const availability = await localGmail.getAvailability().catch(() => ({ available: false }))
@@ -2938,17 +2958,33 @@ export const sendEmailNotification = async (payload: {
         .eq('id', payload.recipientUserId)
         .single()
       if (recipientError || !recipient?.notification_email) return { ok: false, error: 'Tài khoản chưa có Gmail nhận thông báo.' }
-      if (!recipient.email_notifications_enabled || recipient.email_notification_preferences?.[payload.eventType] === false) return { ok: false, error: 'Tài khoản đã tắt loại thông báo này.' }
+      if (!recipient.email_notifications_enabled) return { ok: false, error: 'Tài khoản đã tắt nhận thông báo qua Gmail.' }
+      // A deliberate test checks the sender without enabling a real notification category.
+      if (payload.eventType !== 'email_test' && normalizeEmailNotificationPreferences(recipient.email_notification_preferences)[payload.eventType as keyof EmailNotificationPreferences] !== true) return { ok: false, error: 'Tài khoản đã tắt loại thông báo này.' }
+      let deliveryId: string | undefined
       if (!payload.resend) {
-        const { data: existing } = await supabase.from('email_notification_deliveries').select('id,status').eq('dedupe_key', payload.dedupeKey).maybeSingle()
-        if (existing) return { ok: true, status: 'skipped', deliveryId: existing.id }
+        const { data: existing, error: lookupError } = await supabase.from('email_notification_deliveries').select('id,status').eq('dedupe_key', payload.dedupeKey).maybeSingle()
+        if (lookupError) return { ok: false, error: lookupError.message }
+        if (existing && existing.status !== 'failed') return { ok: true, status: 'skipped', deliveryId: existing.id }
+        if (existing) {
+          // Claim the failed row atomically so only one dev window retries it.
+          const { data: claimed, error: claimError } = await supabase.from('email_notification_deliveries').update({ status: 'sending', error_message: null }).eq('id', existing.id).eq('status', 'failed').select('id').maybeSingle()
+          if (claimError) return { ok: false, error: claimError.message }
+          if (!claimed) return { ok: true, status: 'skipped', deliveryId: existing.id }
+          deliveryId = claimed.id
+        }
       }
-      const { data: sessionData } = await supabase.auth.getSession()
-      const { data: row, error: insertError } = await supabase.from('email_notification_deliveries').insert({ recipient_user_id: recipient.id, recipient_email: recipient.notification_email, recipient_name: recipient.full_name, event_type: payload.eventType, dedupe_key: payload.resend ? `${payload.dedupeKey}:${crypto.randomUUID()}` : payload.dedupeKey, subject: payload.subject, payload: payload.payload || {}, status: 'sending', created_by: sessionData.session?.user.id || null }).select('id').single()
-      if (insertError) return { ok: false, error: insertError.message }
-      const sent = await localGmail.sendNotification({ to: recipient.notification_email, subject: payload.subject, html: payload.html })
-      await supabase.from('email_notification_deliveries').update(sent.ok ? { status: 'sent', provider: 'gmail-local', provider_message_id: sent.messageId, sent_at: new Date().toISOString() } : { status: 'failed', error_message: sent.error || 'Gửi Gmail thất bại.' }).eq('id', row.id)
-      return sent.ok ? { ok: true, status: 'sent', deliveryId: row.id } : { ok: false, error: sent.error || 'Gửi Gmail thất bại.' }
+      if (!deliveryId) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const { data: row, error: insertError } = await supabase.from('email_notification_deliveries').insert({ recipient_user_id: recipient.id, recipient_email: recipient.notification_email, recipient_name: recipient.full_name, event_type: payload.eventType, dedupe_key: payload.resend ? `${payload.dedupeKey}:${crypto.randomUUID()}` : payload.dedupeKey, subject: payload.subject, payload: payload.payload || {}, status: 'sending', created_by: sessionData.session?.user.id || null }).select('id').single()
+        if (insertError?.code === '23505' && !payload.resend) return { ok: true, status: 'skipped' }
+        if (insertError) return { ok: false, error: insertError.message }
+        deliveryId = row.id
+      }
+      const sent = await localGmail.sendNotification({ to: recipient.notification_email, subject: payload.subject, html: payload.html }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'Gửi Gmail thất bại.', messageId: undefined }))
+      const { error: historyError } = await supabase.from('email_notification_deliveries').update(sent.ok ? { status: 'sent', provider: 'gmail-local', provider_message_id: sent.messageId, sent_at: new Date().toISOString() } : { status: 'failed', error_message: sent.error || 'Gửi Gmail thất bại.' }).eq('id', deliveryId!)
+      if (historyError) console.error('Không lưu được lịch sử gửi Gmail:', historyError.message)
+      return sent.ok ? { ok: true, status: 'sent', deliveryId } : { ok: false, error: sent.error || 'Gửi Gmail thất bại.' }
     }
     return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
   }
@@ -3131,6 +3167,7 @@ export const invokeAdminBridge = async (
   action: string,
   payload: Record<string, unknown> = {}
 ): Promise<AdminBridgeResponse> => {
+  if (import.meta.env.VITE_CONTRACT_TEST === '1') return action === 'sepay_status' ? { ok: true, configured: false } : { ok: false, error: 'SePay thật không được bật trong môi trường TEST.' }
   const { data, error } = await supabase.functions.invoke<AdminBridgeResponse>(
     'admin-sepay-bridge',
     {

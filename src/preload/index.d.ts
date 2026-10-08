@@ -117,9 +117,9 @@ interface ZaloAPI {
 }
 
 interface GmailAPI {
-  getAvailability: () => Promise<{ available: boolean; authenticated?: boolean; reason?: string }>
+  getAvailability: () => Promise<{ available: boolean; authenticated?: boolean; reason?: string; senderEmail?: string }>
   reauthenticate: () => Promise<{ ok: boolean; error?: string }>
-  sendNotification: (payload: { to: string; subject: string; html: string }) => Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; messageId?: string }>
+  sendNotification: (payload: { to: string; subject: string; html: string }) => Promise<{ ok: boolean; error?: string; reauthRequired?: boolean; notSent?: boolean; messageId?: string }>
 }
 
 interface UpdateCheckResult {
@@ -232,6 +232,13 @@ declare global {
       }
     }
     api: {
+      contractTest: {
+        open: () => Promise<{ ok: boolean; error?: string }>
+      }
+      tenantIdentity: {
+        read: (dataUrl: string) => Promise<import('../shared/tenant-identity').IdentityReadResult>
+        clipboard: () => Promise<string | null>
+      }
       windowTheme: {
         setInvestmentTitleBar: (active: boolean) => Promise<void>
       }

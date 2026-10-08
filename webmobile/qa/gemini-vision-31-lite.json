@@ -1,0 +1,19 @@
+{
+  "model": "gemini-3.1-flash-lite",
+  "checkedAt": "2026-10-06T13:52:44.666Z",
+  "durationMs": 5598,
+  "result": {
+    "ok": false,
+    "reason": "Hai lần đọc chưa thống nhất từng chữ số. Hãy chụp lại dãy số rõ hơn."
+  },
+  "statuses": [
+    {
+      "http": 200,
+      "finish": "STOP"
+    },
+    {
+      "http": 200,
+      "finish": "STOP"
+    }
+  ]
+}

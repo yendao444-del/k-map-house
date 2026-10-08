@@ -185,15 +185,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   const rentUpdateMutation = useMutation({
     mutationFn: async (nextRent: number) => {
       const trimmedReason = rentReason.trim()
-      await updateRoom(room.id, {
-        base_rent: nextRent,
-        notes: [
-          room.notes || '',
-          `[RENT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentRent || 0)} -> ${formatVND(nextRent)} | ${trimmedReason || 'Điều chỉnh giá thuê'}`
-        ]
-          .filter(Boolean)
-          .join('\n')
-      })
       if (activeContract) {
         await updateContract(activeContract.id, {
           base_rent: nextRent,
@@ -205,6 +196,15 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
             .join('\n')
         })
       }
+      await updateRoom(room.id, {
+        base_rent: nextRent,
+        notes: [
+          room.notes || '',
+          `[RENT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentRent || 0)} -> ${formatVND(nextRent)} | ${trimmedReason || 'Điều chỉnh giá thuê'}`
+        ]
+          .filter(Boolean)
+          .join('\n')
+      })
     },
     onSuccess: (_result, nextRent) => {
       setLocalRentOverride(nextRent)
@@ -234,15 +234,6 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   const depositUpdateMutation = useMutation({
     mutationFn: async (nextDeposit: number) => {
       const trimmedReason = depositReason.trim()
-      await updateRoom(room.id, {
-        default_deposit: nextDeposit,
-        notes: [
-          room.notes || '',
-          `[DEPOSIT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentAgreedDeposit || 0)} -> ${formatVND(nextDeposit)} | ${trimmedReason || 'Điều chỉnh cọc thỏa thuận'}`
-        ]
-          .filter(Boolean)
-          .join('\n')
-      })
       if (activeContract) {
         await updateContract(activeContract.id, {
           deposit_amount: nextDeposit,
@@ -254,6 +245,15 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
             .join('\n')
         })
       }
+      await updateRoom(room.id, {
+        default_deposit: nextDeposit,
+        notes: [
+          room.notes || '',
+          `[DEPOSIT_ADJUSTMENT] ${new Date().toISOString()} | ${formatVND(currentAgreedDeposit || 0)} -> ${formatVND(nextDeposit)} | ${trimmedReason || 'Điều chỉnh cọc thỏa thuận'}`
+        ]
+          .filter(Boolean)
+          .join('\n')
+      })
     },
     onSuccess: (_result, nextDeposit) => {
       setLocalDepositOverride(nextDeposit)
