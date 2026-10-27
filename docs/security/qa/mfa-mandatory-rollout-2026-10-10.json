@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-10T05:47:59.890Z",
+  "mandatoryEnabled": true,
+  "status": {
+    "policy": "mandatory_enrollment_before_business_access",
+    "enforce_management": true,
+    "enrollment_enabled": true,
+    "all_accounts_enrolled": false,
+    "ready_for_enforcement": true,
+    "ready_management_accounts": 0,
+    "active_management_accounts": 3,
+    "pending_enrollment_accounts": 3
+  },
+  "scope": "All current and future active management admins/staff. Tenant portal uses separate authentication.",
+  "customerDataChanged": false
+}

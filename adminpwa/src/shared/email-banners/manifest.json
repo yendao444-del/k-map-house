@@ -1,0 +1,206 @@
+[
+  {
+    "id": "01-xac-nhan-hop-dong",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\01-xac-nhan-hop-dong.png",
+    "crop": {
+      "left": 52,
+      "top": 97,
+      "width": 920,
+      "height": 494
+    },
+    "sha256": "ff34f3613b5aff60d8f1a24666362e9461356b70ee67483eb3dea6c0656d007c",
+    "bytes": 92549
+  },
+  {
+    "id": "02-thanh-toan-thanh-cong",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\02-thanh-toan-thanh-cong.png",
+    "crop": {
+      "left": 85,
+      "top": 34,
+      "width": 854,
+      "height": 436
+    },
+    "sha256": "3ef6b7cb0618caa174694fee6dbe7e00d82e1d9a25276122d0d6ef05229677de",
+    "bytes": 92433
+  },
+  {
+    "id": "03-bien-nhan-chu-nha",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\03-bien-nhan-chu-nha.png",
+    "crop": {
+      "left": 87,
+      "top": 15,
+      "width": 851,
+      "height": 431
+    },
+    "sha256": "cce0e42da863334f6d84c015d3f175dc9cd1a75d48053d1e1bcdebc5aec9e0ed",
+    "bytes": 90080
+  },
+  {
+    "id": "04-giao-dich-chua-khop",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\04-giao-dich-chua-khop.png",
+    "crop": {
+      "left": 33,
+      "top": 45,
+      "width": 959,
+      "height": 506
+    },
+    "sha256": "1494c53cfc6a54f0d7b39e8c0cff0ea0642c2373231cbe0081cffe1decde2d1f",
+    "bytes": 93902
+  },
+  {
+    "id": "05-chuyen-thieu",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\05-chuyen-thieu.png",
+    "crop": {
+      "left": 56,
+      "top": 92,
+      "width": 914,
+      "height": 481
+    },
+    "sha256": "8f873944e9e4e84f0dc9074c0aefc20d1cb5d59c0eb591fcfe5ec4a3d6d1e9fc",
+    "bytes": 78622
+  },
+  {
+    "id": "06-chuyen-du",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\06-chuyen-du.png",
+    "crop": {
+      "left": 50,
+      "top": 84,
+      "width": 925,
+      "height": 494
+    },
+    "sha256": "fa859251132fb1327ca70fb55444203bbddb32b272b1ecc57e054f2934d51385",
+    "bytes": 79477
+  },
+  {
+    "id": "07-khop-nhieu-hoa-don",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\07-khop-nhieu-hoa-don.png",
+    "crop": {
+      "left": 50,
+      "top": 68,
+      "width": 925,
+      "height": 507
+    },
+    "sha256": "daf426e845ce5506f3cbdd93c7c2dfb2e9f8f1245e2c03a18801c7bfe6eb14d3",
+    "bytes": 84071
+  },
+  {
+    "id": "08-da-ghi-nhan-mot-phan",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\08-da-ghi-nhan-mot-phan.png",
+    "crop": {
+      "left": 44,
+      "top": 99,
+      "width": 936,
+      "height": 509
+    },
+    "sha256": "dcfc7036f503036a679a065627482882ad4c89896cbaf4676c1e77fc11d2478d",
+    "bytes": 93292
+  },
+  {
+    "id": "09-hoa-don-va-dich-vu",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\09-hoa-don-va-dich-vu.png",
+    "crop": {
+      "left": 62,
+      "top": 0,
+      "width": 900,
+      "height": 486
+    },
+    "sha256": "c661fae903f5b7a49785b13dc502d2c7ac0ff5ec55eb42666f66815bf94f89fc",
+    "bytes": 72076
+  },
+  {
+    "id": "10-tien-phong-qua-han",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\10-tien-phong-qua-han.png",
+    "crop": {
+      "left": 50,
+      "top": 81,
+      "width": 925,
+      "height": 542
+    },
+    "sha256": "265d7341682e9cb12d7f30ed05cadaf4134e3af90af1c380d8eeecab3e96aaba",
+    "bytes": 85630
+  },
+  {
+    "id": "11-lau-chua-thanh-toan",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\11-lau-chua-thanh-toan.png",
+    "crop": {
+      "left": 105,
+      "top": 44,
+      "width": 1045,
+      "height": 502
+    },
+    "sha256": "7a253a300037882692faad71214e9d2829ea9493d9411394bffec0e468c5458a",
+    "bytes": 74974
+  },
+  {
+    "id": "12-nhac-no-cu",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\12-nhac-no-cu.png",
+    "crop": {
+      "left": 157,
+      "top": 54,
+      "width": 941,
+      "height": 466
+    },
+    "sha256": "3254c9c54b452646c022c25f7dc978da43702d272e4f28342ea3d62f309c3b69",
+    "bytes": 72124
+  },
+  {
+    "id": "13-den-han-tra-phong",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\13-den-han-tra-phong.png",
+    "crop": {
+      "left": 32,
+      "top": 81,
+      "width": 960,
+      "height": 514
+    },
+    "sha256": "43a6889cb6eb12c10a56b5acdd8719665aafc12d1b0f67473299b9bd1befdb01",
+    "bytes": 74252
+  },
+  {
+    "id": "14-hop-dong-sap-het-han",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\14-hop-dong-sap-het-han.png",
+    "crop": {
+      "left": 48,
+      "top": 108,
+      "width": 929,
+      "height": 523
+    },
+    "sha256": "df8c84f3663ba0666f693f4418003ccf4b2f7fe4027f5d3fad00774e433eb60e",
+    "bytes": 94128
+  },
+  {
+    "id": "15-den-ky-thanh-toan",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\15-den-ky-thanh-toan.png",
+    "crop": {
+      "left": 34,
+      "top": 45,
+      "width": 956,
+      "height": 542
+    },
+    "sha256": "e5221910314414ce0c8c2c9afe94b0a59b93874626a39deefc2577c03fa5c702",
+    "bytes": 86200
+  },
+  {
+    "id": "16-xac-nhan-sua-hop-dong",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\16-xac-nhan-sua-hop-dong.png",
+    "crop": {
+      "left": 54,
+      "top": 50,
+      "width": 917,
+      "height": 528
+    },
+    "sha256": "89e4d3d0376d89eaa026df06c2f64b19b0467eb86b944e7bbc0eb680f6c55ec6",
+    "bytes": 104671
+  },
+  {
+    "id": "17-thong-bao-huy-hop-dong",
+    "source": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\17-thong-bao-huy-hop-dong.png",
+    "crop": {
+      "left": 171,
+      "top": 82,
+      "width": 912,
+      "height": 449
+    },
+    "sha256": "3424f7f03de943201d9d559e28e7d23bd13db1692c37b84c5186654952543ecc",
+    "bytes": 92649
+  }
+]

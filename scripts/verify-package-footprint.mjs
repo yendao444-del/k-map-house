@@ -6,9 +6,10 @@ const root = process.cwd()
 const sourcePackage = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const asarPath = path.join(root, 'dist', 'win-unpacked', 'resources', 'app.asar')
 const installerPath = path.join(root, 'dist', `DBYHOME-${sourcePackage.version}-setup.exe`)
+const unpackedOnly = process.argv.includes('--unpacked-only')
 
 if (!fs.existsSync(asarPath)) throw new Error(`Missing ${asarPath}; run npm run build:win first.`)
-if (!fs.existsSync(installerPath)) throw new Error(`Missing ${installerPath}; run npm run build:win first.`)
+if (!unpackedOnly && !fs.existsSync(installerPath)) throw new Error(`Missing ${installerPath}; run npm run build:win first.`)
 const packedPackage = JSON.parse(extractFile(asarPath, 'package.json').toString('utf8'))
 if (packedPackage.version !== sourcePackage.version) {
   throw new Error(`Packaged version ${packedPackage.version} differs from source ${sourcePackage.version}`)
@@ -43,6 +44,16 @@ const violations = entries.filter((entry) => forbidden.some((prefix) => entry ==
 if (violations.length) {
   throw new Error(`Forbidden packaged files found:\n${violations.slice(0, 20).join('\n')}`)
 }
+const allowedRoots = ['out/', 'resources/', 'node_modules/']
+const unsafeEntries = entries.filter(entry => {
+  const clean = entry.replace(/\/$/, '')
+  return clean && clean !== 'package.json' &&
+    !allowedRoots.some(prefix => clean === prefix.slice(0, -1) || clean.startsWith(prefix))
+})
+const privateEntries = entries.filter(entry => /(?:^|\/)\.env(?:\.|$)/i.test(entry))
+if (unsafeEntries.length || privateEntries.length) {
+  throw new Error(`Unexpected workspace/private files found in package:\n${[...new Set([...unsafeEntries, ...privateEntries])].slice(0, 20).join('\n')}`)
+}
 
 const fileBytes = entries.reduce((total, entry) => {
   try {
@@ -55,7 +66,8 @@ const fileBytes = entries.reduce((total, entry) => {
 
 const report = {
   version: packedPackage.version,
-  installerBytes: fs.statSync(installerPath).size,
+  installerBytes: fs.existsSync(installerPath) ? fs.statSync(installerPath).size : null,
+  verificationMode: unpackedOnly ? 'unpacked' : 'installer-and-unpacked',
   asarBytes: fs.statSync(asarPath).size,
   asarFileBytes: fileBytes,
   // asarFileBytes includes logical unpacked entries. Do not add it to physical
@@ -64,6 +76,8 @@ const report = {
   unpackedBytes: directoryBytes(`${asarPath}.unpacked`),
   installedBytes: directoryBytes(path.join(root, 'dist', 'win-unpacked')),
   forbiddenEntries: 0,
+  unexpectedWorkspaceEntries: 0,
+  privateConfigEntries: 0,
   electronRuntime: JSON.parse(fs.readFileSync(path.join(root, 'node_modules', 'electron', 'package.json'), 'utf8')).version
 }
 console.log(JSON.stringify(report, null, 2))

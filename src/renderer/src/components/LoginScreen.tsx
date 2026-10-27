@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import logoNavbar from '../assets/an_khang_home_logo.png'
 import loginCinematicApartment from '../assets/login-an-khang-home-right.webp'
 import { WeatherBackdrop, type WeatherSceneStyle } from './WeatherBackdrop'
@@ -6,8 +6,12 @@ import {
   requestPasswordReset,
   resetPasswordFromRecoveryLink,
   signInUser,
+  completeMfaLogin,
+  getCurrentSessionUser,
   type AppUser
 } from '../lib/db'
+import { cancelMfaLogin, MfaChallengeRequired, SecurityStepUpRequired, sendSecurityEmailCode, verifySecurityEmailCode, securityState } from '../lib/mfa'
+import { SecurityAccessPanel } from './SecurityAccessPanel'
 
 const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> =>
   Promise.race([
@@ -21,6 +25,8 @@ interface LoginScreenProps {
   onLogin: (user: AppUser) => void
   recoveryMode?: boolean
   onRecoveryComplete?: () => void
+  initialSecurityState?: string | null
+  initialMfaChallenge?: { factorId: string; challengeId: string } | null
 }
 
 type PolicyKind = 'terms' | 'privacy'
@@ -124,14 +130,43 @@ const policyDocuments: Record<PolicyKind, {
   }
 }
 
-export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete }: LoginScreenProps): React.JSX.Element {
+export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete, initialMfaChallenge = null, initialSecurityState = null }: LoginScreenProps): React.JSX.Element {
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+  const loginAttempt = useRef(0)
   const [error, setError] = useState('')
   const [version, setVersion] = useState('...')
-  const [rememberMe, setRememberMe] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [mfaChallenge, setMfaChallenge] = useState(initialMfaChallenge)
+  const [securityStep, setSecurityStep] = useState(initialSecurityState)
+  const [mfaCode, setMfaCode] = useState('')
+  const [emailChallenge, setEmailChallenge] = useState<{ challengeId: string; maskedEmail?: string } | null>(null)
+  const [emailCode, setEmailCode] = useState('')
+  const [otherMethods, setOtherMethods] = useState(false)
+  const [emailAvailable, setEmailAvailable] = useState<boolean | null>(null)
+  const [methodError, setMethodError] = useState('')
+  const [resendAt, setResendAt] = useState(0)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    if (!mfaChallenge) return
+    let active = true
+    setEmailAvailable(null); setMethodError('')
+    void securityState().then(state => {
+      if (active) setEmailAvailable(state.email_login_available === true)
+    }).catch(() => { if (active) setMethodError('Chưa tải được phương thức xác minh. Bạn vẫn có thể dùng Authenticator.') })
+    return () => { active = false }
+  }, [mfaChallenge])
+  useEffect(() => {
+    if (!emailChallenge) return
+    setNow(Date.now())
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [emailChallenge])
+
+  useEffect(() => { setSecurityStep(initialSecurityState) }, [initialSecurityState])
+  useEffect(() => { setMfaChallenge(initialMfaChallenge) }, [initialMfaChallenge])
   const [openPolicy, setOpenPolicy] = useState<PolicyKind | null>(null)
   const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false)
   const [resetStep, setResetStep] = useState<PasswordResetStep>('email')
@@ -149,7 +184,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
 
   useEffect(() => {
     if (!window.api?.update) {
-      setVersion('1.0.65')
+      setVersion(import.meta.env.VITE_APP_VERSION)
       return
     }
     window.api.update.getCurrentVersion().then((result) => {
@@ -185,16 +220,74 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (submittingRef.current) return
+    submittingRef.current = true
+    const attempt = ++loginAttempt.current
     setSubmitting(true)
     setError('')
     try {
-      const user = await withTimeout(signInUser(login, password), 10000, 'Không kết nối được máy chủ dữ liệu. Vui lòng kiểm tra Internet/DNS rồi thử lại.')
+      if (emailChallenge) {
+        if (!/^\d{6}$/.test(emailCode)) throw new Error('Nhập đúng mã 6 số đã gửi tới email xác minh.')
+        await verifySecurityEmailCode('login', emailChallenge.challengeId, emailCode)
+        const user = await getCurrentSessionUser()
+        if (!user) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+        setEmailChallenge(null); setEmailCode(''); setMfaChallenge(null); setMfaCode(''); setPassword(''); setSecurityStep(null); onLogin(user)
+        return
+      }
+      if (mfaChallenge) {
+        if (!/^\d{6}$/.test(mfaCode)) throw new Error('Nhập đúng mã 6 số trong Google Authenticator.')
+        const user = await completeMfaLogin(mfaChallenge.factorId, mfaChallenge.challengeId, mfaCode)
+        setMfaChallenge(null); setMfaCode(''); setPassword(''); setSecurityStep(null); onLogin(user)
+        return
+      }
+      // Network calls have real abort deadlines in the client. Do not race a
+      // live login promise: it could establish a session after a UI timeout.
+      const user = await signInUser(login, password)
+      if (attempt !== loginAttempt.current) return
+      setPassword('')
       onLogin(user as AppUser)
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Đăng nhập thất bại.')
+      if (caughtError instanceof MfaChallengeRequired) {
+        setPassword('')
+        setMfaChallenge({ factorId: caughtError.factorId, challengeId: caughtError.challengeId })
+        setEmailChallenge(null); setEmailCode('')
+        setMfaCode('')
+        setError('')
+      } else if (caughtError instanceof SecurityStepUpRequired) {
+        setEmailChallenge(null); setEmailCode(''); setOtherMethods(false); setMfaChallenge(null); setMfaCode(''); setPassword(''); setSecurityStep(null); setSecurityStep(caughtError.state); setError('')
+      } else setError(caughtError instanceof Error ? caughtError.message : 'Đăng nhập thất bại.')
     } finally {
+      // A late Auth response may restore a session but must never open the UI
+      // after this attempt ended; App's auth listener handles sign-out only.
+      loginAttempt.current++
+      submittingRef.current = false
       setSubmitting(false)
     }
+  }
+
+  const useEmailFallback = async () => {
+    if (submittingRef.current) return
+    submittingRef.current = true; setSubmitting(true); setError('')
+    const retryAt = Date.now() + 60_000
+    setResendAt(retryAt)
+    try {
+      const challenge = await sendSecurityEmailCode('login')
+      setEmailChallenge(challenge); setEmailCode(''); setMfaCode(''); setOtherMethods(false); setResendAt(retryAt)
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Chưa gửi được mã email xác minh.') }
+    finally { submittingRef.current = false; setSubmitting(false) }
+  }
+
+  const cancelMfa = async () => {
+    if (submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
+    setError('')
+    try {
+      await cancelMfaLogin()
+      setEmailChallenge(null); setEmailCode(''); setOtherMethods(false); setResendAt(0); setMfaChallenge(null); setMfaCode(''); setPassword(''); setSecurityStep(null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Chưa thể đóng phiên đăng nhập.')
+    } finally { submittingRef.current = false; setSubmitting(false) }
   }
 
   const openForgotPassword = () => {
@@ -236,8 +329,8 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
     setResetError('')
     setResetNotice('')
 
-    if (newPassword.length < 8) {
-      setResetError('Mật khẩu mới phải có ít nhất 8 ký tự.')
+    if (newPassword.length < 12) {
+      setResetError('Mật khẩu mới phải có ít nhất 12 ký tự.')
       return
     }
     if (newPassword !== confirmPassword) {
@@ -265,22 +358,7 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
   }
 
   return (
-    <main className="relative flex min-h-screen overflow-y-auto bg-[#003d35] text-white">
-      <style>{`@media (max-height: 950px) {
-          .login-hero { margin-bottom: 14px; padding-bottom: 0; }
-          .login-hero .login-logo { height: 58px; width: 70px; border-radius: 18px; }
-          .login-hero h2 { margin-top: 12px; font-size: 31px; }
-          .login-hero .login-accent { margin-top: 10px; }
-          .login-hero p { margin-top: 10px; }
-          .login-panel { padding-top: 12px; padding-bottom: 12px; }
-          .login-panel .login-secure-note { margin-bottom: 10px; padding-top: 6px; padding-bottom: 6px; }
-          .login-panel form { gap: 8px; }
-          .login-panel input { height: 42px; }
-          .login-panel button[type='submit'] { height: 44px; }
-          .login-panel .login-divider { margin-top: 12px; }
-          .login-panel .login-legal { margin-top: 12px; }
-          .login-panel .login-version { margin-top: 8px; }
-        }`}</style>
+    <main className="pwa-login relative flex min-h-screen overflow-y-auto bg-[#003d35] text-white">
       <div className="app-titlebar-drag absolute inset-x-0 top-0 z-50 h-10" aria-hidden="true" />
       <img
         src={loginCinematicApartment}
@@ -299,39 +377,30 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
         aria-hidden="true"
       />
       <WeatherBackdrop onSceneStyleChange={setWeatherScene} />
-      <section className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-5 py-10 sm:px-8">
-        <div className="login-panel w-full max-w-[486px] rounded-[28px] border border-white/70 bg-[#fcfefd] px-7 py-7 text-slate-800 shadow-[0_24px_64px_-30px_rgba(0,21,18,0.9)] sm:px-10 sm:py-8">
+      <section className="relative z-10 flex min-h-screen w-full flex-col items-center justify-center px-4 py-5 sm:px-8">
+        {securityStep ? <div className="account-surface account-login-security" role="region" aria-label="Thiết lập bảo mật tài khoản"><SecurityAccessPanel key={securityStep} initialState={securityStep} loginHint={login} onCancel={cancelMfa} onComplete={async () => {
+          const user = await getCurrentSessionUser()
+          if (!user) throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+          setSecurityStep(null); setMfaChallenge(null); setPassword(''); onLogin(user)
+        }} /></div> : <div className="login-panel w-full max-w-[416px] rounded-[22px] border border-white/70 bg-[#fcfefd] px-8 py-7 text-slate-800 shadow-[0_24px_64px_-30px_rgba(0,21,18,0.9)] sm:px-8 sm:py-8">
           {import.meta.env.VITE_CONTRACT_TEST === '1' && <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-900">ELECTRON TEST · Phòng 999 · Đăng nhập bằng tài khoản TEST</p>}
-          <div className="login-hero mb-6 text-center">
-            <span className="login-logo mx-auto flex h-[72px] w-[86px] items-center justify-center rounded-[22px] border border-slate-100 bg-white p-2.5 shadow-[0_14px_32px_-20px_rgba(0,91,69,0.45)]"><img src={logoNavbar} alt="AN KHANG HOME" className="h-full w-full object-contain" /></span>
-            <h2 className="mt-5 text-[36px] font-extrabold leading-none tracking-[-0.035em] drop-shadow-[0_3px_10px_rgba(0,91,69,0.12)]">
-              <span className="text-[#064a31]">AN KHANG</span>{' '}
-              <span className="text-[#00ab60]">HOME</span>
-            </h2>
-            <div className="login-accent mx-auto mt-4 h-1 w-12 rounded-full bg-[#09c97d]" />
-            <p className="mt-4 text-[13px] font-medium text-slate-500">Nhẹ việc quản lý · Vững vàng vận hành</p>
-          </div>
-
-          <div className="login-secure-note mb-5 flex items-center gap-2.5 rounded-xl border border-emerald-100/80 bg-gradient-to-r from-emerald-50/70 to-teal-50/30 px-3.5 py-2 text-left">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-[#047857]">
-              <i className="fa-solid fa-house-circle-check text-[13px]" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <span className="block text-[12.5px] font-bold text-[#06603f] leading-snug">
-                Trọ an khang · Chủ nhà an tâm
-              </span>
-              <span className="block text-[11px] font-medium text-slate-400 leading-snug">
-                Phòng, hợp đồng và dòng tiền luôn trong tầm tay
-              </span>
+          <header className="login-hero mb-5 text-left">
+            <div className="mb-6 flex items-center gap-3">
+              <img src={logoNavbar} alt="AK" className="h-6 w-10 shrink-0 object-contain" />
+              <span className="h-7 border-l border-slate-300" aria-hidden="true" />
+              <span className="text-[clamp(17px,4.3vw,20px)] font-extrabold tracking-[-0.035em] leading-tight"><span className="text-[#064a31]">AN KHANG</span>{' '}<span className="text-[#00ab60]">HOME</span></span>
             </div>
-          </div>
+            <p className="text-[11px] font-bold tracking-[0.26em] text-[#285b50]">CỔNG QUẢN TRỊ</p>
+            <h2 className={`mt-2 ${mfaChallenge ? 'text-[clamp(24px,6.4vw,32px)]' : 'text-[36px]'} font-extrabold leading-tight tracking-[-0.035em] text-[#042f28]`}>{mfaChallenge ? 'Xác minh đăng nhập' : 'Đăng nhập'}</h2>
+            <p className="mt-2 text-[14px] leading-6 text-slate-500">Quản lý An Khang trong một nơi.</p>
+          </header>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          {!mfaChallenge ? <form className="space-y-3" onSubmit={handleSubmit}>
             <label className="block">
               <span className="mb-2 block text-[13px] font-bold text-slate-700">Email hoặc tên đăng nhập</span>
               <span className="group relative block">
                 <i className="fa-regular fa-envelope pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[17px] text-slate-400 transition group-focus-within:text-[#047857]" aria-hidden="true" />
-                <input value={login} onChange={(event) => setLogin(event.target.value)} autoFocus autoComplete="username" placeholder="Nhập email hoặc tên đăng nhập" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-4 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
+                <input value={login} onChange={(event) => setLogin(event.target.value)} autoFocus autoComplete="username" placeholder="Nhập email hoặc tên đăng nhập" className="h-[46px] w-full rounded-[9px] border border-[#d3e2df] bg-white py-3 pl-12 pr-4 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
               </span>
             </label>
 
@@ -339,29 +408,44 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
               <span className="mb-2 block text-[13px] font-bold text-slate-700">Mật khẩu</span>
               <span className="group relative block">
                 <i className="fa-solid fa-lock pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[16px] text-slate-400 transition group-focus-within:text-[#047857]" aria-hidden="true" />
-                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="Nhập mật khẩu" className="h-[52px] w-full rounded-[12px] border border-slate-300 bg-white py-3 pl-12 pr-14 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
+                <input type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="Nhập mật khẩu" className="h-[46px] w-full rounded-[9px] border border-[#d3e2df] bg-white py-3 pl-12 pr-14 text-[14px] font-medium text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" />
                 <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-slate-400 transition hover:text-[#047857] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500" aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}><i className={`fa-regular ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-[17px]`} aria-hidden="true" /></button>
               </span>
             </label>
 
-            <div className="flex items-center justify-between gap-4 pt-1">
-              <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-slate-600">
-                <input type="checkbox" checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} className="h-4 w-4 cursor-pointer rounded border-slate-300 bg-white accent-[#00ab60]" />
-                Ghi nhớ đăng nhập
-              </label>
+            <div className="flex items-center justify-end gap-4 pt-1">
               <button type="button" onClick={openForgotPassword} className="text-[13px] font-bold text-[#047857] transition hover:text-[#064a31] hover:underline">Quên mật khẩu?</button>
             </div>
 
             {error && <div role="alert" className="flex items-start gap-3 rounded-[9px] border border-rose-200 bg-rose-50 p-4 text-[13px] font-medium leading-5 text-rose-700"><i className="fa-solid fa-circle-exclamation mt-0.5" aria-hidden="true" /><span>{error}</span></div>}
 
-            <button type="submit" disabled={submitting} className="flex h-[54px] w-full items-center justify-center gap-3 rounded-[12px] bg-[#00ab60] text-[15px] font-bold text-white shadow-[0_16px_26px_-15px_rgba(0,126,91,0.85)] transition hover:bg-[#047857] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-65">
+            <button type="submit" disabled={submitting} className="flex h-[46px] w-full items-center justify-center gap-3 rounded-[9px] bg-[#00ab60] text-[15px] font-bold text-white shadow-[0_16px_26px_-15px_rgba(0,126,91,0.85)] transition hover:bg-[#047857] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-65">
               <i className={`fa-solid ${submitting ? 'fa-circle-notch animate-spin' : 'fa-right-to-bracket'} text-[17px]`} aria-hidden="true" />
               {submitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
-          </form>
+          </form> : <form className="space-y-3" onSubmit={handleSubmit}>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><i className="fa-solid fa-shield-halved text-lg" aria-hidden="true" /></span>
+              <h3 className="mt-3 text-base font-extrabold text-slate-800">Xác minh đăng nhập</h3>
+              <p className="mt-1 text-[12px] leading-5 text-slate-600">{emailChallenge ? `Nhập mã 6 số đã gửi tới ${emailChallenge.maskedEmail || 'email đã xác minh'}.` : 'Nhập mã 6 số từ Google Authenticator để tiếp tục vào AN KHANG HOME.'}</p>
+            </div>
+            <label className="block"><span className="mb-2 block text-[13px] font-bold text-slate-700">{emailChallenge ? 'Mã email xác minh' : 'Mã xác minh'}</span><input autoFocus inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" value={emailChallenge ? emailCode : mfaCode} onChange={event => (emailChallenge ? setEmailCode(event.target.value.replace(/\D/g, '')) : setMfaCode(event.target.value.replace(/\D/g, '')))} placeholder="000000" className="h-[46px] w-full rounded-[9px] border border-slate-300 bg-white px-4 text-center text-[22px] font-bold tracking-[0.35em] text-slate-800 outline-none focus:border-[#00ab60] focus:ring-4 focus:ring-emerald-500/10" aria-label={emailChallenge ? 'Mã email xác minh' : 'Mã Google Authenticator'} /></label>
+            {error && <div role="alert" className="flex items-start gap-3 rounded-[9px] border border-rose-200 bg-rose-50 p-4 text-[13px] font-medium leading-5 text-rose-700"><i className="fa-solid fa-circle-exclamation mt-0.5" aria-hidden="true" /><span>{error}</span></div>}
+            <button type="submit" disabled={submitting || (emailChallenge ? emailCode.length !== 6 : mfaCode.length !== 6)} className="flex h-[46px] w-full items-center justify-center gap-3 rounded-[9px] bg-[#00ab60] text-[15px] font-bold text-white shadow-[0_16px_26px_-15px_rgba(0,126,91,0.85)] transition hover:bg-[#047857] disabled:cursor-not-allowed disabled:opacity-65"><i className={`fa-solid ${submitting ? 'fa-circle-notch animate-spin' : 'fa-shield-halved'} text-[17px]`} aria-hidden="true" />{submitting ? 'Đang xác minh...' : emailChallenge ? 'Xác minh email' : 'Xác minh mã'}</button>
+            {emailChallenge && <div className="text-center text-[12px] text-slate-500"><p>Mã có hiệu lực 5 phút. Không chia sẻ mã với người khác.</p><button type="button" disabled={submitting || now < resendAt} onClick={() => void useEmailFallback()} className="mt-1 font-bold text-emerald-700 disabled:text-slate-400">{now < resendAt ? 'Gửi lại mã sau ' + Math.ceil((resendAt - now) / 1000) + ' giây' : 'Gửi lại mã email'}</button></div>}
+            <button type="button" disabled={submitting} aria-expanded={otherMethods} onClick={() => setOtherMethods(value => !value)} className="w-full py-2 text-[13px] font-bold text-emerald-700">Thử phương thức khác</button>
+            {otherMethods && <div className="space-y-1 rounded-xl border border-emerald-100 bg-emerald-50/50 p-2" role="group" aria-label="Phương thức xác minh đăng nhập">
+              <button type="button" disabled={submitting} onClick={() => { setEmailChallenge(null); setEmailCode(''); setMfaCode(''); setOtherMethods(false); setError('') }} className="w-full rounded-lg px-2 py-2 text-left text-[13px] font-bold text-emerald-800">Google Authenticator</button>
+              <button type="button" disabled={submitting || emailAvailable !== true || now < resendAt} onClick={() => void useEmailFallback()} className="w-full rounded-lg px-2 py-2 text-left text-[13px] font-bold text-emerald-800 disabled:text-slate-400">{now < resendAt ? `Gửi lại mã sau ${Math.ceil((resendAt - now) / 1000)} giây` : emailAvailable === null && !methodError ? 'Đang kiểm tra email…' : 'Gửi mã qua email đã xác minh'}</button>
+              {emailAvailable === false && <p className="px-2 text-[11px] leading-4 text-slate-500">Email chưa được xác minh từ trước hoặc tài khoản chưa hoàn tất thiết lập 2FA.</p>}
+              {methodError && <p role="status" className="px-2 text-[11px] leading-4 text-slate-500">{methodError}</p>}
+              <button type="button" disabled={submitting} onClick={() => { setEmailChallenge(null); setEmailCode(''); setMfaChallenge(null); setMfaCode(''); setOtherMethods(false); setSecurityStep('recover_password') }} className="w-full rounded-lg px-2 py-2 text-left text-[13px] font-bold text-emerald-800">Mất điện thoại? Dùng mã khôi phục</button>
+            </div>}
+            <button type="button" disabled={submitting} onClick={() => void cancelMfa()} className="w-full py-2 text-[13px] font-bold text-slate-500 hover:text-emerald-700">Quay lại đăng nhập</button>
+          </form>}
 
-          <div className="login-divider mt-6 flex items-center gap-4 text-[12px] text-slate-400" aria-hidden="true"><span className="h-px flex-1 bg-slate-200" /><span>hoặc</span><span className="h-px flex-1 bg-slate-200" /></div>
-          <p className="login-legal mt-5 text-center text-[11px] font-medium leading-5 text-slate-500">
+          <div className="login-divider mt-5 border-t border-[#d3e2df]" aria-hidden="true" />
+          <p className="login-legal mt-4 text-center text-[11px] font-medium leading-5 text-slate-500">
             Bằng việc đăng nhập, bạn đồng ý với{' '}
             <button type="button" onClick={() => setOpenPolicy('terms')} className="font-semibold text-[#047857] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
               Điều khoản sử dụng
@@ -371,8 +455,8 @@ export function LoginScreen({ onLogin, recoveryMode = false, onRecoveryComplete 
               Chính sách bảo mật
             </button>.
           </p>
-          <p className="login-version mt-5 text-center text-[10px] font-medium text-slate-400">Phiên bản v{version}</p>
-        </div>
+          <p className="login-version mt-3 text-center text-[10px] font-medium text-slate-400">Phiên bản v{version}</p>
+        </div>}
       </section>
 
       {forgotPasswordOpen && (

@@ -66,10 +66,46 @@ test('online reader rejects blank photos without provider call and compares comp
   const fakeProvider = async () => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ meterType: 'electric', meterCount: 1, framing: 'close', issue: 'none', reading: ++count === 1 ? '012692' : '12692', unit: 'kWh', certainty: 'clear' }) }] } }] })
   assert.equal((await readCloudMeter(photo, 'electric', env, fakeProvider)).ok, false)
 })
+test('cloud reader benchmark tuning preserves two strict reads and only bounds JSON output', async () => {
+  const photo = `data:image/jpeg;base64,${(await sharp(Buffer.from('<svg width="400" height="600"><rect width="400" height="600" fill="white"/><rect x="100" y="200" width="200" height="100" fill="black"/></svg>')).jpeg().toBuffer()).toString('base64')}`
+  const env = { METER_CLOUD_PROVIDER: 'gemini', METER_CLOUD_MODEL: 'gemini-3.1-flash-lite', METER_CLOUD_API_KEY: 'test' }
+  const calls = []
+  const provider = async (_url, options) => {
+    calls.push(JSON.parse(options.body))
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ meterType: 'electric', meterCount: 1, framing: 'close', issue: 'none', reading: '12692', unit: 'kWh', certainty: 'clear' }) }] } }] })
+  }
+  const result = await readCloudMeter(photo, 'electric', env, provider, { maxOutputTokens: 256, thinkingBudget: 0 })
+  assert.equal(result.ok, true); assert.equal(result.reading, 12692); assert.equal(calls.length, 2)
+  for (const call of calls) {
+    assert.equal(call.generationConfig.maxOutputTokens, 256)
+    assert.equal(call.generationConfig.thinkingConfig.thinkingBudget, 0)
+    assert.equal(call.contents[0].parts[1].inlineData.data, photo.split(',')[1])
+  }
+})
 test('Pages rejects foreign origins and unsupported methods before contacting backend', async () => {
   const env = { WEBMOBILE_EDGE_URL: 'https://backend.example.invalid', WEBMOBILE_GATEWAY_SECRET: secret }
   const context = { env, params: { path: ['meter-ocr'] }, request: new Request('https://phongtroankhang.com/api/meter-ocr', { method: 'POST', headers: { origin: 'https://untrusted.example.invalid' } }) }
   assert.equal((await onRequest(context)).status, 403)
   context.request = new Request('https://phongtroankhang.com/api/meter-ocr')
   assert.equal((await onRequest(context)).status, 405)
+})
+test('Pages preserves multipart boundary and JPEG bytes while forwarding meter OCR', async () => {
+  const form = new FormData()
+  form.set('meter', 'electric'); form.set('contractId', 'contract-fixture')
+  form.set('image', new Blob([Uint8Array.from([0xff, 0xd8, 0xff, 0x20, 0xff, 0xd9])], { type: 'image/jpeg' }), 'meter.jpg')
+  const browserRequest = new Request('https://pay.phongtroankhang.com/api/meter-ocr', { method: 'POST', body: form })
+  const contentType = browserRequest.headers.get('content-type')
+  const expected = new Uint8Array(await browserRequest.clone().arrayBuffer())
+  const original = globalThis.fetch
+  let forwarded
+  globalThis.fetch = async (_url, init) => {
+    forwarded = { headers: new Headers(init.headers), body: new Uint8Array(await new Response(init.body).arrayBuffer()) }
+    return Response.json({ ok: true })
+  }
+  try {
+    const result = await onRequest({ env: { WEBMOBILE_EDGE_URL: 'https://backend.example.invalid', WEBMOBILE_GATEWAY_SECRET: secret }, params: { path: ['meter-ocr'] }, request: browserRequest })
+    assert.equal(result.status, 200)
+    assert.equal(forwarded.headers.get('content-type'), contentType)
+    assert.deepEqual(forwarded.body, expected)
+  } finally { globalThis.fetch = original }
 })

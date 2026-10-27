@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { usePasswordConfirmation } from './PasswordConfirmationDialog'
 import {
   getInvoicesByRoom,
   getCollectedDepositAmount,
@@ -72,6 +73,7 @@ const BILLING_REASON_LABEL: Record<string, string> = {
 
 export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Props) {
   const queryClient = useQueryClient()
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
   const today = toDateInputValue(new Date())
 
   const [endDate, setEndDate] = useState(today)
@@ -273,6 +275,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
 
   const mutation = useMutation({
     mutationFn: async () => {
+      await requirePassword('Tạo hóa đơn tất toán và chốt trả phòng')
       const summary = { totalCharges, depositHeld, netDue, refundAmount }
       setSettlementSummary(summary)
       await terminateContract({
@@ -349,8 +352,9 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
   return (
     <div
       className="fixed inset-0 z-[90] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 pt-6"
-      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+      onMouseDown={e => { if (e.target === e.currentTarget && !mutation.isPending) onClose() }}
     >
+      {passwordConfirmation}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh] animate-[fadeIn_0.2s_ease-out]">
 
         {/* Header */}
@@ -364,7 +368,7 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
               <p className="text-red-100 text-xs">{room.name} · {room.tenant_name || '—'}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white hover:bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center transition">
+          <button onClick={onClose} disabled={mutation.isPending} className="text-white/70 hover:text-white hover:bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center transition">
             <i className="fa-solid fa-xmark text-lg"></i>
           </button>
         </div>
@@ -909,11 +913,13 @@ export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Pr
           </label>
         </div>
 
+        {mutation.isError && mutation.error.message !== 'Đã hủy thao tác.' && <p role="alert" className="px-5 py-3 text-sm text-red-700">{mutation.error.message}</p>}
         {/* Footer */}
         <div className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0 bg-gray-50/50">
           <button
             type="button"
             onClick={onClose}
+            disabled={mutation.isPending}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition"
           >
             Hủy

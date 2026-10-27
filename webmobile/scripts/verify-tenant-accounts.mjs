@@ -13,8 +13,12 @@ const permissions = await management(env, '/database/query', { query: `
 ` })
 if (Object.values(permissions[0]).some(Boolean)) throw new Error('Portal sensitive permissions unexpectedly granted')
 const domain = 'https://pay.phongtroankhang.com'
-const health = await (await fetch(`${domain}/api/health`)).json()
-if (!health.realTenantAccounts || !health.authRequired || health.realPayments) throw new Error('Public portal health mismatch')
+const healthResponse = await fetch(`${domain}/api/health`)
+const health = await healthResponse.json()
+// Public health is intentionally minimized; auth/payment mode stays private.
+if (!healthResponse.ok || health.ok !== true || health.backend !== 'online' || typeof health.ocrConfigured !== 'boolean' || Object.keys(health).some(key => !['ok', 'backend', 'ocrConfigured'].includes(key))) throw new Error('Public portal health mismatch')
+const session = await fetch(`${domain}/api/auth`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: domain }, body: JSON.stringify({ action: 'session' }) })
+if (session.status !== 401) throw new Error('Portal session did not reject unauthenticated request')
 const response = await fetch(`${env.SUPABASE_URL || env.VITE_SUPABASE_URL}/functions/v1/tenant-web-admin`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
 if (response.status !== 401) throw new Error('Admin function did not reject unauthenticated request')
 console.log('Deployed tenant tables have RLS; client writes/session reads/RPC enrollment denied. Public login and unauthenticated admin rejection verified. No accounts modified.')

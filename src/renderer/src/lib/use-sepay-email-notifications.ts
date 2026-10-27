@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getEmailDeliveryAvailability, getUsers, sendEmailNotification, type Invoice, type Room } from './db'
+import { getEmailDeliveryAvailability, getNotificationRecipients, sendEmailNotification, type Invoice, type Room } from './db'
 import {
   buildSepayEmail,
   evaluateSepayNotificationTransaction,
@@ -90,7 +90,7 @@ export function useSepayEmailNotifications({
       if (busy.current || pending.current.size === 0 || disposed) return
       busy.current = true
       try {
-        const recipients = await getUsers()
+        const recipients = await getNotificationRecipients()
         for (const [key, event] of pending.current) {
           if (disposed) break
           let done = true

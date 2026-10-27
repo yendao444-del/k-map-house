@@ -84,5 +84,13 @@
 ## 08/10/2026 — Hủy hợp đồng kiểm thử không gửi thông báo
 
 - Hợp đồng đã được backend đánh dấu kiểm thử hiển thị lý do cố định **Đang kiểm thử hệ thống**.
-- Không yêu cầu chọn hồ sơ đối chiếu hoặc nhập ghi chú bổ sung; backend vẫn kiểm tra designation, thời hạn, tài chính, bàn giao và lịch sử sử dụng.
-- Sau khi hủy test, Electron không gọi Gmail và không hiển thị nút gửi lại thông báo. Các lý do hủy hợp đồng thật vẫn giữ nguyên luồng xác nhận và gửi email.
+- Không yêu cầu chọn hồ sơ đối chiếu, nhập ghi chú bổ sung hoặc tích checkbox. Backend tự ghi lý do cố định “Đang kiểm thử hệ thống.” và vẫn kiểm tra designation, tài chính, bàn giao và lịch sử sử dụng.
+- Sau khi hủy test, Electron không gọi Gmail và không hiển thị nút gửi lại thông báo. Backend không tạo hàng outbox; thông báo test cũ ở trạng thái chờ cũng bị loại khỏi danh sách gửi và không thể claim. Các lý do hủy hợp đồng thật vẫn giữ nguyên luồng xác nhận và gửi email.
+- Đánh dấu đúng hợp đồng test hiện tại `contract_fc8c6ddc-ad62-41d4-a26a-0b750f1ee24f` của phòng 999; hợp đồng kế tiếp không tự kế thừa dấu test. Agent không hủy hợp đồng hoặc gửi thư.
+- Migration `20261008235000_contract_test_without_notice.sql` đã deploy TEST/production; 9 live kiểm tra TEST đạt, fixture rollback; typecheck renderer đạt. Số dòng production giữ nguyên 25 phòng / 30 khách / 51 hợp đồng / 4 nháp. Bằng chứng `qa/contract-test-without-notice-test.json`, `qa/contract-test-without-notice-production-verification.json`.
+
+## 08/10/2026 — Dọn ba hợp đồng test đã hủy theo yêu cầu chủ nhà
+
+- Đã sao lưu riêng ba hợp đồng phòng 999 có đuôi `1ee24f`, `a388de`, `88570e` và bản ghi liên quan trong `qa/private/three-test-contracts-backup-*.json` trước khi xóa.
+- Script một lần `remove-three-cancelled-test-contracts.mjs` xác minh đúng mã, phòng, khách, dấu test, trạng thái đã hủy; chặn khi có tài chính, bàn giao, tài khoản Auth hoặc hồ sơ khác tham chiếu. So sánh fingerprint sau backup và xóa trong transaction có khóa.
+- Xóa đúng 3 hợp đồng và 3 nháp liên quan cùng lịch sử/link/thông báo test. Số phòng, khách, hóa đơn, phiếu, giao dịch và Auth user giữ nguyên; không gửi email. Kết quả `qa/three-test-contracts-cleanup.json`.

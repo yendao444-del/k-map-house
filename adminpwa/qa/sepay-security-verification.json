@@ -1,0 +1,30 @@
+{
+  "verifiedAt": "2026-10-08T10:40:48.502Z",
+  "mode": "production database rollback-only; synthetic unverified browser-style SePay write; no retained payment or bank transfer",
+  "before": [
+    {
+      "payment_events": 36,
+      "invoices": 203,
+      "cash_transactions": 86,
+      "cash_fingerprint": "53641afcc82668da477f247058be891b"
+    }
+  ],
+  "after": [
+    {
+      "payment_events": 36,
+      "invoices": 203,
+      "cash_transactions": 86,
+      "cash_fingerprint": "53641afcc82668da477f247058be891b"
+    }
+  ],
+  "result": [
+    {
+      "set_config": "76396fd8-460b-4b98-b287-c496047d6012"
+    }
+  ],
+  "assertions": [
+    "direct authenticated source=sepay write rejected by provenance guard",
+    "service-only verified reconciler unavailable to authenticated role",
+    "financial counts and cash fingerprint unchanged"
+  ]
+}

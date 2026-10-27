@@ -1,0 +1,13 @@
+{
+  "id": "15-den-ky-ghi-so-dien-nuoc",
+  "name": "Đến kỳ ghi số điện và nước",
+  "model": "cx/gpt-5.5-image",
+  "prompt": "Create ONE production-quality Vietnamese transactional email visual, not a website. 1024x1536 portrait; entire email visible, white outer margin, natural centered 600px layout, no browser chrome. AUTHORITATIVE REFERENCE: attached image is the exact user-approved AN KHANG HOME email crop. Preserve its real white logo plaque with navy/green AK + AN KHANG HOME wordmark, emerald illustrated apartment-building banner, large white headline at left, illustration at right, curved pale mint lower edge, left-aligned body, thin fact dividers, signature. Match the reference closely; do not invent a different brand. EXACT TEMPLATE: Đến kỳ ghi số điện và nước; audience Khách thuê; banner headline exactly 'ĐẾN KỲ GHI SỐ'. Semantic palette: teal; original logo colors remain navy/green. Banner illustration: cream apartment building, electric meter, water meter, water drop and camera icon. Use a refined flat editorial illustration, not 3D. Date anchor 09/10/2026 Vietnam UTC+7; all supplied facts are synthetic and exact. BODY: Xin chào Nguyễn Minh Anh, Đã đến kỳ ghi số điện và nước cho Phòng 221.  Facts: Phòng: Phòng 221; Kỳ ghi số: 10/2026.  Closing: Vui lòng chụp rõ công tơ điện và nước để hệ thống cập nhật chỉ số và lập hóa đơn. Add exactly one emerald button 'Mở trang ghi số' and note 'Kiểm tra chỉ số trước khi xác nhận.'. Close with 'Trân trọng,' and 'Đội ngũ An Khang Home'. Add tiny footer 'Dữ liệu minh họa · 09/10/2026'.  AVOID: Gmail/browser UI, tabs, device frame, other brands, SPX, QR, passwords, fake phone/contact details, clutter, cards inside cards, multiple CTAs, repeated headings, tiny unreadable text, clipped footer, misspelled Vietnamese, unsupported success stamp, invented amounts, people, photorealistic luxury real estate, code or HTML annotations. CRITICAL PALETTE OVERRIDE: preserve the reference layout and illustration style, but RECOLOR THE ENTIRE LARGE BANNER BACKGROUND to teal. The semantic color must dominate the banner, not merely appear in a tiny icon. Only the original AK logo retains navy/green. Do not keep the emerald banner for this template.",
+  "promptHash": "78188a6f294a5982004f3ce6149c768d42960100490dc85f9cbee91d345521a4",
+  "reference": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\_nguon\\anh-mau-email-hop-dong.png",
+  "source": "C:/Users/Admin/AppData/Local/Temp/codex-clipboard-c87e65da-42e8-49bd-8fb2-bdedd61e50ef.png",
+  "width": 1024,
+  "height": 1536,
+  "sha256": "82bd112ba60f2c0966869794d481faa82f6032c1a8c495e5ff51149a03b888a9",
+  "at": "2026-10-09T08:35:40.505Z"
+}

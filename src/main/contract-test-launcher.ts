@@ -1,4 +1,5 @@
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
+import { trustedIpcMain as ipcMain } from './trusted-ipc'
 import { spawn } from 'node:child_process'
 import { closeSync, existsSync, mkdirSync, openSync } from 'node:fs'
 import { join, resolve } from 'node:path'

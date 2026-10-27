@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-12T04:26:26.343Z",
+  "result": [
+    {
+      "totp_replacement_invariants": "passed"
+    }
+  ],
+  "customerDataChanged": false,
+  "transaction": "rollback",
+  "tests": "Ownership, fresh old proof, concurrency, invalid/unverified new factor, cancellation, atomic retirement, other-session revocation, recovery acknowledgement, six-hour deadline, RPC permissions."
+}

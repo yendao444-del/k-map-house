@@ -1,0 +1,18 @@
+{
+  "verifiedAt": "2026-10-09T03:03:54.233Z",
+  "version": "1.0.100",
+  "installerBytes": 139341859,
+  "verificationMode": "installer-and-unpacked",
+  "asarBytes": 8999615,
+  "asarFileBytes": 84328697,
+  "unpackedBytes": 75485706,
+  "installedBytes": 474454164,
+  "forbiddenEntries": 0,
+  "unexpectedWorkspaceEntries": 0,
+  "privateConfigEntries": 0,
+  "electronRuntime": "44.4.5",
+  "scannedTextFiles": 438,
+  "knownPrivateValuesFound": false,
+  "serviceRoleJwtFound": false,
+  "note": "Scans local installer payload only; no publish, install or customer data read."
+}

@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-08T04:52:12.259Z",
+  "passed": true,
+  "project": "gsianbstkmyutnhromwc",
+  "checks": [
+    "unmarked contracts cannot use test reason",
+    "test cannot bypass invoice checks",
+    "no custom reason or reference needed",
+    "fixed reason audited",
+    "no test notification outbox row",
+    "room released and old link revoked",
+    "retry does not duplicate cancellation",
+    "legacy pending test notice excluded from list",
+    "legacy test notice cannot be claimed"
+  ],
+  "fixturesRolledBack": true,
+  "emailsSent": false
+}

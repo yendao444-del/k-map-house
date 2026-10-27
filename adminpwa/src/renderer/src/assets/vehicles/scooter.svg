@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <!-- Body glow -->
+  <ellipse cx="100" cy="80" rx="50" ry="20" fill="#1565C0" opacity="0.12"/>
+  <!-- Rear wheel -->
+  <circle cx="52" cy="90" r="22" fill="none" stroke="#212121" stroke-width="6"/>
+  <circle cx="52" cy="90" r="9" fill="#424242"/>
+  <circle cx="52" cy="90" r="3.5" fill="#9E9E9E"/>
+  <!-- Front wheel -->
+  <circle cx="150" cy="90" r="22" fill="none" stroke="#212121" stroke-width="6"/>
+  <circle cx="150" cy="90" r="9" fill="#424242"/>
+  <circle cx="150" cy="90" r="3.5" fill="#9E9E9E"/>
+  <!-- Body / Fairing -->
+  <path d="M60,90 Q60,55 88,50 L130,50 Q158,58 150,90 Z" fill="#1E88E5" stroke="#1565C0" stroke-width="2"/>
+  <!-- Step through floor -->
+  <rect x="88" y="72" width="42" height="10" rx="5" fill="#1565C0"/>
+  <!-- Front fairing -->
+  <path d="M128,50 Q150,52 155,60 L145,68 Q132,60 128,55 Z" fill="#42A5F5" stroke="#1E88E5" stroke-width="1"/>
+  <!-- Windshield -->
+  <path d="M128,50 Q138,44 145,52" stroke="#B3E5FC" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- Headlight -->
+  <ellipse cx="152" cy="67" rx="7" ry="5" fill="#FFF9C4" stroke="#FDD835" stroke-width="1.5"/>
+  <!-- Turn signal -->
+  <circle cx="156" cy="72" r="2.5" fill="#FF8F00"/>
+  <!-- Rear panel -->
+  <path d="M60,90 Q55,72 65,60 L80,65 Q72,75 68,90 Z" fill="#1976D2" stroke="#1565C0" stroke-width="1"/>
+  <!-- Seat -->
+  <path d="M80,55 Q100,48 128,52 L126,62 Q100,58 82,64 Z" fill="#1A237E"/>
+  <!-- Exhaust -->
+  <path d="M52,82 Q38,88 34,94" stroke="#757575" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Handlebar -->
+  <line x1="132" y1="48" x2="142" y2="40" stroke="#424242" stroke-width="4" stroke-linecap="round"/>
+  <line x1="141" y1="40" x2="148" y2="42" stroke="#424242" stroke-width="3" stroke-linecap="round"/>
+  <!-- Chrome strip -->
+  <path d="M70,70 Q100,65 130,68" stroke="#90CAF9" stroke-width="1.5" fill="none" opacity="0.7"/>
+</svg>

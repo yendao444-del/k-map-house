@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-08T06:31:29.288Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "before": {
+    "rooms": 25,
+    "invoices": 203,
+    "payments": 36,
+    "contracts": 49
+  },
+  "after": {
+    "rooms": 25,
+    "invoices": 203,
+    "payments": 36,
+    "contracts": 49
+  },
+  "secrets": [
+    "RESEND_API_KEY",
+    "MAIL_FROM",
+    "EMAIL_AUTOMATION_SECRET",
+    "SEPAY_WEBHOOK_API_KEY"
+  ],
+  "status": {
+    "ok": true,
+    "enabled": false,
+    "sepay_enabled": false,
+    "last_worker_at": null,
+    "last_poll_at": null,
+    "last_poll_error": null,
+    "configured": true
+  },
+  "emailsSentByDeployment": false
+}

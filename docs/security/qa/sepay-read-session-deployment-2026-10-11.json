@@ -1,0 +1,24 @@
+{
+  "at": "2026-10-11T07:21:28.182Z",
+  "deployed": [
+    {
+      "slug": "admin-sepay-bridge",
+      "priorVersion": 19,
+      "version": 20,
+      "status": "ACTIVE",
+      "verifyJwt": true,
+      "anonymousStatus": 401
+    },
+    {
+      "slug": "admin-pwa-sepay",
+      "priorVersion": 8,
+      "version": 9,
+      "status": "ACTIVE",
+      "verifyJwt": false,
+      "anonymousStatus": 401
+    }
+  ],
+  "scope": "Read-only SePay operations require a fully authorized live AAL2 session; writes retain recent MFA. No migrations or business API actions executed.",
+  "customerDataChanged": false,
+  "emailsSent": false
+}

@@ -1,0 +1,22 @@
+{
+  "attemptedAt": "2026-10-08T09:55:51.129Z",
+  "project": "ankhanghome-admin-pwa",
+  "domain": "app.phongtroankhang.com",
+  "httpStatus": 200,
+  "success": true,
+  "result": {
+    "name": "app.phongtroankhang.com",
+    "status": "pending",
+    "verification": {
+      "status": "pending",
+      "error_message": "CNAME record not set"
+    },
+    "validation": {
+      "status": "pending",
+      "method": "http"
+    }
+  },
+  "errors": [],
+  "dnsMutation": false,
+  "note": "Only Pages custom-domain attachment was attempted; no nameserver or DNS-record mutation."
+}

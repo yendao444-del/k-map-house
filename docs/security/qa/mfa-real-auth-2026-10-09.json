@@ -1,0 +1,21 @@
+{
+  "verifiedAt": "2026-10-09T15:07:06.477Z",
+  "checks": [
+    "Real password session registered against auth.sessions and password AMR",
+    "Real Auth challenge/verify creates AAL2 in the same session",
+    "Real AAL2 new device still requires email step-up"
+  ],
+  "authMetadata": [
+    {
+      "aal": "aal2",
+      "factor_bound": true,
+      "authentication_method": "totp",
+      "amr_timestamp": true,
+      "server_mfa_proven": true
+    }
+  ],
+  "customerDataChanged": false,
+  "emailSent": false,
+  "gateway": "Live Pages -> deployed Edge -> real Auth/DB",
+  "enforcementEnabled": false
+}

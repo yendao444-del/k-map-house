@@ -1,0 +1,47 @@
+{
+  "appliedAt": "2026-10-08T10:14:06.034Z",
+  "mode": "additive restrictive RLS only; no Electron/source/data mutation",
+  "before": [],
+  "after": [
+    {
+      "tablename": "app_settings",
+      "policyname": "pwa_management_active_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "ALL"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_active_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "ALL"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_delete_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "DELETE"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_insert_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "INSERT"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_update_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "UPDATE"
+    }
+  ],
+  "scope": [
+    "app_settings",
+    "debt_entries"
+  ],
+  "checks": [
+    "inactive/tenant/anonymous excluded by active management profile guard",
+    "admin/user active profiles remain eligible",
+    "debt inserts constrained by actor/role and permitted types",
+    "debt update/delete admin-only"
+  ]
+}

@@ -17,6 +17,7 @@ await query(await readFile(path.join(root,'../supabase/migrations/20261008220000
 await query(await readFile(path.join(root,'../supabase/migrations/20261008223000_contract_account_visibility.sql'),'utf8'))
 await query(await readFile(path.join(root,'../supabase/migrations/20261008224000_contract_wrong_email_cancellation.sql'),'utf8'))
 await query(await readFile(path.join(root,'../supabase/migrations/20261008233000_tenant_auth_provisioning.sql'),'utf8'))
+await query(await readFile(path.join(root,'../supabase/migrations/20261008235000_contract_test_without_notice.sql'),'utf8'))
 const counts=(await query(`select jsonb_build_object('contracts',(select count(*) from public.contracts),'drafts',(select count(*) from public.contract_drafts),'rooms',(select count(*) from public.rooms),'tenants',(select count(*) from public.tenants)) as counts;`))[0].counts
 if(JSON.stringify(counts)!==JSON.stringify(before.counts)) throw new Error('Business row counts changed; inspect before continuing')
 const privateFile=path.join(root,'.env.production.local')

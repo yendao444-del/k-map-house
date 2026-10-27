@@ -1,10 +1,12 @@
-import { app, ipcMain, safeStorage, shell } from 'electron'
+import { app, safeStorage, shell } from 'electron'
+import { trustedIpcMain as ipcMain } from './trusted-ipc'
 import { createServer, type Server } from 'node:http'
 import { randomBytes } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { notificationEmailIcons } from '../shared/notification-email-assets'
 import { contractEmailAssets } from '../shared/contract-email-assets'
+import { approvedEmailBanners } from '../shared/approved-email-banners'
 
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.send'
 const EMAIL_SCOPE = 'https://www.googleapis.com/auth/userinfo.email'
@@ -59,7 +61,7 @@ export function buildGmailRawMessage(payload: {
   const headers = [`To: ${payload.to}`, `Subject: ${words.join('\r\n ')}`, 'MIME-Version: 1.0']
   const htmlBody = fold(Buffer.from(payload.html || '', 'utf8').toString('base64'))
   let parts: string[]
-  const icons = Object.entries({ ...notificationEmailIcons, ...contractEmailAssets }).filter(([, icon]) =>
+  const icons = Object.entries({ ...notificationEmailIcons, ...contractEmailAssets, ...approvedEmailBanners }).filter(([, icon]) =>
     payload.html.includes(`cid:${icon.cid}`)
   )
   if (icons.length) {

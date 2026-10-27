@@ -1,0 +1,34 @@
+[
+  {
+    "scenario": "denied",
+    "nativeButtonEnabled": true,
+    "manualVisible": true,
+    "layout": {
+      "bottom": 560.40625,
+      "viewport": 664
+    }
+  },
+  {
+    "scenario": "autoplay",
+    "nativeButtonEnabled": true,
+    "manualVisible": true,
+    "layout": {
+      "bottom": 560.40625,
+      "viewport": 664
+    }
+  },
+  {
+    "scenario": "fullscreen",
+    "nativeButtonEnabled": true,
+    "manualVisible": true,
+    "layout": {
+      "bottom": 560.40625,
+      "viewport": 664
+    }
+  },
+  {
+    "scenario": "no-frames",
+    "nativeButtonEnabled": true,
+    "manualVisible": true
+  }
+]

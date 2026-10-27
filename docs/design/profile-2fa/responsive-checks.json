@@ -1,0 +1,382 @@
+[
+  {
+    "width": 1058,
+    "height": 706,
+    "tab": "Bảo mật",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 694,
+      "height": 682,
+      "left": 20,
+      "right": 1038,
+      "top": 12,
+      "width": 1018,
+      "x": 20,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1058,
+    "height": 706,
+    "tab": "Thiết bị",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 694,
+      "height": 682,
+      "left": 20,
+      "right": 1038,
+      "top": 12,
+      "width": 1018,
+      "x": 20,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1058,
+    "height": 706,
+    "tab": "Hoạt động",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 694,
+      "height": 682,
+      "left": 20,
+      "right": 1038,
+      "top": 12,
+      "width": 1018,
+      "x": 20,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1058,
+    "height": 706,
+    "tab": "Đổi mật khẩu",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 694,
+      "height": 682,
+      "left": 20,
+      "right": 1038,
+      "top": 12,
+      "width": 1018,
+      "x": 20,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1366,
+    "height": 768,
+    "tab": "Bảo mật",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 756,
+      "height": 744,
+      "left": 173,
+      "right": 1193,
+      "top": 12,
+      "width": 1020,
+      "x": 173,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1366,
+    "height": 768,
+    "tab": "Thiết bị",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 756,
+      "height": 744,
+      "left": 173,
+      "right": 1193,
+      "top": 12,
+      "width": 1020,
+      "x": 173,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1366,
+    "height": 768,
+    "tab": "Hoạt động",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 756,
+      "height": 744,
+      "left": 173,
+      "right": 1193,
+      "top": 12,
+      "width": 1020,
+      "x": 173,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 1366,
+    "height": 768,
+    "tab": "Đổi mật khẩu",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 756,
+      "height": 744,
+      "left": 173,
+      "right": 1193,
+      "top": 12,
+      "width": 1020,
+      "x": 173,
+      "y": 12
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "tab": "Bảo mật",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 836,
+      "height": 828,
+      "left": 12,
+      "right": 378,
+      "top": 8,
+      "width": 366,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "tab": "Thiết bị",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 836,
+      "height": 828,
+      "left": 12,
+      "right": 378,
+      "top": 8,
+      "width": 366,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "tab": "Hoạt động",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 836,
+      "height": 828,
+      "left": 12,
+      "right": 378,
+      "top": 8,
+      "width": 366,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "tab": "Đổi mật khẩu",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 836,
+      "height": 828,
+      "left": 12,
+      "right": 378,
+      "top": 8,
+      "width": 366,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "tab": "Bảo mật",
+    "contentScroll": 1,
+    "dialogBounds": {
+      "bottom": 732,
+      "height": 724,
+      "left": 12,
+      "right": 308,
+      "top": 8,
+      "width": 296,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "tab": "Thiết bị",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 732,
+      "height": 724,
+      "left": 12,
+      "right": 308,
+      "top": 8,
+      "width": 296,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "tab": "Hoạt động",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 732,
+      "height": 724,
+      "left": 12,
+      "right": 308,
+      "top": 8,
+      "width": 296,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 320,
+    "height": 740,
+    "tab": "Đổi mật khẩu",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 732,
+      "height": 724,
+      "left": 12,
+      "right": 308,
+      "top": 8,
+      "width": 296,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 375,
+    "height": 667,
+    "tab": "Bảo mật",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 659,
+      "height": 651,
+      "left": 12,
+      "right": 363,
+      "top": 8,
+      "width": 351,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 375,
+    "height": 667,
+    "tab": "Thiết bị",
+    "contentScroll": 9,
+    "dialogBounds": {
+      "bottom": 659,
+      "height": 651,
+      "left": 12,
+      "right": 363,
+      "top": 8,
+      "width": 351,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 375,
+    "height": 667,
+    "tab": "Hoạt động",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 659,
+      "height": 651,
+      "left": 12,
+      "right": 363,
+      "top": 8,
+      "width": 351,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  },
+  {
+    "width": 375,
+    "height": 667,
+    "tab": "Đổi mật khẩu",
+    "contentScroll": 0,
+    "dialogBounds": {
+      "bottom": 659,
+      "height": 651,
+      "left": 12,
+      "right": 363,
+      "top": 8,
+      "width": 351,
+      "x": 12,
+      "y": 8
+    },
+    "overflow": false,
+    "passwordVisible": true,
+    "tabsOverflow": 0
+  }
+]

@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-09T07:52:40.908Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "cron": {
+    "ok": true,
+    "status": 200,
+    "created": "2026-10-09T07:52:00.112368+00:00",
+    "timedOut": false,
+    "tenantDelivery": {
+      "sent": 0,
+      "failed": 0,
+      "skipped": 0,
+      "configured": true
+    },
+    "tenantReceipts": {
+      "sent": 0,
+      "failed": 0,
+      "skipped": 0,
+      "configured": true
+    }
+  },
+  "landlord": {
+    "notification_email": "phongtroankhang.com@gmail.com",
+    "email_notifications_enabled": true,
+    "sepay_matched": "true"
+  },
+  "receiptQueue": [],
+  "room221RecipientConfigured": false
+}

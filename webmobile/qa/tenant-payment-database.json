@@ -1,0 +1,10 @@
+{
+  "project": "gsianbstkmyutnhromwc",
+  "at": "2026-10-09T08:03:10.831Z",
+  "assertions": 21,
+  "passed": true,
+  "rollback": true,
+  "invoiceCount": 1,
+  "paymentCount": 1,
+  "emailsSent": false
+}

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { contractConfirmationHandler } from './cloud/contract-confirmation.mjs'
-const prod={SUPABASE_URL:'https://wtrycmiojsiliyjxsewz.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'mock',CONTRACT_ENVIRONMENT:'production',CONTRACT_DB_SCHEMA:'public',CONTRACT_PUBLIC_URL:'https://pay.phongtroankhang.com',CONTRACT_GATEWAY_SECRET:'mock-gateway'}
+const prod={SUPABASE_URL:'https://wtrycmiojsiliyjxsewz.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'mock',SUPABASE_ANON_KEY:'fixture-anon',CONTRACT_ENVIRONMENT:'production',CONTRACT_DB_SCHEMA:'public',CONTRACT_PUBLIC_URL:'https://pay.phongtroankhang.com',CONTRACT_GATEWAY_SECRET:'mock-gateway'}
 const draft='00000000-0000-4000-8000-000000000001'
 const request=(data,token='staff')=>new Request('https://edge.example',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify(data)})
 function mock() {
@@ -9,6 +9,7 @@ function mock() {
  const fetcher=async (url,options)=>{
   calls.push({url,options})
   if(url.endsWith('/auth/v1/user')) return options.headers.Authorization === 'Bearer staff' ? Response.json({id:'admin'}) : Response.json({error:'unauthorized'},{status:401})
+  if(url.endsWith('/rpc/security_management_access_allowed')) return Response.json(true)
   if(url.includes('/users?')) return Response.json([{role:'admin',status:'active'}])
   if(url.endsWith('/rpc/tenant_system_email_conflict')) return Response.json(false)
   if(url.includes('/contract_drafts?')) return Response.json([{id:draft,revision:1,recipient_email:'tenant@example.com',created_at:'2026-10-07',snapshot:{room:{name:'999'},tenant:{full_name:'Tenant'}}}])
@@ -97,12 +98,13 @@ test('notice delivery actions are staff-only and strictly scoped to a claimed at
 
 test('test cancellation forwards no comparison record and remains staff-only',async()=>{
  const m=mock(),h=contractConfirmationHandler(prod,()=>'',m.fetcher)
- const input={action:'cancel',contractId:'contract_test',reason:'Kết thúc thử nghiệm luồng hợp đồng',kind:'test_reset'}
+ const input={action:'cancel',contractId:'contract_test',kind:'test_reset'}
  for(const auth of ['', 'mock-gateway']) assert.equal((await h(request(input,auth))).status,401)
  assert.equal((await h(request(input))).status,200)
  const called=m.calls.find(x=>x.url.endsWith('/rpc/contract_cancel'))
  const args=JSON.parse(called.options.body)
  assert.equal(args.p_kind,'test_reset');assert.equal(args.p_reference,null);assert.equal(args.p_actor,'admin')
+ assert.equal(args.p_reason,'Đang kiểm thử hệ thống.')
 })
 
 test('activation distinguishes duplicate email from an Auth database failure',async()=>{

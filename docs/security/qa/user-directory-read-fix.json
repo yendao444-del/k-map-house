@@ -1,0 +1,12 @@
+{
+  "appliedAt": "2026-10-12T03:29:05.281Z",
+  "cause": "Default POST directory RPC classified as sensitive by the PostgREST pre-request hook",
+  "checks": [
+    "aged authorized MFA permits GET and POST directory reads",
+    "sensitive writes still require recent proof",
+    "revoked session denied at hook and RPC",
+    "existing admin/staff scope and safe projection checks passed"
+  ],
+  "profileAndRoleChanges": false,
+  "testFixtures": "Synthetic transaction-local records, rolled back"
+}

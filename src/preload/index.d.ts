@@ -22,6 +22,8 @@ interface InvestmentAPI {
   read: () => Promise<unknown>
   write: (data: unknown) => Promise<boolean>
   fundNav: (symbol: string) => Promise<{ priceVnd: number; quotedAt: string; source: string }>
+  myHanhGold: () => Promise<import('../shared/my-hanh-gold').MyHanhGoldPrices>
+  myHanhGoldHistory: () => Promise<import('../shared/my-hanh-gold').MyHanhGoldHistory>
 }
 
 type MarketSourceId = 'phongtro123' | 'nhatot' | 'muaban' | 'batdongsan'
@@ -232,6 +234,9 @@ declare global {
       }
     }
     api: {
+      devDevice: {
+        credential: () => Promise<string | null>
+      }
       contractTest: {
         open: () => Promise<{ ok: boolean; error?: string }>
       }

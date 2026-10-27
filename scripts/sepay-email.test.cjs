@@ -39,7 +39,7 @@ test('success email includes stored invoice details and recipient without extern
     wifi_cost: 100000, garbage_cost: 50000, total_amount: 3000000, paid_amount: 3000000 }
   const event = lib.getNewSepayPaymentEmails([source], since, () => 'Phòng <152>')[0]
   const mail = lib.buildSepayEmail({ ...event, recipientName: 'Người nhận <A>' })
-  assert.match(mail.html, /Xin chào Người nhận &lt;A&gt;,/)
+  assert.match(mail.html, /Xin chào <strong>Người nhận &lt;A&gt;<\/strong>,/)
   assert.match(mail.html, /Phòng &lt;152&gt;/)
   for (const label of ['Chi tiết hóa đơn', 'Tiền phòng', 'Tiền điện', 'Tiền nước', 'Internet', 'Vệ sinh', 'Tổng hóa đơn', 'Đã thanh toán']) assert.ok(mail.html.includes(label))
   assert.match(mail.html, /2\.500\.000 đ/)
@@ -119,7 +119,7 @@ function notificationHarness() {
       useQueryClient: () => ({ invalidateQueries: (key) => { invalidations.push(key) } })
     },
     './db': {
-      getUsers: async () => [{ id: 'u', status: 'active', notification_email: 'receiver@example.com', email_notifications_enabled: true, email_notification_preferences: { sepay_matched: true, sepay_unmatched: true } }],
+      getNotificationRecipients: async () => [{ id: 'u', status: 'active', notification_email: 'receiver@example.com', email_notifications_enabled: true, email_notification_preferences: { sepay_matched: true, sepay_unmatched: true } }],
       sendEmailNotification: async (mail) => { sends.push(mail); return { ok: true } }
     }
   })
@@ -164,9 +164,10 @@ function senderHarness(existing, claimed = { id: 'delivery' }, sendThrows = fals
     { data: claimed },
     { data: null }
   ]
-  const changes = []; let sent = 0
+  const changes = []; let sent = 0; let cloudCalls = 0
   const supabase = {
-    rpc: async () => ({ data: { enabled: false }, error: null }),
+    rpc: async () => ({ data: { enabled: options.server === true }, error: options.statusError || null }),
+    functions: { invoke: async () => { cloudCalls++; return { data: { ok: true, status: 'queued' }, error: options.cloudError || null } } },
     auth: { getSession: async () => ({ data: { session: { user: { id: 'admin' } } } }) },
     from() {
       const chain = { then(resolve) { return Promise.resolve(stages.shift()).then(resolve) } }
@@ -185,8 +186,26 @@ function senderHarness(existing, claimed = { id: 'delivery' }, sendThrows = fals
       getAvailability: async () => ({ available: true, authenticated: true }),
       sendNotification: async () => { sent++; if (sendThrows) throw new Error('Phiên hết hạn'); return { ok: true, messageId: 'gmail-id' } }
     } } },supabase, (prefs) => prefs)
-  return { send: () => exports.sendEmailNotification({ recipientUserId: 'u', eventType: options.eventType || 'sepay_matched', subject: 'Test', html: 'Test', dedupeKey: 'u:tx' }), changes, sent: () => sent }
+  return { send: () => exports.sendEmailNotification({ recipientUserId: 'u', eventType: options.eventType || 'sepay_matched', subject: 'Test', html: 'Test', dedupeKey: 'u:tx' }), changes, sent: () => sent, cloudCalls: () => cloudCalls }
 }
+
+test('server transport owns sends and never falls back to local Gmail on cloud failure', async () => {
+  const cloud = senderHarness(null, null, false, { server: true })
+  assert.equal((await cloud.send()).status, 'queued')
+  assert.equal(cloud.cloudCalls(), 1); assert.equal(cloud.sent(), 0); assert.equal(cloud.changes.length, 0)
+  const failure = senderHarness(null, null, false, { server: true, cloudError: { message: 'offline' } })
+  assert.equal((await failure.send()).ok, false); assert.equal(failure.sent(), 0)
+  const unknown = senderHarness(null, null, false, { statusError: { code: 'NETWORK', message: 'offline' } })
+  assert.equal((await unknown.send()).ok, false); assert.equal(unknown.sent(), 0); assert.equal(unknown.cloudCalls(), 0)
+})
+
+test('Electron notification observer stays silent when the server owns SePay emails', async () => {
+  const h = notificationHarness(); h.setGmail({ available: true, authenticated: true, server: true })
+  h.render().forEach(fn => fn())
+  const recent = { ...invoice, payment_records: [{ ...record, created_at: new Date(Date.now() + 1000).toISOString() }] }
+  const effects = h.render({ invoices: [recent] }); effects[effects.length - 1]()
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(h.sends.length, 0)
+})
 
 test('failed emails can be retried with the same dedupe key, sent emails are skipped', async () => {
   const failed = senderHarness({ id: 'delivery', status: 'failed' })

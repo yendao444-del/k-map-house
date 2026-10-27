@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-10T09:18:05.860Z",
+  "model": "gemini-3.1-flash-lite",
+  "variant": "current",
+  "tuning": {},
+  "results": [
+    {
+      "case": "electric",
+      "passed": false,
+      "elapsedMs": 15179,
+      "error": "TimeoutError:The operation was aborted due to timeout"
+    },
+    {
+      "case": "water",
+      "passed": false,
+      "elapsedMs": 15236,
+      "error": "TimeoutError:The operation was aborted due to timeout"
+    },
+    {
+      "case": "wrong-meter",
+      "passed": true,
+      "elapsedMs": 4078,
+      "reading": null,
+      "rejected": true
+    }
+  ]
+}

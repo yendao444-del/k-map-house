@@ -11,7 +11,8 @@
     "deploy": "node scripts/deploy.mjs",
     "deploy:backend": "node --use-system-ca scripts/deploy-cloud-backend.mjs",
     "verify:deployment": "node --use-system-ca scripts/deploy.mjs --verify-only",
-    "sync:prototype": "node scripts/sync-prototype.mjs"
+    "sync:prototype": "node scripts/sync-prototype.mjs",
+    "test:payment-room999": "node test/room999-payment/preview-tenant-payment.mjs"
   },
   "dependencies": {
     "jpeg-js": "^0.4.4",

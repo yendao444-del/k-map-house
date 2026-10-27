@@ -1,0 +1,36 @@
+{
+  "verifiedAt": "2026-10-09T06:36:45.032Z",
+  "mode": "production SQL role simulation inside rollback-only transaction; no data mutation",
+  "rows": [
+    {
+      "name": "admin",
+      "settings": 1,
+      "debt_entries": 45,
+      "table_grant": null
+    },
+    {
+      "name": "anon",
+      "settings": null,
+      "debt_entries": null,
+      "table_grant": false
+    },
+    {
+      "name": "staff",
+      "settings": 1,
+      "debt_entries": 45,
+      "table_grant": null
+    },
+    {
+      "name": "unknown",
+      "settings": 0,
+      "debt_entries": 0,
+      "table_grant": null
+    }
+  ],
+  "assertions": [
+    "active admin read permitted",
+    "active staff read permitted",
+    "unknown authenticated profile read denied",
+    "anonymous read denied"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "verifiedAt": "2026-10-09T02:56:24.028Z",
+  "environment": "production",
+  "url": "https://app.phongtroankhang.com",
+  "checks": [
+    {
+      "case": "public-signup",
+      "status": 422,
+      "rejected": true
+    },
+    {
+      "case": "admin-provisioning-with-signup-disabled",
+      "passed": true
+    },
+    {
+      "case": "management-username-login",
+      "status": 200,
+      "profileMatches": true,
+      "noEmailInResponse": true,
+      "sessionRevoked": true
+    },
+    {
+      "case": "management-email-login",
+      "status": 200,
+      "profileMatches": true,
+      "noEmailInResponse": true,
+      "sessionRevoked": true
+    },
+    {
+      "case": "wrong-password-vs-absent-account",
+      "status": 401,
+      "sameResponse": true
+    },
+    {
+      "case": "temporary-account-cleanup",
+      "passed": true
+    }
+  ],
+  "scope": "Temporary QA account only; no customer, payment, invoice, contract or email changes; tokens/password never logged or saved."
+}

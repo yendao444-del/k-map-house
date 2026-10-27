@@ -1,8 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript')
-const source=fs.readFileSync(require('node:path').join(__dirname,'../src/shared/contract-cancellation-email.ts'),'utf8')
-const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText
-const m={exports:{}};new Function('module','exports',output)(m,m.exports)
-const {deliverCancellationNotice,cancellationEmailHtml}=m.exports
+const {deliverCancellationNotice,cancellationEmailHtml}=require('./load-email-test-module.cjs').loadTs('src/shared/contract-cancellation-email.ts')
 const notice={claimed:true,attempt_id:'attempt',contract_id:'qa',recipient:'test@example.com',tenant_name:'Khách thử',room_name:'999',reason:'Chọn nhầm phòng',cancelled_at:'2026-10-07T10:00:00Z'}
 function ops(overrides={}){const marks=[];return {marks,claim:async()=>notice,send:async()=>({ok:true,messageId:'gmail-id'}),mark:async(...v)=>marks.push(v),...overrides}}
 test('successful notification marks provider ID and original recipient',async()=>{const x=ops();assert.match(await deliverCancellationNotice(x),/test@example.com/);assert.equal(x.marks[0][1],'sent');assert.equal(x.marks[0][2],'gmail-id')})
@@ -11,3 +8,4 @@ test('network failures and missing provider ID stay uncertain',async()=>{for(con
 test('claimed elsewhere or sent never triggers another Gmail send',async()=>{for(const status of ['sending','sent','uncertain']){let sends=0;const x=ops({claim:async()=>({...notice,claimed:false,status}),send:async()=>{sends++;return {ok:true}}});await deliverCancellationNotice(x);assert.equal(sends,0)}})
 test('lost delivery acknowledgement explains unknown state instead of claiming success',async()=>{const x=ops({mark:async()=>{throw Error('offline')}});assert.match(await deliverCancellationNotice(x),/chưa lưu được kết quả/);assert.doesNotMatch(await deliverCancellationNotice(x),/^Đã gửi/)})
 test('notice escapes user fields, uses Vietnam time and requires no tenant action',()=>{const html=cancellationEmailHtml({...notice,reason:'<script>alert(1)</script>',tenant_name:'A&B'});assert.ok(!html.includes('<script>'));assert.match(html,/A&amp;B/);assert.match(html,/17:00:00/);assert.match(html,/không cần xác nhận/);assert.ok(!html.includes('href='))})
+

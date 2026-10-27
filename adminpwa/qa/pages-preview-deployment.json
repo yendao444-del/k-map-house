@@ -1,0 +1,25 @@
+{
+  "deployedAt": "2026-10-21T05:48:37.101Z",
+  "project": "ankhanghome-admin-pwa",
+  "url": "https://ankhanghome-admin-pwa.pages.dev",
+  "entry": "/assets/index-F1vVD4je.js",
+  "checks": [
+    {
+      "url": "https://ankhanghome-admin-pwa.pages.dev",
+      "status": 200,
+      "entry": "/assets/index-F1vVD4je.js",
+      "assetStatus": 200,
+      "contentType": "application/javascript"
+    }
+  ],
+  "customDomains": [
+    {
+      "name": "app.phongtroankhang.com",
+      "status": "active",
+      "validation": "active"
+    }
+  ],
+  "customDomainAttached": true,
+  "dnsNote": "app.phongtroankhang.com is active on this Pages project.",
+  "scope": "PWA frontend only; pay/root/www and Electron untouched"
+}

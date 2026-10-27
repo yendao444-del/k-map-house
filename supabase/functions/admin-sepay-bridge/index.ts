@@ -20,7 +20,7 @@ const response = (body: Json, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
   })
 
-async function requireAdmin(req: Request): Promise<{ ok: true } | { ok: false; response: Response }> {
+async function requireAdmin(req: Request, sensitive: boolean): Promise<{ ok: true } | { ok: false; response: Response }> {
   const authorization = req.headers.get('Authorization') || ''
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : ''
   if (!token) return { ok: false, response: response({ ok: false, error: 'Phiên đăng nhập không hợp lệ.' }, 401) }
@@ -28,6 +28,21 @@ async function requireAdmin(req: Request): Promise<{ ok: true } | { ok: false; r
   const { data: authData, error: authError } = await admin.auth.getUser(token)
   const userId = authData.user?.id
   if (authError || !userId) return { ok: false, response: response({ ok: false, error: 'Phiên đăng nhập đã hết hạn.' }, 401) }
+
+  const userDb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    global: { headers: { Authorization: authorization } }, auth: { persistSession: false }
+  })
+  // This RPC only reads session state. GET prevents the pre-request hook from
+  // classifying the check itself as a sensitive write. The argument remains
+  // authoritative: reads need a fully authorized AAL2 session; writes also
+  // need recent TOTP or server-verified password confirmation.
+  const { data: allowed, error: securityError } = await userDb.rpc('security_management_access_allowed', { p_sensitive: sensitive }, { get: true })
+  if (securityError) return { ok: false, response: response({ ok: false, error: securityError.code === '42501'
+    ? 'Phiên bảo mật chưa hoàn tất hoặc đã hết hạn. Vui lòng kiểm tra lại trong Hồ sơ → Bảo mật.'
+    : 'Chưa kiểm tra được phiên bảo mật tại máy chủ. Vui lòng thử lại sau.' }, securityError.code === '42501' ? 403 : 503) }
+  if (allowed !== true) return { ok: false, response: response({ ok: false, error: sensitive
+    ? 'Thao tác này cần xác nhận mật khẩu hiện tại. Hãy nhập mật khẩu tại thao tác đang thực hiện rồi thử lại.'
+    : 'Phiên bảo mật chưa hoàn tất hoặc đã hết hạn. Vui lòng kiểm tra lại trong Hồ sơ → Bảo mật.' }, 403) }
 
   const { data: profile, error: profileError } = await admin
     .from('users')
@@ -62,11 +77,13 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return response({ ok: false, error: 'Method not allowed.' }, 405)
 
-  const auth = await requireAdmin(req)
-  if (!auth.ok) return auth.response
-
   let body: Json
   try { body = await req.json() } catch { return response({ ok: false, error: 'Dữ liệu yêu cầu không hợp lệ.' }, 400) }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return response({ ok: false, error: 'Dữ liệu yêu cầu không hợp lệ.' }, 400)
+
+  const sensitive = body.action !== 'sepay_status' && body.action !== 'sepay_fetch'
+  const auth = await requireAdmin(req, sensitive)
+  if (!auth.ok) return auth.response
 
   switch (body.action) {
     case 'sepay_fetch': return fetchSepay()
@@ -88,13 +105,14 @@ Deno.serve(async (req) => {
       const password = typeof input.password === 'string' ? input.password : ''
       const fullName = typeof input.full_name === 'string' ? input.full_name.trim() : ''
       const username = typeof input.username === 'string' ? input.username.trim() : email.split('@')[0]
-      if (!email || !password || !fullName) return response({ ok: false, error: 'Thiếu thông tin tài khoản.' }, 400)
+      if (!email || password.length < 12 || !fullName) return response({ ok: false, error: 'Nhập đủ thông tin và mật khẩu từ 12 ký tự.' }, 400)
       const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName, username } })
       return error ? response({ ok: false, error: error.message }, 400) : response({ ok: true, data })
     }
     case 'admin_reset_password': {
       const userId = typeof body.userId === 'string' ? body.userId : ''
       const password = typeof body.password === 'string' ? body.password : ''
+      if (password.length < 12) return response({ ok: false, error: 'Mật khẩu phải có ít nhất 12 ký tự.' }, 400)
       const { data, error } = await admin.auth.admin.updateUserById(userId, { password })
       return error ? response({ ok: false, error: error.message }, 400) : response({ ok: true, data })
     }

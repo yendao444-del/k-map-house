@@ -1,0 +1,593 @@
+/* Dark presentation is scoped to the Investments screen only. */
+.investment-dark {
+  --investment-bg: #0b111b;
+  --investment-panel: #111a28;
+  --investment-panel-raised: #162235;
+  --investment-panel-soft: #0e1725;
+  --investment-border: #26364a;
+  --investment-text: #e7eef7;
+  --investment-muted: #8fa1b5;
+  --investment-accent: #21d38a;
+  --investment-accent-deep: #0d8f63;
+  color-scheme: dark;
+  background: radial-gradient(circle at 70% -10%, #183c3b 0%, var(--investment-bg) 42%) !important;
+  color: var(--investment-text);
+}
+
+.investment-dark main { background: transparent !important; }
+.investment-dark h1,
+.investment-dark h2,
+.investment-dark h3,
+.investment-dark .text-\[\#15231d\] { color: var(--investment-text) !important; }
+.investment-dark .text-slate-500,
+.investment-dark .text-slate-400,
+.investment-dark .text-gray-500,
+.investment-dark .text-gray-400 { color: var(--investment-muted) !important; }
+.investment-dark .text-slate-600 { color: #b8c6d6 !important; }
+.investment-dark .text-slate-700,
+.investment-dark .text-slate-800 { color: #d8e3ef !important; }
+
+.investment-dark aside {
+  background: linear-gradient(180deg, #0b1727 0%, #08111e 100%) !important;
+  border-color: #20364f !important;
+}
+.investment-dark aside button:not(.bg-white) {
+  background: transparent !important;
+  color: #a9bbcf !important;
+}
+.investment-dark aside button:hover { background: #14283d !important; color: #f1f7ff !important; }
+.investment-dark aside button.bg-\[\#21d38a\] {
+  background: var(--investment-accent) !important;
+  color: #06251a !important;
+}
+.investment-dark aside button.bg-white,
+.investment-dark [class~="xl:hidden"] button.bg-\[\#064a31\] {
+  background: var(--investment-accent) !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #23d89a, 0 8px 18px rgb(0 0 0 / 18%) !important;
+}
+
+.investment-dark [class~="xl:hidden"] button:not(.bg-\[\#064a31\]),
+.investment-dark header button.border-slate-200,
+.investment-dark .border-slate-200.bg-white {
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark .bg-\[\#00ab60\] { background: var(--investment-accent) !important; color: #052217 !important; }
+.investment-dark .bg-\[\#21d38a\] { background: var(--investment-accent) !important; }
+.investment-dark .bg-\[\#064a31\] { background: #10283a !important; }
+
+.investment-dark .border-emerald-100,
+.investment-dark .border-slate-100,
+.investment-dark .border-slate-200,
+.investment-dark .border-emerald-200 { border-color: var(--investment-border) !important; }
+.investment-dark .bg-white { background: var(--investment-panel) !important; }
+.investment-dark .bg-slate-50,
+.investment-dark .bg-\[\#f7faf8\],
+.investment-dark .bg-\[\#f4f8f6\] { background: var(--investment-panel-soft) !important; }
+.investment-dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]) { border-color: var(--investment-border) !important; }
+.investment-dark [class~="hover:bg-slate-50"]:hover { background: var(--investment-panel-raised) !important; }
+.investment-dark input,
+.investment-dark select,
+.investment-dark textarea {
+  background: #0b1421 !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark input::placeholder { color: #6e8196 !important; }
+.investment-dark option,
+.investment-dark select option { background: #0b1421 !important; color: var(--investment-text) !important; }
+
+.investment-dark .text-emerald-700,
+.investment-dark .text-emerald-800 { color: #55e8aa !important; }
+.investment-dark .text-rose-600 { color: #ff7189 !important; }
+.investment-dark .bg-emerald-50 { background: rgb(33 211 138 / 13%) !important; }
+.investment-dark .bg-rose-50 { background: rgb(255 113 137 / 13%) !important; }
+.investment-dark .bg-amber-50 { background: rgb(217 119 6 / 14%) !important; }
+.investment-dark .border-amber-400 { border-color: #8e6a2a !important; }
+.investment-dark .text-amber-700 { color: #f4b95f !important; }
+.investment-dark .text-rose-700 { color: #ff8da0 !important; }
+
+/* A few investment screens still use arbitrary Tailwind surface tokens instead
+   of the shared bg-white/bg-slate-50 classes. Keep those surfaces in the same
+   navy system so changing tabs never reveals a light flash. */
+.investment-dark [class~="bg-[#F5F9F7]"],
+.investment-dark [class~="bg-[#f5fff8]"],
+.investment-dark [class~="bg-[#F3FCF8]"],
+.investment-dark [class~="bg-[#edf9f1]"],
+.investment-dark [class~="bg-[#E2F8EE]"],
+.investment-dark [class~="bg-[#FFF0DB]"],
+.investment-dark [class~="bg-[#FFFDF5]"],
+.investment-dark [class~="bg-[#FFFBF4]"],
+.investment-dark [class~="bg-[#f1fbf6]"],
+.investment-dark [class~="bg-[#f7fbf9]"],
+.investment-dark [class~="bg-[#f8fbf9]"],
+.investment-dark [class~="bg-[#f6faf8]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [class~="bg-[#e9f9ef]"],
+.investment-dark [class~="bg-[#e2f8ee]"] {
+  background: rgb(33 211 138 / 13%) !important;
+}
+.investment-dark [class~="text-[#15231d]"],
+.investment-dark [class~="text-[#047857]"],
+.investment-dark [class~="text-[#06603f]"],
+.investment-dark [class~="text-slate-700"],
+.investment-dark [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+.investment-dark [class~="text-[#047857]"],
+.investment-dark [class~="text-emerald-700"] {
+  color: #55e8aa !important;
+}
+.investment-dark [class~="text-[#D27B20]"],
+.investment-dark [class~="text-[#8B5E13]"] {
+  color: #f4b95f !important;
+}
+.investment-dark [class~="border-emerald-100"],
+.investment-dark [class~="border-emerald-200"],
+.investment-dark [class~="border-amber-200"] {
+  border-color: var(--investment-border) !important;
+}
+
+/* Source tracker components use CSS variables, so their panels inherit the same dark surface. */
+.investment-dark .investment-tracker-copy,
+.investment-dark .investment-tracker-copy .gold-tracker-container,
+.investment-dark .investment-tracker-copy .stock-tracker-container,
+.investment-dark .investment-tracker-copy .bond-tracker-container,
+.investment-dark .investment-tracker-copy .savings-tracker-container,
+.investment-dark .investment-tracker-copy .gold-history-panel,
+.investment-dark .investment-tracker-copy .gold-holdings-panel,
+.investment-dark .investment-tracker-copy .panel,
+.investment-dark .investment-tracker-copy .chart-panel,
+.investment-dark .investment-tracker-copy .savings-stat-card,
+.investment-dark .investment-tracker-copy .savings-card {
+  color: var(--investment-text) !important;
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+  box-shadow: 0 14px 34px rgb(0 0 0 / 18%) !important;
+}
+
+/* The source trackers resolve most inline surfaces through these variables.
+   Keep the override scoped so the rest of Electron remains unchanged. */
+.investment-dark .investment-tracker-copy {
+  color-scheme: dark;
+  --color-text-primary: var(--investment-text);
+  --color-text-secondary: var(--investment-muted);
+  --color-text-muted: #72859a;
+  --color-text: var(--investment-text);
+  --color-bg-app: var(--investment-bg);
+  --color-bg-gradient: linear-gradient(180deg, #101b2a 0%, var(--investment-bg) 100%);
+  --color-bg-panel: var(--investment-panel);
+  --color-bg-sidebar: #0b1727;
+  --color-bg-card: var(--investment-panel);
+  --color-bg-card-hover: var(--investment-panel-raised);
+  --color-bg-input: #0b1421;
+  --color-border: var(--investment-border);
+  --color-border-hover: #35604f;
+  --color-primary: var(--investment-accent);
+  --color-primary-hover: #49e7a7;
+  --color-primary-glow: rgb(33 211 138 / 18%);
+  --color-soft-button-text: #7af0bd;
+  --color-soft-button-bg: rgb(33 211 138 / 13%);
+  --color-soft-button-border: #28654f;
+  --color-gold-bg: rgb(217 119 6 / 14%);
+  --color-gold-border: #8e6a2a;
+  --color-red-bg: rgb(255 113 137 / 13%);
+  --color-red-border: #75404c;
+  --color-chart-grid: #26364a;
+  --color-chart-axis: #52657a;
+}
+
+/* Watchlists and their legend use inline var(...) styles in the source copy. */
+.investment-dark .investment-tracker-copy .tv-watchlist-card,
+.investment-dark .investment-tracker-copy .tv-watchlist-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-sidebar,
+.investment-dark .investment-tracker-copy .tv-watchlist-table,
+.investment-dark .investment-tracker-copy .tv-watchlist-table tbody,
+.investment-dark .investment-tracker-copy .watchlist-suggestions,
+.investment-dark .investment-tracker-copy .chart-legend {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-section-header,
+.investment-dark .investment-tracker-copy .tv-watchlist-section-header td,
+.investment-dark .investment-tracker-copy .tv-watchlist-th {
+  background: var(--investment-panel-soft) !important;
+  color: var(--investment-muted) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-row td {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text);
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tv-watchlist-row:hover td,
+.investment-dark .investment-tracker-copy .tv-watchlist-row.selected td {
+  background: var(--investment-panel-raised) !important;
+}
+.investment-dark .investment-tracker-copy .watchlist-suggestion {
+  color: var(--investment-text) !important;
+  background: var(--investment-panel) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .watchlist-suggestion:hover {
+  background: var(--investment-panel-raised) !important;
+}
+.investment-dark .investment-tracker-copy .chart-legend {
+  color: var(--investment-muted) !important;
+  border-top-color: var(--investment-border) !important;
+}
+
+/* Keep category-specific status colors readable on the dark surface. */
+.investment-dark .investment-tracker-copy .tv-text-green,
+.investment-dark .investment-tracker-copy .text-emerald-700,
+.investment-dark .investment-tracker-copy .text-emerald-800 { color: #55e8aa !important; }
+.investment-dark .investment-tracker-copy .tv-text-red,
+.investment-dark .investment-tracker-copy .text-rose-600,
+.investment-dark .investment-tracker-copy .text-rose-700 { color: #ff7189 !important; }
+.investment-dark .investment-tracker-copy .text-slate-400,
+.investment-dark .investment-tracker-copy .text-slate-500 { color: var(--investment-muted) !important; }
+.investment-dark .investment-tracker-copy .tracker-header,
+.investment-dark .investment-tracker-copy .panel-title,
+.investment-dark .investment-tracker-copy .savings-tabs-bar,
+.investment-dark .investment-tracker-copy .savings-card-metrics { border-color: var(--investment-border) !important; }
+.investment-dark .investment-tracker-copy .tracker-title h3,
+.investment-dark .investment-tracker-copy .card-brand-info strong,
+.investment-dark .investment-tracker-copy .mini-brand-row strong,
+.investment-dark .investment-tracker-copy .bank-name,
+.investment-dark .investment-tracker-copy .metric-value,
+.investment-dark .investment-tracker-copy .stat-value,
+.investment-dark .investment-tracker-copy .date-col strong { color: var(--investment-text) !important; }
+.investment-dark .investment-tracker-copy .tracker-title p,
+.investment-dark .investment-tracker-copy .source-tag,
+.investment-dark .investment-tracker-copy .stat-label,
+.investment-dark .investment-tracker-copy .stat-sub,
+.investment-dark .investment-tracker-copy .metric-label,
+.investment-dark .investment-tracker-copy .date-col span,
+.investment-dark .investment-tracker-copy .mini-brand-row small { color: var(--investment-muted) !important; }
+.investment-dark .investment-tracker-copy .brand-select,
+.investment-dark .investment-tracker-copy .time-select,
+.investment-dark .investment-tracker-copy .tab-button,
+.investment-dark .investment-tracker-copy .range-button,
+.investment-dark .investment-tracker-copy .savings-segmented,
+.investment-dark .investment-tracker-copy .savings-card-metrics,
+.investment-dark .investment-tracker-copy .tv-watchlist-search-container {
+  background: var(--investment-panel-soft) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .tab-button.active,
+.investment-dark .investment-tracker-copy .range-button.active {
+  background: var(--investment-panel-raised) !important;
+  color: var(--investment-accent) !important;
+  box-shadow: inset 0 0 0 1px var(--investment-border) !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted {
+  background: var(--investment-panel-raised) !important;
+  border-color: #8e6a2a !important;
+  color: var(--investment-text) !important;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 24%) !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block.buy {
+  background: rgb(33 211 138 / 12%) !important;
+  border-color: #28654f !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block.sell {
+  background: rgb(217 119 6 / 14%) !important;
+  border-color: #8e6a2a !important;
+}
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .price-block strong,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .card-brand-info strong,
+.investment-dark .investment-tracker-copy .brand-price-card.highlighted .card-brand-info h4 {
+  color: var(--investment-text) !important;
+}
+.investment-dark .investment-tracker-copy table th { color: var(--investment-muted) !important; background: #0d1725 !important; }
+.investment-dark .investment-tracker-copy table td { border-color: var(--investment-border) !important; }
+.investment-dark .investment-tracker-copy tbody tr:hover,
+.investment-dark .investment-tracker-copy tbody tr.selected { background: var(--investment-panel-raised) !important; }
+.investment-dark .investment-tracker-copy .mini-bar { background: #253448 !important; }
+
+/* Gold trade dialog is part of this screen and should not flash a light surface. */
+.investment-dark .security-trade-dialog {
+  --trade-accent: #42e5a0;
+  --trade-surface: #103c32;
+  border: 1px solid var(--trade-accent);
+}
+.investment-dark .security-trade-sell {
+  --trade-accent: #ff8c99;
+  --trade-surface: #48202c;
+}
+.investment-dark .security-trade-dialog .security-trade-heading {
+  background: var(--trade-surface) !important;
+  border-top: 5px solid var(--trade-accent);
+}
+.investment-dark .security-trade-dialog .security-trade-heading h2,
+.investment-dark .security-trade-dialog .security-trade-heading p {
+  color: var(--trade-accent) !important;
+}
+.investment-dark .security-trade-dialog .security-trade-total {
+  color: var(--trade-accent);
+}
+.investment-dark .security-trade-price-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(145px, .65fr);
+  gap: 16px;
+  align-items: start;
+  border-top: 1px solid var(--investment-border);
+  padding-top: 18px;
+}
+.investment-dark .security-trade-price-row .security-trade-total {
+  min-height: 76px;
+  border-left: 1px solid var(--investment-border);
+  padding-left: 16px;
+}
+@media (max-width: 760px) {
+  .investment-dark .security-trade-price-row { grid-template-columns: 1fr; }
+  .investment-dark .security-trade-price-row .security-trade-total {
+    min-height: 0;
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+.investment-dark .security-trade-body {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+}
+@media (min-width: 640px) {
+  .investment-dark .security-trade-body {
+    grid-template-columns: minmax(0, 1.45fr) minmax(260px, .85fr) !important;
+    align-items: start;
+  }
+  .investment-dark .security-trade-body > :not(.security-trade-summary) {
+    grid-column: 1 !important;
+  }
+  .investment-dark .security-trade-main {
+    min-width: 0;
+    grid-column: 1;
+  }
+  .investment-dark .security-trade-body > .security-trade-summary {
+    grid-column: 2 !important;
+    grid-row: 1;
+    position: sticky;
+    top: 0;
+  }
+}
+.investment-dark .security-trade-summary {
+  border-color: var(--investment-border) !important;
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark .security-trade-actions > button:first-child {
+  border-color: var(--investment-border);
+  color: var(--investment-text);
+}
+.investment-dark .security-trade-actions > button:last-child {
+  background: var(--trade-accent);
+  color: #071711;
+}
+.investment-dark .security-trade-actions > button:last-child:disabled {
+  border: 1px solid color-mix(in srgb, var(--trade-accent) 42%, var(--investment-border));
+  background: color-mix(in srgb, var(--trade-accent) 18%, var(--investment-panel-soft));
+  color: color-mix(in srgb, var(--trade-accent) 76%, var(--investment-text));
+  opacity: 1;
+}
+.investment-dark .security-trade-sell .security-trade-actions > button:last-child { color: #1d0c10; }
+.investment-dark .security-trade-symbol {
+  flex: 0 0 56px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--trade-accent) 55%, transparent);
+}
+.investment-dark .security-trade-summary > .flex > .min-w-0 {
+  min-width: 0;
+  overflow: hidden;
+}
+.investment-dark .security-trade-summary > .flex > .min-w-0 p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.investment-dark .security-wallet-choice {
+  display: grid;
+  min-height: 92px;
+  gap: 4px;
+  justify-items: start;
+  border: 1px solid var(--investment-border);
+  border-radius: 14px;
+  padding: 12px;
+  color: var(--investment-muted);
+  text-align: left;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.investment-dark .security-wallet-choice:hover,
+.investment-dark .security-wallet-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-wallet-choice svg { color: var(--trade-accent); }
+.investment-dark .security-wallet-choice span { font-size: 12px; font-weight: 800; }
+.investment-dark .security-wallet-choice strong { font-size: 12px; }
+.investment-dark .security-asset-choice {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--investment-border);
+  border-radius: 12px;
+  padding: 12px;
+  color: var(--investment-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+.investment-dark .security-asset-choice:hover,
+.investment-dark .security-asset-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-asset-choice svg { color: var(--trade-accent); }
+.investment-dark .security-symbol-choice {
+  display: grid;
+  min-height: 64px;
+  gap: 3px;
+  justify-items: start;
+  border: 1px solid var(--investment-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--investment-muted);
+  text-align: left;
+}
+.investment-dark .security-symbol-choice:hover,
+.investment-dark .security-symbol-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-symbol-choice strong { color: var(--trade-accent); font-size: 13px; }
+.investment-dark .security-symbol-choice span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.investment-dark .security-mode-choice {
+  min-height: 38px;
+  border: 1px solid var(--investment-border);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: var(--investment-muted);
+}
+.investment-dark .security-mode-choice:hover,
+.investment-dark .security-mode-choice.selected {
+  border-color: var(--trade-accent);
+  background: color-mix(in srgb, var(--trade-accent) 12%, transparent);
+  color: var(--investment-text);
+}
+.investment-dark .security-holdings-panel {
+  margin-top: 12px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--security-accent) 45%, var(--investment-border));
+  border-radius: 14px;
+  background: var(--investment-panel);
+  color: var(--investment-text);
+}
+.investment-dark .security-holdings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--investment-border);
+  padding: 10px 16px;
+}
+.investment-dark .security-holdings-heading h2 { font-size: 14px; font-weight: 900; }
+.investment-dark .security-holdings-heading p { margin-top: 2px; color: var(--investment-muted); font-size: 11px; }
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button {
+  border-radius: 8px;
+  background: var(--security-accent);
+  padding: 6px 12px;
+  color: #071711;
+  font-size: 11px;
+  font-weight: 900;
+}
+.investment-dark .security-holdings-table-wrap { overflow-x: auto; }
+.investment-dark .security-holdings-panel table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12px; }
+.investment-dark .security-holdings-panel th { background: var(--investment-panel-soft); color: var(--investment-muted); font-size: 10px; font-weight: 900; letter-spacing: .04em; text-align: left; text-transform: uppercase; }
+.investment-dark .security-holdings-panel th,
+.investment-dark .security-holdings-panel td { border-bottom: 1px solid var(--investment-border); padding: 9px 14px; }
+.investment-dark .security-holdings-panel tbody tr:last-child td { border-bottom: 0; }
+.investment-dark .security-holdings-panel td small { display: block; margin-top: 3px; color: var(--investment-muted); font-size: 11px; }
+.investment-dark .security-holdings-panel td.positive { color: var(--security-accent); font-weight: 800; }
+.investment-dark .security-holdings-panel td.negative { color: #ff8c99; font-weight: 800; }
+.investment-dark .security-holdings-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.investment-dark .security-holdings-actions button { border: 1px solid var(--investment-border); border-radius: 8px; padding: 6px 9px; color: var(--investment-muted); font-size: 11px; font-weight: 800; }
+.investment-dark .security-holdings-actions button:first-child:hover { border-color: var(--security-accent); color: var(--security-accent); }
+.investment-dark .security-holdings-actions button:last-child:hover { border-color: #ff8c99; color: #ff8c99; }
+.investment-dark .security-holdings-empty { display: grid; min-height: 130px; place-items: center; gap: 12px; padding: 28px; color: var(--investment-muted); font-size: 13px; text-align: center; }
+.investment-dark [role='dialog'] {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark [role='dialog'] .bg-white { background: var(--investment-panel) !important; }
+.investment-dark [role='dialog'] .bg-\[\#f7faf8\],
+.investment-dark [role='dialog'] .bg-\[\#f8fbf9\] { background: var(--investment-panel-soft) !important; }
+.investment-dark [role='dialog'] .border-slate-100,
+.investment-dark [role='dialog'] .border-slate-200,
+.investment-dark [role='dialog'] .border-\[\#dfe9e4\],
+.investment-dark [role='dialog'] .border-\[\#e0ebe5\] { border-color: var(--investment-border) !important; }
+.investment-dark [role='dialog'] .text-\[\#15231d\],
+.investment-dark [role='dialog'] .text-\[\#064a31\] { color: var(--investment-text) !important; }
+.investment-dark [role='dialog'] [class~="bg-[#f1fbf6]"],
+.investment-dark [role='dialog'] [class~="bg-[#f7fbf9]"],
+.investment-dark [role='dialog'] [class~="bg-[#f8fbf9]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [role='dialog'] [class~="border-[#dbe6e1]"],
+.investment-dark [role='dialog'] [class~="border-[#dfe9e4]"],
+.investment-dark [role='dialog'] [class~="border-[#e0ebe5]"] {
+  border-color: var(--investment-border) !important;
+}
+.investment-dark [role='dialog'] [class~="text-[#15231d]"],
+.investment-dark [role='dialog'] [class~="text-[#064a31]"],
+.investment-dark [role='dialog'] [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+
+/* TransactionModal is a legacy form without role="dialog". */
+.investment-dark [class~="fixed"] form.bg-white,
+.investment-dark [class~="fixed"] > .bg-white {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark [class~="fixed"] [class~="bg-slate-50"],
+.investment-dark [class~="fixed"] [class~="bg-[#f7faf8]"],
+.investment-dark [class~="fixed"] [class~="bg-[#f8fbf9]"] {
+  background: var(--investment-panel-soft) !important;
+}
+.investment-dark [class~="fixed"] [class~="text-[#15231d]"],
+.investment-dark [class~="fixed"] [class~="text-slate-600"] {
+  color: var(--investment-text) !important;
+}
+.investment-dark [role='status'] {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+
+/* Legacy tracker dialogs/tooltips do not all expose role="dialog". */
+.investment-dark .modal,
+.investment-dark .asset-detail-modal,
+.investment-dark .recent-transactions-modal,
+.investment-dark .premium-asset-detail,
+.investment-dark .gold-holdings-dialog,
+.investment-dark .transaction-list-table-wrapper,
+.investment-dark .savings-empty-state,
+.investment-dark .chart-tooltip,
+.investment-dark .toast {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 35%) !important;
+}
+.investment-dark .modal-close-btn,
+.investment-dark .asset-detail-close { background: var(--investment-panel-raised) !important; color: var(--investment-muted) !important; border-color: var(--investment-border) !important; }
+.investment-dark .tx-type-selector { background: var(--investment-panel-soft) !important; }
+.investment-dark .recent-transactions-modal-header,
+.investment-dark .savings-tabs-bar,
+.investment-dark .rebalance-alerts-section { border-color: var(--investment-border) !important; }
+.investment-dark .rebalance-alert-card {
+  background: var(--investment-panel-soft) !important;
+  border-color: var(--investment-border) !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark .rebalance-alert-card .alert-title { color: var(--investment-text) !important; }
+.investment-dark .rebalance-alert-card .alert-desc { color: var(--investment-muted) !important; }
+
+@media (max-width: 767px) {
+  .investment-dark main { padding: 14px !important; }
+}

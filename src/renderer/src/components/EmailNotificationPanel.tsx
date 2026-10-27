@@ -28,6 +28,9 @@ export function EmailNotificationPanel({
   user: AppUser
   onClose: () => void
 }): React.JSX.Element {
+  const deliveryLabel: Record<string, string> = {
+    blocked: 'Chờ bổ sung email', queued: 'Đang chờ gửi', sending: 'Đang gửi', sent: 'Đã gửi', failed: 'Gửi lỗi', skipped: 'Đã bỏ qua'
+  }
   const client = useQueryClient()
   const [targetId, setTargetId] = useState('')
   const [notice, setNotice] = useState('')
@@ -99,6 +102,8 @@ export function EmailNotificationPanel({
       setNotice(
         result.status === 'skipped'
           ? 'Cảnh báo này đã được gửi, hệ thống bỏ qua để tránh gửi trùng.'
+          : result.status === 'queued'
+            ? 'Email đã vào hàng đợi máy chủ, vui lòng theo dõi lịch sử gửi.'
           : 'Đã gửi email thành công.'
       )
       setAllowResend(false)
@@ -258,7 +263,7 @@ export function EmailNotificationPanel({
               type="button"
               onClick={() => send.mutate()}
               disabled={
-                !gmailAvailability.server && !gmailAvailability.authenticated ||
+                (!gmailAvailability.server && !gmailAvailability.authenticated) ||
                 !savedSettings.email ||
                 !savedSettings.enabled ||
                 user.status !== 'active' ||
@@ -270,7 +275,7 @@ export function EmailNotificationPanel({
               }
               className="rounded-xl bg-[#06603f] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
             >
-              {send.isPending ? 'Đang gửi...' : gmailAvailability.server ? 'Gửi email' : 'Gửi Gmail'}
+              {send.isPending ? 'Đang gửi...' : 'Gửi Gmail'}
             </button>
             <button
               type="button"
@@ -365,12 +370,12 @@ export function EmailNotificationPanel({
             <div key={item.id} className="rounded-xl border border-slate-100 px-3 py-2 text-xs">
               <div className="flex justify-between gap-2">
                 <strong className="text-slate-700">{item.subject}</strong>
-                <span className={item.status === 'sent' ? 'text-emerald-700' : 'text-rose-600'}>
-                  {item.status === 'sent' ? 'Đã gửi' : item.status}
+                <span className={item.status === 'sent' ? 'text-emerald-700' : ['queued', 'sending'].includes(item.status) ? 'text-amber-700' : item.status === 'blocked' ? 'text-slate-600' : 'text-rose-600'}>
+                  {deliveryLabel[item.status] || item.status}
                 </span>
               </div>
               <p className="mt-1 text-slate-500">
-                {new Date(item.created_at).toLocaleString('vi-VN')}
+                  {new Date(item.created_at).toLocaleString('vi-VN')} · {item.recipient_email}
               </p>
               {item.error_message && <p className="mt-1 text-rose-600">{item.error_message}</p>}
             </div>

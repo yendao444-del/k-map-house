@@ -1,0 +1,821 @@
+{
+  "checkedAt": "2026-10-09T02:12:03.773Z",
+  "mode": "read-only metadata; no token/customer/bank-transaction query, no mutation",
+  "routines": [
+    {
+      "signature": "admin_pwa_guard_sepay_event()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "admin_pwa_guard_sepay_invoice()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "admin_pwa_reconcile_verified_sepay(jsonb,text,uuid,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "advance_room_meter_on_invoice_payment()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": true,
+      "authenticated_execute": true,
+      "service_execute": true
+    },
+    {
+      "signature": "claim_tenant_payment_emails()",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "ensure_tenant_payment_cycle(uuid,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "finish_tenant_payment_email(uuid,uuid,text,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "process_server_sepay(jsonb)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "queue_tenant_payment_emails()",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "reconcile_wallet_balances(bigint,bigint,bigint,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "service_execute": true
+    },
+    {
+      "signature": "record_invoice_payment_atomic(text,integer,text,date,text,text,text,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "service_execute": true
+    },
+    {
+      "signature": "tenant_payment_scope(uuid,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "tenant_payment_state(uuid,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "tenant_payment_write(uuid,text,uuid,text,jsonb)",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "transfer_between_wallets(text,bigint,text)",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_check_result()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_checkpoint_immutable()",
+      "security_definer": false,
+      "config": null,
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_guard_cash()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_guard_invoice()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_guard_settings()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_guard_version()",
+      "security_definer": false,
+      "config": null,
+      "anon_execute": false,
+      "authenticated_execute": true,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_ledger_entries()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_position()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    },
+    {
+      "signature": "wallet_serialize_writes()",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ],
+      "anon_execute": false,
+      "authenticated_execute": false,
+      "service_execute": true
+    }
+  ],
+  "tables": [
+    {
+      "relname": "app_secrets",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "app_settings",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "cash_transactions",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "email_automation_settings",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "invoices",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "payment_event_keys",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "payment_events",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "sepay_server_transactions",
+      "relrowsecurity": true
+    }
+  ],
+  "privileges": [
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "DELETE"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "INSERT"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "SELECT"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "table_name": "app_settings",
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "DELETE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "INSERT"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "SELECT"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "anon",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "DELETE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "INSERT"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "SELECT"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "table_name": "cash_transactions",
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "DELETE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "INSERT"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "SELECT"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "anon",
+      "privilege_type": "UPDATE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "DELETE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "INSERT"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "REFERENCES"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "SELECT"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "TRIGGER"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "TRUNCATE"
+    },
+    {
+      "table_name": "invoices",
+      "grantee": "authenticated",
+      "privilege_type": "UPDATE"
+    }
+  ],
+  "policies": [
+    {
+      "tablename": "app_settings",
+      "policyname": "app_settings_admin_write",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "app_settings",
+      "policyname": "app_settings_authenticated_read",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "tablename": "app_settings",
+      "policyname": "pwa_management_active_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))"
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_delete_admin",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_insert_active_user",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.status = 'active'::text) AND ((users.role = 'admin'::text) OR ((users.role = 'user'::text) AND ((debt_entries.type = ANY (ARRAY['paid'::text, 'offset'::text])) OR ((debt_entries.type = 'totalDebt'::text) AND (debt_entries.amount > 0) AND (debt_entries.reason = 'Vay thêm'::text)))))))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_positive_principal_insert",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((type <> 'totalDebt'::text) OR (amount > 0))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_positive_principal_update",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "true",
+      "with_check": "((type <> 'totalDebt'::text) OR (amount > 0))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_select_authenticated",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_update_admin",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_active_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_delete_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_insert_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND ((u.role = 'admin'::text) OR ((u.role = 'user'::text) AND ((debt_entries.type = ANY (ARRAY['paid'::text, 'offset'::text])) OR ((debt_entries.type = 'totalDebt'::text) AND (debt_entries.amount > 0) AND (debt_entries.reason = 'Vay thêm'::text)))))))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_update_permission_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))"
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_update",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    }
+  ],
+  "triggers": [
+    {
+      "table_name": "app_settings",
+      "tgname": "wallet_settings_guard",
+      "definition": "CREATE TRIGGER wallet_settings_guard AFTER INSERT OR DELETE OR UPDATE ON public.app_settings FOR EACH ROW EXECUTE FUNCTION wallet_guard_settings()",
+      "function_name": "wallet_guard_settings",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_guard_settings()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if exists(select 1 from public.wallet_reconciliations) then\n    if tg_op <> 'UPDATE' then raise exception 'Thiết lập số dư đầu kỳ đã khóa sau đối soát.'; end if;\n    if new.id is distinct from old.id or new.opening_balance_cash is distinct from old.opening_balance_cash\n      or new.opening_balance_bank is distinct from old.opening_balance_bank\n      or new.opening_balance_date is distinct from old.opening_balance_date then\n      raise exception 'Không được thay đổi số dư đầu kỳ sau đối soát.';\n    end if;\n  end if;\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "app_settings",
+      "tgname": "wallet_settings_serialize",
+      "definition": "CREATE TRIGGER wallet_settings_serialize BEFORE INSERT OR DELETE OR UPDATE ON public.app_settings FOR EACH STATEMENT EXECUTE FUNCTION wallet_serialize_writes()",
+      "function_name": "wallet_serialize_writes",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_serialize_writes()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  perform pg_advisory_xact_lock(20261005, 120000);\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "cash_transactions",
+      "tgname": "admin_pwa_investment_receipt_lock",
+      "definition": "CREATE TRIGGER admin_pwa_investment_receipt_lock BEFORE DELETE OR UPDATE ON public.cash_transactions FOR EACH ROW EXECUTE FUNCTION admin_pwa_investment_receipt_immutable()",
+      "function_name": "admin_pwa_investment_receipt_immutable",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.admin_pwa_investment_receipt_immutable()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if old.id like 'pwa-investment-%' and old.category='investment_transfer' then\n    raise exception 'Chứng từ đầu tư PWA được lưu theo phiên bản. Hoàn tác trong danh mục đầu tư, không sửa/xóa riêng chứng từ Ví.' using errcode='22023';\n  end if;\n  return case when tg_op='DELETE' then old else new end;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "cash_transactions",
+      "tgname": "contract_capture_usage",
+      "definition": "CREATE TRIGGER contract_capture_usage BEFORE INSERT OR DELETE OR UPDATE ON public.cash_transactions FOR EACH ROW EXECUTE FUNCTION contract_capture_usage()",
+      "function_name": "contract_capture_usage",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.contract_capture_usage()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare r jsonb; cid text; room_key text; tenant_key text; used boolean;\nbegin\n for r in select value from jsonb_array_elements(case when tg_op='UPDATE' and tg_table_name<>'rooms' then jsonb_build_array(to_jsonb(old),to_jsonb(new)) when tg_op='DELETE' then jsonb_build_array(to_jsonb(old)) else jsonb_build_array(to_jsonb(new)) end) loop\n room_key:=r->>'room_id'; tenant_key:=r->>'tenant_id';\n used:=case tg_table_name\n  when 'invoices' then coalesce((r->>'paid_amount')::numeric,0)>0 or coalesce((r->>'deposit_applied')::numeric,0)>0 or coalesce(nullif(r->'payment_records','null'::jsonb),'[]'::jsonb)<>'[]'::jsonb or r->>'payment_date' is not null or coalesce((r->>'electric_usage')::numeric,0)>0 or coalesce((r->>'water_usage')::numeric,0)>0\n  when 'move_in_receipts' then r->>'payment_status'='paid' or r->>'payment_date' is not null\n  when 'cash_transactions' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'payment_events' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'asset_snapshots' then true\n  when 'rooms' then (r->'electric_old',r->'electric_new',r->'water_old',r->'water_new') is distinct from (to_jsonb(old)->'electric_old',to_jsonb(old)->'electric_new',to_jsonb(old)->'water_old',to_jsonb(old)->'water_new')\n  else true end;\n if tg_table_name='rooms' then room_key:=r->>'id'; end if;\n if tg_table_name='payment_events' then select room_id,tenant_id into room_key,tenant_key from invoices where id=r->>'invoice_id'; end if;\n -- Reject stale operations that acquire a table lock after cancellation commits.\n if tg_op<>'DELETE' and (tg_op='INSERT' or used) and\n  (exists(select 1 from contracts where id=r->>'contract_id' and status='cancelled') or\n   tenant_key is not null and room_key is not null and not exists(select 1 from contracts where room_id=room_key and tenant_id=tenant_key and status='active') and\n   (select status='cancelled' from contracts where room_id=room_key and tenant_id=tenant_key order by created_at desc,id desc limit 1)) then\n  raise exception 'Hợp đồng đã hủy. Không được ghi thêm thanh toán, hóa đơn hoặc bàn giao cho hợp đồng này.';\n end if;\n if used then\n  for cid in select c.id from contracts c where c.status='active' and c.original_confirmed_at is not null and\n   (c.id=r->>'contract_id' or c.room_id=room_key and (tenant_key is null or c.tenant_id=tenant_key)) loop\n   insert into contract_usage_evidence(contract_id,source_table,source_id) values(cid,tg_table_name,r->>'id') on conflict do nothing;\n  end loop;\n end if;\n end loop;\n if tg_op='DELETE' then return old; else return new; end if;\nend $function$\n"
+    },
+    {
+      "table_name": "cash_transactions",
+      "tgname": "wallet_cash_guard",
+      "definition": "CREATE TRIGGER wallet_cash_guard AFTER INSERT OR DELETE OR UPDATE ON public.cash_transactions FOR EACH ROW EXECUTE FUNCTION wallet_guard_cash()",
+      "function_name": "wallet_guard_cash",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_guard_cash()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare checkpoint public.wallet_reconciliations%rowtype; valid_transfer boolean;\nbegin\n  select * into checkpoint from public.wallet_reconciliations limit 1;\n  if tg_op <> 'INSERT' and checkpoint.id is not null and ('cash-' || old.id) = any(checkpoint.entry_ids) then\n    raise exception 'Giao dịch trước mốc đối soát đã khóa. Không được sửa/xóa lịch sử.';\n  end if;\n  if tg_op <> 'INSERT' and old.category = 'wallet_transfer' then\n    raise exception 'Hai phần chuyển ví được ghi cùng nhau, không được sửa/xóa riêng một phần.';\n  end if;\n  if tg_op <> 'DELETE' then\n    if new.type not in ('income', 'expense') or new.type is null or new.amount is null or new.amount <= 0\n      or new.payment_method is null or new.payment_method not in ('cash', 'transfer') then\n      raise exception 'Giao dịch phải có số tiền dương và một ví thanh toán hợp lệ.';\n    end if;\n    if tg_op = 'UPDATE' and new.id is distinct from old.id then raise exception 'Không được đổi mã giao dịch.'; end if;\n    if new.category = 'wallet_transfer' then\n      select exists(select 1 from public.wallet_transfer_requests r where r.amount = new.amount and (\n        (new.id = 'wallet-out-' || r.id and new.type = 'expense' and new.payment_method = r.source)\n        or (new.id = 'wallet-in-' || r.id and new.type = 'income' and new.payment_method = case when r.source = 'cash' then 'transfer' else 'cash' end)\n      )) into valid_transfer;\n      if not valid_transfer then raise exception 'Phải dùng nghiệp vụ chuyển giữa các ví để ghi đồng thời hai phần.'; end if;\n    end if;\n    if checkpoint.id is not null and new.transaction_date::date < (checkpoint.confirmed_at at time zone 'Asia/Bangkok')::date then\n      raise exception 'Không được ghi lùi ngày trước mốc đối soát đã khóa.';\n    end if;\n  end if;\n  -- Incoming funds can repair an unreconciled legacy ledger. Once reconciled,\n  -- every edit/delete and outgoing posting must preserve both nonnegative wallets.\n  if checkpoint.id is not null or tg_op = 'DELETE' or tg_op = 'UPDATE' or new.type = 'expense' then\n    perform public.wallet_check_result();\n  end if;\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "cash_transactions",
+      "tgname": "wallet_cash_serialize",
+      "definition": "CREATE TRIGGER wallet_cash_serialize BEFORE INSERT OR DELETE OR UPDATE ON public.cash_transactions FOR EACH STATEMENT EXECUTE FUNCTION wallet_serialize_writes()",
+      "function_name": "wallet_serialize_writes",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_serialize_writes()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  perform pg_advisory_xact_lock(20261005, 120000);\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "admin_pwa_sepay_invoice_guard",
+      "definition": "CREATE TRIGGER admin_pwa_sepay_invoice_guard BEFORE INSERT OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION admin_pwa_guard_sepay_invoice()",
+      "function_name": "admin_pwa_guard_sepay_invoice",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.admin_pwa_guard_sepay_invoice()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare previous_records jsonb := '[]'::jsonb; next_records jsonb; payment jsonb; old_sum numeric; next_sum numeric;\nbegin\n  if coalesce(auth.role(),'')='service_role' then return new;end if;\n  if tg_op='UPDATE' then previous_records:=coalesce(old.payment_records,'[]'::jsonb);end if;\n  next_records:=coalesce(new.payment_records,'[]'::jsonb);\n  if jsonb_typeof(next_records)<>'array' or jsonb_typeof(previous_records)<>'array' then raise exception 'Invalid payment history.' using errcode='22023';end if;\n  for payment in select r from jsonb_array_elements(previous_records) r where lower(btrim(coalesce(r->>'source','')))='sepay' loop\n    if not exists(select 1 from jsonb_array_elements(next_records) n where n=payment) then raise exception 'Verified SePay history is immutable.' using errcode='22023';end if;\n  end loop;\n  for payment in select r from jsonb_array_elements(next_records) r where lower(btrim(coalesce(r->>'source','')))='sepay' loop\n    if exists(select 1 from jsonb_array_elements(previous_records) p where p=payment) then continue;end if;\n    if not exists(select 1 from public.payment_events e where e.invoice_id=new.id and lower(btrim(coalesce(e.source,'')))='sepay'\n      and e.amount=(payment->>'amount')::numeric and e.payment_method=payment->>'payment_method'\n      and e.payment_date::text=payment->>'payment_date'\n      and e.external_id is not distinct from nullif(payment->>'external_id','')\n      and e.external_ref is not distinct from nullif(payment->>'external_ref','')) then raise exception 'SePay record must originate from the verified payment ledger.' using errcode='22023';end if;\n    if (select count(*) from jsonb_array_elements(next_records) n where n->>'external_id'=payment->>'external_id' or (nullif(payment->>'external_ref','') is not null and n->>'external_ref'=payment->>'external_ref'))>1 then raise exception 'Bank transaction cannot be appended twice.' using errcode='22023';end if;\n  end loop;\n  if tg_op='UPDATE' and exists(select 1 from jsonb_array_elements(previous_records||next_records) p where lower(btrim(coalesce(p->>'source','')))='sepay') then\n    select coalesce(sum((p->>'amount')::numeric),0) into old_sum from jsonb_array_elements(previous_records) p;\n    select coalesce(sum((p->>'amount')::numeric),0) into next_sum from jsonb_array_elements(next_records) p;\n    if coalesce(new.paid_amount,0)-coalesce(old.paid_amount,0)<>next_sum-old_sum then raise exception 'Paid amount must match the payment-history change.' using errcode='22023';end if;\n  end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "advance_room_meter_on_invoice_payment",
+      "definition": "CREATE TRIGGER advance_room_meter_on_invoice_payment AFTER UPDATE OF payment_status ON public.invoices FOR EACH ROW EXECUTE FUNCTION advance_room_meter_on_invoice_payment()",
+      "function_name": "advance_room_meter_on_invoice_payment",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.advance_room_meter_on_invoice_payment()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if new.payment_status <> 'paid' or old.payment_status = 'paid'\n     or new.is_settlement is true\n     or (coalesce(new.billing_reason, '') not in ('first_month', 'monthly', 'room_cycle')\n         and new.is_first_month is not true) then\n    return new;\n  end if;\n\n  if exists (\n    select 1 from public.invoices later\n    where later.room_id = new.room_id and later.tenant_id = new.tenant_id\n      and later.id <> new.id\n      and later.payment_status not in ('cancelled', 'merged')\n      and (coalesce(later.billing_reason, '') in ('first_month', 'monthly', 'room_cycle')\n           or later.is_first_month is true)\n      and (later.year, later.month) > (new.year, new.month)\n  ) then\n    return new;\n  end if;\n\n  update public.rooms room\n  set electric_old = new.electric_new,\n      electric_new = new.electric_new,\n      water_old = new.water_new,\n      water_new = new.water_new\n  where room.id = new.room_id\n    and room.status in ('occupied', 'ending')\n    and room.electric_new <= new.electric_new\n    and room.water_new <= new.water_new\n    and exists (\n      select 1 from public.contracts contract\n      where contract.room_id = new.room_id and contract.tenant_id = new.tenant_id\n        and contract.status = 'active'\n    );\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "contract_capture_usage",
+      "definition": "CREATE TRIGGER contract_capture_usage BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION contract_capture_usage()",
+      "function_name": "contract_capture_usage",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.contract_capture_usage()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare r jsonb; cid text; room_key text; tenant_key text; used boolean;\nbegin\n for r in select value from jsonb_array_elements(case when tg_op='UPDATE' and tg_table_name<>'rooms' then jsonb_build_array(to_jsonb(old),to_jsonb(new)) when tg_op='DELETE' then jsonb_build_array(to_jsonb(old)) else jsonb_build_array(to_jsonb(new)) end) loop\n room_key:=r->>'room_id'; tenant_key:=r->>'tenant_id';\n used:=case tg_table_name\n  when 'invoices' then coalesce((r->>'paid_amount')::numeric,0)>0 or coalesce((r->>'deposit_applied')::numeric,0)>0 or coalesce(nullif(r->'payment_records','null'::jsonb),'[]'::jsonb)<>'[]'::jsonb or r->>'payment_date' is not null or coalesce((r->>'electric_usage')::numeric,0)>0 or coalesce((r->>'water_usage')::numeric,0)>0\n  when 'move_in_receipts' then r->>'payment_status'='paid' or r->>'payment_date' is not null\n  when 'cash_transactions' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'payment_events' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'asset_snapshots' then true\n  when 'rooms' then (r->'electric_old',r->'electric_new',r->'water_old',r->'water_new') is distinct from (to_jsonb(old)->'electric_old',to_jsonb(old)->'electric_new',to_jsonb(old)->'water_old',to_jsonb(old)->'water_new')\n  else true end;\n if tg_table_name='rooms' then room_key:=r->>'id'; end if;\n if tg_table_name='payment_events' then select room_id,tenant_id into room_key,tenant_key from invoices where id=r->>'invoice_id'; end if;\n -- Reject stale operations that acquire a table lock after cancellation commits.\n if tg_op<>'DELETE' and (tg_op='INSERT' or used) and\n  (exists(select 1 from contracts where id=r->>'contract_id' and status='cancelled') or\n   tenant_key is not null and room_key is not null and not exists(select 1 from contracts where room_id=room_key and tenant_id=tenant_key and status='active') and\n   (select status='cancelled' from contracts where room_id=room_key and tenant_id=tenant_key order by created_at desc,id desc limit 1)) then\n  raise exception 'Hợp đồng đã hủy. Không được ghi thêm thanh toán, hóa đơn hoặc bàn giao cho hợp đồng này.';\n end if;\n if used then\n  for cid in select c.id from contracts c where c.status='active' and c.original_confirmed_at is not null and\n   (c.id=r->>'contract_id' or c.room_id=room_key and (tenant_key is null or c.tenant_id=tenant_key)) loop\n   insert into contract_usage_evidence(contract_id,source_table,source_id) values(cid,tg_table_name,r->>'id') on conflict do nothing;\n  end loop;\n end if;\n end loop;\n if tg_op='DELETE' then return old; else return new; end if;\nend $function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "guard_tenant_cycle_invoice",
+      "definition": "CREATE TRIGGER guard_tenant_cycle_invoice BEFORE INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION guard_tenant_cycle_invoice()",
+      "function_name": "guard_tenant_cycle_invoice",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.guard_tenant_cycle_invoice()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare c contracts%rowtype;\nbegin\n if coalesce(new.billing_reason,'') not in ('monthly','first_month','room_cycle') and not coalesce(new.is_first_month,false) then return new;end if;\n perform pg_advisory_xact_lock(20261005,120000);\n select * into c from contracts where room_id=new.room_id and tenant_id=new.tenant_id and status='active' order by created_at desc limit 1;\n if c.id is null or not exists(select 1 from tenant_payment_cycles where contract_id=c.id and extract(month from period)=new.month and extract(year from period)=new.year) then return new;end if;\n if exists(select 1 from invoices i where i.room_id=new.room_id and i.tenant_id=new.tenant_id\n  and (i.web_contract_id=c.id or (i.web_contract_id is null and i.created_at>=c.created_at))\n  and i.month=new.month and i.year=new.year and i.payment_status not in ('cancelled','merged')\n  and (i.billing_reason in ('monthly','first_month','room_cycle') or i.is_first_month)) then raise exception 'Kỳ này đã có hóa đơn cho hợp đồng hiện tại.';end if;\n new.web_contract_id:=c.id;return new;\nend $function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "protect_billing_period_insert",
+      "definition": "CREATE TRIGGER protect_billing_period_insert BEFORE INSERT ON public.invoices FOR EACH ROW EXECUTE FUNCTION protect_billing_period_insert()",
+      "function_name": "protect_billing_period_insert",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.protect_billing_period_insert()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  room_row public.rooms%rowtype;\nbegin\n  if coalesce(new.billing_reason, '') not in ('monthly', 'room_cycle') then\n    return new;\n  end if;\n\n  select * into room_row from public.rooms where id = new.room_id for update;\n  if not found then raise exception 'Không tìm thấy phòng lập hóa đơn.'; end if;\n  if room_row.electric_new is distinct from new.electric_old\n     or room_row.water_new is distinct from new.water_old then\n    raise exception 'Chỉ số đầu kỳ không khớp phòng. Vui lòng tải lại trước khi lập hóa đơn.';\n  end if;\n\n  if exists (\n    select 1 from public.invoices previous\n    where previous.room_id = new.room_id and previous.tenant_id = new.tenant_id\n      and previous.payment_status in ('unpaid', 'partial')\n      and previous.total_amount > previous.paid_amount\n      and previous.debt_confirmed_at is null\n      and (coalesce(previous.billing_reason, '') in ('first_month', 'monthly', 'room_cycle')\n           or previous.is_first_month is true)\n      and (previous.year, previous.month) < (new.year, new.month)\n  ) then\n    raise exception 'Còn hóa đơn kỳ trước chưa chốt nợ. Hãy xác nhận trước khi lập kỳ mới.';\n  end if;\n\n  if exists (\n    select 1 from public.invoices later\n    where later.room_id = new.room_id and later.tenant_id = new.tenant_id\n      and later.payment_status not in ('cancelled', 'merged')\n      and (coalesce(later.billing_reason, '') in ('first_month', 'monthly', 'room_cycle')\n           or later.is_first_month is true)\n      and (later.year, later.month) > (new.year, new.month)\n  ) then\n    raise exception 'Đã có hóa đơn kỳ sau. Không thể lập lùi kỳ điện nước.';\n  end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "protect_confirmed_invoice",
+      "definition": "CREATE TRIGGER protect_confirmed_invoice BEFORE UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION protect_confirmed_invoice()",
+      "function_name": "protect_confirmed_invoice",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.protect_confirmed_invoice()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  if old.debt_confirmed_at is null then\n    if new.debt_confirmed_at is not null and current_setting('app.invoice_debt_closing', true) is distinct from 'on' then\n      raise exception 'Phải xác nhận chốt nợ qua nghiệp vụ chốt kỳ.';\n    end if;\n    return new;\n  end if;\n  if current_setting('app.invoice_debt_reopen', true) = 'on' then return new; end if;\n  if new.debt_confirmed_at is distinct from old.debt_confirmed_at\n     or new.debt_confirmed_by is distinct from old.debt_confirmed_by\n     or new.total_amount is distinct from old.total_amount\n     or new.room_cost is distinct from old.room_cost\n     or new.electric_old is distinct from old.electric_old\n     or new.electric_new is distinct from old.electric_new\n     or new.electric_cost is distinct from old.electric_cost\n     or new.water_old is distinct from old.water_old\n     or new.water_new is distinct from old.water_new\n     or new.water_cost is distinct from old.water_cost\n     or new.wifi_cost is distinct from old.wifi_cost\n     or new.garbage_cost is distinct from old.garbage_cost\n     or new.adjustment_amount is distinct from old.adjustment_amount\n     or new.deposit_amount is distinct from old.deposit_amount\n     or new.payment_status = 'cancelled' then\n    raise exception 'Hóa đơn đã chốt nợ. Hãy dùng quy trình điều chỉnh để sửa hoặc hủy.';\n  end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "server_invoice_email",
+      "definition": "CREATE TRIGGER server_invoice_email AFTER INSERT OR UPDATE OF payment_records ON public.invoices FOR EACH ROW EXECUTE FUNCTION capture_server_invoice_email()",
+      "function_name": "capture_server_invoice_email",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.capture_server_invoice_email()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare rec jsonb; previous jsonb:='[]'; room_name text; started timestamptz;\nbegin\n select enabled_at into started from email_automation_settings where enabled;\n if started is null then return new; end if;\n select name into room_name from rooms where id=new.room_id;\n if tg_op='INSERT' and new.payment_status not in ('cancelled','merged','paid') and new.total_amount>new.paid_amount then\n  perform enqueue_server_email('invoices_services',new.id,jsonb_build_object('invoiceId',new.id,'roomId',new.room_id));\n end if;\n if tg_op='UPDATE' then previous:=coalesce(old.payment_records,'[]'); end if;\n for rec in select value from jsonb_array_elements(coalesce(new.payment_records,'[]')) loop\n  if rec->>'source'='sepay' and (rec->>'amount')::numeric>0\n   and nullif(rec->>'created_at','')::timestamptz>=started\n   and nullif(coalesce(rec->>'external_ref',rec->>'external_id'),'') is not null\n   and not exists(select 1 from jsonb_array_elements(previous) p where p->>'id'=rec->>'id') then\n   perform enqueue_server_email('sepay_matched',regexp_replace(upper(coalesce(rec->>'external_ref',rec->>'external_id')),'[^A-Z0-9]','','g'),\n    jsonb_build_object('invoiceId',new.id,'roomId',new.room_id,'roomName',room_name,\n     'invoice',to_jsonb(new),'record',rec,'transactionKey',coalesce(rec->>'external_ref',rec->>'external_id')));\n  end if;\n end loop;\n return new;\nend $function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "sync_tenant_paid_readings",
+      "definition": "CREATE TRIGGER sync_tenant_paid_readings AFTER UPDATE OF payment_status ON public.invoices FOR EACH ROW EXECUTE FUNCTION sync_tenant_paid_readings()",
+      "function_name": "sync_tenant_paid_readings",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.sync_tenant_paid_readings()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare c contracts%rowtype;\nbegin\n if new.payment_status='paid' and old.payment_status is distinct from 'paid' and new.web_contract_id is not null\n and new.billing_reason='monthly' and not coalesce(new.is_settlement,false) then\n  select * into c from contracts where id=new.web_contract_id and status='active' and room_id=new.room_id and tenant_id=new.tenant_id;\n  if c.id is not null then\n   -- An older invoice paid later must never rewind the current meter.\n   update rooms set electric_old=greatest(coalesce(electric_old,0),new.electric_new),electric_new=greatest(coalesce(electric_new,0),new.electric_new),\n    water_old=greatest(coalesce(water_old,0),new.water_new),water_new=greatest(coalesce(water_new,0),new.water_new)\n   where id=c.room_id and status='occupied';\n  end if;\n end if;\n return new;\nend $function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "wallet_invoice_guard",
+      "definition": "CREATE TRIGGER wallet_invoice_guard AFTER INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION wallet_guard_invoice()",
+      "function_name": "wallet_guard_invoice",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_guard_invoice()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  checkpoint public.wallet_reconciliations%rowtype;\n  old_records jsonb := '[]'::jsonb;\n  new_records jsonb := '[]'::jsonb;\n  record jsonb;\n  n integer;\n  had_frozen boolean := false;\nbegin\n  select * into checkpoint from public.wallet_reconciliations limit 1;\n  if tg_op <> 'INSERT' then\n    old_records := coalesce(old.payment_records, '[]'::jsonb);\n    select exists(select 1 from jsonb_array_elements(old_records) p\n      where ('invoice-' || old.id || '-' || (p->>'id')) = any(checkpoint.entry_ids)) into had_frozen;\n  end if;\n  if tg_op = 'DELETE' then\n    if had_frozen then raise exception 'Lịch sử thanh toán trước mốc đối soát đã khóa.'; end if;\n  else\n    new_records := coalesce(new.payment_records, '[]'::jsonb);\n    if jsonb_typeof(new_records) <> 'array' then raise exception 'Lịch sử thanh toán không hợp lệ.'; end if;\n    if tg_op = 'UPDATE' then\n      if new.id is distinct from old.id then raise exception 'Không được đổi mã hóa đơn.'; end if;\n      if had_frozen and (\n        new.payment_status in ('cancelled', 'merged')\n        or (old.payment_status in ('cancelled', 'merged') and new.payment_status is distinct from old.payment_status)\n        or jsonb_array_length(new_records) < jsonb_array_length(old_records)\n        or exists(select 1 from jsonb_array_elements(old_records) with ordinality p(value, idx)\n          where p.value is distinct from new_records->(p.idx::integer - 1))\n        or new.total_amount is distinct from old.total_amount\n      ) then raise exception 'Lịch sử thanh toán trước mốc đối soát đã khóa; chỉ được ghi thêm thanh toán mới.'; end if;\n    end if;\n    -- Validate all newly added/changed records, not just the official payment RPC.\n    n := 0;\n    for record in select value from jsonb_array_elements(new_records) loop\n      if tg_op = 'INSERT' or record is distinct from old_records->n then\n        if record->>'id' is null or record->>'payment_method' is null\n          or record->>'payment_method' not in ('cash', 'transfer') or coalesce((record->>'amount')::bigint, 0) = 0 then\n          raise exception 'Thanh toán phải có mã, số tiền và một ví hợp lệ.';\n        end if;\n        if checkpoint.id is not null then\n          if (record->>'payment_date') is null\n            or (record->>'payment_date')::date < (checkpoint.confirmed_at at time zone 'Asia/Bangkok')::date\n            or exists(select 1 from public.wallet_reconciliations r\n              where ('invoice-' || new.id || '-' || (record->>'id')) = any(r.entry_ids)) then\n            raise exception 'Không được ghi lại thanh toán hoặc ghi lùi trước mốc đối soát.';\n          end if;\n        end if;\n      end if;\n      n := n + 1;\n    end loop;\n    if exists(select 1 from jsonb_array_elements(new_records) p group by p->>'id' having count(*) > 1) then\n      raise exception 'Mã thanh toán không được trùng.';\n    end if;\n  end if;\n  if checkpoint.id is not null or old_records is distinct from new_records then perform public.wallet_check_result(); end if;\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "invoices",
+      "tgname": "wallet_invoice_serialize",
+      "definition": "CREATE TRIGGER wallet_invoice_serialize BEFORE INSERT OR DELETE OR UPDATE ON public.invoices FOR EACH STATEMENT EXECUTE FUNCTION wallet_serialize_writes()",
+      "function_name": "wallet_serialize_writes",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.wallet_serialize_writes()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  perform pg_advisory_xact_lock(20261005, 120000);\n  return null;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "payment_events",
+      "tgname": "admin_pwa_sepay_event_guard",
+      "definition": "CREATE TRIGGER admin_pwa_sepay_event_guard BEFORE INSERT ON public.payment_events FOR EACH ROW EXECUTE FUNCTION admin_pwa_guard_sepay_event()",
+      "function_name": "admin_pwa_guard_sepay_event",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.admin_pwa_guard_sepay_event()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare verified public.sepay_server_transactions%rowtype; matches text[];\nbegin\n  if lower(btrim(coalesce(new.source,'')))<>'sepay' or coalesce(auth.role(),'')='service_role' then return new;end if;\n  if not exists(select 1 from public.users u where u.id=auth.uid() and u.role='admin' and u.status='active') then raise exception 'Only verified bank reconciliation can record SePay.' using errcode='42501';end if;\n  -- Legacy Electron may still call the atomic RPC, but only against a real\n  -- server-observed bank record, with the exact amount and target transfer code.\n  select * into verified from public.sepay_server_transactions t where t.external_id=new.external_id and (new.external_ref is null or new.external_ref=t.reference_number);\n  if not found or verified.status='recorded' or verified.amount<>new.amount or new.payment_method<>'transfer' then raise exception 'SePay bank provenance is missing or inconsistent.' using errcode='22023';end if;\n  select array_agg(i.id) into matches from public.invoices i join public.rooms r on r.id=i.room_id where i.payment_status not in ('cancelled','merged')\n    and position('P'||coalesce(nullif(regexp_replace(r.name,'\\D','','g'),''),nullif(left(regexp_replace(upper(r.name),'[^A-Z0-9]','','g'),6),''),'XX')||'T'||lpad(i.month::text,2,'0')||i.year||'C'||right(regexp_replace(upper(i.id),'[^A-Z0-9]','','g'),12) in regexp_replace(upper(verified.content),'[^A-Z0-9]','','g'))>0;\n  if coalesce(cardinality(matches),0)<>1 or matches[1]<>new.invoice_id then raise exception 'Bank transfer does not uniquely identify this invoice.' using errcode='22023';end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "table_name": "payment_events",
+      "tgname": "contract_capture_usage",
+      "definition": "CREATE TRIGGER contract_capture_usage BEFORE INSERT OR DELETE OR UPDATE ON public.payment_events FOR EACH ROW EXECUTE FUNCTION contract_capture_usage()",
+      "function_name": "contract_capture_usage",
+      "function_definition": "CREATE OR REPLACE FUNCTION public.contract_capture_usage()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare r jsonb; cid text; room_key text; tenant_key text; used boolean;\nbegin\n for r in select value from jsonb_array_elements(case when tg_op='UPDATE' and tg_table_name<>'rooms' then jsonb_build_array(to_jsonb(old),to_jsonb(new)) when tg_op='DELETE' then jsonb_build_array(to_jsonb(old)) else jsonb_build_array(to_jsonb(new)) end) loop\n room_key:=r->>'room_id'; tenant_key:=r->>'tenant_id';\n used:=case tg_table_name\n  when 'invoices' then coalesce((r->>'paid_amount')::numeric,0)>0 or coalesce((r->>'deposit_applied')::numeric,0)>0 or coalesce(nullif(r->'payment_records','null'::jsonb),'[]'::jsonb)<>'[]'::jsonb or r->>'payment_date' is not null or coalesce((r->>'electric_usage')::numeric,0)>0 or coalesce((r->>'water_usage')::numeric,0)>0\n  when 'move_in_receipts' then r->>'payment_status'='paid' or r->>'payment_date' is not null\n  when 'cash_transactions' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'payment_events' then coalesce((r->>'amount')::numeric,0)<>0\n  when 'asset_snapshots' then true\n  when 'rooms' then (r->'electric_old',r->'electric_new',r->'water_old',r->'water_new') is distinct from (to_jsonb(old)->'electric_old',to_jsonb(old)->'electric_new',to_jsonb(old)->'water_old',to_jsonb(old)->'water_new')\n  else true end;\n if tg_table_name='rooms' then room_key:=r->>'id'; end if;\n if tg_table_name='payment_events' then select room_id,tenant_id into room_key,tenant_key from invoices where id=r->>'invoice_id'; end if;\n -- Reject stale operations that acquire a table lock after cancellation commits.\n if tg_op<>'DELETE' and (tg_op='INSERT' or used) and\n  (exists(select 1 from contracts where id=r->>'contract_id' and status='cancelled') or\n   tenant_key is not null and room_key is not null and not exists(select 1 from contracts where room_id=room_key and tenant_id=tenant_key and status='active') and\n   (select status='cancelled' from contracts where room_id=room_key and tenant_id=tenant_key order by created_at desc,id desc limit 1)) then\n  raise exception 'Hợp đồng đã hủy. Không được ghi thêm thanh toán, hóa đơn hoặc bàn giao cho hợp đồng này.';\n end if;\n if used then\n  for cid in select c.id from contracts c where c.status='active' and c.original_confirmed_at is not null and\n   (c.id=r->>'contract_id' or c.room_id=room_key and (tenant_key is null or c.tenant_id=tenant_key)) loop\n   insert into contract_usage_evidence(contract_id,source_table,source_id) values(cid,tg_table_name,r->>'id') on conflict do nothing;\n  end loop;\n end if;\n end loop;\n if tg_op='DELETE' then return old; else return new; end if;\nend $function$\n"
+    }
+  ],
+  "definitions": [
+    {
+      "proname": "advance_room_meter_on_invoice_payment",
+      "definition": "CREATE OR REPLACE FUNCTION public.advance_room_meter_on_invoice_payment()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if new.payment_status <> 'paid' or old.payment_status = 'paid'\n     or new.is_settlement is true\n     or (coalesce(new.billing_reason, '') not in ('first_month', 'monthly', 'room_cycle')\n         and new.is_first_month is not true) then\n    return new;\n  end if;\n\n  if exists (\n    select 1 from public.invoices later\n    where later.room_id = new.room_id and later.tenant_id = new.tenant_id\n      and later.id <> new.id\n      and later.payment_status not in ('cancelled', 'merged')\n      and (coalesce(later.billing_reason, '') in ('first_month', 'monthly', 'room_cycle')\n           or later.is_first_month is true)\n      and (later.year, later.month) > (new.year, new.month)\n  ) then\n    return new;\n  end if;\n\n  update public.rooms room\n  set electric_old = new.electric_new,\n      electric_new = new.electric_new,\n      water_old = new.water_new,\n      water_new = new.water_new\n  where room.id = new.room_id\n    and room.status in ('occupied', 'ending')\n    and room.electric_new <= new.electric_new\n    and room.water_new <= new.water_new\n    and exists (\n      select 1 from public.contracts contract\n      where contract.room_id = new.room_id and contract.tenant_id = new.tenant_id\n        and contract.status = 'active'\n    );\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "proname": "process_server_sepay",
+      "definition": "CREATE OR REPLACE FUNCTION public.process_server_sepay(p_tx jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public', 'pg_temp'\nAS $function$\ndeclare cfg email_automation_settings%rowtype; tx_key text; tx_id text; ref text; amount bigint; content text;\n occurred timestamptz; account text; keys text[]; ids text[]; inv invoices%rowtype; actor uuid; answer jsonb;\n state text; saved_claims text; saved_sub text; matched_room text; ctr contracts%rowtype;\nbegin\n if coalesce(auth.role(),'')<>'service_role' then raise exception 'Service only' using errcode='42501'; end if;\n select * into cfg from email_automation_settings where enabled and sepay_enabled;\n if not found then return jsonb_build_object('status','disabled'); end if;\n tx_id:=nullif(btrim(p_tx->>'id'),'');ref:=nullif(btrim(p_tx->>'reference_number'),'');\n amount:=(p_tx->>'amount_in')::numeric;content:=coalesce(p_tx->>'transaction_content','');\n if tx_id is null or amount is null or amount<=0 or amount>2147483647 or (p_tx->>'amount_in')::numeric<>amount then return jsonb_build_object('status','ignored');end if;\n if nullif(p_tx->>'transaction_date','') is null then return jsonb_build_object('status','ignored');end if;\n occurred:=case when p_tx->>'transaction_date' ~ '(Z|[+-][0-9]{2}:[0-9]{2})$' then (p_tx->>'transaction_date')::timestamptz\n   else (p_tx->>'transaction_date')::timestamp at time zone 'Asia/Ho_Chi_Minh' end;\n if occurred>now()+interval '5 minutes' then return jsonb_build_object('status','ignored');end if;\n select upper(regexp_replace(account_no,'[^A-Z0-9]','','gi')) into account from app_settings limit 1;\n if nullif(account,'') is null or not (\n   upper(regexp_replace(coalesce(p_tx->>'account_number',''),'[^A-Z0-9]','','gi'))=upper(regexp_replace(account,'[^A-Z0-9]','','g'))\n   or upper(regexp_replace(coalesce(p_tx->>'sub_account',''),'[^A-Z0-9]','','gi'))=upper(regexp_replace(account,'[^A-Z0-9]','','g'))\n ) then return jsonb_build_object('status','wrong_account');end if;\n if coalesce((p_tx->>'amount_out')::numeric,0)<>0 then return jsonb_build_object('status','ignored');end if;\n tx_key:=regexp_replace(upper(coalesce(ref,tx_id)),'[^A-Z0-9]','','g');\n keys:=array[lower(coalesce(ref,tx_id)),lower(tx_id)];\n -- Serialize with invoice/wallet operations before taking external-key and row locks.\n perform pg_advisory_xact_lock(20261005,120000);\n perform pg_advisory_xact_lock(hashtext('server-sepay:'||tx_key));\n if exists(select 1 from sepay_server_transactions where transaction_key=tx_key or external_id=tx_id) then return jsonb_build_object('status','duplicate');end if;\n if occurred<cfg.sepay_started_at then return jsonb_build_object('status','historical');end if;\n if exists(select 1 from payment_event_keys where key=any(keys)) or exists(\n  select 1 from invoices i cross join lateral jsonb_array_elements(coalesce(i.payment_records,'[]')) p\n   where lower(btrim(p->>'external_ref'))=any(keys) or lower(btrim(p->>'external_id'))=any(keys)) then\n  state:='recorded';\n else\n  select array_agg(i.id) into ids from invoices i join rooms r on r.id=i.room_id\n  where i.payment_status not in ('cancelled','merged') and position(\n   'P'||coalesce(nullif(regexp_replace(r.name,'\\D','','g'),''),nullif(left(regexp_replace(upper(r.name),'[^A-Z0-9]','','g'),6),''),'XX')||\n   'T'||lpad(i.month::text,2,'0')||i.year||'C'||right(regexp_replace(upper(i.id),'[^A-Z0-9]','','g'),12)\n   in regexp_replace(upper(content),'[^A-Z0-9]','','g'))>0;\n  state:=case when coalesce(cardinality(ids),0)=0 then 'unmatched' when cardinality(ids)>1 then 'ambiguous' else 'partial' end;\n  if cardinality(ids)=1 then\n   select * into inv from invoices where id=ids[1] for update;\n   if amount=inv.total_amount-coalesce(inv.paid_amount,0) and inv.payment_status<>'paid' and inv.total_amount>0 then\n    select id into actor from users where role='admin' and status='active' order by created_at,id limit 1;\n    if actor is null then raise exception 'Chưa có quản trị viên để ghi nhận SePay.';end if;\n    saved_claims:=current_setting('request.jwt.claims',true);saved_sub:=current_setting('request.jwt.claim.sub',true);\n    perform set_config('request.jwt.claim.sub',actor::text,true);\n    perform set_config('request.jwt.claims',jsonb_build_object('sub',actor,'role','service_role')::text,true);\n    answer:=record_invoice_payment_atomic(inv.id,amount::integer,'transfer',(occurred at time zone 'Asia/Ho_Chi_Minh')::date,\n      'Thu qua SePay: '||content||' (Ref: '||coalesce(ref,tx_id)||')',ref,tx_id,'sepay');\n    perform set_config('request.jwt.claim.sub',coalesce(saved_sub,''),true);\n    perform set_config('request.jwt.claims',coalesce(saved_claims,'{}'),true);\n    if coalesce((answer->>'applied')::boolean,false) or coalesce((answer->>'duplicate')::boolean,false) then state:='recorded';\n    else raise exception 'Khoản thu SePay chưa được ghi nhận.';end if;\n    -- Complete the same settlement transition that Electron performs, atomically.\n    if (answer->>'transitioned_to_paid')::boolean and inv.is_settlement then\n     select * into ctr from contracts where room_id=inv.room_id and status='active' order by created_at desc limit 1 for update;\n     if ctr.id is not null and (ctr.tenant_id is null or ctr.tenant_id=inv.tenant_id) then\n      update rooms set status='vacant',tenant_name=null,tenant_phone=null,move_in_date=null,expected_end_date=null,\n       electric_old=inv.electric_new,electric_new=inv.electric_new,water_old=inv.water_new,water_new=inv.water_new,has_move_in_receipt=false\n       where id=inv.room_id and status='ending';\n      if found then update contracts set status='terminated',end_date=coalesce(inv.invoice_date,(occurred at time zone 'Asia/Ho_Chi_Minh')::date),\n       end_note=coalesce(inv.damage_note,inv.adjustment_note),final_electric=inv.electric_new,final_water=inv.water_new where id=ctr.id;end if;\n     end if;\n    end if;\n   else state:=case when amount<inv.total_amount-coalesce(inv.paid_amount,0) then 'partial' else 'over' end;end if;\n  end if;\n end if;\n insert into sepay_server_transactions(transaction_key,external_id,reference_number,amount,content,occurred_at,invoice_id,status)\n values(tx_key,tx_id,ref,amount,content,occurred,inv.id,state);\n if state<>'recorded' then\n  select name into matched_room from rooms where id=inv.room_id;\n  perform enqueue_server_email('sepay_unmatched',tx_key,jsonb_build_object('transactionKey',coalesce(ref,tx_id),'amount',amount,\n   'content',content,'roomName',matched_room,'reviewStatus',state,'invoiceId',inv.id));\n end if;\n return jsonb_build_object('status',state,'invoiceId',inv.id);\nend $function$\n"
+    },
+    {
+      "proname": "reconcile_wallet_balances",
+      "definition": "CREATE OR REPLACE FUNCTION public.reconcile_wallet_balances(p_bank bigint, p_cash bigint, p_expected_total bigint, p_reason text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare position jsonb; result public.wallet_reconciliations%rowtype; ids text[];\nbegin\n  if not exists(select 1 from public.users u where u.id = auth.uid() and u.status = 'active' and u.role = 'admin') then\n    raise exception 'Chỉ quản trị viên được xác nhận đối soát.' using errcode = '42501';\n  end if;\n  perform pg_advisory_xact_lock(20261005, 120000);\n  select * into result from public.wallet_reconciliations limit 1;\n  if found then\n    if result.bank_balance = p_bank and result.cash_balance = p_cash then return to_jsonb(result); end if;\n    raise exception 'Đã chốt số dư một lần. Không được điều chỉnh lặp lại.';\n  end if;\n  if p_bank is null or p_cash is null or p_bank < 0 or p_cash < 0 or nullif(btrim(p_reason), '') is null then\n    raise exception 'Số dư thực tế và lý do đối soát không hợp lệ.';\n  end if;\n  position := public.wallet_position();\n  if p_expected_total is null or (position->>'total')::bigint <> p_expected_total\n    or p_bank + p_cash <> p_expected_total then\n    raise exception 'Tổng sổ đã thay đổi hoặc số dư xác nhận không khớp tổng tiền. Tải lại và đối soát; không tự tạo tiền bù.';\n  end if;\n  select coalesce(array_agg(entry_id order by entry_id), '{}'::text[]) into ids from (\n    select 'cash-' || id as entry_id from public.cash_transactions\n    union all\n    select 'invoice-' || i.id || '-' || (p->>'id') from public.invoices i\n    cross join lateral jsonb_array_elements(coalesce(i.payment_records, '[]'::jsonb)) p\n  ) existing_entries;\n  if array_position(ids, null) is not null then raise exception 'Có thanh toán cũ thiếu mã lịch sử, cần kiểm tra trước khi khóa.'; end if;\n  insert into public.wallet_reconciliations(bank_balance, cash_balance, bank_balance_before, cash_balance_before,\n    total_before, entry_ids, confirmed_by, reason)\n  values(p_bank, p_cash, (position->>'bank')::bigint, (position->>'cash')::bigint, p_expected_total, ids, auth.uid(), btrim(p_reason))\n  returning * into result;\n  return to_jsonb(result);\nend;\n$function$\n"
+    },
+    {
+      "proname": "record_invoice_payment_atomic",
+      "definition": "CREATE OR REPLACE FUNCTION public.record_invoice_payment_atomic(p_invoice_id text, p_amount integer, p_payment_method text, p_payment_date date, p_note text DEFAULT NULL::text, p_external_ref text DEFAULT NULL::text, p_external_id text DEFAULT NULL::text, p_source text DEFAULT NULL::text)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  actor_id uuid := auth.uid();\n  invoice_row public.invoices%rowtype;\n  updated_row public.invoices%rowtype;\n  event_id uuid;\n  duplicate_invoice_id text;\n  ref_key text := nullif(lower(btrim(p_external_ref)), '');\n  id_key text := nullif(lower(btrim(p_external_id)), '');\n  current_paid integer;\n  new_paid integer;\n  next_status text;\n  payment_record jsonb;\n  transitioned_to_paid boolean;\nbegin\n  if actor_id is null or not exists (\n    select 1\n    from public.users as u\n    where u.id = actor_id and u.status = 'active'\n  ) then\n    raise exception 'Phiên đăng nhập không hợp lệ hoặc tài khoản đã bị vô hiệu hóa.'\n      using errcode = '42501';\n  end if;\n\n  if p_amount is null or p_amount = 0 then\n    raise exception 'Số tiền thu không hợp lệ.';\n  end if;\n\n  if p_payment_method not in ('cash', 'transfer') then\n    raise exception 'Phương thức thanh toán không hợp lệ.';\n  end if;\n\n  if p_payment_date is null then\n    raise exception 'Ngày thanh toán không hợp lệ.';\n  end if;\n\n  if lower(coalesce(p_source, '')) = 'sepay' and ref_key is null and id_key is null then\n    raise exception 'Giao dịch SePay thiếu mã đối soát.';\n  end if;\n\n  select *\n  into invoice_row\n  from public.invoices\n  where id = p_invoice_id\n  for update;\n\n  if not found then\n    raise exception 'Không tìm thấy hóa đơn.';\n  end if;\n\n  if invoice_row.payment_status in ('cancelled', 'merged') then\n    raise exception 'Không thể ghi nhận tiền vào hóa đơn đã hủy hoặc đã gộp.';\n  end if;\n\n  -- Detect keys already stored in legacy JSON payment records without altering them.\n  if ref_key is not null or id_key is not null then\n    select i.id\n    into duplicate_invoice_id\n    from public.invoices as i\n    cross join lateral jsonb_array_elements(\n      case\n        when jsonb_typeof(i.payment_records) = 'array' then i.payment_records\n        else '[]'::jsonb\n      end\n    ) as record(value)\n    where (\n      ref_key is not null\n      and ref_key in (\n        nullif(lower(btrim(record.value->>'external_ref')), ''),\n        nullif(lower(btrim(record.value->>'external_id')), '')\n      )\n    ) or (\n      id_key is not null\n      and id_key in (\n        nullif(lower(btrim(record.value->>'external_ref')), ''),\n        nullif(lower(btrim(record.value->>'external_id')), '')\n      )\n    )\n    limit 1;\n\n    if duplicate_invoice_id is not null then\n      if duplicate_invoice_id = p_invoice_id then\n        return jsonb_build_object(\n          'invoice', to_jsonb(invoice_row),\n          'applied', false,\n          'duplicate', true,\n          'transitioned_to_paid', false\n        );\n      end if;\n      raise exception 'Giao dịch này đã được ghi nhận cho một hóa đơn khác.';\n    end if;\n\n    select k.invoice_id\n    into duplicate_invoice_id\n    from public.payment_event_keys as k\n    where k.key in (ref_key, id_key)\n    limit 1;\n\n    if duplicate_invoice_id is not null then\n      if duplicate_invoice_id = p_invoice_id then\n        return jsonb_build_object(\n          'invoice', to_jsonb(invoice_row),\n          'applied', false,\n          'duplicate', true,\n          'transitioned_to_paid', false\n        );\n      end if;\n      raise exception 'Giao dịch này đã được ghi nhận cho một hóa đơn khác.';\n    end if;\n  end if;\n\n  if invoice_row.payment_status = 'paid' then\n    return jsonb_build_object(\n      'invoice', to_jsonb(invoice_row),\n      'applied', false,\n      'duplicate', false,\n      'transitioned_to_paid', false\n    );\n  end if;\n\n  current_paid := coalesce(invoice_row.paid_amount, 0);\n  new_paid := current_paid + p_amount;\n\n  if coalesce(invoice_row.total_amount, 0) > 0 then\n    if p_amount < 0 or new_paid > invoice_row.total_amount then\n      raise exception 'Số tiền vượt quá số tiền còn phải thu của hóa đơn.';\n    end if;\n    next_status := case when new_paid = invoice_row.total_amount then 'paid' else 'partial' end;\n  elsif coalesce(invoice_row.total_amount, 0) < 0 then\n    if p_amount > 0 or new_paid < invoice_row.total_amount then\n      raise exception 'Số tiền hoàn vượt quá giá trị phải hoàn của hóa đơn.';\n    end if;\n    next_status := case when new_paid = invoice_row.total_amount then 'paid' else 'partial' end;\n  else\n    raise exception 'Hóa đơn có tổng tiền bằng 0, không thể ghi nhận thêm thanh toán.';\n  end if;\n\n  begin\n    insert into public.payment_events (\n      invoice_id, amount, payment_method, payment_date, note,\n      external_ref, external_id, source, created_by\n    )\n    values (\n      p_invoice_id, p_amount, p_payment_method, p_payment_date, p_note,\n      nullif(btrim(p_external_ref), ''), nullif(btrim(p_external_id), ''),\n      nullif(btrim(p_source), ''), actor_id\n    )\n    returning id into event_id;\n\n    insert into public.payment_event_keys (key, event_id, invoice_id)\n    select distinct candidate.key, event_id, p_invoice_id\n    from (\n      values (ref_key), (id_key)\n    ) as candidate(key)\n    where candidate.key is not null\n    order by candidate.key;\n  exception\n    when unique_violation then\n      select k.invoice_id\n      into duplicate_invoice_id\n      from public.payment_event_keys as k\n      where k.key in (ref_key, id_key)\n      limit 1;\n\n      if duplicate_invoice_id = p_invoice_id then\n        return jsonb_build_object(\n          'invoice', to_jsonb(invoice_row),\n          'applied', false,\n          'duplicate', true,\n          'transitioned_to_paid', false\n        );\n      end if;\n      raise exception 'Giao dịch này đã được ghi nhận cho một hóa đơn khác.';\n  end;\n\n  payment_record := jsonb_strip_nulls(jsonb_build_object(\n    'id', 'pay-' || replace(gen_random_uuid()::text, '-', ''),\n    'amount', p_amount,\n    'payment_method', p_payment_method,\n    'payment_date', p_payment_date,\n    'note', p_note,\n    'external_ref', nullif(btrim(p_external_ref), ''),\n    'external_id', nullif(btrim(p_external_id), ''),\n    'source', nullif(btrim(p_source), ''),\n    'created_at', now()\n  ));\n\n  transitioned_to_paid := invoice_row.payment_status is distinct from 'paid' and next_status = 'paid';\n\n  update public.invoices\n  set paid_amount = new_paid,\n      payment_status = next_status,\n      payment_method = p_payment_method,\n      payment_date = p_payment_date,\n      payment_records = coalesce(payment_records, '[]'::jsonb) || jsonb_build_array(payment_record)\n  where id = p_invoice_id\n  returning * into updated_row;\n\n  return jsonb_build_object(\n    'invoice', to_jsonb(updated_row),\n    'applied', true,\n    'duplicate', false,\n    'transitioned_to_paid', transitioned_to_paid\n  );\nend;\n$function$\n"
+    },
+    {
+      "proname": "transfer_between_wallets",
+      "definition": "CREATE OR REPLACE FUNCTION public.transfer_between_wallets(p_source text, p_amount bigint, p_request_id text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare position jsonb; existing public.wallet_transfer_requests%rowtype; target text; note text;\nbegin\n  if not exists(select 1 from public.users u where u.id = auth.uid() and u.status = 'active' and u.role = 'admin') then\n    raise exception 'Chỉ quản trị viên được ghi chuyển giữa các ví.' using errcode = '42501';\n  end if;\n  perform pg_advisory_xact_lock(20261005, 120000);\n  if p_source is null or p_source not in ('cash', 'transfer') or p_amount is null or p_amount <= 0 or nullif(btrim(p_request_id), '') is null then\n    raise exception 'Thông tin chuyển ví không hợp lệ.';\n  end if;\n  select * into existing from public.wallet_transfer_requests where id = p_request_id;\n  if found then\n    if existing.source = p_source and existing.amount = p_amount and existing.created_by = auth.uid() then return; end if;\n    raise exception 'Mã chuyển ví đã được sử dụng.';\n  end if;\n  position := public.wallet_position();\n  if (position->>'unknown_count')::bigint > 0 or (position->>'cash')::bigint < 0 or (position->>'bank')::bigint < 0 then\n    raise exception 'Phải đối soát số dư cũ trước khi chuyển giữa các ví.';\n  end if;\n  if p_amount > (position->>(case when p_source = 'cash' then 'cash' else 'bank' end))::bigint then\n    raise exception 'Ví nguồn không đủ tiền.';\n  end if;\n  target := case when p_source = 'cash' then 'transfer' else 'cash' end;\n  note := 'Chuyển giữa các ví: ' || case when p_source = 'cash' then 'Tiền mặt → Ngân hàng' else 'Ngân hàng → Tiền mặt' end;\n  insert into public.wallet_transfer_requests(id, source, amount, created_by) values(p_request_id, p_source, p_amount, auth.uid());\n  insert into public.cash_transactions(id, type, category, transaction_date, amount, payment_method, note, created_at, updated_at)\n  values ('wallet-out-' || p_request_id, 'expense', 'wallet_transfer', now(), p_amount, p_source, note, now(), now()),\n    ('wallet-in-' || p_request_id, 'income', 'wallet_transfer', now(), p_amount, target, note, now(), now());\nend;\n$function$\n"
+    },
+    {
+      "proname": "wallet_position",
+      "definition": "CREATE OR REPLACE FUNCTION public.wallet_position()\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  checkpoint public.wallet_reconciliations%rowtype;\n  settings public.app_settings%rowtype;\n  basis public.wallet_accounting_basis%rowtype;\n  bank_amount bigint;\n  cash_amount bigint;\n  unknown_amount bigint;\n  unknown_count bigint;\nbegin\n  select * into checkpoint from public.wallet_reconciliations limit 1;\n  select * into settings from public.app_settings limit 1;\n  select * into basis from public.wallet_accounting_basis limit 1;\n  select coalesce(sum(e.delta) filter (where e.method = 'transfer'), 0),\n    coalesce(sum(e.delta) filter (where e.method = 'cash'), 0),\n    coalesce(sum(e.delta) filter (where e.method = 'unknown'), 0),\n    count(*) filter (where e.method = 'unknown')\n  into bank_amount, cash_amount, unknown_amount, unknown_count\n  from public.wallet_ledger_entries() e\n  where case when basis.id is not null then e.entry_date >= basis.starts_on::text\n    when checkpoint.id is not null then not (e.entry_id = any(checkpoint.entry_ids))\n    else settings.opening_balance_date is null or e.entry_date >= settings.opening_balance_date::text end;\n  bank_amount := bank_amount + case when basis.id is not null then 0 else coalesce(checkpoint.bank_balance, settings.opening_balance_bank, 0) end;\n  cash_amount := cash_amount + case when basis.id is not null then 0 else coalesce(checkpoint.cash_balance, settings.opening_balance_cash, 0) end;\n  return jsonb_build_object('bank', bank_amount, 'cash', cash_amount, 'unknown', unknown_amount,\n    'unknown_count', unknown_count, 'total', bank_amount + cash_amount + unknown_amount);\nend;\n$function$\n"
+    }
+  ],
+  "edgeFunctions": [
+    {
+      "name": "admin-sepay-bridge",
+      "version": 16,
+      "status": "ACTIVE",
+      "verifyJwt": true
+    },
+    {
+      "name": "send-email-notification",
+      "version": 17,
+      "status": "ACTIVE",
+      "verifyJwt": false
+    },
+    {
+      "name": "email-automation",
+      "version": 9,
+      "status": "ACTIVE",
+      "verifyJwt": false
+    },
+    {
+      "name": "sepay-webhook",
+      "version": 5,
+      "status": "ACTIVE",
+      "verifyJwt": false
+    },
+    {
+      "name": "admin-pwa-sepay",
+      "version": 4,
+      "status": "ACTIVE",
+      "verifyJwt": false
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "verifiedAt": "2026-10-08T09:07:03.058Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "slug": "admin-pwa-market",
+  "version": 1,
+  "status": "ACTIVE",
+  "checks": [
+    {
+      "case": "anonymous",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "case": "invalid-session",
+      "status": 401,
+      "rejected": true
+    },
+    {
+      "case": "untrusted-origin",
+      "status": 403,
+      "rejected": true
+    }
+  ],
+  "upstream": [
+    {
+      "symbol": "VFF",
+      "ok": true,
+      "priceVnd": 27034.63,
+      "quotedAt": "2026-10-06",
+      "source": "Fmarket · NAV công bố gần nhất"
+    },
+    {
+      "symbol": "SSIBF",
+      "ok": true,
+      "priceVnd": 17122.59,
+      "quotedAt": "2026-10-08",
+      "source": "Fmarket · NAV công bố gần nhất"
+    },
+    {
+      "symbol": "VNDBF",
+      "ok": true,
+      "priceVnd": 16374.16,
+      "quotedAt": "2026-10-08",
+      "source": "Fmarket · NAV công bố gần nhất"
+    },
+    {
+      "symbol": "VLBF",
+      "ok": true,
+      "priceVnd": 12796.59,
+      "quotedAt": "2026-10-08",
+      "source": "Fmarket · NAV công bố gần nhất"
+    }
+  ],
+  "unrelatedFunctionsUnchanged": true,
+  "limitations": [
+    "Authorized HTTP management-session quote remains unverified.",
+    "No emails, money transfers, frontend publication or DNS mutations were performed."
+  ]
+}

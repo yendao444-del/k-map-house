@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-08T08:58:19.361Z",
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-lite",
+  "results": [
+    {
+      "meter": "electric",
+      "reading": 12692,
+      "expected": 12692,
+      "elapsedMs": 3065
+    },
+    {
+      "meter": "water",
+      "reading": 287,
+      "expected": 287,
+      "elapsedMs": 2816
+    }
+  ],
+  "wrongMeterRejected": true,
+  "businessDataChanged": false
+}

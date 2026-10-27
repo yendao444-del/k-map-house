@@ -1,0 +1,305 @@
+[
+  {
+    "id": "01-xac-nhan-hop-dong",
+    "name": "Xác nhận hợp đồng",
+    "audience": "Khách thuê",
+    "headline": "XÁC NHẬN HỢP ĐỒNG",
+    "tone": "emerald",
+    "illustration": "cream apartment building, rental contract and green key",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Hợp đồng thuê Phòng 999 đã sẵn sàng để bạn xem và xác nhận.",
+    "facts": [
+      ["Phòng", "Phòng 999"],
+      ["Ngày bắt đầu", "09/10/2026"]
+    ],
+    "closing": "Vui lòng kiểm tra thông tin cá nhân và điều khoản trước khi xác nhận.",
+    "cta": "Xem và xác nhận hợp đồng",
+    "note": "Link có hiệu lực 72 giờ và chỉ sử dụng một lần."
+  },
+  {
+    "id": "02-thanh-toan-thanh-cong",
+    "name": "Thanh toán thành công · Khách thuê",
+    "audience": "Khách thuê",
+    "headline": "THANH TOÁN THÀNH CÔNG",
+    "tone": "emerald",
+    "illustration": "cream apartment building, receipt and prominent green confirmation checkmark",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Khoản thanh toán của bạn đã được ghi nhận và khớp với hóa đơn.",
+    "highlight": ["Đã thanh toán", "2.534.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Kỳ hóa đơn", "10/2026"],
+      ["Ngày thanh toán", "09/10/2026"],
+      ["Mã giao dịch", "GD-MAU-221-1009"],
+      ["Kênh", "SePay"]
+    ],
+    "invoice": true,
+    "closing": "Cảm ơn bạn đã thanh toán. Hóa đơn đã được thanh toán đầy đủ."
+  },
+  {
+    "id": "03-bien-nhan-chu-nha",
+    "name": "Đã nhận thanh toán · Chủ nhà",
+    "audience": "Tài khoản hệ thống / Chủ nhà",
+    "headline": "ĐÃ NHẬN THANH TOÁN",
+    "tone": "emerald",
+    "illustration": "cream apartment building, receipt ledger and green bank confirmation checkmark",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Phòng 221 vừa thanh toán thành công. Khoản thu đã được ghi nhận qua SePay.",
+    "highlight": ["Khoản thu đã ghi nhận", "2.534.000 đ"],
+    "facts": [
+      ["Người thuê", "Nguyễn Minh Anh"],
+      ["Phòng", "Phòng 221"],
+      ["Kỳ hóa đơn", "10/2026"],
+      ["Mã giao dịch", "GD-MAU-221-1009"]
+    ],
+    "invoice": true,
+    "closing": "Biên nhận này giúp bạn theo dõi khoản thu và lưu hóa đơn của phòng."
+  },
+  {
+    "id": "04-giao-dich-chua-khop",
+    "name": "Giao dịch SePay chưa khớp",
+    "audience": "Tài khoản hệ thống",
+    "headline": "GIAO DỊCH CHƯA KHỚP",
+    "tone": "red",
+    "illustration": "cream apartment building, receipt, red warning triangle and magnifying glass",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Hệ thống đã nhận được giao dịch nhưng chưa xác định được hóa đơn tương ứng.",
+    "highlight": ["Số tiền nhận được", "2.534.000 đ"],
+    "facts": [
+      ["Trạng thái", "Cần đối soát"],
+      ["Mã giao dịch", "GD-MAU-1009"],
+      ["Nội dung", "Thanh toan tien phong"],
+      ["Kênh", "SePay"]
+    ],
+    "closing": "Khoản tiền chưa được ghi nhận vào hóa đơn. Vui lòng kiểm tra trong mục Đồng bộ SePay."
+  },
+  {
+    "id": "05-chuyen-thieu",
+    "name": "Chuyển thiếu tiền · Chưa duyệt",
+    "audience": "Tài khoản hệ thống",
+    "headline": "CHUYỂN THIẾU CẦN ĐỐI SOÁT",
+    "tone": "red",
+    "illustration": "cream apartment building, receipt, incomplete amount comparison and warning symbol",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Giao dịch có đúng mã hóa đơn nhưng số tiền chuyển còn thiếu.",
+    "highlight": ["Còn thiếu so với hóa đơn", "534.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Cần thanh toán", "2.534.000 đ"],
+      ["Đã chuyển", "2.000.000 đ"],
+      ["Trạng thái", "Chờ đối soát"]
+    ],
+    "closing": "Chưa tự động ghi nhận thanh toán. Vui lòng kiểm tra trước khi duyệt khoản thu một phần."
+  },
+  {
+    "id": "06-chuyen-du",
+    "name": "Chuyển dư tiền · Cần đối soát",
+    "audience": "Tài khoản hệ thống",
+    "headline": "CHUYỂN DƯ CẦN ĐỐI SOÁT",
+    "tone": "red",
+    "illustration": "cream apartment building, receipt, extra coin stack and red review magnifier",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Số tiền chuyển khoản lớn hơn số tiền còn phải thanh toán của hóa đơn.",
+    "highlight": ["Số tiền chênh lệch", "466.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Cần thanh toán", "2.534.000 đ"],
+      ["Đã chuyển", "3.000.000 đ"],
+      ["Trạng thái", "Chờ đối soát"]
+    ],
+    "closing": "Vui lòng xác định cách xử lý phần dư trước khi ghi nhận khoản thu."
+  },
+  {
+    "id": "07-khop-nhieu-hoa-don",
+    "name": "Giao dịch khớp nhiều hóa đơn",
+    "audience": "Tài khoản hệ thống",
+    "headline": "KHỚP NHIỀU HÓA ĐƠN",
+    "tone": "red",
+    "illustration": "cream apartment building, two invoice sheets, red magnifying glass and warning triangle",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Nội dung giao dịch có nhiều mã hóa đơn. Hệ thống chưa thể xác định hóa đơn nhận tiền.",
+    "highlight": ["Số tiền nhận được", "2.534.000 đ"],
+    "facts": [
+      ["Mã giao dịch", "GD-MAU-1009"],
+      ["Hóa đơn tham chiếu", "Phòng 221 · Phòng 222"],
+      ["Trạng thái", "Cần chọn đúng hóa đơn"]
+    ],
+    "closing": "Chưa ghi nhận vào công nợ của phòng nào. Vui lòng đối soát giao dịch trước khi duyệt."
+  },
+  {
+    "id": "08-da-ghi-nhan-mot-phan",
+    "name": "Đã ghi nhận thanh toán một phần",
+    "audience": "Khách thuê / Bản sao chủ nhà",
+    "headline": "ĐÃ GHI NHẬN THANH TOÁN",
+    "tone": "amber/gold across the ENTIRE BANNER BACKGROUND and amount emphasis. For this partial-payment template replace the reference's emerald banner with amber/gold. Never use an emerald or green banner background here. Keep only the original logo green/navy and subtle green illustration details. This must look immediately distinct from the paid-in-full success email",
+    "illustration": "cream apartment building and receipt with green checkmark indicating an installment, not paid in full",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Khoản thanh toán một phần của bạn đã được duyệt và ghi nhận.",
+    "highlight": ["Đã ghi nhận", "2.000.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Tổng hóa đơn", "2.534.000 đ"],
+      ["Còn phải thanh toán", "534.000 đ"],
+      ["Mã giao dịch", "GD-MAU-221-1009"]
+    ],
+    "closing": "Hóa đơn vẫn còn dư nợ 534.000 đ. Vui lòng thanh toán phần còn lại."
+  },
+  {
+    "id": "09-hoa-don-va-dich-vu",
+    "name": "Hóa đơn và dịch vụ",
+    "audience": "Khách thuê / Tài khoản hệ thống",
+    "headline": "HÓA ĐƠN VÀ DỊCH VỤ",
+    "tone": "blue",
+    "illustration": "cream apartment building, crisp invoice, electric meter, water drop and wifi utility icons",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Hóa đơn tháng 10/2026 của Phòng 221 đã sẵn sàng.",
+    "highlight": ["Cần thanh toán", "2.534.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Kỳ hóa đơn", "10/2026"],
+      ["Hạn thanh toán", "15/10/2026"]
+    ],
+    "invoice": true,
+    "unpaid": true,
+    "closing": "Vui lòng kiểm tra các khoản phí và thanh toán đúng hạn."
+  },
+  {
+    "id": "10-tien-phong-qua-han",
+    "name": "Tiền phòng quá hạn",
+    "audience": "Tài khoản hệ thống",
+    "headline": "TIỀN PHÒNG QUÁ HẠN",
+    "tone": "amber",
+    "illustration": "cream apartment building, amber calendar and invoice with restrained overdue clock",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Phòng 221 còn khoản tiền phòng đã quá hạn thanh toán.",
+    "highlight": ["Còn phải thu", "2.534.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Hạn thanh toán", "05/10/2026"],
+      ["Đã quá hạn", "4 ngày"]
+    ],
+    "closing": "Vui lòng liên hệ người thuê và theo dõi khoản công nợ này."
+  },
+  {
+    "id": "11-lau-chua-thanh-toan",
+    "name": "Lâu chưa thanh toán · Bản gọn",
+    "audience": "Tài khoản hệ thống",
+    "headline": "LÂU CHƯA THANH TOÁN",
+    "tone": "orange",
+    "illustration": "minimal cream apartment building, one unpaid invoice and calendar clock; fewer decorations",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Công nợ Phòng 221 đã quá hạn 30 ngày.",
+    "highlight": ["Còn phải thu", "2.534.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Hạn thanh toán", "09/09/2026"]
+    ],
+    "closing": "Vui lòng liên hệ người thuê để xử lý công nợ.",
+    "compact": true
+  },
+  {
+    "id": "12-nhac-no-cu",
+    "name": "Nhắc khoản nợ cũ",
+    "audience": "Tài khoản hệ thống",
+    "headline": "NHẮC KHOẢN NỢ CŨ",
+    "tone": "amber",
+    "illustration": "compact cream apartment building, one old invoice sheet and calendar bookmark",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Phòng 221 còn khoản nợ cũ chưa thanh toán.",
+    "highlight": ["Nợ cũ còn phải thu", "500.000 đ"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Nguồn nợ", "Nợ cũ đã xác nhận"]
+    ],
+    "closing": "Khoản nợ này cần được theo dõi cùng các hóa đơn mới của phòng.",
+    "compact": true
+  },
+  {
+    "id": "13-den-han-tra-phong",
+    "name": "Phòng đến hạn trả",
+    "audience": "Tài khoản hệ thống",
+    "headline": "ĐẾN HẠN TRẢ PHÒNG",
+    "tone": "violet",
+    "illustration": "cream apartment doorway, keys on document and moving box with calendar",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Phòng 221 đã đến ngày dự kiến trả phòng.",
+    "highlight": ["Hạn trả phòng", "09/10/2026"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Người thuê", "Nguyễn Minh Anh"],
+      ["Trạng thái", "Chờ kiểm tra bàn giao"]
+    ],
+    "closing": "Vui lòng kiểm tra kế hoạch bàn giao và các khoản cần quyết toán."
+  },
+  {
+    "id": "14-hop-dong-sap-het-han",
+    "name": "Hợp đồng sắp hết hạn",
+    "audience": "Tài khoản hệ thống",
+    "headline": "HỢP ĐỒNG SẮP HẾT HẠN",
+    "tone": "violet",
+    "illustration": "cream apartment building, contract document and calendar page indicating upcoming date",
+    "greeting": "Xin chào Chủ nhà,",
+    "message": "Hợp đồng Phòng 221 sắp hết hạn.",
+    "highlight": ["Thời gian còn lại", "7 ngày"],
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Người thuê", "Nguyễn Minh Anh"],
+      ["Ngày hết hạn", "16/10/2026"]
+    ],
+    "closing": "Vui lòng liên hệ người thuê để thống nhất gia hạn hoặc bàn giao phòng."
+  },
+  {
+    "id": "15-den-ky-thanh-toan",
+    "name": "Đến kỳ thanh toán",
+    "audience": "Khách thuê",
+    "headline": "ĐẾN KỲ THANH TOÁN",
+    "tone": "blue",
+    "illustration": "cream apartment building, electric and water meters, a simple round still-photo camera icon (same kind as a mobile phone camera app icon), and calendar. NEVER draw a CCTV or surveillance camera. This is a start-of-month reminder before an invoice exists; avoid invoice sheets, success checkmarks, paid stamps or transaction amounts",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Đã đến kỳ thanh toán của Phòng 221. Vui lòng vào pay.phongtroankhang.com để bắt đầu.",
+    "facts": [
+      ["Phòng", "Phòng 221"],
+      ["Kỳ thanh toán", "10/2026"]
+    ],
+    "closing": "Bạn cần chụp số điện và nước trước. Sau khi hệ thống cập nhật chỉ số, hóa đơn sẽ được lập để bạn kiểm tra và thanh toán.",
+    "cta": "Bắt đầu thanh toán",
+    "note": "pay.phongtroankhang.com",
+    "instructions": "This email only invites the tenant to begin the monthly workflow on https://pay.phongtroankhang.com. The invoice DOES NOT EXIST YET. Do not show an invoice table, balance, amount, deadline, QR or a paid status. Exactly two fact rows: room and payment period. Preserve the reference hierarchy; explain camera meter reading before invoice generation before payment using only the supplied concise body. The CTA opens pay.phongtroankhang.com."
+  },
+  {
+    "id": "16-xac-nhan-sua-hop-dong",
+    "name": "Xác nhận bản sửa hợp đồng",
+    "audience": "Khách thuê",
+    "headline": "XÁC NHẬN BẢN SỬA",
+    "tone": "emerald",
+    "illustration": "cream apartment building, contract with tasteful pencil and two document versions",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Bản sửa hợp đồng Phòng 999 đã sẵn sàng để bạn xem và xác nhận.",
+    "facts": [
+      ["Phòng", "Phòng 999"],
+      ["Phiên bản", "Bản sửa 02"],
+      ["Ngày gửi", "09/10/2026"]
+    ],
+    "closing": "Hợp đồng hiện tại vẫn có hiệu lực đến khi bạn xác nhận bản sửa. Vui lòng kiểm tra các thay đổi trước khi đồng ý.",
+    "cta": "Xem và xác nhận bản sửa",
+    "note": "Link có hiệu lực 72 giờ và chỉ sử dụng một lần."
+  },
+  {
+    "id": "17-thong-bao-huy-hop-dong",
+    "name": "Thông báo hủy hợp đồng do lập nhầm",
+    "audience": "Khách thuê",
+    "headline": "THÔNG BÁO HỦY HỢP ĐỒNG",
+    "tone": "slate",
+    "illustration": "cream apartment building and clearly inactive contract document, neutral cancellation symbol",
+    "greeting": "Xin chào Nguyễn Minh Anh,",
+    "message": "Hợp đồng Phòng 999 đã được hủy do lập nhầm.",
+    "facts": [
+      ["Phòng", "Phòng 999"],
+      ["Mã hợp đồng", "HD-MAU-999"],
+      ["Thời điểm hủy", "09/10/2026 · 10:00"],
+      ["Lý do", "Lập nhầm thông tin hợp đồng"]
+    ],
+    "closing": "Bản hợp đồng và link xác nhận cũ không còn hiệu lực. Bạn không cần xác nhận hay thao tác thêm.",
+    "compact": true
+  }
+]

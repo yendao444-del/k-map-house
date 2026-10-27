@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-13T04:47:05.139Z",
+  "installer": "dist/DBYHOME-1.0.100-setup.exe",
+  "installerBytes": 142366989,
+  "sha256": "70bd96c8d454cae6e4a09d752412552d8b656f924aacc4bfb2a4b8f0002d49f0",
+  "entry": "out/renderer/assets/index-4nB2s7Kg.js",
+  "bundleMatchesBuild": true,
+  "loginMarkersPresent": true,
+  "automaticUpdatePublished": false
+}

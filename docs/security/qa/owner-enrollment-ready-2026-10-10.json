@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-10T03:34:00Z",
+  "url": "https://app.phongtroankhang.com/",
+  "surface": "Hồ sơ → Bảo mật",
+  "ownerEnrollmentActionVisible": true,
+  "stateText": "Google Authenticator chưa bật",
+  "customerDataChanged": false,
+  "secretsLogged": false,
+  "nextOwnerAction": "Scan QR, enter the current TOTP, and acknowledge the one-time recovery bundle in the visible security panel."
+}

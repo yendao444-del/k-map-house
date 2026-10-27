@@ -25,19 +25,32 @@ export function authService(env, rpc, fetcher = fetch) {
       const tenant = await api(`/rest/v1/tenants?id=eq.${encodeURIComponent(row.tenant_id)}&select=id,full_name,is_active`)
       if (!tenant.response.ok) throw fail('Chưa tải được thông tin khách thuê.', 503)
       if (!tenant.data?.[0]?.is_active) throw fail('Tài khoản khách thuê đã ngừng hoạt động.', 403)
-      const contracts = await api(`/rest/v1/contracts?tenant_id=eq.${encodeURIComponent(row.tenant_id)}&status=eq.active&select=id,room_id,move_in_date,base_rent&order=created_at.desc&limit=2`)
+      const contracts = await api(`/rest/v1/contracts?tenant_id=eq.${encodeURIComponent(row.tenant_id)}&status=eq.active&select=id,room_id,move_in_date,base_rent,electric_init,water_init,invoice_day&order=created_at.desc&limit=2`)
       if (!contracts.response.ok) throw fail('Chưa tải được hợp đồng.', 503)
       if (contracts.data.length > 1) throw fail('Hồ sơ có nhiều hợp đồng đang hoạt động. Vui lòng liên hệ chủ nhà.', 409)
       const contract = contracts.data[0]
-      let room
+      let room, assets = [], services = null
       if (contract) {
-        const rooms = await api(`/rest/v1/rooms?id=eq.${encodeURIComponent(contract.room_id)}&select=name,floor,area`)
+        const rooms = await api(`/rest/v1/rooms?id=eq.${encodeURIComponent(contract.room_id)}&select=name,floor,area,service_zone_id`)
         if (!rooms.response.ok || !rooms.data?.[0]) throw fail('Chưa tải được thông tin phòng.', 503)
         room = rooms.data[0]
+        // Derive the scope from the active contract, never a browser room ID.
+        // Only current inventory fields are exposed, without staff notes,
+        // repair contacts, prices, or another tenant's handover history.
+        const inventory = await api(`/rest/v1/room_assets?room_id=eq.${encodeURIComponent(contract.room_id)}&select=id,name,quantity,type,status&order=sort_order.asc,id.asc`).catch(() => null)
+        assets = inventory?.response.ok && Array.isArray(inventory.data) ? inventory.data.map(item => ({ id: item.id, name: item.name, quantity: item.quantity, type: item.type, status: item.status })) : null
+        if (room.service_zone_id) {
+          const rates = await api(`/rest/v1/service_zones?id=eq.${encodeURIComponent(room.service_zone_id)}&select=electric_price,water_price,internet_price,cleaning_price`).catch(() => null)
+          services = rates?.response.ok && rates.data?.[0] ? {
+            electricPrice: rates.data[0].electric_price, waterPrice: rates.data[0].water_price,
+            internetPrice: rates.data[0].internet_price, cleaningPrice: rates.data[0].cleaning_price
+          } : null
+        }
       }
       return { mode: 'tenant', kind: 'existing', accountVersion: row.session_version, name: tenant.data[0].full_name, tenantId: row.tenant_id, email: row.email, userId: user.id,
         room: room?.name || '', floor: room?.floor ?? null, area: room?.area ?? null, rent: contract?.base_rent ?? null,
-        contractId: contract?.id || '', start: contract?.move_in_date || '' }
+        contractId: contract?.id || '', start: contract?.move_in_date || '', assets, services,
+        electricInitial: contract?.electric_init ?? null, waterInitial: contract?.water_init ?? null, invoiceDay: contract?.invoice_day ?? null }
     }
     const { response, data } = await api(`/rest/v1/webmobile_demo_accounts?user_id=eq.${encodeURIComponent(user.id)}&active=eq.true&select=tenant_kind,contract_id`)
     if (!response.ok) throw fail('Chưa kiểm tra được quyền tài khoản.', 503)

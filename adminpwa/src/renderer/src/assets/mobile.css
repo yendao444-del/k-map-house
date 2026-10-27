@@ -1,0 +1,306 @@
+/* Responsive presentation layer. The Electron theme above remains the source
+   of truth; these overrides live exclusively in the management PWA copy. */
+html, body, #root { height: 100%; }
+#root, .pwa-app { height: 100dvh; }
+#root { display: flex; flex-direction: column; }
+#root > .pwa-app, #root > .pwa-login { flex: 1; min-height: 0; }
+.pwa-app { background: var(--brand-canvas); }
+.app-titlebar-drag { -webkit-app-region: no-drag; }
+button, a, input, select, textarea { touch-action: manipulation; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--brand-primary); outline-offset: 3px; }
+.pwa-bottom-nav, .pwa-mobile-menu-backdrop { display: none; }
+.pwa-status { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 12px; flex: none; background: #fffbeb; color: #92400e; font-size: 12px; border-bottom: 1px solid #fde68a; }
+.pwa-update-gate { position: fixed; inset: 0; z-index: 2147483000; }
+.pwa-update-trigger-wrap { position: fixed; top: 10px; right: 148px; z-index: 2; display: flex; align-items: center; gap: 7px; }
+.pwa-update-trigger { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px; border: 1px solid #10b981; border-radius: 10px; background: #f0fdf9; color: #064e3b; box-shadow: 0 0 0 2px #10b98126, 0 8px 18px #064e3b24; font-size: 12px; font-weight: 750; white-space: nowrap; transition: background .18s ease, transform .18s ease, box-shadow .18s ease; }
+.pwa-update-label-compact { display: none; }
+.pwa-update-trigger:hover { background: #d1fae5; transform: translateY(-1px); box-shadow: 0 0 0 3px #10b98138, 0 10px 20px #064e3b2e; }
+.pwa-update-trigger:focus-visible { outline: 3px solid #34d399; outline-offset: 3px; }
+.pwa-update-trigger:disabled { cursor: wait; opacity: .78; transform: none; }
+.pwa-update-required-badge { padding: 7px 9px; border-radius: 9px; background: #0b1738; color: white; box-shadow: 0 7px 16px #0b17384a; font-size: 10px; font-weight: 800; white-space: nowrap; }
+.pwa-update-lock { position: fixed; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; padding: 24px; background: #0b173894; backdrop-filter: blur(.5px); }
+.pwa-update-lock-content { width: min(440px, 100%); margin-top: 8vh; text-align: center; color: white; }
+.pwa-update-lock-icon { display: grid; place-items: center; width: 100px; height: 100px; margin: 0 auto 30px; border: 1px solid #ffffff52; border-radius: 999px; background: #ffffff26; box-shadow: 0 12px 30px #06132f3d; }
+.pwa-update-lock-content h2 { margin: 0; font-size: clamp(18px, 2vw, 21px); font-weight: 750; letter-spacing: -.015em; }
+.pwa-update-lock-content p { margin: 8px auto 0; max-width: 390px; color: #e2e8f0; font-size: 16px; line-height: 1.6; }
+.pwa-update-error { color: #fecaca !important; font-weight: 700; }
+.pwa-update-spin { animation: pwa-update-spin 1s linear infinite; }
+@keyframes pwa-update-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pwa-update-spin { animation: none; } .pwa-update-trigger { transition: none; } }
+.pwa-login { height: 100dvh; min-height: 0; }
+.pwa-login > section { min-height: 100%; height: max-content; flex-shrink: 0; justify-content: flex-start; padding-top: max(24px, env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+.pwa-login .login-panel { margin-block: auto; flex-shrink: 0; }
+.pwa-login > .app-titlebar-drag { display: none; }
+.tenant-profile-content { overscroll-behavior: contain; }
+
+@media (max-width: 767px) {
+  .pwa-update-trigger-wrap { top: calc(9px + env(safe-area-inset-top)); right: 14px; gap: 0; }
+  .pwa-update-trigger { min-height: 36px; justify-content: center; padding: 0 10px; border-radius: 10px; }
+  .pwa-update-label-full, .pwa-update-required-badge { display: none; }
+  .pwa-update-label-compact { display: inline; }
+  .pwa-update-lock { padding: 20px; }
+  .pwa-update-lock-content { margin-top: 12vh; }
+  .pwa-update-lock-icon { width: 64px; height: 64px; margin-bottom: 22px; }
+  .pwa-update-lock-content p { font-size: 14px; }
+  .tenant-profile-dialog { max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .tenant-profile-header { padding: 16px; gap: 12px; }
+  .tenant-profile-header h2 { font-size: 18px; line-height: 24px; }
+  .tenant-profile-header p { font-size: 12px; }
+  .tenant-profile-header > span { width: 40px; height: 40px; }
+  .tenant-profile-content { padding: 16px; }
+  .tenant-profile-content input:not([type='checkbox']), .tenant-profile-content textarea { font-size: 16px; }
+  .tenant-identity-slot { padding: 10px; }
+  .tenant-identity-slot button:not(.absolute) { min-height: 40px; }
+  .tenant-identity-photo { height: 108px; }
+  .tenant-profile-footer { padding: 12px 16px; gap: 8px; }
+  .tenant-profile-footer button { min-height: 44px; padding-inline: 16px; }
+  .tenant-profile-footer button[type='submit'] { flex: 1; justify-content: center; }
+  .pwa-app-header { height: calc(59px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 14px 0; gap: 8px; box-shadow: 0 2px 8px #064a3108; }
+  .pwa-app-header > div:first-child { margin: 0; gap: 0; }
+  .pwa-app-header .investment-titlebar-logo { width: 38px; height: 38px; border-radius: 9px; margin-right: 10px; }
+  .pwa-app-header .investment-titlebar-brand { font-size: 13px; white-space: nowrap; font-weight: 750; }
+  .pwa-app-header .investment-titlebar-subtitle { margin-top: 4px; font-size: 9px; font-weight: 500; letter-spacing: .5px; }
+  .pwa-desktop-nav, .pwa-room-header-actions { display: none !important; }
+  .pwa-app-header > div:last-child:not(.pwa-room-header-actions) { gap: 2px; margin: 0; }
+  .pwa-app-header > div:last-child > * { margin-left: 0; }
+  .pwa-add-room { display: flex; align-items: center; justify-content: center; gap: 9px; background: var(--brand-primary); color: white; border-radius: 9px; font-weight: 700; font-size: 13px; padding: 10px 13px; white-space: nowrap; }
+  .pwa-add-room span { font-size: 17px; line-height: 16px; }
+  .pwa-main-content { min-width: 0; }
+  .pwa-mobile-main > * { min-width: 0; }
+  .pwa-mobile-main > .flex-1.overflow-y-auto { padding: 10px !important; }
+  .pwa-mobile-main > .settings-tab-shell {
+    height: auto !important;
+    min-height: 0;
+    margin: 10px !important;
+    flex: 1 1 auto;
+    border-radius: 16px;
+  }
+  .pwa-mobile-main > .settings-tab-shell > div:first-child {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--brand-border);
+    scrollbar-width: none;
+  }
+  .pwa-mobile-main > .settings-tab-shell > div:first-child::-webkit-scrollbar { display: none; }
+  .pwa-mobile-main > .settings-tab-shell > div:first-child > * { flex: 0 0 auto; }
+  .pwa-mobile-main > .settings-tab-shell > div:first-child button { min-height: 46px; padding: 10px 13px; white-space: nowrap; }
+  .pwa-mobile-main > .settings-tab-shell > div:last-child { min-height: 0; overflow-y: auto; }
+  .pwa-mobile-main > .investment-dark { margin: 0; }
+  .pwa-mobile-main > .investment-dark > main { padding: 12px !important; }
+  .pwa-mobile-main > .investment-dark h1 { font-size: 20px; }
+  .pwa-mobile-main > .investment-dark .overflow-x-auto { max-width: 100%; }
+  .pwa-mobile-main > .assets-tab-shell { flex-direction: column; }
+  .pwa-mobile-main > .assets-tab-shell > div:first-child {
+    width: 100%;
+    max-height: 116px;
+    flex: none;
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .pwa-mobile-main > .assets-tab-shell > div:first-child > div:nth-child(2) {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 7px 8px;
+    scrollbar-width: none;
+  }
+  .pwa-mobile-main > .assets-tab-shell > div:first-child > div:nth-child(2)::-webkit-scrollbar { display: none; }
+  .pwa-mobile-main > .assets-tab-shell > div:first-child > div:nth-child(2) > button { width: auto; min-width: 112px; flex: 0 0 auto; margin: 0; }
+  .pwa-mobile-main > .assets-tab-shell > div:last-child { min-height: 0; flex: 1; }
+  .pwa-mobile-main table { font-size: 12px; }
+  .pwa-mobile-main > .contracts-screen { display: flex; flex-direction: column; gap: 12px; }
+  .pwa-mobile-main > .contracts-screen > * { flex: none; }
+  .pwa-mobile-main > .contracts-screen > .contracts-table-shell { min-height: 0; order: -1; }
+  .pwa-mobile-main input:not([type='checkbox']):not([type='radio']),
+  .pwa-mobile-main select,
+  .pwa-mobile-main textarea { max-width: 100%; }
+  .pwa-mobile-rooms { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px 12px; background: #f8fbfa; scrollbar-width: none; }
+  .pwa-mobile-rooms::-webkit-scrollbar { display: none; }
+  .pwa-room-heading { background: white; border: 1px solid #eaf0ec; border-radius: 10px; padding: 10px; }
+  .pwa-room-heading-line { display: flex; gap: 17px; align-items: center; }
+  .pwa-heading-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #009b70; background: #e4f7f0; border-radius: 11px; flex: none; }
+  .pwa-heading-icon > i { font-size: 23px; }
+  .pwa-room-heading h1 { font-size: 18px; line-height: 22px; font-weight: 750; letter-spacing: -.5px; color: #0f172a; }
+  .pwa-room-heading p { font-size: 12px; color: #748095; line-height: 19px; }
+  .pwa-room-heading p > span { margin: 0 5px; }
+  .pwa-room-heading p > strong { font-weight: 500; color: var(--brand-primary); }
+  .pwa-room-search { display: flex; gap: 8px; margin-top: 10px; }
+  .pwa-room-search label { display: flex; align-items: center; gap: 9px; color: #6d7890; border: 1px solid #d9e1eb; border-radius: 10px; padding: 0 11px; min-width: 0; flex: 1; }
+  .pwa-room-search input { flex: 1; width: 0; min-width: 0; height: 36px; color: #293448; background: white; outline: none; font-size: 13px; }
+  .pwa-room-search input::placeholder { color: #6c7890; }
+  .pwa-room-search label:focus-within { border-color: var(--brand-primary); }
+  .pwa-room-search > button { width: 38px; min-height: 38px; border: 1px solid #e8eef4; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: white; color: #637089; }
+  .pwa-room-filters { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; margin: 8px 0; }
+  .pwa-room-filters > button { display: flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; min-height: 28px; line-height: 14px; font-size: 10px; border: 1px solid #e1e9ef; border-radius: 9px; color: #637089; padding: 6px; background: #fafcfb; }
+  .pwa-room-filters > button:first-child { font-weight: 650; padding-left: 11px; padding-right: 11px; }
+  .pwa-room-filters > .occupied { color: #009653; }
+  .pwa-room-filters > .occupied:not(.selected) { background: #e9f8f2; border-color: #ddf3e9; }
+  .pwa-room-filters > .ending svg { color: #eda20c; }
+  .pwa-room-filters > .expiring svg { color: #ed3845; }
+  .pwa-room-filters > .selected { background: var(--brand-primary); border-color: var(--brand-primary); color: white; }
+  .pwa-room-list { border: 1px solid #e8eef2; border-radius: 9px; overflow: hidden; background: white; }
+  .pwa-room-row { display: flex; min-height: 74px; align-items: center; padding: 8px 7px 8px 10px; gap: 5px; border-bottom: 1px solid #e9eef3; }
+  .pwa-room-row:last-child { border: none; }
+  .pwa-room-identity { display: flex; align-items: center; gap: 17px; text-align: left; min-width: 0; flex: 1; }
+  .pwa-room-icon { display: flex; align-items: center; justify-content: center; background: #00ae7b; color: white; width: 37px; height: 37px; border-radius: 50%; flex: none; }
+  .pwa-room-icon.vacant { background: #9daeb3; }
+  .pwa-room-icon.ending { background: #e7a023; }
+  .pwa-room-icon.maintenance { background: #7c8aa0; }
+  .pwa-room-icon i { font-size: 19px; }
+  .pwa-room-info { display: flex; flex-direction: column; min-width: 0; color: #0f172a; }
+  .pwa-room-info > strong { font-size: 14px; font-weight: 750; line-height: 20px; overflow-wrap: anywhere; }
+  .pwa-room-occupancy { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; font-size: 11px; line-height: 18px; color: #009b6b; }
+  .pwa-room-occupancy.vacant, .pwa-room-occupancy.maintenance { color: #718079; }
+  .pwa-room-occupancy.ending { color: #ab7208; }
+  .pwa-room-separator, .pwa-room-people { color: #6c7890; }
+  .pwa-room-info > b { font-size: 13px; font-weight: 750; line-height: 18px; font-variant-numeric: tabular-nums; }
+  .pwa-room-finance { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: 43%; text-align: left; font-variant-numeric: tabular-nums; }
+  .pwa-room-finance > span { display: flex; gap: 6px; align-items: center; font-size: 10px; line-height: 15px; }
+  .pwa-room-finance > span > svg { flex: none; }
+  .pwa-room-finance > b { padding-left: 13px; font-size: 13px; line-height: 18px; font-weight: 750; }
+  .pwa-room-finance > small { font-size: 9px; color: #718079; }
+  .pwa-room-finance.unpaid, .pwa-room-finance.debt { color: #f01831; }
+  .pwa-room-finance.refund { color: #a16207; }
+  .pwa-room-finance.paid { color: #009b6b; background: #e4f7f0; padding: 8px 9px; border-radius: 9px; font-weight: 700; }
+  .pwa-room-finance.paid > span { font-size: 11px; }
+  .pwa-room-finance.pending, .pwa-room-finance.vacant { color: #748095; }
+  .pwa-room-chevron { color: #748095; display: flex; align-items: center; justify-content: center; flex: none; align-self: stretch; min-width: 24px; }
+  .pwa-list-state { background: white; border: 1px solid #e5eee8; border-radius: 12px; padding: 28px 16px; text-align: center; color: #64748b; font-size: 13px; }
+  .pwa-list-state h2 { color: #15231d; font-weight: 700; font-size: 16px; }
+  .pwa-list-state p { margin: 8px 0 16px; }
+  .pwa-list-state button { background: var(--brand-primary); color: white; border-radius: 9px; padding: 10px 18px; display: inline-flex; gap: 7px; align-items: center; }
+  .pwa-bottom-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: white; border-top: 1px solid #e8eef2; border-radius: 14px 14px 0 0; flex: none; padding: 4px 10px max(20px, env(safe-area-inset-bottom)); gap: 5px; }
+  .pwa-bottom-nav > button { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 5px; padding: 7px 3px; color: #6d7890; border-radius: 10px; font-size: 12px; line-height: 17px; }
+  .pwa-bottom-nav > button > svg { width: 23px; height: 23px; stroke-width: 1.9; }
+  .pwa-nav-house { font-size: 23px; line-height: 23px; }
+  .pwa-bottom-nav > button[aria-current='page'] { color: #009b6b; background: #e4f7f0; }
+  .pwa-mobile-menu-backdrop { display: flex; align-items: flex-end; position: fixed; inset: 0; z-index: 110; background: #0f172a66; padding: 16px 12px calc(88px + env(safe-area-inset-bottom)); }
+  .pwa-mobile-menu { width: 100%; max-height: 75dvh; overflow-y: auto; background: white; border: 1px solid #e5eee8; border-radius: 18px; padding: 16px; box-shadow: 0 12px 40px #064a3122; }
+  .pwa-mobile-menu-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-bottom: 12px; font-size: 16px; font-weight: 700; }
+  .pwa-mobile-menu-title > button { min-width: 36px; min-height: 36px; display: grid; place-items: center; }
+  .pwa-mobile-menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pwa-mobile-menu-grid > button { display: flex; align-items: center; gap: 10px; border: 1px solid #e5eee8; border-radius: 12px; padding: 14px 10px; text-align: left; font-size: 12px; }
+  .pwa-mobile-menu-grid > button > svg { color: #009653; flex: none; }
+  .pwa-login .login-panel { padding: 22px 20px; border-radius: 22px; }
+  .pwa-login .login-hero h2 { font-size: clamp(25px, 7vw, 31px); }
+  .pwa-login .login-panel input:not([type='checkbox']) { height: 48px; font-size: 16px; }
+  .pwa-login .login-panel button[type='submit'] { height: 48px; }
+  .pwa-login form > div > label, .pwa-login form > div > button { font-size: 12px; }
+  .pwa-login .fixed.inset-0 { padding: 12px; overflow-y: auto; }
+  .pwa-login .fixed.inset-0 > section { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  /* Dialogs keep their desktop content and own scroll areas, with safe mobile
+     margins. Per-feature reflow is tracked separately, not assumed complete. */
+  .pwa-app .fixed.inset-0 { max-height: 100dvh; padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)); }
+  .pwa-app .fixed.inset-0 > div:not(.fixed):not(.absolute) { max-width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .pwa-app .fixed.inset-0 input:not([type='checkbox']):not([type='radio']), .pwa-app .fixed.inset-0 select, .pwa-app .fixed.inset-0 textarea { font-size: 16px; }
+  .pwa-room-detail-surface { max-height: calc(100dvh - 20px); }
+  .pwa-room-detail-surface > div:first-child { padding: 12px 16px; }
+  .pwa-room-detail-body { padding: 14px; max-height: calc(100dvh - 175px); min-height: 0; }
+  .pwa-room-detail-body > .flex > .grid.grid-cols-2 { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .pwa-room-detail-body > .flex { gap: 14px; }
+
+  /* Module-specific reflow. These selectors are scoped to the PWA copies so
+     desktop Electron layout and table semantics remain unchanged. */
+  .pwa-invoices-screen { padding: 10px !important; gap: 10px !important; }
+  .pwa-invoices-screen > .bg-white { min-width: 0; }
+  .invoice-toolbar { gap: 8px; padding: 12px; }
+  .invoice-toolbar h2 { font-size: 14px; line-height: 20px; }
+  .invoice-toolbar p { font-size: 11px; }
+  .invoice-detail-toolbar { flex-wrap: wrap; padding: 12px; }
+  .invoice-detail-toolbar > div { width: 100%; flex-wrap: wrap; }
+  .invoice-detail-toolbar button { min-height: 44px; }
+  .invoice-detail-body { padding: 12px; }
+  .pwa-invoices-screen .pwa-invoice-mobile-list { padding: 10px !important; }
+  .pwa-invoices-screen .pwa-invoice-mobile-list > * { min-width: 0; }
+  .pwa-invoices-screen .pwa-invoice-mobile-list button { min-height: 42px; }
+  .pwa-invoices-screen .overflow-x-auto { max-width: 100%; scrollbar-width: thin; }
+
+  .pwa-tenants-screen { padding: 10px !important; gap: 10px !important; }
+  .pwa-tenants-screen > section { min-width: 0; }
+  .pwa-tenants-screen input { min-width: 0; max-width: 100%; }
+
+  .pwa-wallet-screen { padding: 10px !important; }
+  .pwa-wallet-screen > .mx-auto { min-width: 0; gap: 12px; }
+  .pwa-wallet-screen h1 { font-size: 21px; line-height: 27px; }
+  .pwa-wallet-screen > .mx-auto > :first-child > :last-child { width: 100%; }
+  .pwa-wallet-screen > .mx-auto > :first-child > :last-child > * { flex: 1 1 0; min-width: 0; justify-content: center; padding-inline: 8px; font-size: 11px; }
+  .pwa-wallet-screen table { min-width: 560px; }
+  .pwa-wallet-screen .overflow-x-auto { max-width: 100%; scrollbar-width: thin; }
+
+  .pwa-reports-screen { padding: 10px !important; gap: 10px !important; }
+  .pwa-reports-screen > .flex:first-child { justify-content: stretch; }
+  .pwa-reports-screen > .flex:first-child > div { width: 100%; }
+  .pwa-reports-screen > .flex:first-child button { width: 100%; justify-content: space-between; min-height: 42px; }
+  .pwa-reports-screen table { min-width: 680px; }
+  .pwa-reports-screen .overflow-x-auto { max-width: 100%; scrollbar-width: thin; }
+
+  .pwa-investments-screen { overflow-y: auto; }
+  .pwa-investments-screen > main { min-width: 0; padding: 12px !important; }
+  .pwa-investments-screen > main > .mx-auto { min-width: 0; }
+  .pwa-investments-screen > main h1 { font-size: 21px; line-height: 27px; }
+  .pwa-investments-screen > main header { align-items: flex-start; }
+  .pwa-investments-screen > main header > :last-child { width: 100%; }
+  .pwa-investments-screen > main header > :last-child > * { min-height: 40px; }
+  .pwa-investments-screen table { min-width: 720px; }
+  .pwa-investments-screen .overflow-x-auto { max-width: 100%; scrollbar-width: thin; }
+
+  .pwa-settings-screen { margin: 10px !important; height: auto !important; min-height: 0; }
+  .pwa-settings-screen > div:first-child { max-height: 116px; overflow-x: auto; overflow-y: hidden; }
+  .pwa-settings-screen > div:first-child nav { display: flex; flex-direction: row; min-width: max-content; gap: 4px; overflow-x: auto; }
+  .pwa-settings-screen > div:first-child nav button { min-height: 46px; padding: 10px 13px; white-space: nowrap; }
+  .pwa-settings-screen > div:last-child { min-width: 0; overflow-y: auto; padding: 12px !important; }
+  .pwa-settings-screen input, .pwa-settings-screen select, .pwa-settings-screen textarea { min-width: 0; max-width: 100%; }
+
+  .assets-tab-shell { min-height: 0; }
+  .assets-tab-shell > div:first-child { max-height: 128px !important; }
+  .assets-tab-shell > div:last-child { min-width: 0; }
+  .assets-tab-shell > div:last-child > div { min-width: 0; }
+  .assets-tab-shell .px-5 { padding-inline: 12px; }
+  .assets-tab-shell .py-4 { padding-block: 10px; }
+  .room-assets-header { padding: 10px 12px !important; }
+  .room-assets-header-layout { display: grid !important; grid-template-columns: 112px minmax(0, 1fr); gap: 10px 12px !important; align-items: start !important; }
+  .room-assets-photo { width: 112px !important; height: 88px !important; border-radius: 14px !important; }
+  .room-assets-identity { min-width: 0; justify-content: flex-start !important; }
+  .room-assets-identity h3 { font-size: 21px; line-height: 25px; }
+  .room-assets-identity > div:nth-of-type(2) { margin-top: 6px; display: block; font-size: 12px; line-height: 18px; }
+  .room-assets-identity > div:nth-of-type(2) > span { margin-right: 7px; }
+  .room-assets-identity > div:last-child { margin-top: 7px; max-width: 100%; padding: 6px 8px; font-size: 11px; line-height: 16px; }
+  .room-assets-actions { width: 100% !important; grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px !important; }
+  .room-assets-actions button { min-height: 40px; padding: 8px 7px !important; font-size: 11px !important; line-height: 15px; }
+  .room-assets-actions button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  .contracts-screen { padding: 10px !important; }
+  .contracts-screen .contracts-table-shell { min-width: 0; }
+  .contracts-mobile-list article { min-width: 0; }
+  .contracts-mobile-list article button { min-height: 42px; }
+}
+@media (max-width: 359px) {
+  .pwa-app-header { padding-left: 10px; padding-right: 10px; }
+  .pwa-app-header .investment-titlebar-logo { width: 32px; height: 32px; margin-right: 7px; }
+  .pwa-app-header .investment-titlebar-brand { font-size: 11px; }
+  .pwa-add-room { font-size: 11px; padding: 10px; }
+  .pwa-room-heading-line, .pwa-room-identity { gap: 10px; }
+  .pwa-room-heading h1 { font-size: 16px; }
+  .pwa-room-info > strong { font-size: 13px; }
+  .pwa-room-occupancy { font-size: 10px; gap: 3px; }
+  .pwa-room-info > b, .pwa-room-finance > b { font-size: 12px; }
+  .pwa-room-icon { width: 32px; height: 32px; }
+  .pwa-login form > div > label, .pwa-login form > div > button { font-size: 11px; }
+  .pwa-login form > div.flex { gap: 10px; }
+}
+/* Tablet portrait still cannot fit the desktop image + action rail. Keep the
+   same readable stacked header before the full mobile breakpoint. */
+@media (min-width: 768px) and (max-width: 900px) {
+  .room-assets-header { padding: 12px !important; }
+  .room-assets-header-layout { display: grid !important; grid-template-columns: 168px minmax(0, 1fr); gap: 12px 16px !important; align-items: start !important; }
+  .room-assets-photo { width: 168px !important; height: 112px !important; }
+  .room-assets-identity { min-width: 0; justify-content: flex-start !important; }
+  .room-assets-identity h3 { font-size: 24px; line-height: 28px; }
+  .room-assets-actions { width: 100% !important; grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px !important; }
+  .room-assets-actions button { min-height: 42px; padding: 8px !important; font-size: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

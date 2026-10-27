@@ -377,3 +377,22 @@ module và tránh request trùng ở số dư đầu tư; (4) đo cold-start/DOM
 quyết định virtualization/GPU. Chỉ chốt đạt mục tiêu khi từng module thao tác
 được với dữ liệu đúng dưới 3s trong bộ kịch bản được ghi rõ. Mất mạng/API ngoài
 không thể đảm bảo có dữ liệu mới trong 3s; cache cũ phải được nhận diện rõ.
+
+## 19/10/2026 — Giữ giao diện khi quay lại cửa sổ
+
+- Nguyên nhân màn “Đang khởi động dữ liệu…” xuất hiện lại: kiểm tra phiên
+  khi `visibilitychange`/online gọi `setAuthReady(false)`, làm unmount toàn bộ
+  giao diện con dù người dùng đã đăng nhập.
+- Cho kiểm tra phiên chạy nền; chỉ xóa lỗi kiểm tra phiên sau khi xác minh
+  thành công. Lỗi mạng vẫn chặn truy cập và không mở màn nghiệp vụ trong lúc
+  thử lại; hết hạn, yêu cầu MFA hoặc mất phiên vẫn xóa quyền và cache.
+- Giữ subscription Realtime theo ID tài khoản để lần tải lại hồ sơ cùng
+  người dùng không ngắt/kết nối lại channel. Đổi tài khoản/đăng xuất vẫn cleanup.
+- `scripts/foreground-session.test.cjs`: 6 kiểm tra hành vi trên effect thật,
+  không kết nối database. Cùng suite MFA: 36/36 đạt. Chưa nghiệm thu thao tác
+  minimize/restore trên cửa sổ Electron thực tế; không ghi dữ liệu backend.
+- Đóng hẳn rồi khởi động ứng dụng vẫn có bước nạp phiên/dữ liệu ban đầu.
+- Build toàn bộ chưa đạt: `GoldTracker.tsx` đang thay đổi ở công việc khác,
+  có biến/import không dùng và tham chiếu `renderChange` chưa định nghĩa tại
+  thời điểm chạy build. Không sửa hoặc hoàn tác module đó trong lần này.
+  Electron hiện chạy `electron-vite dev`, không phát hành installer mới.

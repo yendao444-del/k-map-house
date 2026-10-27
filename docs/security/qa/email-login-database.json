@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-13T08:06:35.068Z",
+  "invariantsPassed": true,
+  "fixtureDataRolledBack": true,
+  "settingsRolesAndCountsUnchanged": true,
+  "results": [
+    {
+      "email_login_invariants": "passed",
+      "password_remember_device_and_totp_regressions": "passed"
+    }
+  ]
+}

@@ -35,6 +35,10 @@ export function contractConfirmationHandler(env, renderDocument, fetcher = fetch
     if (!bearer) throw fail('Cần đăng nhập quản trị viên Electron.', 401)
     const caller = await api('/auth/v1/user', {}, bearer)
     if (!caller.response.ok || !caller.data?.id) throw fail('Phiên Electron đã hết hạn.', 401)
+    const security = await api('/rest/v1/rpc/security_management_access_allowed', {
+      ...post({ p_sensitive: true }), headers: { apikey: env.SUPABASE_ANON_KEY, 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    }, bearer)
+    if (!security.response.ok || security.data !== true) throw fail('Cần hoàn tất xác minh 2FA trước khi quản lý hợp đồng.', 403)
     const found = await api(`/rest/v1/users?id=eq.${caller.data.id}&select=role,status`)
     if (!found.response.ok || found.data?.[0]?.role !== 'admin' || found.data[0].status !== 'active') throw fail('Chỉ admin được gửi hợp đồng.', 403)
     return caller.data.id
@@ -63,6 +67,7 @@ export function contractConfirmationHandler(env, renderDocument, fetcher = fetch
             const notice = await rpc('contract_cancellation_notice', { ...args, p_actor: actor, p_action: data.noticeAction, p_attempt: data.attemptId || null, p_message: String(data.messageId || '').slice(0,128), p_error: String(data.error || '').slice(0,1000) })
             return reply(200, { ok: true, notice })
           }
+          if (data.action === 'cancel' && data.kind === 'test_reset') data.reason = 'Đang kiểm thử hệ thống.'
           if (typeof data.reason !== 'string' || data.reason.trim().length < 5 || data.reason.length > 1000) throw fail('Nhập lý do từ 5 đến 1000 ký tự.')
           if (data.action === 'amendment_start') return reply(200, { ok: true, draft: await rpc('contract_amendment_start', { ...args, p_actor: actor, p_reason: data.reason.trim() }) })
           if (!['wrong_tenant','wrong_room','wrong_email','duplicate','test_reset'].includes(data.kind) || data.kind !== 'test_reset' && (typeof data.referenceId !== 'string' || !/^[a-zA-Z0-9_-]{1,160}$/.test(data.referenceId))) throw fail('Chọn lý do và hồ sơ đối chiếu hợp lệ.')

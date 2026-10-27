@@ -1,0 +1,221 @@
+[
+  {
+    "id": "01-xac-nhan-hop-dong",
+    "images": [
+      {
+        "alt": "An Khang Home — XÁC NHẬN HỢP ĐỒNG",
+        "loaded": true
+      }
+    ],
+    "links": [
+      {
+        "text": "Xem và xác nhận hợp đồng",
+        "url": "https://example.invalid/contract-confirmation#token=synthetic-only"
+      }
+    ],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "02-thanh-toan-thanh-cong",
+    "images": [
+      {
+        "alt": "An Khang Home — THANH TOÁN THÀNH CÔNG",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "03-bien-nhan-chu-nha",
+    "images": [
+      {
+        "alt": "An Khang Home — ĐÃ NHẬN THANH TOÁN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "04-giao-dich-chua-khop",
+    "images": [
+      {
+        "alt": "An Khang Home — GIAO DỊCH CHƯA KHỚP",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "05-chuyen-thieu",
+    "images": [
+      {
+        "alt": "An Khang Home — CHUYỂN THIẾU CẦN ĐỐI SOÁT",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "06-chuyen-du",
+    "images": [
+      {
+        "alt": "An Khang Home — CHUYỂN DƯ CẦN ĐỐI SOÁT",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "07-khop-nhieu-hoa-don",
+    "images": [
+      {
+        "alt": "An Khang Home — KHỚP NHIỀU HÓA ĐƠN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "08-da-ghi-nhan-mot-phan",
+    "images": [
+      {
+        "alt": "An Khang Home — ĐÃ GHI NHẬN THANH TOÁN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "09-hoa-don-va-dich-vu",
+    "images": [
+      {
+        "alt": "An Khang Home — HÓA ĐƠN VÀ DỊCH VỤ",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "10-tien-phong-qua-han",
+    "images": [
+      {
+        "alt": "An Khang Home — TIỀN PHÒNG QUÁ HẠN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "11-lau-chua-thanh-toan",
+    "images": [
+      {
+        "alt": "An Khang Home — LÂU CHƯA THANH TOÁN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "12-nhac-no-cu",
+    "images": [
+      {
+        "alt": "An Khang Home — NHẮC KHOẢN NỢ CŨ",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "13-den-han-tra-phong",
+    "images": [
+      {
+        "alt": "An Khang Home — ĐẾN HẠN TRẢ PHÒNG",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "14-hop-dong-sap-het-han",
+    "images": [
+      {
+        "alt": "An Khang Home — HỢP ĐỒNG SẮP HẾT HẠN",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "15-den-ky-thanh-toan",
+    "images": [
+      {
+        "alt": "An Khang Home — ĐẾN KỲ THANH TOÁN",
+        "loaded": true
+      }
+    ],
+    "links": [
+      {
+        "text": "Bắt đầu thanh toán",
+        "url": "https://pay.phongtroankhang.com/?screen=payment"
+      }
+    ],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "16-xac-nhan-sua-hop-dong",
+    "images": [
+      {
+        "alt": "An Khang Home — XÁC NHẬN BẢN SỬA",
+        "loaded": true
+      }
+    ],
+    "links": [
+      {
+        "text": "Xem và xác nhận bản sửa",
+        "url": "https://example.invalid/contract-confirmation#token=synthetic-only"
+      }
+    ],
+    "overflow": false,
+    "width": 640
+  },
+  {
+    "id": "17-thong-bao-huy-hop-dong",
+    "images": [
+      {
+        "alt": "An Khang Home — THÔNG BÁO HỦY HỢP ĐỒNG",
+        "loaded": true
+      }
+    ],
+    "links": [],
+    "overflow": false,
+    "width": 640
+  }
+]

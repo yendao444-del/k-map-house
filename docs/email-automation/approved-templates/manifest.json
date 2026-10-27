@@ -1,0 +1,104 @@
+[
+  {
+    "id": "01-xac-nhan-hop-dong",
+    "name": "Xác nhận hợp đồng",
+    "cid": "01-xac-nhan-hop-dong@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "02-thanh-toan-thanh-cong",
+    "name": "Thanh toán thành công · Khách thuê",
+    "cid": "02-thanh-toan-thanh-cong@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "03-bien-nhan-chu-nha",
+    "name": "Đã nhận thanh toán · Chủ nhà",
+    "cid": "03-bien-nhan-chu-nha@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "04-giao-dich-chua-khop",
+    "name": "Giao dịch SePay chưa khớp",
+    "cid": "04-giao-dich-chua-khop@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "05-chuyen-thieu",
+    "name": "Chuyển thiếu tiền · Chưa duyệt",
+    "cid": "05-chuyen-thieu@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "06-chuyen-du",
+    "name": "Chuyển dư tiền · Cần đối soát",
+    "cid": "06-chuyen-du@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "07-khop-nhieu-hoa-don",
+    "name": "Giao dịch khớp nhiều hóa đơn",
+    "cid": "07-khop-nhieu-hoa-don@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "08-da-ghi-nhan-mot-phan",
+    "name": "Đã ghi nhận thanh toán một phần",
+    "cid": "08-da-ghi-nhan-mot-phan@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "09-hoa-don-va-dich-vu",
+    "name": "Hóa đơn và dịch vụ",
+    "cid": "09-hoa-don-va-dich-vu@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "10-tien-phong-qua-han",
+    "name": "Tiền phòng quá hạn",
+    "cid": "10-tien-phong-qua-han@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "11-lau-chua-thanh-toan",
+    "name": "Lâu chưa thanh toán · Bản gọn",
+    "cid": "11-lau-chua-thanh-toan@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "12-nhac-no-cu",
+    "name": "Nhắc khoản nợ cũ",
+    "cid": "12-nhac-no-cu@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "13-den-han-tra-phong",
+    "name": "Phòng đến hạn trả",
+    "cid": "13-den-han-tra-phong@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "14-hop-dong-sap-het-han",
+    "name": "Hợp đồng sắp hết hạn",
+    "cid": "14-hop-dong-sap-het-han@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "15-den-ky-thanh-toan",
+    "name": "Đến kỳ thanh toán",
+    "cid": "15-den-ky-thanh-toan@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "16-xac-nhan-sua-hop-dong",
+    "name": "Xác nhận bản sửa hợp đồng",
+    "cid": "16-xac-nhan-sua-hop-dong@ankhanghome",
+    "synthetic": true
+  },
+  {
+    "id": "17-thong-bao-huy-hop-dong",
+    "name": "Thông báo hủy hợp đồng do lập nhầm",
+    "cid": "17-thong-bao-huy-hop-dong@ankhanghome",
+    "synthetic": true
+  }
+]

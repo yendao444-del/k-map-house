@@ -16,7 +16,9 @@ export function validateCloudPhoto(image) {
   return data
 }
 
-export async function readCloudMeter(image, meter, env, fetcher = fetch) {
+// Production callers leave tuning empty; offline QA uses it to prove a faster
+// provider setting keeps the same acceptance and rejection decisions.
+export async function readCloudMeter(image, meter, env, fetcher = fetch, tuning = {}) {
   validateCloudPhoto(image)
   if (!env.METER_CLOUD_API_KEY) throw new Error('provider_unavailable')
   const started = performance.now()
@@ -29,7 +31,8 @@ export async function readCloudMeter(image, meter, env, fetcher = fetch) {
     if (env.METER_CLOUD_PROVIDER === 'gemini') {
       endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.METER_CLOUD_MODEL)}:generateContent`
       headers = { 'Content-Type': 'application/json', 'x-goog-api-key': env.METER_CLOUD_API_KEY }
-      body = { contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: image.slice(image.indexOf(',') + 1) } }] }], generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: 'application/json', ...(env.METER_CLOUD_MODEL.startsWith('gemini-2.5-flash') ? { thinkingConfig: { thinkingBudget: 0 } } : {}) } }
+      const thinkingBudget = tuning.thinkingBudget ?? (env.METER_CLOUD_MODEL.startsWith('gemini-2.5-flash') ? 0 : null)
+      body = { contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: image.slice(image.indexOf(',') + 1) } }] }], generationConfig: { temperature: 0, maxOutputTokens: tuning.maxOutputTokens ?? 1024, responseMimeType: 'application/json', ...(thinkingBudget == null ? {} : { thinkingConfig: { thinkingBudget } }) } }
     } else {
       const base = new URL(env.METER_CLOUD_BASE_URL)
       if (base.protocol !== 'https:' || /^(localhost|127\.|0\.|10\.|192\.168\.|\[|169\.254\.)/.test(base.hostname)) throw new Error('provider_unavailable')

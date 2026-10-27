@@ -5,22 +5,12 @@ const vm = require('node:vm')
 const { test } = require('node:test')
 const ts = require('typescript')
 
-const assets = {}
-new Function('exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/shared/payment-email-assets.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS }
-}).outputText)(assets)
-const notificationAssets = {}
-new Function('require', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/shared/notification-email-assets.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-}).outputText)(() => assets, notificationAssets)
-const contractTemplate = {}
-new Function('exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/shared/contract-email-template.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-}).outputText)(contractTemplate)
-const contractAssets = {}
-new Function('require', 'exports', ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/shared/contract-email-assets.ts'), 'utf8'), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-}).outputText)(() => contractTemplate, contractAssets)
+const { loadTs } = require('./load-email-test-module.cjs')
+const assets = loadTs('src/shared/payment-email-assets.ts')
+const notificationAssets = loadTs('src/shared/notification-email-assets.ts')
+const contractTemplate = loadTs('src/shared/contract-email-template.ts')
+const contractAssets = loadTs('src/shared/contract-email-assets.ts')
+const approvedAssets = loadTs('src/shared/approved-email-banners.ts')
 
 function harness(options = {}) {
   const handlers = new Map()
@@ -37,11 +27,15 @@ function harness(options = {}) {
       if (name === '../shared/payment-email-assets') return assets
       if (name === '../shared/notification-email-assets') return notificationAssets
       if (name === '../shared/contract-email-assets') return contractAssets
+      if (name === '../shared/approved-email-banners') return approvedAssets
       if (name === 'electron') return {
         app: { isPackaged: false, getPath: () => 'mock-profile', once() {}, removeListener() {} },
         safeStorage: { decryptString: () => JSON.stringify({ scope: 'https://www.googleapis.com/auth/gmail.send', gmail_client_id:'mock-id', gmail_sender_email:'sender@example.com', ...options.token }), isEncryptionAvailable: () => true, encryptString: value => Buffer.from(value) },
         shell: { openExternal: async () => {} },
         ipcMain: { removeHandler: name => handlers.delete(name), handle: (name, fn) => handlers.set(name, fn) }
+      }
+      if (name === './trusted-ipc') return {
+        trustedIpcMain: { removeHandler: name => handlers.delete(name), handle: (name, fn) => handlers.set(name, fn) }
       }
       if (name === 'node:fs') return { existsSync: () => true, readFileSync: () => Buffer.from('mock-token'), mkdirSync() {}, writeFileSync: (_path, bytes) => oauth.saved.push(JSON.parse(bytes.toString())) }
       if (name === 'node:http') return { createServer: handler => {
@@ -245,9 +239,10 @@ test('contract confirmation MIME includes the actual branded PNG with a working 
   assert.ok(body.includes(`href="${url}"`))
   assert.ok(body.includes('07/10/2026'))
   assert.ok(body.includes('Khách thuê thử nghiệm'))
-  assert.match(parts[1], /Content-ID: <contract-confirmation-banner@ankhanghome>/)
+  const banner = approvedAssets.approvedEmailBanners['01-xac-nhan-hop-dong']
+  assert.ok(parts[1].includes(`Content-ID: <${banner.cid}>`))
   const image = Buffer.from(parts[1].trim().split('\r\n\r\n')[1], 'base64')
-  assert.deepEqual(image, fs.readFileSync(path.join(__dirname, '../webmobile/assets/contract-confirmation-banner.png')))
+  assert.deepEqual(image, Buffer.from(banner.base64, 'base64'))
   assert.doesNotMatch(contractAssets.contractEmailPreviewHtml(html), /src="cid:/)
 })
 
@@ -258,4 +253,22 @@ test('contract email escapes tenant data and never fabricates a missing start da
   assert.match(html, /A&amp;B/)
   assert.match(html, /href="https:\/\/example.com\/\?x=1&amp;y=2"/)
   assert.doesNotMatch(html, /Ngày bắt đầu/)
+})
+
+test('all 17 approved banners round-trip through Gmail MIME and both preview renderers', () => {
+  const h = harness()
+  assert.equal(Object.keys(approvedAssets.approvedEmailBanners).length, 17)
+  for (const [id, banner] of Object.entries(approvedAssets.approvedEmailBanners)) {
+    const html = `<img src="cid:${banner.cid}" alt="${id}">`
+    const raw = Buffer.from(h.buildGmailRawMessage({ to: 'synthetic@example.invalid', subject: id, html }), 'base64url').toString('utf8')
+    const boundary = raw.match(/boundary="([^"]+)"/)[1]
+    const parts = raw.split(`--${boundary}`).slice(1, -1)
+    assert.equal(parts.length, 2)
+    assert.ok(parts[1].includes(`Content-ID: <${banner.cid}>`))
+    assert.deepEqual(Buffer.from(parts[1].trim().split('\r\n\r\n')[1], 'base64'), fs.readFileSync(path.join(__dirname, '../src/shared/email-banners', `${id}.png`)))
+    for (const preview of [notificationAssets.notificationEmailPreviewHtml, contractAssets.contractEmailPreviewHtml]) {
+      assert.doesNotMatch(preview(html), /src="cid:/)
+      assert.ok(preview(html).includes('data:image/png;base64,' + banner.base64))
+    }
+  }
 })

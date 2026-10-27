@@ -7,6 +7,9 @@ const electronAPI = {
 
 // Custom APIs for renderer - Database IPC
 const api = {
+  devDevice: {
+    credential: (): Promise<string | null> => ipcRenderer.invoke('devDevice:credential')
+  },
   contractTest: {
     open: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('contractTest:open')
   },
@@ -26,7 +29,9 @@ const api = {
   investment: {
     read: (): Promise<unknown> => ipcRenderer.invoke('investment:read'),
     write: (data: unknown): Promise<boolean> => ipcRenderer.invoke('investment:write', data),
-    fundNav: (symbol: string): Promise<unknown> => ipcRenderer.invoke('investment:fundNav', symbol)
+    fundNav: (symbol: string): Promise<unknown> => ipcRenderer.invoke('investment:fundNav', symbol),
+    myHanhGold: (): Promise<import('../shared/my-hanh-gold').MyHanhGoldPrices> => ipcRenderer.invoke('investment:myHanhGold'),
+    myHanhGoldHistory: (): Promise<import('../shared/my-hanh-gold').MyHanhGoldHistory> => ipcRenderer.invoke('investment:myHanhGoldHistory')
   },
   marketData: {
     getSnapshot: (propertyAddress?: string): Promise<unknown> =>

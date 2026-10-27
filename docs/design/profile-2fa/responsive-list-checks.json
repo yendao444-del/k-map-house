@@ -1,0 +1,171 @@
+[
+  {
+    "width": 320,
+    "height": 740,
+    "many": false,
+    "geom": {
+      "buttons": [
+        {
+          "bottom": 467.953125,
+          "text": "Ghi nhớ thiết bị này"
+        },
+        {
+          "bottom": 512.453125,
+          "text": "Quản lý phiên đăng nhập"
+        },
+        {
+          "bottom": 607.640625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 708.828125,
+          "text": "Thu hồi và đăng xuất"
+        }
+      ],
+      "contentBottom": 732,
+      "scroll": 0
+    }
+  },
+  {
+    "width": 375,
+    "height": 667,
+    "many": false,
+    "geom": {
+      "buttons": [
+        {
+          "bottom": 451.859375,
+          "text": "Ghi nhớ thiết bị này"
+        },
+        {
+          "bottom": 496.359375,
+          "text": "Quản lý phiên đăng nhập"
+        },
+        {
+          "bottom": 591.546875,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 692.734375,
+          "text": "Thu hồi và đăng xuất"
+        }
+      ],
+      "contentBottom": 659,
+      "scroll": 56
+    }
+  },
+  {
+    "width": 390,
+    "height": 844,
+    "many": true,
+    "geom": {
+      "buttons": [
+        {
+          "bottom": 463.765625,
+          "text": "Ghi nhớ thiết bị này"
+        },
+        {
+          "bottom": 508.265625,
+          "text": "Quản lý phiên đăng nhập"
+        },
+        {
+          "bottom": 603.453125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 704.640625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 805.828125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 907.015625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1008.203125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1109.390625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1210.578125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1311.765625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1412.953125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1514.140625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1615.328125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1716.515625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1817.703125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 1918.890625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2020.078125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2121.265625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2222.453125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2323.640625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2424.828125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2526.015625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2627.203125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2728.390625,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2829.578125,
+          "text": "Thu hồi và đăng xuất"
+        },
+        {
+          "bottom": 2930.765625,
+          "text": "Thu hồi và đăng xuất"
+        }
+      ],
+      "contentBottom": 836,
+      "scroll": 2117
+    }
+  }
+]

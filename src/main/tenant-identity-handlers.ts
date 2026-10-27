@@ -1,4 +1,5 @@
-import { app, clipboard, ipcMain } from 'electron'
+import { app, clipboard } from 'electron'
+import { trustedIpcMain as ipcMain } from './trusted-ipc'
 import { join } from 'node:path'
 import { MAX_IDENTITY_IMAGE_BYTES, type IdentityReadResult } from '../shared/tenant-identity'
 

@@ -1,0 +1,43 @@
+{
+  "at": "2026-10-10T09:32:04.797Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "edgeOnly": true,
+  "before": {
+    "rooms": 25,
+    "tenants": 30,
+    "accounts": 1,
+    "invoices": 204,
+    "payments": 40,
+    "contracts": 49
+  },
+  "afterMigration": {
+    "rooms": 25,
+    "tenants": 30,
+    "accounts": 1,
+    "invoices": 204,
+    "payments": 40,
+    "contracts": 49
+  },
+  "after": {
+    "rooms": 25,
+    "tenants": 30,
+    "accounts": 1,
+    "invoices": 204,
+    "payments": 40,
+    "contracts": 49
+  },
+  "health": {
+    "ok": true,
+    "mode": "tenant",
+    "backend": "online",
+    "ocrConfigured": true,
+    "authRequired": true
+  },
+  "scheduler": {
+    "jobname": "ankhang-email-automation",
+    "active": true
+  },
+  "providerSecretsChanged": false,
+  "productionTestInvoicesCreated": false,
+  "realPaymentsMade": false
+}

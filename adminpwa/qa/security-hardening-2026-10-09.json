@@ -1,0 +1,92 @@
+{
+  "at": "2026-10-09T02:47:25.329Z",
+  "checks": [
+    {
+      "url": "https://app.phongtroankhang.com/",
+      "status": 200,
+      "entry": "/assets/index-C0EC4Wvw.js",
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xfo": "DENY"
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/",
+      "status": 200,
+      "entry": "/assets/index-B3GG3qeY.js",
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xfo": "DENY"
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/api/health",
+      "status": 200,
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xfo": "DENY",
+      "health": {
+        "ok": true,
+        "backend": "online",
+        "ocrConfigured": true
+      }
+    },
+    {
+      "path": "auth",
+      "status": 401
+    },
+    {
+      "path": "tenant-payments",
+      "status": 401
+    },
+    {
+      "path": "demo-payments",
+      "status": 401
+    },
+    {
+      "path": "meter-ocr",
+      "status": 401
+    }
+  ],
+  "auth": {
+    "disable_signup": true,
+    "password_min_length": 8,
+    "security_update_password_require_current_password": true,
+    "security_update_password_require_reauthentication": true,
+    "sessions_inactivity_timeout": 0,
+    "sessions_timebox": 0
+  },
+  "policies": [
+    {
+      "policyname": "room_images_management_delete",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "DELETE"
+    },
+    {
+      "policyname": "room_images_management_delete_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{public}",
+      "cmd": "DELETE"
+    },
+    {
+      "policyname": "room_images_management_insert",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "INSERT"
+    },
+    {
+      "policyname": "room_images_management_insert_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{public}",
+      "cmd": "INSERT"
+    },
+    {
+      "policyname": "room_images_management_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT"
+    }
+  ],
+  "limitations": [
+    "Provider credentials not rotated; local env ACL tightened.",
+    "Supabase session limits and leaked-password checks require paid plan.",
+    "CAPTCHA is not enabled without provider keys and client integration.",
+    "No production passwords changed; authenticated password flow tested with mocks."
+  ]
+}

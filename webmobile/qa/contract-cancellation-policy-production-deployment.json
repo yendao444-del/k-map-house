@@ -1,18 +1,18 @@
 {
-  "at": "2026-10-08T03:22:22.988Z",
+  "at": "2026-10-08T04:52:27.764Z",
   "project": "wtrycmiojsiliyjxsewz",
   "schema": "public",
   "before": {
     "rooms": 25,
-    "drafts": 2,
+    "drafts": 4,
     "tenants": 30,
-    "contracts": 49
+    "contracts": 51
   },
   "after": {
     "rooms": 25,
-    "drafts": 2,
+    "drafts": 4,
     "tenants": 30,
-    "contracts": 49
+    "contracts": 51
   },
   "access": {
     "rls": true,

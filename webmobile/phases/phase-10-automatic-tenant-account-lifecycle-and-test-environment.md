@@ -4,6 +4,8 @@ Ngày ghi nhận: 07/10/2026.
 
 ## Mục tiêu đã chốt
 
+**Kế hoạch staging E2E chi tiết hiện hành:** xem `phase-17-staging-e2e-room999.md`. Phase 10 ghi quyết định tách môi trường; Phase 17 quy định cách nối payment, camera thiết bị thật, SePay Simulator, reset và hàng rào triển khai.
+
 Phòng 999 là phòng mẫu để chủ nhà đóng vai khách thuê và chạy thử trọn luồng:
 
 **Thêm khách thuê → lập hợp đồng → khách xác nhận → cấp tài khoản website → đăng nhập → nhập/chụp điện nước → tạo hóa đơn → thanh toán → trả phòng.**

@@ -1,0 +1,10 @@
+{
+  "checkedAt": "2026-10-12T03:27:21.717Z",
+  "origin": "https://app.phongtroankhang.com",
+  "buildId": "f3eff539989b661a",
+  "profileChunk": "ProfileModal-BBYUWpWK.js",
+  "sha256": "7ea0aaf9da6cd86dd3fa29e35a1649069b195f374904e0c51aa618ed84127bd2",
+  "bytesMatchLocalDist": true,
+  "verificationFeedbackPresent": true,
+  "scope": "Public assets only. Authenticated behavior verified with local fixtures, not a real production account."
+}

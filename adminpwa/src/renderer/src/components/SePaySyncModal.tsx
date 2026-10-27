@@ -1,0 +1,692 @@
+import React, { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  fetchSepayTransactions,
+  reconcileVerifiedSepay,
+  type Invoice,
+  type Room
+} from '../lib/db'
+import { buildInvoiceTransferDescription, normalizeTransferText } from '../lib/invoiceTransfer'
+import { announcePaymentAmount } from '../lib/sound'
+import { LogoLoading } from './LogoLoading'
+import { usePasswordConfirmation } from './PasswordConfirmationDialog'
+import { formatSepayTransactionTime } from '../lib/sepay-transaction-time'
+import { SePayTransactionHistory } from './SePayTransactionHistory'
+import { describeSepayReconciliation, type SepayReconciliation } from '../lib/sepay-reconciliation'
+
+interface SePaySyncModalProps {
+  invoices: Invoice[]
+  rooms: Room[]
+  onClose: () => void
+  userId?: string
+}
+
+interface SepayTransaction {
+  id: string
+  amount_in: string
+  transaction_content: string
+  transaction_date: string
+  bank_brand_name: string
+  account_number: string
+  account_name?: string
+  sub_account?: string
+  reference_number: string
+  reconciliation?: SepayReconciliation
+}
+
+interface SepayResponse {
+  status?: number | string
+  error?: string
+  transactions?: SepayTransaction[]
+}
+
+interface SepayFetchResult {
+  ok: boolean
+  error?: string
+  data: SepayResponse
+}
+
+interface MatchResult {
+  invoice: Invoice
+  transaction: SepayTransaction
+  matchType: 'exact' | 'partial' | 'over' | 'suggested'
+}
+
+interface InvoiceCodeInfo {
+  invoice: Invoice
+  roomName: string
+  room?: Room
+  code: string
+  normalizedCode: string
+  remaining: number
+  isPending: boolean
+}
+
+const formatVND = (v: number): string => new Intl.NumberFormat('vi-VN').format(v)
+
+const fmtDate = (d?: string): string =>
+  d
+    ? new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : ''
+
+const getInvoiceTitle = (invoice: Invoice): string => {
+  if (invoice.billing_reason === 'deposit_refund') return 'Trả tiền cọc'
+  if (invoice.billing_reason === 'deposit_collect') return 'Thu tiền cọc'
+  if (invoice.billing_reason === 'contract_end') return 'Tất toán hợp đồng'
+  if (invoice.billing_reason === 'service') return 'Thu phí dịch vụ'
+  if (invoice.is_first_month) return 'Thu tiền tháng đầu tiên'
+  return `Thu tiền tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}`
+}
+
+export const SePaySyncModal: React.FC<SePaySyncModalProps> = ({ invoices, rooms, onClose, userId }) => {
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
+  const queryClient = useQueryClient()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [matches, setMatches] = useState<MatchResult[]>([])
+  const [successCount, setSuccessCount] = useState(0)
+  const [rawTxs, setRawTxs] = useState<SepayTransaction[]>([])
+  const [processingTxKeys, setProcessingTxKeys] = useState<string[]>([])
+  const [recordedTxKeys, setRecordedTxKeys] = useState<string[]>([])
+  const [isTestingSound, setIsTestingSound] = useState(false)
+
+  const handleTestSound = async (): Promise<void> => {
+    if (isTestingSound) return
+    setIsTestingSound(true)
+    try {
+      await announcePaymentAmount(1_500_000)
+    } finally {
+      setIsTestingSound(false)
+    }
+  }
+
+  const roomNameById = useMemo(() => {
+    const map = new Map<string, string>()
+    rooms.forEach((room) => map.set(room.id, room.name || ''))
+    return map
+  }, [rooms])
+
+  const roomById = useMemo(() => {
+    const map = new Map<string, Room>()
+    rooms.forEach((room) => map.set(room.id, room))
+    return map
+  }, [rooms])
+
+  const pendingInvoices = invoices.filter(
+    (inv) =>
+      ['unpaid', 'partial'].includes(inv.payment_status) &&
+      Number(inv.total_amount || 0) > Number(inv.paid_amount || 0)
+  )
+
+  const invoiceCodeInfos = useMemo<InvoiceCodeInfo[]>(
+    () =>
+      invoices
+        .filter(
+          (inv) =>
+            inv.payment_status !== 'cancelled' &&
+            inv.payment_status !== 'merged' &&
+            Number(inv.total_amount || 0) > 0
+        )
+        .map((invoice) => {
+          const roomName = roomNameById.get(invoice.room_id) || ''
+          const code = buildInvoiceTransferDescription(invoice, roomName)
+          return {
+            invoice,
+            roomName,
+            room: rooms.find((room) => room.id === invoice.room_id),
+            code,
+            normalizedCode: normalizeTransferText(code),
+            remaining: Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0)),
+            isPending: ['unpaid', 'partial'].includes(invoice.payment_status)
+          }
+        }),
+    [invoices, roomNameById, rooms]
+  )
+
+  const pendingCodeInfos = useMemo(
+    () => invoiceCodeInfos.filter((info) => info.isPending),
+    [invoiceCodeInfos]
+  )
+
+  const transactionDiagnostics = useMemo(() => {
+    return rawTxs.map((tx) => {
+      const amount = Number(tx.amount_in)
+      const accountLabel =
+        [tx.account_name, tx.bank_brand_name].filter(Boolean).join(' - ') || 'Tài khoản nhận'
+      const accountNumber = tx.account_number || tx.sub_account || ''
+      const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+      const pendingCodeMatches = pendingCodeInfos.filter((info) =>
+        normalizedContent.includes(info.normalizedCode)
+      )
+      const allCodeMatches = invoiceCodeInfos.filter((info) =>
+        normalizedContent.includes(info.normalizedCode)
+      )
+      const roomToken = normalizedContent.match(/P([A-Z0-9]+)T\d{6}C/)?.[1] || ''
+      const roomMatch = roomToken
+        ? rooms.find((room) => (room.name.match(/\d+/g)?.join('') || '') === roomToken)
+        : undefined
+      const pendingByRoom = roomMatch
+        ? pendingCodeInfos.filter((info) => info.invoice.room_id === roomMatch.id)
+        : []
+
+      let status: 'ok' | 'warn' | 'error' = 'error'
+      let title = 'Chưa khớp hóa đơn'
+      let detail = 'Không tìm thấy mã chuyển khoản của hóa đơn đang chờ thu.'
+
+      const serverMatch = tx.reconciliation
+      const suggestedInfo = serverMatch?.invoiceId
+        ? invoiceCodeInfos.find((info) => info.invoice.id === serverMatch.invoiceId)
+        : undefined
+      if (pendingCodeMatches.length === 1) {
+        const info = pendingCodeMatches[0]
+        if (Math.abs(amount - info.remaining) < 1) {
+          status = 'ok'
+          title = 'Khớp đủ điều kiện'
+          detail = `${info.roomName}: đúng mã và đúng số còn thu ${formatVND(info.remaining)} đ.`
+        } else {
+          status = 'warn'
+          title = 'Đúng mã nhưng lệch tiền'
+          detail = `${info.roomName}: SePay ${formatVND(amount)} đ, hóa đơn còn thu ${formatVND(info.remaining)} đ.`
+        }
+      } else if (pendingCodeMatches.length > 1) {
+        status = 'warn'
+        title = 'Một giao dịch khớp nhiều hóa đơn'
+        detail = 'Nội dung chuyển khoản chứa nhiều mã hóa đơn, cần kiểm tra thủ công.'
+      } else if (allCodeMatches.length > 0) {
+        const info = allCodeMatches[0]
+        if (info.invoice.payment_status === 'paid') {
+          const paidAt = formatSepayTransactionTime(tx.transaction_date).full
+          status = 'ok'
+          title = 'Đã chuyển khoản'
+          detail = `${info.roomName}: hóa đơn đã thu đủ${paidAt ? ` lúc ${paidAt}` : ''}.`
+        } else {
+          status = 'warn'
+          title = 'Đúng mã nhưng chưa cần chốt'
+          detail = `${info.roomName}: trạng thái hiện tại là ${info.invoice.payment_status}.`
+        }
+      } else if (roomMatch && pendingByRoom.length > 0) {
+        status = 'warn'
+        title = `Có vẻ là ${roomMatch.name}, nhưng sai mã hóa đơn`
+        detail = `Mã đang chờ: ${pendingByRoom.map((info) => info.code).join(', ')}.`
+      } else if (roomMatch) {
+        status = 'warn'
+        title = `Có vẻ là ${roomMatch.name}`
+        detail = 'Phòng này hiện không có hóa đơn đang chờ thu trong danh sách đồng bộ.'
+      }
+      const serverDescription = describeSepayReconciliation(serverMatch)
+      if (serverDescription) ({ status, title, detail } = serverDescription)
+
+      const relatedInfo = suggestedInfo || pendingCodeMatches[0] || allCodeMatches[0] || pendingByRoom[0]
+      const relatedInvoice = relatedInfo?.invoice
+      const relatedRoom =
+        relatedInfo?.room ||
+        (relatedInvoice ? rooms.find((room) => room.id === relatedInvoice.room_id) : roomMatch)
+      const relatedRoomName = relatedInfo?.roomName || relatedRoom?.name || roomMatch?.name || ''
+      const tenantName = serverMatch?.tenantName || relatedRoom?.tenant_name || ''
+      const tenantPhone = relatedRoom?.tenant_phone || ''
+      const invoiceTitle = relatedInvoice ? getInvoiceTitle(relatedInvoice) : ''
+      const periodText = relatedInvoice
+        ? relatedInvoice.billing_period_start && relatedInvoice.billing_period_end
+          ? `${fmtDate(relatedInvoice.billing_period_start)} - ${fmtDate(relatedInvoice.billing_period_end)}`
+          : `T.${String(relatedInvoice.month).padStart(2, '0')}/${relatedInvoice.year}`
+        : ''
+      const transferCode = relatedInfo?.code || ''
+
+      return {
+        tx,
+        amount,
+        accountLabel,
+        accountNumber,
+        status,
+        title,
+        detail,
+        roomName: serverMatch?.roomName || relatedRoomName,
+        tenantName,
+        tenantPhone,
+        invoiceTitle: invoiceTitle || (serverMatch?.month ? `Thu tiền tháng ${serverMatch.month}/${serverMatch.year}` : ''),
+        periodText: periodText || (serverMatch?.month ? `T.${String(serverMatch.month).padStart(2, '0')}/${serverMatch.year}` : ''),
+        transferCode,
+        remaining: serverMatch?.remaining ?? relatedInfo?.remaining,
+        suggestionInvoiceId: serverMatch?.status === 'suggestion' && suggestedInfo ? serverMatch.invoiceId : undefined,
+        canRecordBank: serverMatch?.status === 'none' && allCodeMatches.length === 0 && !roomMatch
+      }
+    })
+  }, [invoiceCodeInfos, pendingCodeInfos, rawTxs, rooms])
+
+  const fetchTransactions = async (): Promise<void> => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = (await fetchSepayTransactions()) as SepayFetchResult
+      if (!res.ok) throw new Error(res.error || 'Lỗi kết nối API SePay')
+
+      const data = res.data
+      if (data.status !== undefined && Number(data.status) !== 200) {
+        throw new Error(data.error || `SePay trả mã trạng thái ${data.status}`)
+      }
+
+      const txs = data.transactions || []
+      const foundMatches: MatchResult[] = []
+      const codeToInvoice = new Map<string, Invoice>()
+      const seenTxKeys = new Set<string>()
+
+      pendingInvoices.forEach((inv) => {
+        const roomName = roomNameById.get(inv.room_id) || ''
+        codeToInvoice.set(buildInvoiceTransferDescription(inv, roomName), inv)
+      })
+
+      txs.forEach((tx) => {
+        if (tx.reconciliation?.status !== 'code') return
+        const txKey = tx.reference_number || tx.id
+        if (txKey && seenTxKeys.has(txKey)) return
+        if (txKey) seenTxKeys.add(txKey)
+
+        const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+        const amount = Number(tx.amount_in)
+        const matchedInvoices = [...codeToInvoice.entries()]
+          .filter(([code]) => normalizedContent.includes(code))
+          .map(([, inv]) => inv)
+        const uniqueInvoiceIds = [...new Set(matchedInvoices.map((inv) => inv.id))]
+
+        // Strict: 1 giao dịch chỉ được map đúng 1 hóa đơn.
+        if (uniqueInvoiceIds.length !== 1) return
+
+        const inv = matchedInvoices[0]
+        const normalizedTxKeys = [tx.reference_number, tx.id]
+          .map((value) => normalizeTransferText(value || ''))
+          .filter(Boolean)
+        const wasRecorded = (inv.payment_records || []).some((record) => {
+          const recordValues = [record.external_ref, record.external_id, record.note]
+            .map((value) => normalizeTransferText(value || ''))
+            .filter(Boolean)
+          return normalizedTxKeys.some((key) =>
+            recordValues.some((value) => value === key || value.includes(key))
+          )
+        })
+        if (wasRecorded) return
+
+        const needToPay = inv.total_amount - inv.paid_amount
+
+        if (!Number.isFinite(amount) || amount <= 0) return
+
+        foundMatches.push({
+          invoice: inv,
+          transaction: tx,
+          matchType:
+            Math.abs(amount - needToPay) < 1 ? 'exact' : amount < needToPay ? 'partial' : 'over'
+        })
+      })
+
+      setRawTxs(txs)
+      setMatches(foundMatches)
+    } catch (err) {
+      console.error('SePay Sync Error:', err)
+      setError(err instanceof Error ? err.message : 'Không thể kết nối (Lỗi CORS hoặc Mạng)')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchTransactions()
+  }, [invoices, rooms])
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ match }: { match: MatchResult }) => {
+      await requirePassword('Ghi nhận khoản tiền SePay vào hóa đơn')
+      return reconcileVerifiedSepay(match.transaction.id, match.invoice.id, match.matchType === 'suggested' ? 'suggested-reconcile' : 'reconcile')
+    },
+    onMutate: ({ match }) => {
+      const txKey = match.transaction.reference_number || match.transaction.id
+      if (!txKey) return
+      setProcessingTxKeys((prev) => (prev.includes(txKey) ? prev : [...prev, txKey]))
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices', variables.match.invoice.room_id] })
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
+      setSuccessCount((s) => s + 1)
+      setMatches((prev) => prev.filter((m) => m.transaction.id !== variables.match.transaction.id))
+      setRawTxs((prev) => prev.map((tx) => tx.id === variables.match.transaction.id ? { ...tx, reconciliation: { status: 'recorded' } } : tx))
+    },
+    onSettled: (_, __, variables) => {
+      const txKey = variables?.match.transaction.reference_number || variables?.match.transaction.id
+      if (!txKey) return
+      setProcessingTxKeys((prev) => prev.filter((key) => key !== txKey))
+    }
+  })
+
+  const approveSuggestion = (tx: SepayTransaction, invoiceId: string): void => {
+    const invoice = invoices.find((item) => item.id === invoiceId)
+    if (!invoice) { setError('Hóa đơn chưa có trong danh sách hiện tại. Vui lòng tải lại.'); return }
+    updateMutation.mutate({ match: { invoice, transaction: tx, matchType: 'suggested' } })
+  }
+
+  const recordBankReceiptMutation = useMutation({
+    mutationFn: async (tx: SepayTransaction) => {
+      await requirePassword('Ghi nhận giao dịch SePay vào sổ ngân hàng')
+      return reconcileVerifiedSepay(tx.id)
+    },
+    onMutate: (tx) => {
+      const txKey = tx.reference_number || tx.id
+      if (txKey) setProcessingTxKeys((prev) => (prev.includes(txKey) ? prev : [...prev, txKey]))
+    },
+    onSuccess: (_, tx) => {
+      const txKey = tx.reference_number || tx.id
+      if (txKey) setRecordedTxKeys((prev) => [...prev, txKey])
+      queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
+    },
+    onSettled: (_, __, tx) => {
+      const txKey = tx?.reference_number || tx?.id
+      if (txKey) setProcessingTxKeys((prev) => prev.filter((key) => key !== txKey))
+    }
+  })
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      {passwordConfirmation}
+      <div role="dialog" aria-modal="true" aria-label="Đồng bộ lịch sử SePay" className="w-full max-w-[712px] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[94dvh]">
+        <div className="px-4 py-3 sm:px-6 flex items-center justify-between border-b border-gray-100 bg-blue-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-xl shadow-sm">
+              <i className="fa-solid fa-arrows-rotate disabled:animate-spin"></i>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">Đồng bộ lịch sử SePay</h2>
+              <p className="text-sm text-gray-500">Tự động đối chiếu ngân hàng với hóa đơn</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Đóng bảng SePay"
+            className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 transition"
+          >
+            <i className="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 bg-white">
+          {(updateMutation.error || recordBankReceiptMutation.error) && <p role="alert" className="mb-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">
+            {(updateMutation.error || recordBankReceiptMutation.error)?.message}
+          </p>}
+          {loading ? (
+            <LogoLoading message="Đang tải lịch sử từ SePay..." className="py-12" />
+          ) : error ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-center">
+              <i className="fa-solid fa-circle-exclamation text-rose-500 text-3xl mb-3"></i>
+              <p className="text-rose-700 font-medium">{error}</p>
+            </div>
+          ) : matches.length === 0 ? (
+            <div>
+              <div className="flex items-center justify-center gap-3 py-1">
+                <i className="fa-solid fa-circle-check text-2xl text-emerald-500" aria-hidden="true" />
+              <h3 className="text-sm font-semibold text-gray-600">{transactionDiagnostics.some((item) => item.suggestionInvoiceId) ? 'Có giao dịch cần duyệt gợi ý bên dưới' : 'Không có giao dịch khớp mã chờ xử lý'}</h3>
+              </div>
+              {rawTxs.length === 0 && <p className="mt-2 text-center text-sm text-slate-500">Chưa có giao dịch SePay.</p>}
+
+              {rawTxs.length > 0 && (
+                <div className="mt-3 w-full space-y-5 text-left">
+                  <SePayTransactionHistory diagnostics={transactionDiagnostics} userId={userId}
+                    onRecord={tx => recordBankReceiptMutation.mutate(tx)}
+                    onApproveSuggestion={approveSuggestion}
+                    actionPending={updateMutation.isPending || recordBankReceiptMutation.isPending}
+                    processingKeys={processingTxKeys} recordedKeys={recordedTxKeys} />
+
+                  {pendingCodeInfos.length > 0 && (
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+                    <div className="mb-2 text-xs font-black uppercase tracking-wide text-emerald-700">
+                      Mã chuyển khoản đang chờ thu
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {pendingCodeInfos.map((info) => (
+                        <div
+                          key={info.invoice.id}
+                          className="rounded-lg bg-white px-3 py-2 text-xs shadow-sm"
+                        >
+                          <div className="font-bold text-slate-800">
+                            {info.roomName || 'Phòng ?'}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[11px] text-emerald-700">
+                            {info.code}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">
+                            Còn thu {formatVND(info.remaining)} đ
+                          </div>
+                        </div>
+                      ))}
+                      {pendingCodeInfos.length === 0 && (
+                        <div className="text-xs font-semibold text-emerald-700">
+                          Không còn hóa đơn nào đang chờ thu.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  )}
+                </div>
+              )}
+
+              {false && rawTxs.length > 0 && (
+                <div className="mt-6 text-left border border-gray-200 rounded-lg p-4 bg-white w-full">
+                  <div className="text-xs font-bold text-gray-500 mb-2">
+                    DEBUG: 5 GIAO DỊCH GẦN NHẤT TỪ SEPAY
+                  </div>
+                  <ul className="text-xs text-gray-600 space-y-2">
+                    {rawTxs.slice(0, 5).map((tx) => (
+                      <li key={tx.id} className="border-b border-gray-100 pb-2">
+                        <span className="text-blue-600 font-mono">
+                          [{tx.amount_in.split('.')[0]}đ]
+                        </span>
+                        <span className="ml-2 bg-gray-100 px-1 rounded font-mono">
+                          &quot;{tx.transaction_content}&quot;
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="text-xs font-bold text-gray-500 mt-4 mb-2">
+                    TRANSFER CODE đang chờ thu:
+                  </div>
+                  <ul className="text-xs text-gray-600 space-y-1">
+                    {pendingInvoices.map((inv) => (
+                      <li key={inv.id} className="font-mono text-emerald-600">
+                        {roomNameById.get(inv.room_id) || 'Phòng ?'}: &quot;
+                        {buildInvoiceTransferDescription(inv, roomNameById.get(inv.room_id) || '')}
+                        &quot;
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-sm font-semibold text-gray-600 mb-2">
+                Phát hiện {matches.length} giao dịch khớp mã hóa đơn:
+              </div>
+              {matches.map((match) => {
+                const actual = Number(match.transaction.amount_in)
+                const invoice = match.invoice
+                const room = roomById.get(invoice.room_id)
+                const roomName = room?.name || roomNameById.get(invoice.room_id) || 'Phòng ?'
+                const tenantName = room?.tenant_name || 'Chưa rõ khách thuê'
+                const tenantPhone = room?.tenant_phone || ''
+                const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                const transferCode = buildInvoiceTransferDescription(invoice, roomName)
+                const periodText =
+                  invoice.billing_period_start && invoice.billing_period_end
+                    ? `${fmtDate(invoice.billing_period_start)} - ${fmtDate(invoice.billing_period_end)}`
+                    : `T.${String(invoice.month).padStart(2, '0')}/${invoice.year}`
+                const txKey = match.transaction.reference_number || match.transaction.id
+                const isProcessing = Boolean(txKey && processingTxKeys.includes(txKey))
+                return (
+                  <div
+                    key={match.transaction.id}
+                    className="bg-white border text-sm border-gray-200 rounded-xl p-4 shadow-sm relative overflow-hidden"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 font-black text-emerald-700 border border-emerald-100">
+                            {roomName}
+                          </span>
+                          <span className="font-bold text-gray-800">{tenantName}</span>
+                          {tenantPhone && (
+                            <span className="text-xs font-semibold text-gray-500">
+                              {tenantPhone}
+                            </span>
+                          )}
+                          <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px] font-mono border border-gray-200">
+                            Ref: {match.transaction.reference_number}
+                          </span>
+                          <span className="font-bold text-emerald-600">{formatVND(actual)} đ</span>
+                        </div>
+                        <div className="grid gap-1.5 text-xs text-slate-600 sm:grid-cols-2">
+                          <div>
+                            <span className="font-semibold text-slate-500">Hóa đơn:</span>{' '}
+                            <span className="font-bold text-slate-800">
+                              {getInvoiceTitle(invoice)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Kỳ thu:</span>{' '}
+                            <span className="font-bold text-slate-800">{periodText}</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Cần thu:</span>{' '}
+                            <span className="font-bold text-red-600">{formatVND(remaining)} đ</span>
+                          </div>
+                          <div>
+                            <span className="font-semibold text-slate-500">Mã CK:</span>{' '}
+                            <span className="font-mono font-bold text-blue-700">
+                              {transferCode}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-2 break-all rounded-lg bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 border border-slate-100">
+                          {match.transaction.transaction_content ||
+                            'Không có nội dung chuyển khoản'}
+                        </div>
+                        <div
+                          className={`mt-2 text-xs font-bold ${match.matchType === 'exact' ? 'text-green-600' : 'text-amber-600'}`}
+                        >
+                          {match.matchType === 'exact'
+                            ? 'Khớp mã và đúng số tiền. Có thể chốt phiếu.'
+                            : match.matchType === 'partial'
+                              ? `Đúng mã nhưng chuyển thiếu ${formatVND(remaining - actual)} đ. Cần duyệt thu một phần.`
+                              : `Đúng mã nhưng chuyển thừa ${formatVND(actual - remaining)} đ. Không thể tự động chốt; cần đối soát thủ công.`}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 shrink-0 justify-center">
+                        <button
+                          onClick={() => updateMutation.mutate({ match })}
+                          disabled={
+                            updateMutation.isPending || isProcessing || match.matchType === 'over'
+                          }
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg px-4 py-2 text-xs font-bold transition shadow-sm border border-emerald-600 disabled:opacity-50"
+                        >
+                          {match.matchType === 'exact'
+                            ? 'Duyệt: Chốt phiếu'
+                            : match.matchType === 'partial'
+                              ? `Duyệt: Thu ${formatVND(actual)} đ`
+                              : 'Chuyển thừa - kiểm tra'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {transactionDiagnostics.some((item) => item.canRecordBank) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                  <div className="mb-3 text-sm font-black text-amber-900">
+                    Giao dịch ngân hàng chưa ghép hóa đơn
+                  </div>
+                  <div className="space-y-2">
+                    {transactionDiagnostics
+                      .filter((item) => item.canRecordBank)
+                      .slice(0, 8)
+                      .map((item) => {
+                        const txKey = item.tx.reference_number || item.tx.id
+                        const isRecorded = recordedTxKeys.includes(txKey)
+                        return (
+                          <div
+                            key={item.tx.id}
+                            className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white px-3 py-2"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="font-black text-slate-900">
+                                  {formatVND(item.amount)} đ
+                                </span>
+                                <span className="font-bold text-amber-800">{item.title}</span>
+                              </div>
+                              <div className="mt-1 truncate font-mono text-[10px] text-slate-500">
+                                {item.tx.transaction_content || 'Không có nội dung'}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => recordBankReceiptMutation.mutate(item.tx)}
+                              disabled={processingTxKeys.includes(txKey) || isRecorded}
+                              className="shrink-0 rounded-lg bg-amber-600 px-3 py-2 text-[10px] font-black text-white hover:bg-amber-700 disabled:opacity-50"
+                            >
+                              {isRecorded ? 'Đã ghi sổ' : 'Ghi sổ ngân hàng'}
+                            </button>
+                          </div>
+                        )
+                      })}
+                  </div>
+                  <div className="mt-3 text-[11px] font-semibold leading-5 text-amber-800">
+                    Ghi sổ ngân hàng chỉ cập nhật số dư, không tự đánh dấu hóa đơn đã thanh toán.
+                    Bạn có thể ghép hóa đơn sau khi kiểm tra.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {!loading && !error && matches.length > 0 && (
+            <div className="mt-6 border-t border-slate-200 pt-5">
+              <SePayTransactionHistory diagnostics={transactionDiagnostics} userId={userId}
+                onRecord={tx => recordBankReceiptMutation.mutate(tx)}
+                onApproveSuggestion={approveSuggestion}
+                actionPending={updateMutation.isPending || recordBankReceiptMutation.isPending}
+                processingKeys={processingTxKeys} recordedKeys={recordedTxKeys} />
+            </div>
+          )}
+        </div>
+
+        <div className="shrink-0 px-4 py-2 sm:px-6 border-t border-gray-100 bg-white flex justify-between items-center">
+          <div className="text-sm font-medium text-gray-500">
+            {successCount > 0 ? (
+              <span className="text-emerald-600 mr-2">
+                <i className="fa-solid fa-check-circle mr-1"></i>Đã chốt thành công: {successCount}{' '}
+                hóa đơn
+              </span>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleTestSound()}
+              disabled={isTestingSound}
+              aria-busy={isTestingSound}
+              title="Nghe thử chuông và giọng đọc nhận 1.500.000 đồng"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 font-medium hover:bg-blue-100 transition text-sm disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            >
+              <i className="fa-solid fa-volume-high" aria-hidden="true"></i>
+              <span>{isTestingSound ? 'Đang phát…' : 'Nghe thử'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition text-sm"
+            >
+              Đóng bảng
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-09T08:26:41.928Z",
+  "health": {
+    "ok": true,
+    "backend": "online",
+    "ocrConfigured": true
+  },
+  "unauthenticatedStatus": 401,
+  "csrfStatus": 403,
+  "permissions": {
+    "anon_rpc": false,
+    "browser_write": false,
+    "public_photo": false,
+    "browser_cycle": false
+  },
+  "worker": {
+    "enabled": true,
+    "sepay_enabled": true,
+    "last_worker_at": "2026-10-09 08:26:02.323+00",
+    "last_poll_at": "2026-10-09 08:26:00.821+00",
+    "last_poll_error": null
+  },
+  "schedulerDelivery": {
+    "status_code": 200,
+    "tenant_delivery": {
+      "sent": 0,
+      "failed": 0,
+      "skipped": 0,
+      "configured": true
+    }
+  },
+  "cycle_count": 0
+}

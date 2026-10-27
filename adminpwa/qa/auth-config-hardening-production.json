@@ -1,0 +1,12 @@
+{
+  "changedAt": "2026-10-09T03:00:49.333Z",
+  "before": {
+    "siteUrl": "http://localhost:3000",
+    "redirectAllowList": "https://app.phongtroankhang.com/**"
+  },
+  "after": {
+    "siteUrl": "https://app.phongtroankhang.com",
+    "redirectAllowList": "https://app.phongtroankhang.com/**"
+  },
+  "verified": true
+}

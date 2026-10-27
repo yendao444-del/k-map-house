@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-09T07:49:14.307Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "before": {
+    "rooms": 25,
+    "invoices": 204,
+    "payments": 38,
+    "contracts": 49
+  },
+  "after": {
+    "rooms": 25,
+    "invoices": 204,
+    "payments": 38,
+    "contracts": 49
+  },
+  "access": {
+    "browser_receipts": false,
+    "anon_claim": false
+  },
+  "status": {
+    "ok": true,
+    "enabled": true,
+    "sepay_enabled": true,
+    "last_worker_at": "2026-10-09T07:48:01.899+00:00",
+    "last_poll_at": "2026-10-09T07:48:01.134+00:00",
+    "last_poll_error": null,
+    "configured": true
+  },
+  "cutover": {
+    "started_at": "2026-10-09 07:45:05.586435+00"
+  },
+  "migrationSha256": "0ef499927fda4987a3c9e2e7edf7262c23cb4ff2ac0486863c81baf634034567",
+  "workerSha256": "319e57ea5a2263120f636ffc54bc02db6b20ad390a2fa226a5c63bd946e709b5",
+  "businessRowsUnchanged": true,
+  "historicalReceiptsReplayed": false,
+  "testEmailSent": false
+}

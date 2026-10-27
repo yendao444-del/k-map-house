@@ -4,6 +4,9 @@ begin;
 -- EMAIL_AUTOMATION_SECRET is placed in Vault and the installer is called.
 create extension if not exists pg_net;
 create extension if not exists pg_cron;
+-- Supabase owns the extension tables as supabase_admin; postgres cannot revoke
+-- that owner's built-in PUBLIC grants. Keep net/cron out of PostgREST's exposed
+-- schemas and verify the API boundary separately. Vault remains server-only.
 
 create or replace function public.install_email_automation_schedule()
 returns boolean

@@ -1,0 +1,1377 @@
+{
+  "capturedAt": "2026-10-09T06:36:44.582Z",
+  "access": "read-only management audit; no changes",
+  "tables": [
+    {
+      "tablename": "admin_pwa_auth_limits",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "admin_pwa_bank_claims",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "admin_pwa_investment_commits",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "admin_pwa_investment_store",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "app_secrets",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "app_settings",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "asset_snapshots",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "asset_templates",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "cash_transactions",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_cancellation_notices",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_confirmation_events",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_confirmations",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_drafts",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_lifecycle_events",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_test_designations",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contract_usage_evidence",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "contracts",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "debt_entries",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "email_automation_settings",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "email_notification_deliveries",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "email_send_budget",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "invoices",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "move_in_receipts",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "payment_event_keys",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "payment_events",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "room_asset_adjustments",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "room_assets",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "room_vehicles",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "rooms",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "sepay_server_transactions",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "service_zones",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_auth_provisions",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_meter_manual_entries",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_meter_photos",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_payment_cycles",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_payment_emails",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenant_web_accounts",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "tenants",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "users",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "wallet_accounting_basis",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "wallet_reconciliations",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "wallet_transfer_requests",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "webmobile_auth_sessions",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "webmobile_demo_accounts",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "webmobile_demo_limits",
+      "rowsecurity": true
+    },
+    {
+      "tablename": "webmobile_demo_sessions",
+      "rowsecurity": true
+    }
+  ],
+  "policies": [
+    {
+      "tablename": "app_settings",
+      "policyname": "app_settings_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "app_settings",
+      "policyname": "app_settings_authenticated_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "tablename": "app_settings",
+      "policyname": "pwa_management_active_guard",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))"
+    },
+    {
+      "tablename": "asset_snapshots",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "asset_snapshots",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "asset_snapshots",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "asset_templates",
+      "policyname": "authenticated_active_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "asset_templates",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "asset_templates",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "asset_templates",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "cash_transactions",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "contract_drafts",
+      "policyname": "contract_drafts_insert_admin",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((status = 'draft'::text) AND (created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text)))))"
+    },
+    {
+      "tablename": "contract_drafts",
+      "policyname": "contract_drafts_select_admin",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "contract_drafts",
+      "policyname": "contract_drafts_update_admin",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((status = 'draft'::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text)))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "contracts",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "contracts",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "contracts",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_delete_admin",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_insert_active_user",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.status = 'active'::text) AND ((users.role = 'admin'::text) OR ((users.role = 'user'::text) AND ((debt_entries.type = ANY (ARRAY['paid'::text, 'offset'::text])) OR ((debt_entries.type = 'totalDebt'::text) AND (debt_entries.amount > 0) AND (debt_entries.reason = 'Vay thêm'::text)))))))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_positive_principal_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((type <> 'totalDebt'::text) OR (amount > 0))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_positive_principal_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "true",
+      "with_check": "((type <> 'totalDebt'::text) OR (amount > 0))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_select_authenticated",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "debt_entries_update_admin",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users\n  WHERE ((users.id = auth.uid()) AND (users.role = 'admin'::text) AND (users.status = 'active'::text))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_active_guard",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text])))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_delete_permission_guard",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_insert_permission_guard",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((created_by = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND ((u.role = 'admin'::text) OR ((u.role = 'user'::text) AND ((debt_entries.type = ANY (ARRAY['paid'::text, 'offset'::text])) OR ((debt_entries.type = 'totalDebt'::text) AND (debt_entries.amount > 0) AND (debt_entries.reason = 'Vay thêm'::text)))))))))"
+    },
+    {
+      "tablename": "debt_entries",
+      "policyname": "pwa_debt_update_permission_guard",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = 'admin'::text))))"
+    },
+    {
+      "tablename": "email_notification_deliveries",
+      "policyname": "Admins manage local email deliveries",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((NOT server_queue) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text)))))",
+      "with_check": "((NOT server_queue) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text)))))"
+    },
+    {
+      "tablename": "email_notification_deliveries",
+      "policyname": "Admins read email notification deliveries",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "invoices",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "move_in_receipts",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "move_in_receipts",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "move_in_receipts",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_asset_adjustments",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_asset_adjustments",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "room_asset_adjustments",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_assets",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_assets",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "room_assets",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_vehicles",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "room_vehicles",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "room_vehicles",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "rooms",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "rooms",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "rooms",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "service_zones",
+      "policyname": "authenticated_active_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "service_zones",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "service_zones",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "service_zones",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "tenant_web_accounts",
+      "policyname": "tenant_web_accounts_staff_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "tenants",
+      "policyname": "authenticated_active_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "tenants",
+      "policyname": "authenticated_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "tenants",
+      "policyname": "authenticated_active_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "users",
+      "policyname": "management_directory_read_guard",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((id = auth.uid()) OR management_directory_access())",
+      "with_check": null
+    },
+    {
+      "tablename": "users",
+      "policyname": "users_select_authenticated",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "tablename": "users",
+      "policyname": "users_update_admin",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.role = 'admin'::text) AND (u.status = 'active'::text))))"
+    },
+    {
+      "tablename": "users",
+      "policyname": "users_update_self_profile",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(auth.uid() = id)",
+      "with_check": "((auth.uid() = id) AND (role = ( SELECT u.role\n   FROM users u\n  WHERE (u.id = auth.uid()))) AND (status = ( SELECT u.status\n   FROM users u\n  WHERE (u.id = auth.uid()))))"
+    },
+    {
+      "tablename": "wallet_accounting_basis",
+      "policyname": "wallet_accounting_basis_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "tablename": "wallet_reconciliations",
+      "policyname": "wallet_reconciliation_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))",
+      "with_check": null
+    }
+  ],
+  "routines": [
+    {
+      "proname": "admin_pwa_auth_rate",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_guard_sepay_event",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_guard_sepay_invoice",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_investment_commit",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_investment_import",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_investment_read",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_investment_receipt_immutable",
+      "security_definer": false,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_investment_write",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "admin_pwa_reconcile_verified_sepay",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "advance_room_meter_on_invoice_payment",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "capture_server_invoice_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "claim_server_emails",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "claim_tenant_payment_emails",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "confirm_invoice_debt_atomic",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "contract_account_claim",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_account_finish",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_account_on_end",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_account_readiness",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_amendment_start",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_cancel",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_cancel_internal",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_cancellation_check",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_cancellation_notice",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_capture_usage",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_accept",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_accept_initial",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_audit",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_create",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_create_initial",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_delivery",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_document_view",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_history",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_log_event",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_open",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_status",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_view",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_confirmation_view_initial",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_draft_revoke_links",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_form_values",
+      "security_definer": false,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_history",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_original_confirmation",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "contract_term_values",
+      "security_definer": false,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "email_preference_allowed",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "email_server_status",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "enqueue_due_server_emails",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "enqueue_server_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "ensure_tenant_payment_cycle",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "finish_server_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "finish_tenant_payment_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_confirmed_contract_terms",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_contract_cancellation_metadata",
+      "security_definer": false,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_contract_draft",
+      "security_definer": false,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_system_tenant_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_tenant_cycle_invoice",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "guard_tenant_system_email",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "handle_auth_user_created",
+      "security_definer": true,
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "proname": "handle_auth_user_login",
+      "security_definer": true,
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "proname": "install_email_automation_schedule",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "invoice_debt_schema_version",
+      "security_definer": false,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "management_directory_access",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "process_server_sepay",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "protect_billing_period_insert",
+      "security_definer": false,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "protect_confirmed_invoice",
+      "security_definer": false,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "queue_tenant_payment_emails",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "reconcile_wallet_balances",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "record_invoice_payment_atomic",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "reopen_invoice_debt_atomic",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "resolve_login_email",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "sync_tenant_paid_readings",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_email_check",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_payment_fallback",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_payment_scope",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_payment_state",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_payment_write",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "tenant_system_email_conflict",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "transfer_between_wallets",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_check_result",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_checkpoint_immutable",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "proname": "wallet_guard_cash",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_guard_invoice",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_guard_settings",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_guard_version",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "proname": "wallet_ledger_entries",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_position",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "wallet_serialize_writes",
+      "security_definer": true,
+      "config": [
+        "search_path=\"\""
+      ]
+    },
+    {
+      "proname": "webmobile_auth_rate",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "webmobile_auth_refresh_claim",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "webmobile_demo_claim",
+      "security_definer": true,
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "proname": "webmobile_demo_quota",
+      "security_definer": true,
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "proname": "webmobile_demo_release",
+      "security_definer": true,
+      "config": [
+        "search_path=public"
+      ]
+    },
+    {
+      "proname": "webmobile_enroll_tenant",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "webmobile_prepare_tenant_auth",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "webmobile_revoke_tenant",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    },
+    {
+      "proname": "webmobile_save_tenant_session",
+      "security_definer": true,
+      "config": [
+        "search_path=public, pg_temp"
+      ]
+    }
+  ],
+  "profileCounts": [
+    {
+      "role": "admin",
+      "status": "active",
+      "count": 2
+    },
+    {
+      "role": "user",
+      "status": "active",
+      "count": 1
+    }
+  ],
+  "auth": {
+    "siteUrl": "https://app.phongtroankhang.com",
+    "redirectAllowList": "https://app.phongtroankhang.com/**",
+    "signupDisabled": true
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "verifiedAt": "2026-10-12T03:31:30.500Z",
+  "checks": {
+    "getReadWithAgedMfa": true,
+    "postReadWithAgedMfa": true,
+    "sensitiveOperationsStillDeniedWithoutRecentProof": true,
+    "anonymousDirectoryDenied": true,
+    "revokedSessionDenied": true,
+    "disposableFixtureRemoved": true
+  },
+  "customerAccountsChanged": false,
+  "emailsSent": false,
+  "scope": "Actual Auth TOTP and PostgREST HTTP using a disposable staff account; mailbox/recovery authorization simulated only for this fixture."
+}

@@ -1,0 +1,212 @@
+{
+  "testedAt": "2026-10-14T09:38:01.628Z",
+  "mode": "isolated schema in one rollback-only transaction; current production payment RPC copied read-only; synthetic bank data, no provider request/email/money transfer",
+  "assertions": [
+    {
+      "name": "ambiguous-transfer-denied",
+      "passed": true
+    },
+    {
+      "name": "authenticated-role-service-rpc-denied",
+      "passed": true
+    },
+    {
+      "name": "bank-receipt-replay-idempotent",
+      "passed": true
+    },
+    {
+      "name": "cancelled-invoice-denied",
+      "passed": true
+    },
+    {
+      "name": "fake-direct-sepay-payment-denied",
+      "passed": true
+    },
+    {
+      "name": "invoice-bank-double-credit-denied",
+      "passed": true
+    },
+    {
+      "name": "overpayment-denied",
+      "passed": true
+    },
+    {
+      "name": "paid-amount-overwrite-denied",
+      "passed": true
+    },
+    {
+      "name": "payment-replay-idempotent",
+      "passed": true
+    },
+    {
+      "name": "rejection-no-reservation",
+      "passed": true
+    },
+    {
+      "name": "replay-amount-binding",
+      "passed": true
+    },
+    {
+      "name": "replay-invoice-binding",
+      "passed": true
+    },
+    {
+      "name": "service-function-and-claim-table-private",
+      "passed": true
+    },
+    {
+      "name": "settlement-room-contract-transition",
+      "passed": true
+    },
+    {
+      "name": "suggestion-ambiguity-rechecked-on-approval",
+      "passed": true
+    },
+    {
+      "name": "suggestion-approval-idempotent",
+      "passed": true
+    },
+    {
+      "name": "suggestion-approved-payment-atomic",
+      "passed": true
+    },
+    {
+      "name": "suggestion-authoritative-historical-tenant",
+      "passed": true
+    },
+    {
+      "name": "suggestion-bank-income-denied-until-invoice-review",
+      "passed": true
+    },
+    {
+      "name": "suggestion-billing-window-required",
+      "passed": true
+    },
+    {
+      "name": "suggestion-exact-remaining-amount-required",
+      "passed": true
+    },
+    {
+      "name": "suggestion-full-name-word-boundaries",
+      "passed": true
+    },
+    {
+      "name": "suggestion-includes-paid-competing-invoices",
+      "passed": true
+    },
+    {
+      "name": "suggestion-monthly-invoices-only",
+      "passed": true
+    },
+    {
+      "name": "suggestion-never-accepted-as-exact-reconciliation",
+      "passed": true
+    },
+    {
+      "name": "suggestion-paid-invoice-approval-denied",
+      "passed": true
+    },
+    {
+      "name": "suggestion-paid-invoice-bank-double-credit-denied",
+      "passed": true
+    },
+    {
+      "name": "suggestion-preserves-provider-reference-and-audit-mode",
+      "passed": true
+    },
+    {
+      "name": "suggestion-recorded-transaction-not-actionable",
+      "passed": true
+    },
+    {
+      "name": "suggestion-room342-manually-paid-warning",
+      "passed": true
+    },
+    {
+      "name": "suggestion-service-only-candidate-rpc",
+      "passed": true
+    },
+    {
+      "name": "suggestion-short-name-denied",
+      "passed": true
+    },
+    {
+      "name": "suggestion-target-binding-rechecked",
+      "passed": true
+    },
+    {
+      "name": "suggestion-vietnam-timezone-window",
+      "passed": true
+    },
+    {
+      "name": "suggestion-vietnamese-accent-normalization",
+      "passed": true
+    },
+    {
+      "name": "suggestion-wrong-explicit-code-denied",
+      "passed": true
+    },
+    {
+      "name": "unknown-admin-denied",
+      "passed": true
+    },
+    {
+      "name": "verified-alphanumeric-sub-account",
+      "passed": true
+    },
+    {
+      "name": "verified-exact-payment",
+      "passed": true
+    },
+    {
+      "name": "verified-history-deletion-denied",
+      "passed": true
+    },
+    {
+      "name": "verified-partial-payment",
+      "passed": true
+    },
+    {
+      "name": "verified-unmatched-bank-receipt",
+      "passed": true
+    },
+    {
+      "name": "virtual-account-letter-collision-denied",
+      "passed": true
+    },
+    {
+      "name": "wrong-bank-account-denied",
+      "passed": true
+    },
+    {
+      "name": "wrong-target-invoice-denied",
+      "passed": true
+    },
+    {
+      "name": "zero-amount-denied",
+      "passed": true
+    }
+  ],
+  "before": [
+    {
+      "claims": 0,
+      "events": 47,
+      "observed": 9,
+      "cash_fingerprint": "b07490033532354600973a4cb4fc3580",
+      "invoice_fingerprint": "9fe6d49145b09d6ea3d4e30e01fbecc6"
+    }
+  ],
+  "after": [
+    {
+      "claims": 0,
+      "events": 47,
+      "observed": 9,
+      "cash_fingerprint": "b07490033532354600973a4cb4fc3580",
+      "invoice_fingerprint": "9fe6d49145b09d6ea3d4e30e01fbecc6"
+    }
+  ],
+  "limitations": [
+    "Shared production wallet triggers are not copied into this isolated fixture; full financial integration needs a separate acceptance check.",
+    "Actual authenticated HTTP provider lookup and mobile reconciliation still require verification."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "appliedAt": "2026-10-09T01:35:35.165Z",
+  "fix": "SePay recipient matching now accepts trusted alphanumeric sub_account and rejects outgoing amount_out",
+  "productionVerification": {
+    "status": "recorded",
+    "invoiceStatus": "paid",
+    "amount": 2943400,
+    "duplicateStatus": "duplicate",
+    "scheduler": {
+      "enabled": true,
+      "sepayEnabled": true,
+      "lastPollError": null
+    }
+  },
+  "scope": "No manual payment write by test; scheduled worker reconciled the provider transaction."
+}

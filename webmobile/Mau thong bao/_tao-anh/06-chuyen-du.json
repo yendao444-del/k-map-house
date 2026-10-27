@@ -1,0 +1,13 @@
+{
+  "id": "06-chuyen-du",
+  "name": "Chuyển dư tiền · Cần đối soát",
+  "model": "cx/gpt-5.5-image",
+  "prompt": "Create ONE production-quality Vietnamese transactional email visual, not a website. 1024x1536 portrait; entire email visible, white outer margin, natural centered 600px layout, no browser chrome. AUTHORITATIVE REFERENCE: attached image is the exact user-approved AN KHANG HOME email crop. Preserve its real white logo plaque with navy/green AK + AN KHANG HOME wordmark, emerald illustrated apartment-building banner, large white headline at left, illustration at right, curved pale mint lower edge, left-aligned body, thin fact dividers, signature. Match the reference closely; do not invent a different brand. EXACT TEMPLATE: Chuyển dư tiền · Cần đối soát; audience Tài khoản hệ thống; banner headline exactly 'CHUYỂN DƯ CẦN ĐỐI SOÁT'. Semantic palette: red; original logo colors remain navy/green. Banner illustration: cream apartment building, receipt, extra coin stack and red review magnifier. Use a refined flat editorial illustration, not 3D. Date anchor 09/10/2026 Vietnam UTC+7; all supplied facts are synthetic and exact. BODY: Xin chào Chủ nhà, Số tiền chuyển khoản lớn hơn số tiền còn phải thanh toán của hóa đơn. Emphasize 'Số tiền chênh lệch' as 466.000 đ. Facts: Phòng: Phòng 221; Cần thanh toán: 2.534.000 đ; Đã chuyển: 3.000.000 đ; Trạng thái: Chờ đối soát.  Closing: Vui lòng xác định cách xử lý phần dư trước khi ghi nhận khoản thu. No button and no external link; the message must be complete in the email. Close with 'Trân trọng,' and 'Đội ngũ An Khang Home'. Add tiny footer 'Dữ liệu minh họa · 09/10/2026'.  AVOID: Gmail/browser UI, tabs, device frame, other brands, SPX, QR, passwords, fake phone/contact details, clutter, cards inside cards, multiple CTAs, repeated headings, tiny unreadable text, clipped footer, misspelled Vietnamese, unsupported success stamp, invented amounts, people, photorealistic luxury real estate, code or HTML annotations. CRITICAL PALETTE OVERRIDE: preserve the reference layout and illustration style, but RECOLOR THE ENTIRE LARGE BANNER BACKGROUND to red. The semantic color must dominate the banner, not merely appear in a tiny icon. Only the original AK logo retains navy/green. Do not keep the emerald banner for this template.",
+  "promptHash": "3c3763476ebff8668fd176a00764507002c344e5de6d7ae677cd367a9bb22e43",
+  "reference": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\_nguon\\anh-mau-email-hop-dong.png",
+  "source": "C:/Users/Admin/AppData/Local/Temp/codex-clipboard-c87e65da-42e8-49bd-8fb2-bdedd61e50ef.png",
+  "width": 1024,
+  "height": 1536,
+  "sha256": "0d362f5f2b84dd5a62771241e64bf1a411afe6e3d1a0f26debc3b51f55cbc4f4",
+  "at": "2026-10-09T08:46:08.073Z"
+}

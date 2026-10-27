@@ -1,4 +1,6 @@
 import React, { Component, Suspense, lazy, useState, useEffect, useMemo, useCallback, type ErrorInfo, type ReactNode } from 'react'
+import { MfaChallengeRequired, SecurityStepUpRequired, securityState, isProfileSecurityFlowPending } from './lib/mfa'
+import { getManagementSessionExpiry, isManagementSessionExpired } from './lib/auth-storage'
 import {
   Home,
   FileText,
@@ -29,6 +31,7 @@ import {
   getAssetSnapshotsByRoomIds,
   getAppSettings,
   getSepayTokenStatus,
+  getEmailDeliveryAvailability,
   fetchSepayTransactions,
   getCurrentSessionUser,
   getCollectedDepositAmount,
@@ -42,6 +45,7 @@ import {
   type AppUser
 } from './lib/db'
 import { announcePaymentAmount } from './lib/sound'
+import { AccountMenu, type ProfileSection } from './components/AccountMenu'
 import { EditableCell } from './components/EditableCell'
 import { LogoLoading } from './components/LogoLoading'
 import { ContractLeaveDialog } from './components/ContractLeaveDialog'
@@ -257,7 +261,7 @@ type ServiceTooltipState = {
   top: number
   above: boolean
 }
-type SettingsSection = 'general' | 'zones' | 'users' | 'updates'
+type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
 type UpdateBannerInfo = {
   latestVersion?: string
   downloadUrl?: string | null
@@ -1403,9 +1407,73 @@ const App: React.FC = () => {
   const isPageVisible = usePageVisible()
   const wasPageVisible = React.useRef(isPageVisible)
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
+  const [pendingSecurity, setPendingSecurity] = useState<string | null>(null)
+  const [pendingMfa, setPendingMfa] = useState<{ factorId: string; challengeId: string } | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [passwordRecovery, setPasswordRecovery] = useState(isPasswordRecoveryRedirect)
-  const canLoadData = authReady && Boolean(currentUser)
+  const [authValidationError, setAuthValidationError] = useState('')
+  const canLoadData = authReady && Boolean(currentUser) && !authValidationError
+
+  useEffect(() => {
+    if (!currentUser) return undefined
+    let disposed = false
+    let checking = false
+    const expire = () => {
+      if (disposed) return
+      // Expiry must hide private screens even while a network check is pending.
+      disposed = true
+      setPendingMfa(null)
+      setPendingSecurity(null)
+      setAuthValidationError('')
+      setCurrentUser(null)
+      setAuthReady(true)
+      void queryClient.cancelQueries().finally(() => queryClient.clear())
+      void signOutUser().catch(() => undefined)
+    }
+    const validate = async (allowHidden = false) => {
+      if ((!allowHidden && document.hidden) || checking || isProfileSecurityFlowPending()) return
+      checking = true
+      // A foreground check must not unmount the signed-in workspace or its
+      // forms. Keep an existing error blocked until validation actually succeeds.
+      try {
+        const user = await getCurrentSessionUser()
+        if (!disposed) { if (!user) queryClient.clear(); setCurrentUser(user); setAuthValidationError(''); setAuthReady(true) }
+      } catch (error) {
+        if (!disposed) {
+          if (error instanceof MfaChallengeRequired) {
+            setPendingMfa({ factorId: error.factorId, challengeId: error.challengeId })
+            setCurrentUser(null)
+            queryClient.clear()
+          } else if (error instanceof SecurityStepUpRequired) {
+            setPendingSecurity(error.state); setCurrentUser(null); queryClient.clear()
+          } else setAuthValidationError(error instanceof Error ? error.message : 'Không kiểm tra được quyền truy cập.')
+          setAuthReady(true)
+        }
+      } finally { checking = false }
+    }
+    // The backend denies access immediately; this also removes an already-open
+    // business screen when the mandatory policy or session changes.
+    const timer = window.setInterval(async () => {
+      if (isManagementSessionExpired()) { expire(); return }
+      if (document.hidden || checking || disposed || isProfileSecurityFlowPending()) return
+      checking = true
+      let needsValidation = false
+      try {
+        const state = await securityState()
+        needsValidation = !['ready', 'optional'].includes(String(state.state))
+      } catch { needsValidation = true }
+      finally { checking = false }
+      if (!disposed && needsValidation) void validate()
+    }, 15_000)
+    const deadline = getManagementSessionExpiry()
+    const deadlineTimer = deadline === null ? 0 : window.setTimeout(expire, Math.max(0, deadline - Date.now()))
+    const foreground = () => { if (isManagementSessionExpired()) expire(); else if (!document.hidden) void validate() }
+    const retry = () => { void validate() }
+    document.addEventListener('visibilitychange', foreground)
+    window.addEventListener('online', retry)
+    window.addEventListener('management-retry-auth', retry)
+    return () => { disposed = true; window.clearInterval(timer); window.clearTimeout(deadlineTimer); document.removeEventListener('visibilitychange', foreground); window.removeEventListener('online', retry); window.removeEventListener('management-retry-auth', retry) }
+  }, [currentUser?.id])
 
   useEffect(() => {
     let disposed = false
@@ -1668,10 +1736,10 @@ const App: React.FC = () => {
   })
   // --- REALTIME SYNC ---
   useEffect(() => {
-    if (!currentUser) return undefined
+    if (!currentUser?.id) return undefined
     const cleanup = setupRealtime(queryClient)
     return () => cleanup()
-  }, [currentUser, queryClient])
+  }, [currentUser?.id, queryClient])
 
   const [editRoom, setEditRoom] = useState<Room | null>(null)
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
@@ -1702,6 +1770,7 @@ const App: React.FC = () => {
   const sepayAutoPaymentKeysRef = React.useRef(new Set<string>())
   const sepayKnownTransactionKeysRef = React.useRef<Set<string> | null>(null)
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [profileSection, setProfileSection] = useState<ProfileSection>('profile')
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
   const [isFinanceMenuOpen, setIsFinanceMenuOpen] = useState(false)
@@ -1808,7 +1877,11 @@ const App: React.FC = () => {
       })
       .catch((err) => {
         console.error('[Auth] getCurrentSessionUser failed:', err)
-        if (mounted) setAuthReady(true)
+        if (mounted) {
+          if (err instanceof MfaChallengeRequired) setPendingMfa({ factorId: err.factorId, challengeId: err.challengeId })
+          if (err instanceof SecurityStepUpRequired) setPendingSecurity(err.state)
+          setAuthReady(true)
+        }
       })
 
     return () => {
@@ -2104,6 +2177,13 @@ const App: React.FC = () => {
     enabled: canLoadData && currentUser?.role === 'admin',
     staleTime: 60_000
   })
+  const { data: emailDeliveryAvailability } = useQuery({
+    queryKey: ['gmail-availability'],
+    queryFn: getEmailDeliveryAvailability,
+    enabled: canLoadData && currentUser?.role === 'admin' && !window.api?.perf.benchmarkMode,
+    staleTime: 10_000,
+    refetchInterval: 30_000
+  })
 
   const sepayPendingInvoices = useMemo(
     () =>
@@ -2243,7 +2323,7 @@ const App: React.FC = () => {
     }
   }, [isSepayBackgroundSuccess, sepayBackgroundTransactions])
   useEffect(() => {
-    if (window.api?.perf.benchmarkMode || sepayBackgroundMatches.length === 0) return
+    if (window.api?.perf.benchmarkMode || emailDeliveryAvailability?.sepayEnabled || sepayBackgroundMatches.length === 0) return
 
     let disposed = false
     const syncMatchedPayments = async () => {
@@ -2301,7 +2381,7 @@ const App: React.FC = () => {
     return () => {
       disposed = true
     }
-  }, [queryClient, sepayBackgroundMatches])
+  }, [queryClient, sepayBackgroundMatches, emailDeliveryAvailability?.sepayEnabled])
 
   const serviceZoneById = useMemo(() => {
     const map = new Map<string, ServiceZone>()
@@ -2602,10 +2682,14 @@ const App: React.FC = () => {
   if (!authReady)
     return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
 
+  if (authValidationError) return <div className="flex h-dvh items-center justify-center bg-emerald-50 p-6"><section className="max-w-md rounded-2xl bg-white p-6 shadow-sm" role="alert"><h1 className="text-lg font-bold">Cần kiểm tra lại phiên đăng nhập</h1><p className="my-4 text-sm text-slate-600">{authValidationError}</p><button className="rounded-lg bg-primary px-5 py-3 font-bold text-white" type="button" onClick={() => window.dispatchEvent(new Event('management-retry-auth'))}>Thử lại</button><button className="ml-3 px-3 py-3 text-slate-600" type="button" onClick={() => { void handleLogout() }}>Đăng xuất</button></section></div>
+
   if (!currentUser) {
     return (
       <LoginScreen
-        onLogin={setCurrentUser}
+        initialSecurityState={pendingSecurity}
+        initialMfaChallenge={pendingMfa}
+        onLogin={(user) => { setPendingMfa(null); setPendingSecurity(null); setCurrentUser(user) }}
         recoveryMode={passwordRecovery}
         onRecoveryComplete={() => setPasswordRecovery(false)}
       />
@@ -3208,6 +3292,9 @@ const App: React.FC = () => {
             <div className="relative" ref={accountMenuRef}>
               <button
                 type="button"
+                aria-expanded={isAccountMenuOpen}
+                aria-controls="account-menu"
+                aria-label="Mở tài khoản của bạn"
                 onClick={() => setIsAccountMenuOpen((prev) => !prev)}
                 className="investment-titlebar-avatar relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border-2 border-[#e5eee8] bg-white shadow-sm transition-all hover:scale-105 active:scale-95"
                 title={accountDisplayName}
@@ -3226,76 +3313,21 @@ const App: React.FC = () => {
               </button>
 
               {isAccountMenuOpen && (
-                <div
-                  className={`fixed right-4 top-[64px] z-[80] w-80 origin-top-right rounded-[32px] border border-white/40 bg-white/90 p-3 shadow-[0_30px_70px_rgba(0,0,0,0.2)] backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-300 ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
-                >
-                  {/* User Info Card */}
-                  <div className="relative mb-3 flex flex-col items-center px-4 py-8 rounded-[24px] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-hidden text-center">
-                    {/* Decorative backgrounds */}
-                    <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-emerald-500/20 blur-2xl"></div>
-                    <div className="absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-blue-500/10 blur-2xl"></div>
-
-                    <div className="relative mb-4">
-                      <div className="h-20 w-20 rounded-[24px] bg-white p-1 shadow-2xl ring-4 ring-white/10 transition-transform hover:scale-105">
-                        <img
-                          src={
-                            currentUser.avatar_url ||
-                            (currentUser.role === 'admin'
-                              ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0'
-                              : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
-                          }
-                          className="h-full w-full rounded-[20px] object-cover"
-                          alt="Avatar Large"
-                        />
-                      </div>
-                      <span className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-800 bg-emerald-400 shadow-lg">
-                        <div className="h-2 w-2 rounded-full bg-white animate-pulse"></div>
-                      </span>
-                    </div>
-
-                    <div className="relative z-10">
-                      <div className="text-lg font-black text-white tracking-tight">
-                        {accountDisplayName}
-                      </div>
-                      <div className="inline-flex mt-1 items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 border border-white/5">
-                        <i className="fa-solid fa-shield-halved"></i>
-                        Quyền: {currentUser.role?.toUpperCase()}
-                      </div>
-                      <div className="mt-2 text-[9px] font-bold text-slate-500 uppercase tracking-widest opacity-60">
-                        ID: {currentUser.id?.slice(0, 8) || 'ADMIN_DB'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <button
-                      className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-emerald-50 group border border-transparent hover:border-emerald-100"
-                      onClick={() => {
-                        setIsAccountMenuOpen(false)
-                        setIsProfileOpen(true)
-                      }}
-                    >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
-                        <i className="fa-solid fa-id-card text-emerald-500"></i>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-600">Hồ sơ</span>
-                    </button>
-                    <button className="flex flex-col items-center gap-2 rounded-2xl bg-slate-50 p-3 text-center transition-all hover:bg-amber-50 group border border-transparent hover:border-amber-100">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm transition-transform group-hover:scale-110">
-                        <i className="fa-solid fa-key text-amber-500"></i>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-600">Bảo mật</span>
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center justify-center gap-3 rounded-[20px] bg-rose-50 px-3 py-4 text-[11px] font-black text-rose-500 transition-all hover:bg-rose-100 group border border-rose-100/50 uppercase tracking-widest"
-                  >
-                    <i className="fa-solid fa-power-off text-base group-hover:rotate-180 transition-transform duration-500"></i>
-                    <span>Đăng xuất hệ thống</span>
-                  </button>
-                </div>
+                <AccountMenu
+                  currentUser={currentUser}
+                  onClose={() => setIsAccountMenuOpen(false)}
+                  onOpen={(section) => {
+                    setProfileSection(section)
+                    setIsAccountMenuOpen(false)
+                    setIsProfileOpen(true)
+                  }}
+                  onManage={() => {
+                    setIsAccountMenuOpen(false)
+                    setSettingsInitialTab(currentUser.role === 'admin' ? 'users' : 'account')
+                    requestActiveTab('settings')
+                  }}
+                  onLogout={handleLogout}
+                />
               )}
             </div>
           </div>
@@ -3303,6 +3335,7 @@ const App: React.FC = () => {
 
         {isProfileOpen && currentUser && (
           <ProfileModal
+            initialSection={profileSection}
             currentUser={currentUser}
             onClose={() => setIsProfileOpen(false)}
             onUpdate={(updated) => setCurrentUser(updated)}
@@ -5236,3 +5269,4 @@ const App: React.FC = () => {
 }
 
 export default App
+

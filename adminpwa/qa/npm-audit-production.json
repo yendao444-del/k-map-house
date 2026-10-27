@@ -1,0 +1,24 @@
+{
+  "auditedAt": "2026-10-08T10:38:05.360Z",
+  "scope": "production dependencies only (--omit=dev)",
+  "auditReportVersion": 2,
+  "vulnerabilities": {},
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 77,
+      "dev": 184,
+      "optional": 103,
+      "peer": 1,
+      "peerOptional": 0,
+      "total": 261
+    }
+  }
+}

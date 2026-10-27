@@ -2,7 +2,7 @@
 
 Ngày ghi nhận: 08/10/2026.
 Ứng dụng đích: https://app.phongtroankhang.com.
-Trạng thái: Đã chốt mục tiêu chức năng; ghi kế hoạch triển khai để thực hiện sau. Chưa triển khai giao diện, thay đổi dữ liệu hoặc cấu hình production.
+Trạng thái: Đã được yêu cầu triển khai theo goal hiện hành; bản PWA riêng đang thực hiện. Chưa nghiệm thu tài khoản cũ end-to-end hoặc thay đổi cấu hình production.
 
 ## 1. Yêu cầu đã chốt
 
@@ -62,7 +62,7 @@ Kết quả: xác định rõ nơi lưu tài khoản và những tài khoản t�
 4. Xác thực mật khẩu bằng Supabase Auth.
 5. Tải hồ sơ quản lý theo ID vừa xác thực và kiểm tra trạng thái active cùng vai trò được hỗ trợ.
 6. Nếu không có quyền quản lý, kết thúc phiên PWA vừa tạo và báo không được phép truy cập; tài khoản khách thuê không tự được chuyển thành tài khoản quản lý.
-7. Khi hợp lệ, chuyển vào vùng ứng dụng được bảo vệ. Màn hình đến sau đăng nhập sẽ được chốt trong hạng mục điều hướng.
+7. Khi hợp lệ, chuyển vào vùng ứng dụng được bảo vệ và mở Danh sách phòng, theo quyết định đã chốt ở [Phase 02](PWA-MOBILE-PHASE-02-ROOMS.md).
 
 Không tải dữ liệu phòng, khách thuê, giấy tờ hoặc tài chính trước khi hoàn thành kiểm tra quyền.
 
@@ -86,7 +86,7 @@ Phạm vi chức năng của form: username/email, mật khẩu, hiện/ẩn m�
 - Ngăn gửi lặp khi đang đăng nhập, xử lý timeout để kết quả trả về muộn không tự mở ứng dụng sau khi lần đăng nhập đã bị hủy.
 - Phân biệt lỗi mất mạng với lỗi thông tin đăng nhập. Thông báo xác thực tránh lộ không cần thiết tài khoản nào tồn tại.
 - Phiên bản hiển thị, nếu có, lấy từ build PWA; không gọi Electron updater hoặc dùng phiên bản desktop hardcode.
-- Phong cách giao diện chưa chốt: giữ phong cách Electron hay làm mới sẽ bàn riêng. Tạo demo và chọn hướng theo quy trình thiết kế của workspace trước khi sửa UI.
+- Phong cách đã chốt là giữ giao diện Electron và tối ưu cho mobile. Demo cụ thể vẫn cần được duyệt theo quy trình thiết kế của workspace trước khi sửa UI đăng nhập.
 
 ### Bước 6 - Quên mật khẩu và cấu hình tên miền
 
@@ -125,7 +125,7 @@ Phạm vi chức năng của form: username/email, mật khẩu, hiện/ẩn m�
 
 1. Ghi nhớ mặc định hay tùy chọn; thời gian phiên và cách đăng xuất nhiều thiết bị.
 2. Luồng quên mật khẩu, địa chỉ email nhận khôi phục và các trường hợp email kỹ thuật.
-3. Màn hình đầu tiên sau đăng nhập và các quyền nghiệp vụ chi tiết, thuộc hạng mục tiếp theo.
+3. Các quyền nghiệp vụ chi tiết. Màn hình đầu tiên sau đăng nhập đã chốt là Danh sách phòng, theo Phase 02.
 
 ## 6. Sản phẩm bàn giao khi thực hiện phase
 
@@ -134,4 +134,4 @@ Phạm vi chức năng của form: username/email, mật khẩu, hiện/ẩn m�
 - Danh sách cấu hình môi trường/callback không chứa bí mật và migration nếu thật sự cần.
 - Báo cáo các tiêu chí nghiệm thu, các điểm chưa đạt và so sánh giao diện với demo đã duyệt.
 
-Ghi chú: File này là đặc tả để triển khai sau. Các ô nghiệm thu chưa được đánh dấu; chưa khẳng định cấu hình production hoặc chức năng PWA đã chạy.
+Ghi chú: Các ô nghiệm thu chưa được đánh dấu. Tiến độ và bằng chứng triển khai được ghi ở [PWA implementation status](../adminpwa/IMPLEMENTATION-STATUS.md); chưa khẳng định cấu hình production hoặc đăng nhập thực tế đã được nghiệm thu.

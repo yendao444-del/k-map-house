@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-10T05:54:30.200Z",
+  "checks": [
+    {
+      "verification": "Management AAL1 denied; readiness, tenant, service and anonymous compatibility passed"
+    }
+  ],
+  "hookInstalled": false,
+  "rolloutFlagsUnchanged": true,
+  "customerDataChanged": false,
+  "limitation": "SQL compatibility; direct HTTP verification follows with disposable identities."
+}

@@ -1,0 +1,19 @@
+{
+  "01-xac-nhan-hop-dong": "Banner emerald, logo và tòa nhà/hợp đồng/chìa khóa bám ảnh mẫu; phòng 999, ngày bắt đầu, nút xác nhận và thời hạn 72 giờ rõ.",
+  "02-thanh-toan-thanh-cong": "Banner emerald với dấu xác nhận; hóa đơn bốn khoản đúng tổng 2.534.000 đ, đã thanh toán đủ, còn lại 0 đ; không có liên kết ngoài.",
+  "03-bien-nhan-chu-nha": "Biên nhận cho chủ nhà, có người thuê, phòng 221 và bảng hóa đơn inline đúng tổng; không có nút mở hóa đơn.",
+  "04-giao-dich-chua-khop": "Banner đỏ; ghi Cần đối soát, tiền chưa được ghi nhận và hướng kiểm tra Đồng bộ SePay; không biểu thị thành công.",
+  "05-chuyen-thieu": "Banner đỏ, thiếu 534.000 đ; thể hiện cần thanh toán 2.534.000 đ, đã chuyển 2.000.000 đ, trạng thái chờ đối soát.",
+  "06-chuyen-du": "Banner đỏ, dư 466.000 đ; thể hiện cần thanh toán 2.534.000 đ, đã chuyển 3.000.000 đ, trạng thái chờ đối soát.",
+  "07-khop-nhieu-hoa-don": "Banner đỏ và hai tờ hóa đơn; nêu phòng 221/222, cần chọn đúng hóa đơn, chưa ghi nhận công nợ.",
+  "08-da-ghi-nhan-mot-phan": "Banner vàng rõ khác thanh toán đủ; ghi nhận 2.000.000 đ, còn phải thanh toán 534.000 đ, không nói đã thanh toán đủ.",
+  "09-hoa-don-va-dich-vu": "Banner xanh dương; hóa đơn inline với bốn khoản đúng tổng, đã thanh toán 0 đ, còn phải thanh toán 2.534.000 đ, hạn 15/10/2026.",
+  "10-tien-phong-qua-han": "Banner cam/vàng; phòng 221, hạn 05/10/2026, quá hạn 4 ngày và số tiền còn phải thu rõ.",
+  "11-lau-chua-thanh-toan": "Banner cam gọn; chỉ hai dòng thông tin và một số dư 2.534.000 đ cho công nợ quá hạn 30 ngày.",
+  "12-nhac-no-cu": "Banner vàng/cam gọn; nợ cũ 500.000 đ, nguồn nợ đã xác nhận, chỉ hai fact rows.",
+  "13-den-han-tra-phong": "Banner tím; ngày trả phòng 09/10/2026, người thuê và trạng thái chờ kiểm tra bàn giao.",
+  "14-hop-dong-sap-het-han": "Banner tím; nhấn 7 ngày còn lại và ngày hết hạn 16/10/2026.",
+  "15-den-ky-thanh-toan": "Banner xanh dương, logo AK, minh họa công tơ điện/nước, lịch và biểu tượng chụp ảnh; tiêu đề ĐẾN KỲ THANH TOÁN. Nội dung chỉ nhắc Phòng 221, kỳ 10/2026; hướng dẫn truy cập pay.phongtroankhang.com, chụp số điện nước trước để hệ thống lập hóa đơn rồi kiểm tra và thanh toán. Nút Bắt đầu thanh toán cùng domain rõ. Không có bảng hóa đơn, số tiền, hạn thanh toán hay dấu đã trả. Chữ và footer không cắt.",
+  "16-xac-nhan-sua-hop-dong": "Banner emerald; bản sửa 02, hợp đồng hiện tại vẫn có hiệu lực, nút xem và xác nhận bản sửa.",
+  "17-thong-bao-huy-hop-dong": "Banner slate trung tính; nêu hủy do lập nhầm, mã hợp đồng, thời điểm, lý do và không yêu cầu thao tác thêm."
+}

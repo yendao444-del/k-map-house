@@ -1,0 +1,14 @@
+{
+  "configuredAt": "2026-10-08T10:37:10.119Z",
+  "mode": "additive Auth redirect update; site URL and unrelated settings preserved",
+  "target": "https://app.phongtroankhang.com/**",
+  "before": {
+    "siteUrl": "http://localhost:3000",
+    "redirectAllowList": "https://app.phongtroankhang.com/**"
+  },
+  "after": {
+    "siteUrl": "http://localhost:3000",
+    "redirectAllowList": "https://app.phongtroankhang.com/**"
+  },
+  "verified": true
+}

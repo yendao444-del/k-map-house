@@ -1,0 +1,13 @@
+{
+  "id": "05-chuyen-thieu",
+  "name": "Chuyển thiếu tiền · Chưa duyệt",
+  "model": "cx/gpt-5.5-image",
+  "prompt": "Create ONE production-quality Vietnamese transactional email visual, not a website. 1024x1536 portrait; entire email visible, white outer margin, natural centered 600px layout, no browser chrome. AUTHORITATIVE REFERENCE: attached image is the exact user-approved AN KHANG HOME email crop. Preserve its real white logo plaque with navy/green AK + AN KHANG HOME wordmark, emerald illustrated apartment-building banner, large white headline at left, illustration at right, curved pale mint lower edge, left-aligned body, thin fact dividers, signature. Match the reference closely; do not invent a different brand. EXACT TEMPLATE: Chuyển thiếu tiền · Chưa duyệt; audience Tài khoản hệ thống; banner headline exactly 'CHUYỂN THIẾU CẦN ĐỐI SOÁT'. Semantic palette: red; original logo colors remain navy/green. Banner illustration: cream apartment building, receipt, incomplete amount comparison and warning symbol. Use a refined flat editorial illustration, not 3D. Date anchor 09/10/2026 Vietnam UTC+7; all supplied facts are synthetic and exact. BODY: Xin chào Chủ nhà, Giao dịch có đúng mã hóa đơn nhưng số tiền chuyển còn thiếu. Emphasize 'Còn thiếu so với hóa đơn' as 534.000 đ. Facts: Phòng: Phòng 221; Cần thanh toán: 2.534.000 đ; Đã chuyển: 2.000.000 đ; Trạng thái: Chờ đối soát.  Closing: Chưa tự động ghi nhận thanh toán. Vui lòng kiểm tra trước khi duyệt khoản thu một phần. No button and no external link; the message must be complete in the email. Close with 'Trân trọng,' and 'Đội ngũ An Khang Home'. Add tiny footer 'Dữ liệu minh họa · 09/10/2026'.  AVOID: Gmail/browser UI, tabs, device frame, other brands, SPX, QR, passwords, fake phone/contact details, clutter, cards inside cards, multiple CTAs, repeated headings, tiny unreadable text, clipped footer, misspelled Vietnamese, unsupported success stamp, invented amounts, people, photorealistic luxury real estate, code or HTML annotations.",
+  "promptHash": "49bb2c5ac8df8e0becd645be20c5a917660acb09717b0aa230a8e67674225a2e",
+  "reference": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\_nguon\\anh-mau-email-hop-dong.png",
+  "source": "C:/Users/Admin/AppData/Local/Temp/codex-clipboard-c87e65da-42e8-49bd-8fb2-bdedd61e50ef.png",
+  "width": 1024,
+  "height": 1536,
+  "sha256": "dabb47775dc4cdfdcaf94c485448f06ca24184618b408b3da264bd5e494c032d",
+  "at": "2026-10-09T08:23:42.544Z"
+}

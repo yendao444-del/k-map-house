@@ -1,6 +1,6 @@
 import type { InvestmentCategory, InvestmentHolding, InvestmentTransaction } from './investment-store'
 
-const GOLD_SYMBOLS = new Set(['VNHAN', 'VMIENG', 'VKIENG', 'SJ9999', 'SJL1L10', 'PQHN24NTT', 'BT9999NTT'])
+const GOLD_SYMBOLS = new Set(['MH9999', 'VNHAN', 'VMIENG', 'VKIENG', 'SJ9999', 'SJL1L10', 'PQHN24NTT', 'BT9999NTT'])
 
 export function transactionsForCategory(
   transactions: InvestmentTransaction[],

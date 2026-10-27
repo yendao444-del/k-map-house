@@ -1,0 +1,10 @@
+{
+  "verifiedAt": "2026-10-12T02:10:59.401Z",
+  "result": [
+    {
+      "verification": "MFA foundation invariants passed; transaction rolled back"
+    }
+  ],
+  "scope": "Transaction-local fixtures include returning phone login and IP change; no account/code changes persist.",
+  "customerDataChanged": false
+}

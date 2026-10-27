@@ -1,0 +1,835 @@
+{
+  "at": "2026-10-09T03:03:20.181Z",
+  "scope": "Every public table/view, SQL role simulation; inactive manager status change rolled back",
+  "checks": [
+    {
+      "actor": "anon",
+      "relation": "admin_pwa_auth_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "admin_pwa_bank_claims",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "admin_pwa_investment_commits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "admin_pwa_investment_store",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "app_secrets",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "app_settings",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "asset_snapshots",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "asset_templates",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "cash_transactions",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_cancellation_notices",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_confirmation_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_confirmations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_drafts",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_lifecycle_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_test_designations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contract_usage_evidence",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "contracts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "debt_entries",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "email_automation_settings",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "email_notification_deliveries",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "email_send_budget",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "invoices",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "move_in_receipts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "payment_event_keys",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "payment_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "room_asset_adjustments",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "room_assets",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "room_vehicles",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "rooms",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "sepay_server_transactions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "service_zones",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_auth_provisions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_meter_manual_entries",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_meter_photos",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_payment_cycles",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_payment_emails",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenant_web_accounts",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "tenants",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "users",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "anon",
+      "relation": "wallet_accounting_basis",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "wallet_reconciliations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "wallet_transfer_requests",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "webmobile_auth_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "webmobile_demo_accounts",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "webmobile_demo_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "anon",
+      "relation": "webmobile_demo_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "admin_pwa_auth_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "admin_pwa_bank_claims",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "admin_pwa_investment_commits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "admin_pwa_investment_store",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "app_secrets",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "app_settings",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "asset_snapshots",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "asset_templates",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "cash_transactions",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_cancellation_notices",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_confirmation_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_confirmations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_drafts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_lifecycle_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_test_designations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contract_usage_evidence",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "contracts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "debt_entries",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "email_automation_settings",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "email_notification_deliveries",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "email_send_budget",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "invoices",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "move_in_receipts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "payment_event_keys",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "payment_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "room_asset_adjustments",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "room_assets",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "room_vehicles",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "rooms",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "sepay_server_transactions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "service_zones",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_auth_provisions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_meter_manual_entries",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_meter_photos",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_payment_cycles",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_payment_emails",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenant_web_accounts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "tenants",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "users",
+      "result": "query-permitted",
+      "row_count": 1
+    },
+    {
+      "actor": "inactive",
+      "relation": "wallet_accounting_basis",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "wallet_reconciliations",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "inactive",
+      "relation": "wallet_transfer_requests",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "webmobile_auth_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "webmobile_demo_accounts",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "webmobile_demo_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "inactive",
+      "relation": "webmobile_demo_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "admin_pwa_auth_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "admin_pwa_bank_claims",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "admin_pwa_investment_commits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "admin_pwa_investment_store",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "app_secrets",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "app_settings",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "asset_snapshots",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "asset_templates",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "cash_transactions",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_cancellation_notices",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_confirmation_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_confirmations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_drafts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_lifecycle_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_test_designations",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contract_usage_evidence",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "contracts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "debt_entries",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "email_automation_settings",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "email_notification_deliveries",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "email_send_budget",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "invoices",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "move_in_receipts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "payment_event_keys",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "payment_events",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "room_asset_adjustments",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "room_assets",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "room_vehicles",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "rooms",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "sepay_server_transactions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "service_zones",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_auth_provisions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_meter_manual_entries",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_meter_photos",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_payment_cycles",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_payment_emails",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenant_web_accounts",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "tenants",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "users",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "wallet_accounting_basis",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "wallet_reconciliations",
+      "result": "query-permitted",
+      "row_count": 0
+    },
+    {
+      "actor": "unknown",
+      "relation": "wallet_transfer_requests",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "webmobile_auth_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "webmobile_demo_accounts",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "webmobile_demo_limits",
+      "result": "permission-denied",
+      "row_count": null
+    },
+    {
+      "actor": "unknown",
+      "relation": "webmobile_demo_sessions",
+      "result": "permission-denied",
+      "row_count": null
+    }
+  ],
+  "unexpectedRows": []
+}

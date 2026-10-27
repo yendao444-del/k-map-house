@@ -1,0 +1,942 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { usePasswordConfirmation } from './PasswordConfirmationDialog'
+import {
+  getInvoicesByRoom,
+  getCollectedDepositAmount,
+  getContracts,
+  getServiceZones,
+  getRoomAssets,
+  getAssetSnapshots,
+  terminateContract,
+  type Room,
+  type Contract,
+} from '../lib/db'
+
+interface Props {
+  room: Room
+  onClose: () => void
+  onNavigateToAssets?: (room: Room) => void
+}
+
+const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+const parseCurrencyInput = (value: string) => Number(value.replace(/\D/g, '')) || 0
+const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+  snap.note || snap.room_asset_id
+
+const toDateInputValue = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const getMonthStart = (dateValue: string): string => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return dateValue
+  return toDateInputValue(new Date(date.getFullYear(), date.getMonth(), 1))
+}
+
+const getDaysInMonth = (dateValue: string): number => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return 30
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+}
+
+const getBillingDayCount = (startValue: string, endValue: string): number => {
+  const start = new Date(startValue)
+  const end = new Date(endValue)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1)
+}
+
+type FinalPeriodChargeMode = 'prorated' | 'full_month' | 'none'
+type SettlementSummary = {
+  totalCharges: number
+  depositHeld: number
+  netDue: number
+  refundAmount: number
+}
+
+
+const BILLING_REASON_LABEL: Record<string, string> = {
+  first_month: 'Tháng đầu tiên',
+  monthly: 'Tiền tháng',
+  contract_end: 'Tất toán hợp đồng',
+  room_cycle: 'Chu kỳ phòng',
+  service: 'Dịch vụ',
+  deposit_collect: 'Thu tiền cọc',
+  deposit_refund: 'Hoàn tiền cọc',
+  migration_debt: 'Nợ tồn đọng (cũ)',
+}
+
+export function TerminateContractModal({ room, onClose, onNavigateToAssets }: Props) {
+  const queryClient = useQueryClient()
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
+  const today = toDateInputValue(new Date())
+
+  const [endDate, setEndDate] = useState(today)
+  const [finalElectric, setFinalElectric] = useState<number>(room.electric_new || 0)
+  const [finalWater, setFinalWater] = useState<number>(room.water_new || 0)
+  const [damageAmount, setDamageAmount] = useState(0)
+  const [damageNote, setDamageNote] = useState('')
+  const [depositPenaltyAmount, setDepositPenaltyAmount] = useState(0)
+  const [depositPenaltyNote, setDepositPenaltyNote] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('cash')
+  const [selectedMergeIds, setSelectedMergeIds] = useState<Set<string>>(new Set())
+  const [includeFinalPeriodCharge, setIncludeFinalPeriodCharge] = useState(true)
+  const [finalPeriodChargeMode, setFinalPeriodChargeMode] = useState<FinalPeriodChargeMode>('prorated')
+  const [confirmed, setConfirmed] = useState(false)
+  const [done, setDone] = useState(false)
+  const [settlementSummary, setSettlementSummary] = useState<SettlementSummary | null>(null)
+
+  // Kiểm tra tài sản khi trả phòng — ĐÃ XÓA: dùng kết quả từ tab Tài sản thay thế
+
+  const { data: invoices = [] } = useQuery({
+    queryKey: ['invoices', room.id],
+    queryFn: () => getInvoicesByRoom(room.id),
+  })
+
+  const { data: contracts = [] } = useQuery({
+    queryKey: ['contracts'],
+    queryFn: getContracts,
+  })
+
+  const { data: serviceZones = [] } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones,
+  })
+
+  const { data: roomAssets = [] } = useQuery({
+    queryKey: ['room_assets', room.id],
+    queryFn: () => getRoomAssets(room.id),
+  })
+
+
+  const { data: moveOutSnaps = [] } = useQuery({
+    queryKey: ['asset_snapshots', room.id, 'move_out'],
+    queryFn: () => getAssetSnapshots(room.id, 'move_out'),
+  })
+
+  const { data: handoverSnaps = [] } = useQuery({
+    queryKey: ['asset_snapshots', room.id, 'handover'],
+    queryFn: () => getAssetSnapshots(room.id, 'handover'),
+  })
+
+  const activeContract: Contract | undefined = useMemo(
+    () => contracts.find(c => c.room_id === room.id && c.status === 'active'),
+    [contracts, room.id]
+  )
+
+  const zone = useMemo(
+    () => serviceZones.find(z => z.id === room.service_zone_id) || null,
+    [serviceZones, room.service_zone_id]
+  )
+
+  // Hóa đơn chưa trả (có thể gộp) — loại trừ phiếu tất toán
+  const unpaidInvoices = useMemo(
+    () => invoices.filter(i =>
+      (i.payment_status === 'unpaid' || i.payment_status === 'partial') &&
+      !i.is_settlement &&
+      (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id)
+    ),
+    [activeContract?.tenant_id, invoices]
+  )
+
+  const existingSettlementInvoice = useMemo(
+    () =>
+      invoices.find(
+        (i) =>
+          i.is_settlement &&
+          i.payment_status !== 'cancelled' &&
+          i.payment_status !== 'merged' &&
+          (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id)
+      ),
+    [activeContract?.tenant_id, invoices]
+  )
+
+  const finalPeriodStart = useMemo(() => getMonthStart(endDate), [endDate])
+  const finalPeriodEnd = endDate
+  const finalPeriodDays = useMemo(
+    () => getBillingDayCount(finalPeriodStart, finalPeriodEnd),
+    [finalPeriodEnd, finalPeriodStart]
+  )
+  const finalPeriodDaysInMonth = useMemo(() => getDaysInMonth(endDate), [endDate])
+  const endDateObj = useMemo(() => new Date(endDate), [endDate])
+  const finalPeriodInvoice = useMemo(
+    () =>
+      invoices.find((i) => {
+        if (i.payment_status === 'cancelled' || i.payment_status === 'merged' || i.is_settlement) return false
+        if (activeContract?.tenant_id && i.tenant_id !== activeContract.tenant_id) return false
+        if (Number(i.room_cost || 0) <= 0) return false
+        return i.month === endDateObj.getMonth() + 1 && i.year === endDateObj.getFullYear()
+      }),
+    [activeContract?.tenant_id, endDateObj, invoices]
+  )
+
+  useEffect(() => {
+    if (finalPeriodInvoice) setIncludeFinalPeriodCharge(false)
+  }, [finalPeriodInvoice])
+
+  const toggleMerge = (id: string) => {
+    setSelectedMergeIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const mergeAll = () => {
+    setSelectedMergeIds(new Set(unpaidInvoices.map(i => i.id)))
+  }
+
+  // Tính toán
+  const electricPrice = room.electric_price || zone?.electric_price || 0
+  const waterPrice = room.water_price || zone?.water_price || 0
+  const electricOld = room.electric_new || 0
+  const waterOld = room.water_new || 0
+
+  const electricUsage = Math.max(0, finalElectric - electricOld)
+  const electricCost = electricUsage * electricPrice
+  const waterUsage = Math.max(0, finalWater - waterOld)
+  const waterCost = waterUsage * waterPrice
+  const shouldChargeFinalPeriod = includeFinalPeriodCharge && !finalPeriodInvoice && finalPeriodChargeMode !== 'none'
+  const finalPeriodRatio = finalPeriodChargeMode === 'full_month'
+    ? 1
+    : finalPeriodDaysInMonth > 0
+      ? finalPeriodDays / finalPeriodDaysInMonth
+      : 0
+  const finalPeriodLabel = finalPeriodChargeMode === 'full_month'
+    ? 'Thu trọn tháng'
+    : finalPeriodChargeMode === 'none'
+      ? 'Không thu kỳ cuối'
+      : 'Tính theo ngày'
+  const finalRoomCost = shouldChargeFinalPeriod
+    ? Math.round(((activeContract?.base_rent ?? room.base_rent) || 0) * finalPeriodRatio)
+    : 0
+  const finalWifiCost = shouldChargeFinalPeriod
+    ? Math.round((zone?.internet_price || room.wifi_price || 0) * finalPeriodRatio)
+    : 0
+  const finalGarbageCost = shouldChargeFinalPeriod
+    ? Math.round((zone?.cleaning_price || room.garbage_price || 0) * finalPeriodRatio)
+    : 0
+
+  const mergedDebt = useMemo(() => {
+    return invoices
+      .filter(i => selectedMergeIds.has(i.id) && (!activeContract?.tenant_id || i.tenant_id === activeContract.tenant_id))
+      .reduce((sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount), 0)
+  }, [activeContract?.tenant_id, invoices, selectedMergeIds])
+
+  // Chỉ tính snapshot của hợp đồng hiện tại (loại bỏ snapshot tenant cũ)
+  const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+  const currentMoveOutSnaps = useMemo(
+    () => contractStartedAt
+      ? moveOutSnaps.filter(s => s.recorded_at >= contractStartedAt)
+      : moveOutSnaps,
+    [moveOutSnaps, contractStartedAt]
+  )
+  const currentHandoverSnaps = useMemo(
+    () => contractStartedAt
+      ? handoverSnaps.filter(s => s.recorded_at >= contractStartedAt)
+      : handoverSnaps,
+    [handoverSnaps, contractStartedAt]
+  )
+
+  const assetDamageTotal = useMemo(
+    () => currentMoveOutSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
+    [currentMoveOutSnaps]
+  )
+  const handoverDamageTotal = useMemo(
+    () => currentHandoverSnaps.reduce((sum, s) => sum + (s.deduction || 0), 0),
+    [currentHandoverSnaps]
+  )
+  const hasMoveOutDone = currentMoveOutSnaps.length > 0
+  const hasHandoverDone = currentHandoverSnaps.length > 0 && HANDOVER_IDS.every(id => {
+    const s = currentHandoverSnaps.find(x => getHandoverSnapshotKey(x) === id)
+    return s?.condition === 'ok' || (s?.condition === 'not_done' && (s.deduction || 0) > 0)
+  })
+
+  const agreedDeposit = activeContract?.deposit_amount || room.default_deposit || 0
+  const depositHeld = getCollectedDepositAmount(activeContract, invoices)
+  const missingDeposit = Math.max(0, agreedDeposit - depositHeld)
+  const normalizedDepositPenalty = Math.min(depositPenaltyAmount, depositHeld)
+  const settlementDeductionAmount = damageAmount + assetDamageTotal + handoverDamageTotal + normalizedDepositPenalty
+  const totalCharges = finalRoomCost + finalWifiCost + finalGarbageCost + electricCost + waterCost + mergedDebt + settlementDeductionAmount
+  const netDue = totalCharges - depositHeld
+  const refundAmount = netDue < 0 ? Math.abs(netDue) : 0
+  const settlementDeductionNote = [
+    damageNote.trim(),
+    normalizedDepositPenalty > 0
+      ? `Khấu trừ cọc: ${depositPenaltyNote.trim() || 'Khách báo trả phòng gấp / vi phạm điều kiện báo trước'}`
+      : '',
+  ].filter(Boolean).join(' | ')
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      await requirePassword('Tạo hóa đơn tất toán và chốt trả phòng')
+      const summary = { totalCharges, depositHeld, netDue, refundAmount }
+      setSettlementSummary(summary)
+      await terminateContract({
+        room_id: room.id,
+        contract_id: activeContract?.id || '',
+        end_date: endDate,
+        final_electric: finalElectric,
+        final_water: finalWater,
+        merge_invoice_ids: Array.from(selectedMergeIds),
+        damage_amount: settlementDeductionAmount,
+        damage_note: settlementDeductionNote,
+        payment_method: paymentMethod,
+        final_room_cost: finalRoomCost,
+        final_wifi_cost: finalWifiCost,
+        final_garbage_cost: finalGarbageCost,
+        final_period_start: finalPeriodStart,
+        final_period_end: finalPeriodEnd,
+        final_prorata_days: shouldChargeFinalPeriod ? finalPeriodDays : undefined,
+      })
+      // Snapshot tài sản đã được lưu từ tab Tài sản rồi, không cần tạo lại
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      queryClient.invalidateQueries({ queryKey: ['activeContracts'] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      queryClient.invalidateQueries({ queryKey: ['moveInReceipts'] })
+      queryClient.invalidateQueries({ queryKey: ['asset_snapshots', room.id, 'move_out'] })
+      setDone(true)
+    },
+  })
+
+  // --- MÀN HÌNH THÀNH CÔNG ---
+  if (done) {
+    const summary = settlementSummary || { totalCharges, depositHeld, netDue, refundAmount }
+    return (
+      <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+          <div className="p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-4xl mx-auto mb-4 shadow-lg shadow-blue-200">
+              <i className="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-1">Đã tạo hóa đơn tất toán!</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Phòng <span className="font-bold text-gray-700">{room.name}</span> sẽ xử lý tiếp theo trạng thái thanh toán của hóa đơn.
+            </p>
+            <div className="bg-gray-50 rounded-xl p-4 text-left text-sm space-y-2 mb-6 border border-gray-100">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Tổng phát sinh</span>
+                <span className="font-semibold">{formatVND(summary.totalCharges)} đ</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cọc đã thu thực tế</span>
+                <span className="font-semibold text-emerald-600">− {formatVND(summary.depositHeld)} đ</span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 flex justify-between">
+                <span className="font-bold text-gray-700">{summary.netDue > 0 ? 'Khách còn thiếu' : 'Hoàn lại khách'}</span>
+                <span className={`font-black text-lg ${summary.netDue > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {summary.netDue > 0 ? formatVND(summary.netDue) : formatVND(summary.refundAmount)} đ
+                </span>
+              </div>
+            </div>
+            <button onClick={onClose} className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold rounded-xl shadow-md shadow-blue-200 hover:from-blue-600 hover:to-indigo-600 transition">
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition'
+
+  return (
+    <div
+      className="fixed inset-0 z-[90] flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 pt-6"
+      onMouseDown={e => { if (e.target === e.currentTarget && !mutation.isPending) onClose() }}
+    >
+      {passwordConfirmation}
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh] animate-[fadeIn_0.2s_ease-out]">
+
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 px-6 py-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+              <i className="fa-solid fa-door-closed text-white text-lg"></i>
+            </div>
+            <div>
+              <h2 className="text-white font-bold text-lg leading-tight">Tất toán hợp đồng</h2>
+              <p className="text-red-100 text-xs">{room.name} · {room.tenant_name || '—'}</p>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={mutation.isPending} className="text-white/70 hover:text-white hover:bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center transition">
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-5 space-y-4">
+
+          {/* Cảnh báo không có hợp đồng */}
+          {!activeContract && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 flex gap-2">
+              <i className="fa-solid fa-triangle-exclamation mt-0.5 shrink-0"></i>
+              <span>Không tìm thấy hợp đồng đang hoạt động cho phòng này.</span>
+            </div>
+          )}
+
+          {/* A. Ngày trả phòng */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-red-100 text-red-600 text-xs font-bold flex items-center justify-center">A</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Ngày trả phòng</span>
+            </div>
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className={inputCls + ' max-w-[200px]'}
+            />
+          </div>
+
+          {/* B. Chỉ số điện/nước cuối */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-yellow-100 text-yellow-600 text-xs font-bold flex items-center justify-center">B</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Chỉ số cuối kỳ</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Điện */}
+              <div className="rounded-xl border border-yellow-100 bg-yellow-50/60 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-700"><i className="fa-solid fa-bolt text-yellow-500 mr-1"></i>Điện</span>
+                  <span className="text-xs text-gray-400">{formatVND(electricPrice)} đ/kWh</span>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-500 mb-1 block">Chỉ số cũ</label>
+                    <input type="number" value={electricOld} readOnly className="w-full rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-500 mb-1 block">Chỉ số mới</label>
+                    <input
+                      type="number"
+                      value={finalElectric || ''}
+                      onChange={e => setFinalElectric(Number(e.target.value) || 0)}
+                      className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none focus:ring-1 ${finalElectric < electricOld ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white focus:border-yellow-400'}`}
+                    />
+                  </div>
+                </div>
+                {electricUsage > 0 ? (
+                  <div className="flex justify-between text-xs pt-1 border-t border-yellow-100">
+                    <span className="text-gray-500">Dùng {electricUsage} kWh</span>
+                    <span className="font-bold text-gray-800">{formatVND(electricCost)} đ</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-xs pt-1 border-t border-yellow-100 text-amber-600">
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                    <span>Chỉ số không đổi — xác nhận nếu đúng</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Nước */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-gray-700"><i className="fa-solid fa-droplet text-blue-500 mr-1"></i>Nước</span>
+                  <span className="text-xs text-gray-400">{formatVND(waterPrice)} đ/m³</span>
+                </div>
+                <div className="flex gap-2 mb-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-500 mb-1 block">Chỉ số cũ</label>
+                    <input type="number" value={waterOld} readOnly className="w-full rounded-lg border border-gray-100 bg-gray-50 px-2 py-1.5 text-xs font-semibold text-gray-400 cursor-not-allowed" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-500 mb-1 block">Chỉ số mới</label>
+                    <input
+                      type="number"
+                      value={finalWater || ''}
+                      onChange={e => setFinalWater(Number(e.target.value) || 0)}
+                      className={`w-full rounded-lg border px-2 py-1.5 text-xs font-semibold outline-none focus:ring-1 ${finalWater < waterOld ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white focus:border-blue-400'}`}
+                    />
+                  </div>
+                </div>
+                {waterUsage > 0 ? (
+                  <div className="flex justify-between text-xs pt-1 border-t border-blue-100">
+                    <span className="text-gray-500">Dùng {waterUsage} m³</span>
+                    <span className="font-bold text-gray-800">{formatVND(waterCost)} đ</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-xs pt-1 border-t border-blue-100 text-amber-600">
+                    <i className="fa-solid fa-triangle-exclamation"></i>
+                    <span>Chỉ số không đổi — xác nhận nếu đúng</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* C. Trạng thái đối chiếu trả phòng (từ tab Tài sản) */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-600 text-xs font-bold flex items-center justify-center">C</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Đối chiếu trả phòng</span>
+            </div>
+
+            {!hasMoveOutDone ? (
+              <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-500 text-lg"></i>
+                  </div>
+                  <div>
+                    <p className="font-bold text-amber-800 text-sm">Chưa đối chiếu tài sản!</p>
+                    <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                      Bạn cần sang <strong>tab Tài sản</strong>, chọn phòng <strong>{room.name}</strong>,
+                      sau đó nhấn <strong>"Đối chiếu trả phòng"</strong> để ghi nhận tình trạng tài sản
+                      trước khi tiến hành tất toán.
+                    </p>
+                    {onNavigateToAssets && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToAssets(room)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+                      >
+                        <i className="fa-solid fa-couch"></i>
+                        Đi tới Tài sản
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : !hasHandoverDone ? (
+              <div className="rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <i className="fa-solid fa-triangle-exclamation text-amber-500 text-lg"></i>
+                  </div>
+                  <div>
+                    <p className="font-bold text-amber-800 text-sm">Chưa hoàn tất bàn giao phòng!</p>
+                    <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                      Vui lòng mở lại <strong>"Đối chiếu trả phòng"</strong> trong tab <strong>Tài sản</strong>
+                      và xác nhận đủ phần bàn giao phòng trước khi tất toán.
+                    </p>
+                    {onNavigateToAssets && (
+                      <button
+                        type="button"
+                        onClick={() => onNavigateToAssets(room)}
+                        className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-amber-700"
+                      >
+                        <i className="fa-solid fa-couch"></i>
+                        Mở lại Đối chiếu trả phòng
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center">
+                    <i className="fa-solid fa-circle-check text-teal-600"></i>
+                  </div>
+                  <div>
+                    <p className="font-bold text-teal-800 text-sm">Đã đối chiếu và bàn giao xong</p>
+                    <p className="text-teal-600 text-xs">{currentMoveOutSnaps.length} tài sản đã được ghi nhận · đã xác nhận bàn giao phòng</p>
+                  </div>
+                </div>
+                {/* Danh sách các tài sản có khấu trừ */}
+                {currentMoveOutSnaps.filter(s => s.deduction > 0).length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-1">Các khoản khấu trừ:</p>
+                    {currentMoveOutSnaps.filter(s => s.deduction > 0).map(s => {
+                      const asset = roomAssets.find(a => a.id === s.room_asset_id)
+                      return (
+                        <div key={s.id} className="flex justify-between text-xs bg-white rounded-lg px-3 py-2 border border-teal-100">
+                          <span className="text-gray-700 font-medium">{asset?.name || 'Tài sản không xác định'}</span>
+                          <span className="font-bold text-red-600">− {formatVND(s.deduction)} đ</span>
+                        </div>
+                      )
+                    })}
+                    <div className="flex justify-between text-sm font-bold pt-1 border-t border-teal-200 mt-1">
+                      <span className="text-gray-700">Tổng khấu trừ tài sản</span>
+                      <span className="text-red-600">{formatVND(assetDamageTotal)} đ</span>
+                    </div>
+                  </div>
+                )}
+                {currentMoveOutSnaps.filter(s => s.deduction > 0).length === 0 && (
+                  <p className="text-xs text-teal-600 italic">Không có khấu trừ hỏng hóc.</p>
+                )}
+                {currentHandoverSnaps.filter(s => s.deduction > 0).length > 0 && (
+                  <div className="space-y-1.5 mt-3 pt-3 border-t border-teal-200">
+                    <p className="text-[10px] font-bold text-teal-700 uppercase tracking-wider mb-1">Chi phí bàn giao:</p>
+                    {currentHandoverSnaps.filter(s => s.deduction > 0).map(s => {
+                      const handoverKey = getHandoverSnapshotKey(s)
+                      const item = HANDOVER_IDS.includes(handoverKey)
+                        ? handoverKey === '__check_cleared'
+                          ? 'Dọn đồ cá nhân'
+                          : handoverKey === '__check_cleaned'
+                            ? 'Vệ sinh phòng'
+                            : 'Chìa khóa / thẻ / remote'
+                        : 'Bàn giao phòng'
+                      return (
+                        <div key={s.id} className="flex justify-between text-xs bg-white rounded-lg px-3 py-2 border border-teal-100">
+                          <span className="text-gray-700 font-medium">{item}</span>
+                          <span className="font-bold text-red-600">− {formatVND(s.deduction)} đ</span>
+                        </div>
+                      )
+                    })}
+                    <div className="flex justify-between text-sm font-bold pt-1 border-t border-teal-200 mt-1">
+                      <span className="text-gray-700">Tổng chi phí bàn giao</span>
+                      <span className="text-red-600">{formatVND(handoverDamageTotal)} đ</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* E. Nợ tồn đọng */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 text-xs font-bold flex items-center justify-center">D</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Tiền phòng kỳ cuối</span>
+            </div>
+            <div className={`rounded-xl border p-3 ${finalPeriodInvoice ? 'border-gray-200 bg-gray-50' : 'border-emerald-100 bg-emerald-50/60'}`}>
+              {finalPeriodInvoice ? (
+                <div className="flex items-start gap-3 text-sm">
+                  <i className="fa-solid fa-circle-check mt-0.5 text-emerald-500"></i>
+                  <div>
+                    <p className="font-bold text-gray-800">Kỳ trả phòng đã có hóa đơn tiền phòng.</p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Hóa đơn tháng {finalPeriodInvoice.month}/{finalPeriodInvoice.year} sẽ không được cộng lại ở tất toán. Nếu hóa đơn còn nợ, chọn gộp trong mục nợ tồn đọng.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeFinalPeriodCharge}
+                    onChange={(e) => setIncludeFinalPeriodCharge(e.target.checked)}
+                    className="mt-1 h-4 w-4 accent-emerald-600"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-bold text-gray-800">Cộng tiền phòng/dịch vụ chưa lập hóa đơn</span>
+                      <span className="text-sm font-black text-emerald-700 tabular-nums">{formatVND(finalRoomCost + finalWifiCost + finalGarbageCost)} đ</span>
+                    </div>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <p className="text-xs text-gray-500">
+                        Từ {new Date(finalPeriodStart).toLocaleDateString('vi-VN')} đến {new Date(finalPeriodEnd).toLocaleDateString('vi-VN')} ({finalPeriodDays}/{finalPeriodDaysInMonth} ngày).
+                      </p>
+                      <select
+                        value={finalPeriodChargeMode}
+                        onChange={(e) => setFinalPeriodChargeMode(e.target.value as FinalPeriodChargeMode)}
+                        disabled={!includeFinalPeriodCharge}
+                        className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-xs font-bold text-emerald-700 outline-none focus:border-emerald-400 disabled:opacity-60"
+                      >
+                        <option value="prorated">Tính theo ngày</option>
+                        <option value="full_month">Thu trọn tháng</option>
+                        <option value="none">Không thu kỳ cuối</option>
+                      </select>
+                    </div>
+                    {includeFinalPeriodCharge && (
+                      <div className="mt-2 space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between text-emerald-700">
+                          <span>Cách tính</span><span className="font-semibold">{finalPeriodLabel}</span>
+                        </div>
+                        {finalRoomCost > 0 && <div className="flex justify-between"><span>Tiền phòng</span><span className="font-semibold">{formatVND(finalRoomCost)} đ</span></div>}
+                        {finalWifiCost > 0 && <div className="flex justify-between"><span>Internet / Wifi</span><span className="font-semibold">{formatVND(finalWifiCost)} đ</span></div>}
+                        {finalGarbageCost > 0 && <div className="flex justify-between"><span>Rác / vệ sinh</span><span className="font-semibold">{formatVND(finalGarbageCost)} đ</span></div>}
+                      </div>
+                    )}
+                  </div>
+                </label>
+              )}
+            </div>
+          </div>
+
+          {existingSettlementInvoice && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <i className="fa-solid fa-circle-exclamation mr-1.5"></i>
+              Phòng này đã có hóa đơn tất toán. Vui lòng xử lý hoặc hủy hóa đơn tất toán cũ trước khi tạo hóa đơn mới.
+            </div>
+          )}
+
+          {unpaidInvoices.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 text-xs font-bold flex items-center justify-center">E</span>
+                  <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Nợ tồn đọng</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={mergeAll}
+                  className="text-xs font-semibold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 px-3 py-1 rounded-lg transition"
+                >
+                  <i className="fa-solid fa-layer-group mr-1"></i>Gộp tất cả
+                </button>
+              </div>
+              <div className="space-y-2">
+                {unpaidInvoices.map(inv => {
+                  const remaining = inv.total_amount - inv.paid_amount
+                  const checked = selectedMergeIds.has(inv.id)
+                  const billingReason = inv.billing_reason || ''
+                  return (
+                    <label key={inv.id} className={`flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition ${checked ? 'border-orange-300 bg-orange-50' : 'border-gray-200 bg-gray-50 hover:bg-gray-100'}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleMerge(inv.id)}
+                        className="w-4 h-4 rounded accent-orange-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-800">
+                          {billingReason === 'monthly' || billingReason === 'first_month'
+                            ? `${BILLING_REASON_LABEL[billingReason]} — Tháng ${inv.month}/${inv.year}`
+                            : (BILLING_REASON_LABEL[billingReason] || `HĐ ${inv.month}/${inv.year}`)}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          Còn thiếu: <span className="font-bold text-red-500">{formatVND(remaining)} đ</span>
+                          {inv.paid_amount > 0 && ` (đã trả ${formatVND(inv.paid_amount)} đ)`}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              {selectedMergeIds.size > 0 && (
+                <div className="mt-2 text-right text-sm font-bold text-orange-600">
+                  Tổng nợ gộp: {formatVND(mergedDebt)} đ
+                </div>
+              )}
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 text-xs font-bold flex items-center justify-center">F</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Khấu trừ cọc</span>
+              <span className="text-xs text-gray-400 font-normal">(khi khách báo gấp / mất cọc)</span>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-amber-800">
+                  Cọc đã thu thực tế: <span className="font-black">{formatVND(depositHeld)} đ</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(0)}
+                    className="rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100"
+                  >
+                    Không giữ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(Math.round(depositHeld / 2))}
+                    disabled={depositHeld <= 0}
+                    className="rounded-lg border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    Giữ 1 phần
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositPenaltyAmount(depositHeld)}
+                    disabled={depositHeld <= 0}
+                    className="rounded-lg border border-amber-300 bg-amber-100 px-2.5 py-1 text-[11px] font-bold text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+                  >
+                    Giữ toàn bộ
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={normalizedDepositPenalty ? formatVND(normalizedDepositPenalty) : ''}
+                  onChange={e => setDepositPenaltyAmount(Math.min(parseCurrencyInput(e.target.value), depositHeld))}
+                  placeholder="Số tiền giữ lại"
+                  className={inputCls + ' font-bold text-amber-700 tabular-nums'}
+                />
+                <input
+                  type="text"
+                  value={depositPenaltyNote}
+                  onChange={e => setDepositPenaltyNote(e.target.value)}
+                  placeholder="Lý do: báo gấp, mất cọc một phần..."
+                  className={inputCls}
+                />
+              </div>
+              {normalizedDepositPenalty > 0 && (
+                <div className="mt-2 rounded-lg border border-amber-200 bg-white/80 px-3 py-2 text-xs text-amber-800">
+                  Số tiền này chỉ làm giảm phần hoàn cọc, không sửa lịch sử cọc đã thu.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* E. Đền bù hỏng hóc bổ sung */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-xs font-bold flex items-center justify-center">E</span>
+              <span className="text-sm font-bold text-gray-700 uppercase tracking-wide">Hỏng hóc bổ sung</span>
+              <span className="text-xs text-gray-400 font-normal">(tùy chọn)</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                min={0}
+                value={damageAmount || ''}
+                onChange={e => setDamageAmount(Number(e.target.value) || 0)}
+                placeholder="Số tiền (đ)"
+                className={inputCls}
+              />
+              <input
+                type="text"
+                value={damageNote}
+                onChange={e => setDamageNote(e.target.value)}
+                placeholder="Ghi chú hỏng hóc..."
+                className={inputCls}
+              />
+            </div>
+          </div>
+
+          {/* F. Tổng kết tất toán */}
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Tổng kết tất toán</div>
+            <div className="space-y-2 text-sm">
+              {finalRoomCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-house text-emerald-500 mr-1.5 w-4 text-center"></i>Tiền phòng kỳ cuối</span>
+                  <span className="font-semibold">{formatVND(finalRoomCost)} đ</span>
+                </div>
+              )}
+              {(finalWifiCost + finalGarbageCost) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-wifi text-sky-500 mr-1.5 w-4 text-center"></i>Dịch vụ kỳ cuối</span>
+                  <span className="font-semibold">{formatVND(finalWifiCost + finalGarbageCost)} đ</span>
+                </div>
+              )}
+              {electricCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-bolt text-yellow-500 mr-1.5 w-4 text-center"></i>Tiền điện cuối</span>
+                  <span className="font-semibold">{formatVND(electricCost)} đ</span>
+                </div>
+              )}
+              {waterCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-droplet text-blue-500 mr-1.5 w-4 text-center"></i>Tiền nước cuối</span>
+                  <span className="font-semibold">{formatVND(waterCost)} đ</span>
+                </div>
+              )}
+              {mergedDebt > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-layer-group text-orange-500 mr-1.5 w-4 text-center"></i>Nợ tồn đọng ({selectedMergeIds.size} HĐ)</span>
+                  <span className="font-semibold">{formatVND(mergedDebt)} đ</span>
+                </div>
+              )}
+              {assetDamageTotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-box-open text-teal-500 mr-1.5 w-4 text-center"></i>Khấu trừ tài sản</span>
+                  <span className="font-semibold">{formatVND(assetDamageTotal)} đ</span>
+                </div>
+              )}
+              {handoverDamageTotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-clipboard-check text-indigo-500 mr-1.5 w-4 text-center"></i>Chi phí bàn giao</span>
+                  <span className="font-semibold">{formatVND(handoverDamageTotal)} đ</span>
+                </div>
+              )}
+              {damageAmount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-screwdriver-wrench text-purple-500 mr-1.5 w-4 text-center"></i>Hỏng hóc bổ sung</span>
+                  <span className="font-semibold">{formatVND(damageAmount)} đ</span>
+                </div>
+              )}
+              {normalizedDepositPenalty > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600"><i className="fa-solid fa-hand-holding-dollar text-amber-500 mr-1.5 w-4 text-center"></i>Khấu trừ cọc</span>
+                  <span className="font-semibold">{formatVND(normalizedDepositPenalty)} đ</span>
+                </div>
+              )}
+              <div className="border-t border-gray-200 pt-2 flex justify-between font-bold">
+                <span className="text-gray-800">Tổng phát sinh</span>
+                <span className="text-gray-900">{formatVND(totalCharges)} đ</span>
+              </div>
+              <div className="flex justify-between text-emerald-700">
+                <span><i className="fa-solid fa-shield-halved mr-1.5 w-4 text-center"></i>Cọc đã thu thực tế</span>
+                <span className="font-semibold">− {formatVND(depositHeld)} đ</span>
+              </div>
+              {missingDeposit > 0 && (
+                <div className="flex justify-between text-[11px] text-amber-600">
+                  <span>Cọc thỏa thuận {formatVND(agreedDeposit)} đ</span>
+                  <span>Còn thiếu {formatVND(missingDeposit)} đ</span>
+                </div>
+              )}
+              <div className={`border-t-2 pt-2 flex justify-between items-center ${netDue > 0 ? 'border-red-200' : 'border-emerald-200'}`}>
+                <span className="font-bold text-base text-gray-800">
+                  {netDue > 0 ? 'Khách còn thiếu' : netDue === 0 ? 'Hòa — không thu thêm' : 'Hoàn lại khách'}
+                </span>
+                <span className={`font-black text-xl ${netDue > 0 ? 'text-red-600' : netDue === 0 ? 'text-gray-600' : 'text-emerald-600'}`}>
+                  {netDue > 0 ? formatVND(netDue) : formatVND(refundAmount)} đ
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* F. Phương thức thanh toán */}
+          <div>
+            <label className="mb-2 block text-xs font-semibold text-gray-600">Phương thức thanh toán</label>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPaymentMethod('transfer')}
+                className={`flex-1 rounded-xl border py-2.5 text-sm font-semibold transition ${paymentMethod === 'transfer' ? 'border-blue-500 bg-blue-500 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                <i className="fa-solid fa-building-columns mr-1.5"></i>Chuyển khoản
+              </button>
+              <button type="button" onClick={() => setPaymentMethod('cash')}
+                className={`flex-1 rounded-xl border py-2.5 text-sm font-semibold transition ${paymentMethod === 'cash' ? 'border-green-500 bg-green-500 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}`}>
+                <i className="fa-solid fa-money-bill mr-1.5"></i>Tiền mặt
+              </button>
+            </div>
+          </div>
+
+          {/* Checkbox xác nhận */}
+          <label className="flex items-start gap-3 rounded-xl bg-red-50 border border-red-200 px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={e => setConfirmed(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded accent-red-500"
+            />
+            <span className="text-sm text-red-800 font-medium">
+              Tôi xác nhận lập hóa đơn tất toán. Nếu khách còn phải thanh toán, phòng sẽ ở trạng thái sắp trả cho đến khi hóa đơn được thu đủ.
+            </span>
+          </label>
+        </div>
+
+        {mutation.isError && mutation.error.message !== 'Đã hủy thao tác.' && <p role="alert" className="px-5 py-3 text-sm text-red-700">{mutation.error.message}</p>}
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3 shrink-0 bg-gray-50/50">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={mutation.isPending}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={!confirmed || !!existingSettlementInvoice || !hasHandoverDone || !hasMoveOutDone || !activeContract || mutation.isPending || finalElectric < electricOld || finalWater < waterOld}
+            className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-md shadow-red-200 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {mutation.isPending
+              ? <><i className="fa-solid fa-spinner animate-spin"></i> Đang xử lý...</>
+              : <><i className="fa-solid fa-file-invoice-dollar"></i> Tạo hóa đơn tất toán</>
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

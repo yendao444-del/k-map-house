@@ -1,0 +1,13 @@
+{
+  "id": "03-bien-nhan-chu-nha",
+  "name": "Đã nhận thanh toán · Chủ nhà",
+  "model": "cx/gpt-5.5-image",
+  "prompt": "Create ONE production-quality Vietnamese transactional email visual, not a website. 1024x1536 portrait; entire email visible, white outer margin, natural centered 600px layout, no browser chrome. AUTHORITATIVE REFERENCE: attached image is the exact user-approved AN KHANG HOME email crop. Preserve its real white logo plaque with navy/green AK + AN KHANG HOME wordmark, emerald illustrated apartment-building banner, large white headline at left, illustration at right, curved pale mint lower edge, left-aligned body, thin fact dividers, signature. Match the reference closely; do not invent a different brand. EXACT TEMPLATE: Đã nhận thanh toán · Chủ nhà; audience Tài khoản hệ thống / Chủ nhà; banner headline exactly 'ĐÃ NHẬN THANH TOÁN'. Semantic palette: emerald; original logo colors remain navy/green. Banner illustration: cream apartment building, receipt ledger and green bank confirmation checkmark. Use a refined flat editorial illustration, not 3D. Date anchor 09/10/2026 Vietnam UTC+7; all supplied facts are synthetic and exact. BODY: Xin chào Chủ nhà, Phòng 221 vừa thanh toán thành công. Khoản thu đã được ghi nhận qua SePay. Emphasize 'Khoản thu đã ghi nhận' as 2.534.000 đ. Facts: Người thuê: Nguyễn Minh Anh; Phòng: Phòng 221; Kỳ hóa đơn: 10/2026; Mã giao dịch: GD-MAU-221-1009. Include a compact invoice table with Tiền phòng 2.400.000 đ, Tiền điện 14.000 đ, Internet 50.000 đ, Vệ sinh 70.000 đ, Tổng hóa đơn 2.534.000 đ; Đã thanh toán 2.534.000 đ; Còn lại 0 đ. Closing: Biên nhận này giúp bạn theo dõi khoản thu và lưu hóa đơn của phòng. No button and no external link; the message must be complete in the email. Close with 'Trân trọng,' and 'Đội ngũ An Khang Home'. Add tiny footer 'Dữ liệu minh họa · 09/10/2026'.  AVOID: Gmail/browser UI, tabs, device frame, other brands, SPX, QR, passwords, fake phone/contact details, clutter, cards inside cards, multiple CTAs, repeated headings, tiny unreadable text, clipped footer, misspelled Vietnamese, unsupported success stamp, invented amounts, people, photorealistic luxury real estate, code or HTML annotations.",
+  "promptHash": "2893c7150f57fb50740a77a7c0f01c85ec2b76562456b7296e4d6066af23af76",
+  "reference": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\_nguon\\anh-mau-email-hop-dong.png",
+  "source": "C:/Users/Admin/AppData/Local/Temp/codex-clipboard-c87e65da-42e8-49bd-8fb2-bdedd61e50ef.png",
+  "width": 1024,
+  "height": 1536,
+  "sha256": "70b4c577399e76c1a0498dc6fe3e555e4aaa80fd22063f923204bc89c6a88d78",
+  "at": "2026-10-09T08:23:40.262Z"
+}

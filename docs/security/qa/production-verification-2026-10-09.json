@@ -1,0 +1,99 @@
+{
+  "verifiedAt": "2026-10-09T03:04:49.147Z",
+  "scope": "Auth/database metadata and anonymous HTTP probes only; no authenticated customer record, upload, provider payment or real email test",
+  "assertions": {
+    "publicSignupDisabled": true,
+    "publicTables": 46,
+    "tablesWithoutRls": [],
+    "manualAnonExecute": false,
+    "appSecretAnonSelect": false,
+    "manualServiceExecute": true,
+    "publicEmailLookupExecute": false,
+    "triggerFunctionReturnType": "trigger",
+    "manualAuthenticatedExecute": false,
+    "manualRecipientSupportsLetters": true,
+    "manualRecipientSupportsSubaccount": true
+  },
+  "http": [
+    {
+      "url": "https://app.phongtroankhang.com/",
+      "status": 200,
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xFrameOptions": "DENY",
+      "nosniff": "nosniff",
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://qr.sepay.vn https://histdatafeed.vps.com.vn https://www.vang.today https://api.vang.today https://fmarket.vn https://api.sepay.vn https://my.sepay.vn https://pay.phongtroankhang.com https://phongtroankhang.com; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests",
+      "cacheControl": "no-store",
+      "cors": "*"
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/",
+      "status": 200,
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xFrameOptions": "DENY",
+      "nosniff": "nosniff",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-src 'self' about:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+      "cacheControl": "public, max-age=0, must-revalidate",
+      "cors": "*"
+    },
+    {
+      "url": "https://pay.phongtroankhang.com/api/health",
+      "status": 200,
+      "hsts": "max-age=31536000; includeSubDomains",
+      "xFrameOptions": "DENY",
+      "nosniff": "nosniff",
+      "csp": "default-src 'none'; frame-ancestors 'none'; base-uri 'none'",
+      "cacheControl": "no-store",
+      "cors": null
+    }
+  ],
+  "probes": [
+    {
+      "name": "tenant-state-without-session",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cors": null,
+      "cacheControl": "no-store"
+    },
+    {
+      "name": "tenant-cross-origin",
+      "status": 403,
+      "expected": 403,
+      "pass": true,
+      "cors": null,
+      "cacheControl": "no-store"
+    },
+    {
+      "name": "contract-token-invalid",
+      "status": 410,
+      "expected": 410,
+      "pass": true,
+      "cors": null,
+      "cacheControl": "no-store"
+    },
+    {
+      "name": "sepay-without-session",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cors": null,
+      "cacheControl": "no-store"
+    },
+    {
+      "name": "contract-staff-without-session",
+      "status": 401,
+      "expected": 401,
+      "pass": true,
+      "cors": "*",
+      "cacheControl": "no-store"
+    }
+  ],
+  "contractGatewayRecovery": {
+    "initialStatus": 503,
+    "finalStatus": 410,
+    "cause": "Pages gateway secret binding was empty; existing validated gateway secrets restored and Pages redeployed",
+    "fullContractDeploymentStopped": "Historical fixture count guard was stale; SQL migrations ran before the guard, and no Edge redeploy occurred through that script",
+    "secretsPrinted": false
+  },
+  "passed": true
+}

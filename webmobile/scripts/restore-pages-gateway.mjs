@@ -4,6 +4,8 @@ if(!env.CONTRACT_GATEWAY_SECRET||!env.WEBMOBILE_GATEWAY_SECRET) throw new Error(
 const edge=await fetch(`${env.SUPABASE_URL}/functions/v1/webmobile-demo`,{method:'GET',headers:{Authorization:`Bearer ${env.WEBMOBILE_GATEWAY_SECRET}`,'x-webmobile-endpoint':'health'}})
 console.log(JSON.stringify({edgeStatus:edge.status,edgeHealth:await edge.json()}))
 if(!edge.ok) throw new Error('Existing webmobile secret does not authenticate the backend')
+const contract=await fetch(`${env.SUPABASE_URL}/functions/v1/contract-confirmation`,{method:'POST',headers:{Authorization:`Bearer ${env.CONTRACT_GATEWAY_SECRET}`,'Content-Type':'application/json','x-contract-ip':'a'.repeat(64)},body:JSON.stringify({action:'view',token:'invalid'}),signal:AbortSignal.timeout(20000)})
+if(contract.status!==410)throw new Error(`Existing contract secret did not pass the invalid-token probe (${contract.status})`)
 const url=`https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/pages/projects/ankhanghome-payment`
 const headers={Authorization:`Bearer ${env.CLOUDFLARE_API_TOKEN}`,'Content-Type':'application/json'}
 const current=await (await fetch(url,{headers})).json()

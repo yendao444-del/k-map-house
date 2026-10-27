@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-12T07:23:13.722Z",
+  "productionApplied": true,
+  "result": [
+    {
+      "remember_device_invariants": "passed"
+    }
+  ],
+  "settingsAndBusinessGuardUnchanged": true,
+  "customerDataChanged": false,
+  "fixturesRolledBack": true,
+  "tests": "Completed AAL2 login outside fresh-MFA window; ownership/IP/browser/deadline/recovery/mail/device checks; public RPC denied; device revocation still requires fresh MFA."
+}

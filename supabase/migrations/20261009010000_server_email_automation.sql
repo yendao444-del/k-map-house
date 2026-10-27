@@ -26,6 +26,16 @@ alter table public.email_notification_deliveries add column if not exists last_a
 create index if not exists email_server_queue_due_idx on public.email_notification_deliveries(next_attempt_at)
  where server_queue and status in ('queued','failed','sending');
 grant all on public.email_notification_deliveries to service_role;
+-- Older Electron versions can read server history but cannot take over a
+-- failed server lease and send the same notification through local Gmail.
+drop policy if exists "Admins manage email notification deliveries" on public.email_notification_deliveries;
+drop policy if exists "Admins read email notification deliveries" on public.email_notification_deliveries;
+drop policy if exists "Admins manage local email deliveries" on public.email_notification_deliveries;
+create policy "Admins read email notification deliveries" on public.email_notification_deliveries
+ for select to authenticated using (exists(select 1 from public.users u where u.id=auth.uid() and u.role='admin' and u.status='active'));
+create policy "Admins manage local email deliveries" on public.email_notification_deliveries
+ for all to authenticated using (not server_queue and exists(select 1 from public.users u where u.id=auth.uid() and u.role='admin' and u.status='active'))
+ with check (not server_queue and exists(select 1 from public.users u where u.id=auth.uid() and u.role='admin' and u.status='active'));
 
 create table if not exists public.email_send_budget (
  day date primary key, reservations integer not null default 0
@@ -108,7 +118,7 @@ declare cfg email_automation_settings%rowtype; today date:=(p_now at time zone '
 begin
  select * into cfg from email_automation_settings where enabled;
  if not found or extract(hour from p_now at time zone 'Asia/Ho_Chi_Minh')<cfg.reminder_hour then return 0; end if;
- for i in select v.*,r.name room_name from invoices v join rooms r on r.id=v.room_id
+ for i in select v.*,invoice_room.name room_name from invoices v join rooms invoice_room on invoice_room.id=v.room_id
   where v.payment_status not in ('paid','cancelled','merged') and v.total_amount>coalesce(v.paid_amount,0) loop
   due:=coalesce(i.due_date,make_date(i.year,i.month,15));
   if due>today then continue; end if;
@@ -118,8 +128,8 @@ begin
     jsonb_build_object('invoiceId',i.id,'roomId',i.room_id,'roomName',i.room_name,'dueDate',due,'daysUnpaid',age));
  end loop;
  for r in select * from rooms where old_debt>0 loop
-  -- old_debt is separate from invoice debt. A room with both gets a single combined reminder.
-  if exists(select 1 from invoices v where v.room_id=r.id and v.payment_status not in ('paid','cancelled','merged') and v.total_amount>coalesce(v.paid_amount,0)) then continue; end if;
+  -- Imported room debt is separate from invoice debt and must remain visible
+  -- even when newer invoices are also unpaid.
   if extract(day from today)<15 then continue; end if;
   n:=n+enqueue_server_email('rent_overdue',r.id||':old-debt:'||to_char(today,'YYYY-MM')||':'||((extract(day from today)::integer-15)/cfg.repeat_days),
     jsonb_build_object('roomId',r.id,'roomName',r.name,'oldDebt',true,'dueDate',date_trunc('month',today)::date+14));
@@ -128,8 +138,8 @@ begin
   n:=n+enqueue_server_email('room_checkout_due',r.id||':'||r.expected_end_date||':'||((today-r.expected_end_date)/cfg.repeat_days),
     jsonb_build_object('roomId',r.id,'roomName',r.name,'dueDate',r.expected_end_date));
  end loop;
- for c in select c.*,r.name room_name from contracts c join rooms r on r.id=c.room_id
-  where c.status='active' and c.expiration_date between today and today+7 loop
+ for c in select candidate_contract.*,contract_room.name room_name from contracts candidate_contract join rooms contract_room on contract_room.id=candidate_contract.room_id
+  where candidate_contract.status='active' and candidate_contract.expiration_date between today and today+7 loop
   n:=n+enqueue_server_email('contract_expiring',c.id||':'||c.expiration_date,
     jsonb_build_object('contractId',c.id,'roomId',c.room_id,'roomName',c.room_name,'dueDate',c.expiration_date));
  end loop;
@@ -201,13 +211,17 @@ begin
  if not found then return jsonb_build_object('status','disabled'); end if;
  tx_id:=nullif(btrim(p_tx->>'id'),'');ref:=nullif(btrim(p_tx->>'reference_number'),'');
  amount:=(p_tx->>'amount_in')::numeric;content:=coalesce(p_tx->>'transaction_content','');
- if tx_id is null or amount<=0 or amount>2147483647 or (p_tx->>'amount_in')::numeric<>amount then return jsonb_build_object('status','ignored');end if;
+ if tx_id is null or amount is null or amount<=0 or amount>2147483647 or (p_tx->>'amount_in')::numeric<>amount then return jsonb_build_object('status','ignored');end if;
  if nullif(p_tx->>'transaction_date','') is null then return jsonb_build_object('status','ignored');end if;
  occurred:=case when p_tx->>'transaction_date' ~ '(Z|[+-][0-9]{2}:[0-9]{2})$' then (p_tx->>'transaction_date')::timestamptz
    else (p_tx->>'transaction_date')::timestamp at time zone 'Asia/Ho_Chi_Minh' end;
  if occurred>now()+interval '5 minutes' then return jsonb_build_object('status','ignored');end if;
- select regexp_replace(account_no,'\D','','g') into account from app_settings limit 1;
- if nullif(account,'') is null or regexp_replace(coalesce(p_tx->>'account_number',''),'\D','','g')<>account then return jsonb_build_object('status','wrong_account');end if;
+ select upper(regexp_replace(account_no,'[^A-Z0-9]','','gi')) into account from app_settings limit 1;
+ if nullif(account,'') is null or not (
+   upper(regexp_replace(coalesce(p_tx->>'account_number',''),'[^A-Z0-9]','','gi'))=upper(regexp_replace(account,'[^A-Z0-9]','','g'))
+   or upper(regexp_replace(coalesce(p_tx->>'sub_account',''),'[^A-Z0-9]','','gi'))=upper(regexp_replace(account,'[^A-Z0-9]','','g'))
+ ) then return jsonb_build_object('status','wrong_account');end if;
+ if coalesce((p_tx->>'amount_out')::numeric,0)<>0 then return jsonb_build_object('status','ignored');end if;
  tx_key:=regexp_replace(upper(coalesce(ref,tx_id)),'[^A-Z0-9]','','g');
  keys:=array[lower(coalesce(ref,tx_id)),lower(tx_id)];
  -- Serialize with invoice/wallet operations before taking external-key and row locks.

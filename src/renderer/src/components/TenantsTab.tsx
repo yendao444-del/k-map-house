@@ -5,7 +5,8 @@ import { ConfirmModal } from './ConfirmModal';
 import { LogoLoading } from './LogoLoading';
 import { TenantFormModal } from './TenantFormModal';
 import { TenantIdentityPreview } from './TenantIdentityPreview';
-import { useTenantEmailCheck } from '../lib/use-tenant-email-check';
+import { TenantIdentityListCell } from './TenantIdentityListCell';
+import { TenantContactCell } from './TenantContactCell';
 
 const getContractSortTime = (contract: Contract) =>
   new Date(contract.end_date || contract.created_at || contract.move_in_date).getTime();
@@ -86,6 +87,11 @@ export const TenantsTab: React.FC = () => {
   const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: getInvoices });
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [attentionOnly, setAttentionOnly] = useState(false);
+  const [identityStates, setIdentityStates] = useState<Record<string, { source?: string; incomplete: boolean }>>({});
+  const handleIdentityStatus = useCallback((id: string, source: string | undefined, incomplete: boolean) => {
+    setIdentityStates(previous => previous[id]?.source === source && previous[id]?.incomplete === incomplete ? previous : { ...previous, [id]: { source, incomplete } });
+  }, []);
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'left'>('all');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -269,17 +275,20 @@ export const TenantsTab: React.FC = () => {
       if (filterActive === 'inactive' && !isNeverStayed) return false;
       if (filterActive === 'left' && !hasLeft) return false;
 
+      if (attentionOnly && (t.phone || view?.latestContract?.tenant_phone)?.trim() && t.email?.trim() && (t.identity_card || view?.latestContract?.tenant_id_card)?.trim() && t.identity_image_url && !(identityStates[t.id]?.source === t.identity_image_url && identityStates[t.id]?.incomplete) && !['red', 'amber'].includes(view?.depositStatus.tone || '')) return false;
+
       if (normalizedSearch) {
         return (
           t.full_name?.toLowerCase().includes(normalizedSearch) ||
           t.phone?.includes(normalizedSearch) ||
           t.identity_card?.includes(normalizedSearch) ||
+          t.email?.toLowerCase().includes(normalizedSearch) ||
           view?.searchText.includes(normalizedSearch)
         );
       }
       return true;
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [filterActive, searchQuery, tenantViewById, tenants]);
+  }, [attentionOnly, filterActive, identityStates, searchQuery, tenantViewById, tenants]);
 
   const filterCounts = useMemo(() => {
     let active = 0;
@@ -304,6 +313,8 @@ export const TenantsTab: React.FC = () => {
   const actionSummary = useMemo(() => {
     let missingContact = 0;
     let missingDeposit = 0;
+    let missingIdentity = 0;
+    let total = 0;
 
     tenants.forEach((tenant) => {
       const view = tenantViewById.get(tenant.id);
@@ -311,12 +322,17 @@ export const TenantsTab: React.FC = () => {
       const contactPhone = tenant.phone || contract?.tenant_phone;
       const agreedDeposit = Number(contract?.deposit_amount || 0);
 
-      if (!contactPhone) missingContact++;
-      if (agreedDeposit > 0 && Number(view?.collectedDeposit || 0) < agreedDeposit) missingDeposit++;
+      const lacksContact = !contactPhone?.trim() || !tenant.email?.trim();
+      const lacksIdentity = !(tenant.identity_card || contract?.tenant_id_card)?.trim() || !tenant.identity_image_url || (identityStates[tenant.id]?.source === tenant.identity_image_url && identityStates[tenant.id]?.incomplete);
+      const lacksDeposit = agreedDeposit > 0 && Number(view?.collectedDeposit || 0) < agreedDeposit;
+      if (lacksContact) missingContact++;
+      if (lacksIdentity) missingIdentity++;
+      if (lacksDeposit) missingDeposit++;
+      if (lacksContact || lacksIdentity || lacksDeposit) total++;
     });
 
-    return { missingContact, missingDeposit, total: missingContact + missingDeposit };
-  }, [tenantViewById, tenants]);
+    return { missingContact, missingDeposit, missingIdentity, total };
+  }, [identityStates, tenantViewById, tenants]);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-4 bg-[#f5f7f6] p-4 lg:p-5">
@@ -363,7 +379,7 @@ export const TenantsTab: React.FC = () => {
             );
           })}
           <div className="mx-1 hidden h-6 w-px bg-slate-200 xl:block"></div>
-          <span className="rounded-xl bg-red-50 px-3 py-2 text-sm font-bold text-red-600"><i className="fa-solid fa-burst mr-1.5 text-[11px]"></i>Cần xử lý {actionSummary.total}</span>
+          <button type="button" aria-pressed={attentionOnly} onClick={() => setAttentionOnly(value => !value)} className={`rounded-xl px-3 py-2 text-sm font-bold text-red-600 ${attentionOnly ? 'bg-red-100 ring-1 ring-red-200' : 'bg-red-50 hover:bg-red-100'}`}><i className="fa-solid fa-burst mr-1.5 text-[11px]" aria-hidden="true" />Cần xử lý {actionSummary.total}</button>
           <div className="ml-auto hidden items-center gap-2 text-xs text-slate-400 lg:flex">
             <span className="rounded-lg bg-slate-50 px-3 py-2">Tất cả phòng <i className="fa-solid fa-chevron-down ml-2 text-[9px]"></i></span>
             <span className="rounded-lg bg-slate-50 px-3 py-2">Trạng thái đặt cọc <i className="fa-solid fa-chevron-down ml-2 text-[9px]"></i></span>
@@ -373,38 +389,40 @@ export const TenantsTab: React.FC = () => {
 
       {actionSummary.total > 0 && (
         <section className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-[#fff8ec] px-4 py-3 text-sm">
-          <div className="font-bold text-[#8a5418]"><i className="fa-solid fa-bell mr-2 text-red-500"></i>{actionSummary.total} việc cần xử lý hôm nay</div>
+          <div className="font-bold text-[#8a5418]"><i className="fa-solid fa-bell mr-2 text-red-500"></i>{actionSummary.total} khách thuê cần bổ sung</div>
           {actionSummary.missingDeposit > 0 && <span className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-xs font-semibold text-red-500">{actionSummary.missingDeposit} chưa đóng đặt cọc</span>}
           {actionSummary.missingContact > 0 && <span className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-xs font-semibold text-red-500">{actionSummary.missingContact} thiếu thông tin liên hệ</span>}
-          <span className="ml-auto cursor-pointer font-bold text-primary hover:underline">Xem danh sách <i className="fa-solid fa-arrow-right ml-1"></i></span>
+          {actionSummary.missingIdentity > 0 && <span className="rounded-md border border-red-100 bg-white px-2.5 py-1 text-xs font-semibold text-red-500">{actionSummary.missingIdentity} thiếu số/ảnh CCCD</span>}
+          <button type="button" onClick={() => setAttentionOnly(value => !value)} className="ml-auto font-bold text-primary hover:underline">{attentionOnly ? 'Xem tất cả' : 'Xem danh sách'} <i className="fa-solid fa-arrow-right ml-1" aria-hidden="true" /></button>
         </section>
       )}
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="min-h-0 flex-1 overflow-auto custom-scrollbar">
-          <table className="w-full min-w-[1080px] text-left border-collapse">
+          <table className="tenant-list-table w-full table-fixed min-w-[1320px] text-left border-collapse">
             <thead className="sticky top-0 z-10 border-b border-slate-100 bg-[#f7faf8] text-[10px] font-extrabold uppercase tracking-[0.11em] text-slate-400">
               <tr>
-                <th className="w-[25%] px-5 py-3.5">Khách thuê & phòng</th>
-                <th className="w-[17%] px-4 py-3.5">Liên hệ</th>
+                <th className="w-[16%] px-4 py-3.5">Khách thuê & phòng</th>
+                <th className="w-[19%] px-3 py-3.5">Giấy tờ định danh</th>
+                <th className="w-[16%] px-3 py-3.5">Liên hệ</th>
                 <th className="w-[15%] px-4 py-3.5">Hợp đồng</th>
-                <th className="w-[18%] px-4 py-3.5">Đặt cọc</th>
-                <th className="w-[14%] px-4 py-3.5">Hoạt động gần nhất</th>
-                <th className="px-4 py-3.5">Tham gia</th>
-                <th className="px-4 py-3.5 text-center"></th>
+                <th className="w-[15%] px-4 py-3.5">Đặt cọc</th>
+                <th className="w-[10%] px-4 py-3.5">Hoạt động gần nhất</th>
+                <th className="w-[6%] px-3 py-3.5">Tham gia</th>
+                <th className="w-[3%] px-1 py-3.5 text-center"><span className="sr-only">Thao tác</span></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-12 text-center text-slate-400">
                     <LogoLoading className="min-h-[45vh]" />
                   </td>
                 </tr>
               )}
               {!isLoading && filteredTenants.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center text-slate-400">
+                  <td colSpan={8} className="px-6 py-16 text-center text-slate-400">
                     <i className="fa-solid fa-user-slash text-3xl opacity-50 mb-3"></i>
                     <p className="text-base font-medium">Không tìm thấy khách hàng nào</p>
                   </td>
@@ -436,11 +454,13 @@ export const TenantsTab: React.FC = () => {
                 const agreedDeposit = Number(latestContract?.deposit_amount || 0);
                 const depositProgress = agreedDeposit > 0 ? Math.min(100, Math.round((collectedDeposit / agreedDeposit) * 100)) : 0;
                 const needsDeposit = agreedDeposit > 0 && collectedDeposit < agreedDeposit;
-                const needsAttention = needsDeposit || !contactPhone;
+                const needsContact = !contactPhone.trim() || !tenant.email?.trim();
+                const needsIdentity = !(tenant.identity_card || latestContract?.tenant_id_card)?.trim() || !tenant.identity_image_url || (identityStates[tenant.id]?.source === tenant.identity_image_url && identityStates[tenant.id]?.incomplete);
+                const needsAttention = needsDeposit || needsContact || needsIdentity;
 
                 return (
-                  <tr key={tenant.id} className={`group relative border-l-[4px] transition hover:bg-slate-50/80 ${needsDeposit ? 'border-l-red-500 bg-red-50/[0.26]' : !contactPhone ? 'border-l-amber-400' : 'border-l-transparent'}`}>
-                    <td className="px-5 py-3.5">
+                  <tr key={tenant.id} className={`group relative border-l-[4px] transition hover:bg-slate-50/80 ${needsDeposit ? 'border-l-red-500 bg-red-50/[0.26]' : needsContact || needsIdentity ? 'border-l-amber-400' : 'border-l-transparent'}`}>
+                    <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         {needsDeposit && <i className="fa-solid fa-circle-exclamation -ml-3.5 text-base text-red-500" title="Cần xử lý"></i>}
                         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${avatarColors[colorIdx]} `}>
@@ -448,53 +468,20 @@ export const TenantsTab: React.FC = () => {
                         </div>
                         <div className="min-w-0">
                           <div className="font-bold text-slate-900 transition group-hover:text-primary">{tenant.full_name}</div>
-                          <div className="mt-1 flex items-center gap-2">
-                            {roomLabel !== '—' && <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${isActuallyActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{roomLabel}</span>}
-                            <span className={`text-[11px] font-semibold ${isActuallyActive ? 'text-emerald-600' : hasLeft ? 'text-amber-600' : 'text-slate-400'}`}><i className="fa-solid fa-circle mr-1 text-[7px]"></i>{isActuallyActive ? 'Đang ở' : hasLeft ? 'Đã rời đi' : 'Chưa ở'}</span>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            {roomLabel !== '—' && <span className={`whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-bold ${isActuallyActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{roomLabel}</span>}
+                            <span className={`whitespace-nowrap text-[11px] font-semibold ${isActuallyActive ? 'text-emerald-600' : hasLeft ? 'text-amber-600' : 'text-slate-400'}`}><i className="fa-solid fa-circle mr-1 text-[7px]"></i>{isActuallyActive ? 'Đang ở' : hasLeft ? 'Đã rời đi' : 'Chưa ở'}</span>
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    <td className="px-4 py-4 xl:px-6">
-                      <div className="flex flex-col gap-1.5 items-start">
-                        {contactPhone ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-[15px] font-medium text-slate-700 font-mono">
-                              {contactPhone}
-                            </span>
-                            <a
-                              href={`tel:${contactPhone.replace(/[^0-9+]/g, '')}`}
-                              title="Gọi điện"
-                              onClick={(e) => e.stopPropagation()}
-                              className="text-emerald-600 transition hover:text-emerald-700"
-                            >
-                              <i className="fa-solid fa-phone text-[12px]"></i>
-                            </a>
-                            <a
-                              href={`https://zalo.me/${contactPhone.replace(/[^0-9]/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              title="Nhắn Zalo"
-                              onClick={(e) => e.stopPropagation()}
-                              className="flex h-[22px] w-[22px] items-center justify-center rounded text-emerald-600 transition hover:bg-emerald-50 hover:text-emerald-700"
-                            >
-                              <i className="fa-brands fa-whatsapp text-[15px]"></i>
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-start gap-1.5">
-                            <span className="font-mono text-[15px] text-slate-400">—</span>
-                            <span className="inline-flex items-center rounded-md border border-red-300 bg-white px-2 py-0.5 text-[10px] font-bold text-red-500">Thiếu SĐT</span>
-                          </div>
-                        )}
-                        {tenant.email && (
-                          <div className="text-[14px] text-slate-500 flex items-center gap-1.5">
-                            <i className="fa-regular fa-envelope text-[10px] text-slate-400"></i>
-                            <span className="truncate max-w-[120px]">{tenant.email}</span>
-                          </div>
-                        )}
-                      </div>
+                    <td className="px-4 py-3.5">
+                      <TenantIdentityListCell source={tenant.identity_image_url} identityNumber={tenant.identity_card || latestContract?.tenant_id_card} tenantName={tenant.full_name} tenantId={tenant.id} onStatus={handleIdentityStatus} />
+                    </td>
+
+                    <td className="px-4 py-3.5">
+                      <TenantContactCell phone={contactPhone} email={tenant.email} />
                     </td>
 
                     <td className="px-4 py-3.5">
@@ -554,22 +541,22 @@ export const TenantsTab: React.FC = () => {
 
                     <td className="px-4 py-3.5">
                       {needsAttention ? (
-                        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700"><i className="fa-solid fa-clock text-amber-400"></i>{needsDeposit ? 'Chờ hoàn tất cọc' : 'Cần bổ sung liên hệ'}</div>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700"><i className="fa-solid fa-clock text-amber-400"></i>{needsDeposit ? 'Chờ hoàn tất cọc' : needsIdentity ? 'Cần bổ sung CCCD' : 'Cần bổ sung liên hệ'}</div>
                       ) : (
                         <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500"><i className="fa-solid fa-circle-check text-emerald-500"></i>Hồ sơ đã cập nhật</div>
                       )}
                     </td>
 
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2 text-slate-600 text-sm">
-                        <i className="fa-solid fa-calendar-day text-slate-300"></i>
+                    <td className="px-2 py-3.5">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap text-slate-600 text-xs">
+                        <i className="fa-solid fa-calendar-day text-[10px] text-slate-300" aria-hidden="true"></i>
                         <span className="font-medium">{joinDateLabel}</span>
                       </div>
                     </td>
 
-                    <td className="px-4 py-3.5 text-center" style={{ overflow: 'visible' }}>
+                    <td className="px-1 py-3.5 text-center" style={{ overflow: 'visible' }}>
                       <div className="relative inline-block text-left">
-                        <button
+                        <button type="button" aria-label={`Thao tác với ${tenant.full_name}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
@@ -807,148 +794,23 @@ function trapTenantDialogFocus(event: React.KeyboardEvent, root: HTMLElement | n
 
 const TenantEditModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant; onClose: () => void }) => {
   const queryClient = useQueryClient();
-  const [tenant, setTenant] = useState<Tenant>(initialTenant);
-  const emailCheck = useTenantEmailCheck(tenant.email);
-  const editRef = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement as HTMLElement | null;
-    editRef.current?.querySelector<HTMLInputElement>('input[name="full_name"]')?.focus();
-    return () => previousFocus?.focus();
-  }, []);
-  const handleEditKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {
-    if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
-    trapTenantDialogFocus(event, editRef.current);
-  };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Vui lòng chọn ảnh dưới 5MB để đảm bảo hiệu suất lưu trữ offline.');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setTenant(prev => ({ ...prev, identity_image_url: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
+  const [error, setError] = useState<string | null>(null);
   const updateMut = useMutation({
-    mutationFn: (updates: Partial<Tenant>) => updateTenant(tenant.id, updates),
+    mutationFn: (updates: Partial<Tenant>) => updateTenant(initialTenant.id, updates),
     onSuccess: (updatedTenant) => {
-      queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) =>
-        prev.map((item) => item.id === updatedTenant.id ? updatedTenant : item)
-      );
-      queryClient.invalidateQueries({ queryKey: ['tenants'] });
-      setTenant(updatedTenant);
+      queryClient.setQueryData<Tenant[]>(['tenants'], (prev = []) => prev.map(item => item.id === updatedTenant.id ? updatedTenant : item));
+      void queryClient.invalidateQueries({ queryKey: ['tenants'] });
       onClose();
-    }
+    },
+    onError: (updateError) => setError(updateError instanceof Error ? updateError.message : 'Không thể lưu hồ sơ. Vui lòng thử lại.'),
   });
-
-  const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (emailCheck.blocked || updateMut.isPending) return;
-    const fd = new FormData(e.currentTarget);
-    updateMut.mutate({
-      full_name: (fd.get('full_name') as string).trim(),
-      phone: (fd.get('phone') as string).trim(),
-      email: (fd.get('email') as string).trim(),
-      identity_card: (fd.get('identity_card') as string).trim(),
-      identity_image_url: (fd.get('identity_image_url') as string).trim(),
-      notes: (fd.get('notes') as string).trim(),
-    });
-  };
-
-    return (
-      <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex justify-center items-center p-4 z-[90]" onClick={onClose}>
-        <form ref={editRef} role="dialog" aria-modal="true" aria-labelledby="tenant-edit-title" onKeyDown={handleEditKeyDown} onSubmit={handleEditSubmit} className="bg-white flex flex-col rounded-2xl w-full max-w-md overflow-hidden max-h-[90vh] shadow-2xl border border-slate-200 animate-[fadeIn_0.15s_ease-out]" onClick={e => e.stopPropagation()}>
-          <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 z-10">
-            <h3 id="tenant-edit-title" className="font-bold text-xl text-slate-800 flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
-                <i className="fa-solid fa-pen-to-square text-xs"></i>
-              </div>
-              Sửa hồ sơ
-            </h3>
-            <button type="button" aria-label="Đóng sửa hồ sơ" onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 transition text-slate-500">
-              <i className="fa-solid fa-xmark"></i>
-            </button>
-          </div>
-
-          <div className="p-6 space-y-5 overflow-y-auto">
-            <div>
-              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Họ và tên <span className="text-red-500">*</span></label>
-              <input name="full_name" defaultValue={tenant.full_name} required type="text" placeholder="Nhập tên khách thuê" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Số điện thoại</label>
-                <input name="phone" defaultValue={tenant.phone} type="tel" placeholder="09xx..." className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
-              </div>
-              <div>
-                <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Địa chỉ Email</label>
-                <input name="email" value={tenant.email || ""} onChange={event => setTenant(prev => ({ ...prev, email: event.target.value }))} type="email" aria-invalid={Boolean(emailCheck.error)} aria-describedby="tenant-edit-email-help" placeholder="example@email.com" className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white" />
-                <p id="tenant-edit-email-help" role="status" className={`mt-2 text-xs leading-5 ${emailCheck.error ? "text-red-600" : "text-slate-500"}`}>{emailCheck.error || (emailCheck.checking ? "Đang kiểm tra email…" : "Email người thuê phải khác tài khoản hệ thống.")}</p>
-              </div>
-            </div>
-
-
-
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-              <h4 className="text-[15px] font-bold text-slate-800 mb-3 flex items-center gap-2"><i className="fa-regular fa-id-card text-slate-400"></i> Định danh cá nhân (CCCD/CMND)</h4>
-              <div className="space-y-4">
-                <div>
-                  <input name="identity_card" defaultValue={tenant.identity_card} type="text" placeholder="Nhập dãy 12 số CCCD..." className="w-full border border-slate-300 rounded-lg px-4 py-2 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white" />
-
-                </div>
-
-                <div
-                  className="w-full flex flex-col items-center justify-center p-4 border border-dashed border-slate-300 rounded-lg bg-white hover:bg-slate-50 transition cursor-pointer group relative overflow-hidden min-h-[140px]"
-                >
-                  <input type="file" accept="image/*" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-
-                  {tenant.identity_image_url ? (
-                    <>
-                      <img src={tenant.identity_image_url} alt="CCCD Preview" className="absolute inset-0 w-full h-full object-cover rounded-lg z-0 opacity-40 group-hover:opacity-20 transition" />
-                      <div className="relative z-10 flex flex-col items-center">
-                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 mb-2 border border-emerald-200">
-                          <i className="fa-solid fa-check"></i>
-                        </div>
-                        <div className="text-[12px] font-bold text-emerald-700">Đã cập nhật ảnh</div>
-                        <div className="text-[10px] text-slate-500 mt-1">Nhấp/kéo thả để thay đổi ảnh khác</div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-2 group-hover:bg-primary/10 group-hover:text-primary transition">
-                        <i className="fa-solid fa-cloud-arrow-up"></i>
-                      </div>
-                      <div className="text-[12px] font-bold text-slate-600">Nhấp để tải ảnh lên</div>
-                      <div className="text-[10px] text-slate-400 mt-1">Hỗ trợ JPG, PNG, tối đa 5MB</div>
-                    </>
-                  )}
-                </div>
-                <input type="hidden" name="identity_image_url" value={tenant.identity_image_url || ''} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[15px] font-bold text-slate-700 mb-1.5">Ghi chú & Lưu ý</label>
-              <textarea name="notes" defaultValue={tenant.notes} rows={2} className="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-[15px] focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-slate-50 focus:bg-white resize-none"></textarea>
-            </div>
-          </div>
-
-          {updateMut.isError && <p role="alert" className="px-6 pb-3 text-sm text-red-600">{updateMut.error instanceof Error ? updateMut.error.message : 'Không thể lưu hồ sơ. Vui lòng thử lại.'}</p>}
-          <div className="shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl">
-            <button type="button" onClick={onClose} className="px-5 py-2 rounded-xl text-[15px] font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 transition shadow-sm">Hủy</button>
-            <button type="submit" disabled={updateMut.isPending || emailCheck.blocked} className="disabled:opacity-40 px-5 py-2 bg-primary text-white rounded-xl text-[15px] font-bold shadow-sm hover:bg-primary-dark flex items-center gap-2">
-              {updateMut.isPending ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-check"></i>} Lưu thay đổi
-            </button>
-          </div>
-        </form>
-      </div>
-    );
+  return <TenantFormModal
+    initialTenant={initialTenant}
+    onClose={onClose}
+    isPending={updateMut.isPending}
+    error={error || (updateMut.error instanceof Error ? updateMut.error.message : null)}
+    onSubmit={(data) => { setError(null); updateMut.mutate(data); }}
+  />;
 };
 
 const TenantDetailModal = ({ tenant: initialTenant, onClose }: { tenant: Tenant; onClose: () => void }) => {

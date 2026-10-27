@@ -1,0 +1,53 @@
+{
+  "at": "2026-10-10T06:26:42.936Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "migrationSha256": "6a261a47afc9d782c83397aa9b6a2545b1cb69bb88e54e2791204b906f38eb10",
+  "deployed": [
+    {
+      "slug": "email-automation",
+      "sha256": "0b69861673016f29790f95053e1035b8c91726fb2e3eb1904385dae6f69f6073"
+    },
+    {
+      "slug": "admin-pwa-bridge",
+      "sha256": "e1c5db6f77827e7d1ec5e1837ebac428437048eab80422351c5edc69470f46e3"
+    }
+  ],
+  "before": {
+    "rooms": 25,
+    "tenants": 30,
+    "invoices": 204,
+    "payments": 40,
+    "contracts": 49,
+    "tenantReceipts": 2,
+    "tenantMonthlyEmails": 0
+  },
+  "after": {
+    "rooms": 25,
+    "tenants": 30,
+    "invoices": 204,
+    "payments": 40,
+    "contracts": 49,
+    "tenantReceipts": 2,
+    "tenantMonthlyEmails": 0
+  },
+  "checks": {
+    "anonHistory": false,
+    "anonRequeue": false,
+    "serviceRequeue": true,
+    "historyFunction": true,
+    "authenticatedHistory": true,
+    "monthlyAttemptColumns": true
+  },
+  "workerStatus": {
+    "ok": true,
+    "enabled": true,
+    "sepay_enabled": true,
+    "last_worker_at": "2026-10-10T06:26:02.131+00:00",
+    "last_poll_at": "2026-10-10T06:26:01.333+00:00",
+    "last_poll_error": null,
+    "configured": true
+  },
+  "businessRowsUnchanged": true,
+  "workerInvoked": false,
+  "emailSentByDeployment": false
+}

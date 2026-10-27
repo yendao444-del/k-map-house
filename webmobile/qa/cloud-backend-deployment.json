@@ -4,7 +4,7 @@
   "provider": "gemini",
   "cloudKeyProvided": true,
   "publicGateway": "https://phongtroankhang.com/api/health",
-  "deployedAt": "2026-10-07T05:25:27.233Z",
+  "deployedAt": "2026-10-09T02:45:14.566Z",
   "storage": "isolated Supabase demo sessions, no image storage",
   "realPayments": false,
   "realTenantData": false

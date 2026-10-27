@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-08T06:30:41.128Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "function": "webmobile-demo",
+  "before": {
+    "rooms": 25,
+    "tenants": 30,
+    "accounts": 1,
+    "authUsers": 6,
+    "contracts": 49
+  },
+  "after": {
+    "rooms": 25,
+    "tenants": 30,
+    "accounts": 1,
+    "authUsers": 6,
+    "contracts": 49
+  },
+  "schemaChanged": false,
+  "emailsSent": false
+}

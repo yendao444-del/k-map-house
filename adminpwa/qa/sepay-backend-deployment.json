@@ -1,0 +1,36 @@
+{
+  "deployedAt": "2026-10-09T02:29:36.306Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "slug": "admin-pwa-sepay",
+  "version": 5,
+  "status": "ACTIVE",
+  "before": [
+    {
+      "payment_events": 37,
+      "invoices": 203,
+      "cash_transactions": 86
+    }
+  ],
+  "after": [
+    {
+      "payment_events": 37,
+      "invoices": 203,
+      "cash_transactions": 86
+    }
+  ],
+  "checks": [
+    {
+      "status": 401,
+      "ok": false
+    },
+    {
+      "status": 401,
+      "ok": false
+    },
+    {
+      "status": 403,
+      "ok": false
+    }
+  ],
+  "scope": "server-side SePay list/reconciliation; list is sanitized and account-masked, writes re-fetch provider data; no bank posting or customer/payment test performed"
+}

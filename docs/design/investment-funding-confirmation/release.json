@@ -1,0 +1,20 @@
+{
+  "verifiedAt": "2026-10-21T05:49:00.942Z",
+  "origin": "https://app.phongtroankhang.com",
+  "entry": "/assets/index-F1vVD4je.js",
+  "homeStatus": 200,
+  "checks": [
+    {
+      "file": "InvestmentsTab-B-6NBtu4.js",
+      "status": 200,
+      "hashMatchesBuild": true
+    },
+    {
+      "file": "InvestmentsTab-D1G9dVxg.css",
+      "status": 200,
+      "hashMatchesBuild": true
+    }
+  ],
+  "electronDevComponentStatus": 200,
+  "readOnly": true
+}

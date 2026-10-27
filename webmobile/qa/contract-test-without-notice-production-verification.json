@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-08T04:52:49.542Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "before": {
+    "rooms": 25,
+    "drafts": 4,
+    "notices": 2,
+    "tenants": 30,
+    "contracts": 51
+  },
+  "after": {
+    "rooms": 25,
+    "drafts": 4,
+    "notices": 2,
+    "tenants": 30,
+    "contracts": 51
+  },
+  "contract": {
+    "id": "contract_fc8c6ddc-ad62-41d4-a26a-0b750f1ee24f",
+    "status": "active",
+    "eligibility": {
+      "notice": null,
+      "reason": "Hợp đồng đã được đánh dấu thử nghiệm. Có thể hủy test khi chưa có tài chính hoặc bàn giao; giữ toàn bộ lịch sử.",
+      "status": "active",
+      "allowed": true,
+      "deadline": "2026-10-09T04:22:09.115585+00:00",
+      "invoices": 0,
+      "receipts": 0,
+      "confirmedAt": "2026-10-08T04:22:09.115585+00:00",
+      "usageEvidence": 0,
+      "isTestContract": true,
+      "cashTransactions": 0
+    }
+  },
+  "emailsSent": false,
+  "contractCancelled": false
+}

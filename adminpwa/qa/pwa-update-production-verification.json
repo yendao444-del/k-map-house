@@ -1,0 +1,11 @@
+{
+  "verifiedAt": "2026-10-11T07:40:25.254Z",
+  "origin": "https://app.phongtroankhang.com",
+  "buildId": "5559d77d3f58eaac",
+  "assetHashesMatched": [
+    "/assets/index-bpRbGaMq.js",
+    "/assets/index-Zj9KeV9F.css"
+  ],
+  "workerMatched": true,
+  "fixtureExcluded": true
+}

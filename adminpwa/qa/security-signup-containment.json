@@ -1,0 +1,12 @@
+{
+  "appliedAt": "2026-10-08T11:59:25.848Z",
+  "before": {
+    "disable_signup": false,
+    "password_min_length": 6
+  },
+  "after": {
+    "disable_signup": true,
+    "password_min_length": 8
+  },
+  "scope": "Public signup disabled; password minimum strengthened; admin provisioning, existing accounts and redirects unchanged."
+}

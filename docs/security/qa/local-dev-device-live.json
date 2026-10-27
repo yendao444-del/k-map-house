@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-20T12:28:08.761Z",
+  "checks": [
+    "Device token does not replace password",
+    "Password alone still requests MFA on other devices",
+    "Real password login and service-recorded dev proof skip both OTP prompts",
+    "No fabricated AAL2 or Authenticator proof",
+    "Real data read allowed; sensitive actions still require current password",
+    "Server checks real password before sensitive access",
+    "Changed browser invalidates dev proof",
+    "Revoked device denied"
+  ],
+  "fixtureDeleted": true,
+  "realEmailsSent": false,
+  "customerDataChanged": false
+}

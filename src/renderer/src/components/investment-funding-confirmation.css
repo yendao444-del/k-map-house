@@ -1,0 +1,58 @@
+.investment-funding-overlay { position: fixed; inset: 0; z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgb(3 9 19 / 24%); backdrop-filter: blur(1px); }
+.investment-funding-dialog { display: flex; flex-direction: column; width: 100%; max-width: 500px; max-height: calc(100dvh - 40px); overflow: hidden; border: 1px solid #2d4a60; border-radius: 22px; background: #101c2c; color: #eef3fa; font-family: var(--font-base, Inter, 'Segoe UI', sans-serif); box-shadow: 0 26px 80px rgb(0 0 0 / 40%), inset 0 1px 0 rgb(255 255 255 / 3%); color-scheme: dark; }
+.investment-funding-dialog * { box-sizing: border-box; }
+.investment-funding-dialog .investment-funding-heading { position: relative; display: flex; flex-shrink: 0; align-items: flex-start; gap: 12px; padding: 20px 22px 14px; background: transparent; }
+.investment-funding-icon { display: grid; flex: 0 0 52px; height: 52px; place-items: center; border-radius: 13px; background: #103939; color: #17d896; }
+.investment-funding-heading > div { min-width: 0; padding-top: 1px; padding-right: 19px; }
+.investment-funding-dialog .investment-funding-heading h2 { margin: 0; color: #f4f7fb; font-size: 24px; font-weight: 750; line-height: 1.25; letter-spacing: -.025em; }
+.investment-funding-dialog .investment-funding-heading p { margin: 8px 0 0; color: #9bb3cc; font-size: 14px; line-height: 1.55; }
+.investment-funding-dialog .investment-funding-close { position: absolute; top: 18px; right: 17px; display: grid; width: 30px; height: 30px; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: #e6edf7; cursor: pointer; }
+.investment-funding-close:hover { background: rgb(255 255 255 / 7%); }
+.investment-funding-content { min-height: 0; overflow-y: auto; padding: 0 22px; scrollbar-width: thin; }
+.investment-funding-dialog dl { margin: 0; }
+.investment-funding-dialog dl > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.investment-funding-dialog dt { color: #9bb3cc; font-size: 14px; line-height: 1.5; }
+.investment-funding-dialog dd { flex-shrink: 0; margin: 0; color: #f0f5fc; font-size: 16px; font-weight: 700; line-height: 1.5; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.investment-funding-summary { display: grid; gap: 10px; padding: 3px 0 14px; }
+.investment-funding-transfer { padding: 16px 0 14px; border-top: 1px solid #263d51; border-bottom: 1px solid #263d51; }
+.investment-funding-amount { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.investment-funding-amount > span { color: #f0f5fc; font-size: 15px; font-weight: 700; line-height: 1.5; }
+.investment-funding-amount > strong { color: #14d791; font-size: 30px; font-weight: 800; line-height: 1.25; letter-spacing: -.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.investment-funding-dialog .investment-funding-source { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; color: #e3ebf7; font-size: 14px; line-height: 1.5; }
+.investment-funding-source > svg { flex-shrink: 0; }
+.investment-funding-source b { font-weight: 650; font-variant-numeric: tabular-nums; }
+.investment-funding-dialog .investment-funding-remaining { padding-top: 14px; }
+.investment-funding-dialog .investment-funding-note { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0 16px; color: #92adc7; font-size: 13px; line-height: 1.5; }
+.investment-funding-note > svg { flex-shrink: 0; margin-top: 1px; }
+.investment-funding-dialog .investment-funding-actions { display: flex; flex-shrink: 0; gap: 12px; padding: 16px 22px; border-top: 1px solid #263d51; background: transparent; }
+.investment-funding-dialog .investment-funding-actions button { display: flex; min-height: 46px; align-items: center; justify-content: center; padding: 10px 15px; border-radius: 10px; font: inherit; font-size: 15px; font-weight: 750; line-height: 1.4; cursor: pointer; }
+.investment-funding-dialog .investment-funding-cancel { flex: 0 0 126px; border: 1px solid #7096b6; background: transparent; color: #f0f5fc; }
+.investment-funding-cancel:hover { background: #1b2d42; }
+.investment-funding-dialog .investment-funding-confirm { flex: 1; gap: 12px; border: 1px solid #11cf8c; background-color: #00a66d; color: #fff; }
+.investment-funding-confirm > span { flex: 1; }
+.investment-funding-confirm > svg { flex-shrink: 0; }
+.investment-funding-confirm:hover { filter: brightness(1.07); }
+.investment-funding-dialog button:focus-visible { outline: 2px solid #7cdcc0; outline-offset: 3px; }
+@media (max-width: 560px) {
+  .investment-funding-overlay { padding: 12px; }
+  .investment-funding-dialog { max-height: calc(100dvh - 24px); border-radius: 18px; }
+  .investment-funding-dialog .investment-funding-heading { gap: 12px; padding: 22px 18px 20px; }
+  .investment-funding-icon { flex-basis: 42px; height: 42px; border-radius: 11px; }
+  .investment-funding-icon svg { width: 25px; height: 25px; }
+  .investment-funding-dialog .investment-funding-heading h2 { padding-right: 8px; font-size: 21px; }
+  .investment-funding-dialog .investment-funding-heading p { margin-top: 6px; }
+  .investment-funding-content { padding: 0 18px; }
+  .investment-funding-amount { flex-direction: column; align-items: flex-start; gap: 7px; }
+  .investment-funding-amount > strong { font-size: 30px; }
+  .investment-funding-dialog .investment-funding-actions { gap: 10px; padding: 16px 18px 18px; }
+  .investment-funding-dialog .investment-funding-cancel { flex-basis: 72px; }
+  .investment-funding-dialog .investment-funding-actions button { padding: 10px; font-size: 14px; }
+  .investment-funding-confirm > svg { width: 19px; }
+  .investment-funding-dialog .investment-funding-close { top: 12px; right: 10px; }
+}
+@media (max-width: 360px) {
+  .investment-funding-dialog .investment-funding-heading h2 { font-size: 19px; }
+  .investment-funding-dialog dl > div { flex-wrap: wrap; gap: 3px 12px; }
+  .investment-funding-dialog .investment-funding-actions { flex-direction: column-reverse; }
+  .investment-funding-dialog .investment-funding-cancel { flex-basis: auto; }
+}

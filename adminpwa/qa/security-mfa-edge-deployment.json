@@ -1,0 +1,12 @@
+{
+  "deployedAt": "2026-10-09T15:06:06.512Z",
+  "function": "admin-pwa-auth",
+  "version": 5,
+  "status": "ACTIVE",
+  "pagesProject": "ankhanghome-admin-pwa",
+  "pagesDomainsUnchanged": true,
+  "directEdgeCall": 403,
+  "migration": "security_mfa_foundation applied and database rollback invariants passed",
+  "enforcementEnabled": false,
+  "note": "Pages production bundle is published separately after its build verification."
+}

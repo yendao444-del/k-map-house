@@ -1,0 +1,9 @@
+{
+  "project": "gsianbstkmyutnhromwc",
+  "at": "2026-10-10T06:33:55.673Z",
+  "migrationSha256": "0ef499927fda4987a3c9e2e7edf7262c23cb4ff2ac0486863c81baf634034567",
+  "passed": true,
+  "rollback": true,
+  "emailSent": false,
+  "assertions": 36
+}

@@ -1,0 +1,1018 @@
+{
+  "policies": [
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "app_settings",
+      "policy": "app_settings_admin_write",
+      "schema": "public",
+      "command": "ALL"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "app_settings",
+      "policy": "app_settings_authenticated_read",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "app_settings",
+      "policy": "pwa_management_active_guard",
+      "schema": "public",
+      "command": "ALL"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_snapshots",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_snapshots",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_snapshots",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_templates",
+      "policy": "authenticated_active_delete",
+      "schema": "public",
+      "command": "DELETE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_templates",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_templates",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "asset_templates",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "cash_transactions",
+      "policy": "authenticated_active_delete",
+      "schema": "public",
+      "command": "DELETE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "cash_transactions",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "cash_transactions",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "cash_transactions",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contract_drafts",
+      "policy": "contract_drafts_insert_admin",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contract_drafts",
+      "policy": "contract_drafts_select_admin",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contract_drafts",
+      "policy": "contract_drafts_update_admin",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contracts",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contracts",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "contracts",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_delete_admin",
+      "schema": "public",
+      "command": "DELETE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_insert_active_user",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_positive_principal_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_positive_principal_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_select_authenticated",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "debt_entries_update_admin",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "pwa_debt_active_guard",
+      "schema": "public",
+      "command": "ALL"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "pwa_debt_delete_permission_guard",
+      "schema": "public",
+      "command": "DELETE"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "pwa_debt_insert_permission_guard",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "debt_entries",
+      "policy": "pwa_debt_update_permission_guard",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "email_notification_deliveries",
+      "policy": "Admins manage local email deliveries",
+      "schema": "public",
+      "command": "ALL"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "email_notification_deliveries",
+      "policy": "Admins read email notification deliveries",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "invoices",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "invoices",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "invoices",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "move_in_receipts",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "move_in_receipts",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "move_in_receipts",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_asset_adjustments",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_asset_adjustments",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_asset_adjustments",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_assets",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_assets",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_assets",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_vehicles",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_vehicles",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "room_vehicles",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "rooms",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "rooms",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "rooms",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "service_zones",
+      "policy": "authenticated_active_delete",
+      "schema": "public",
+      "command": "DELETE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "service_zones",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "service_zones",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "service_zones",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "tenant_web_accounts",
+      "policy": "tenant_web_accounts_staff_read",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "tenants",
+      "policy": "authenticated_active_insert",
+      "schema": "public",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "tenants",
+      "policy": "authenticated_active_select",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "tenants",
+      "policy": "authenticated_active_update",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "users",
+      "policy": "management_directory_read_guard",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "users",
+      "policy": "users_select_authenticated",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "users",
+      "policy": "users_update_admin",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "users",
+      "policy": "users_update_self_profile",
+      "schema": "public",
+      "command": "UPDATE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "wallet_accounting_basis",
+      "policy": "wallet_accounting_basis_read",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "wallet_reconciliations",
+      "policy": "wallet_reconciliation_read",
+      "schema": "public",
+      "command": "SELECT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "objects",
+      "policy": "room_images_management_delete",
+      "schema": "storage",
+      "command": "DELETE"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "public"
+      ],
+      "table": "objects",
+      "policy": "room_images_management_delete_guard",
+      "schema": "storage",
+      "command": "DELETE"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "objects",
+      "policy": "room_images_management_insert",
+      "schema": "storage",
+      "command": "INSERT"
+    },
+    {
+      "mode": "RESTRICTIVE",
+      "roles": [
+        "public"
+      ],
+      "table": "objects",
+      "policy": "room_images_management_insert_guard",
+      "schema": "storage",
+      "command": "INSERT"
+    },
+    {
+      "mode": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "table": "objects",
+      "policy": "room_images_management_select",
+      "schema": "storage",
+      "command": "SELECT"
+    }
+  ],
+  "auth_columns": [
+    {
+      "type": "uuid",
+      "table": "mfa_amr_claims",
+      "column": "session_id"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_amr_claims",
+      "column": "created_at"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_amr_claims",
+      "column": "updated_at"
+    },
+    {
+      "type": "text",
+      "table": "mfa_amr_claims",
+      "column": "authentication_method"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_amr_claims",
+      "column": "id"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_challenges",
+      "column": "id"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_challenges",
+      "column": "factor_id"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_challenges",
+      "column": "created_at"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_challenges",
+      "column": "verified_at"
+    },
+    {
+      "type": "inet",
+      "table": "mfa_challenges",
+      "column": "ip_address"
+    },
+    {
+      "type": "text",
+      "table": "mfa_challenges",
+      "column": "otp_code"
+    },
+    {
+      "type": "jsonb",
+      "table": "mfa_challenges",
+      "column": "web_authn_session_data"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_factors",
+      "column": "id"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_factors",
+      "column": "user_id"
+    },
+    {
+      "type": "text",
+      "table": "mfa_factors",
+      "column": "friendly_name"
+    },
+    {
+      "type": "USER-DEFINED",
+      "table": "mfa_factors",
+      "column": "factor_type"
+    },
+    {
+      "type": "USER-DEFINED",
+      "table": "mfa_factors",
+      "column": "status"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_factors",
+      "column": "created_at"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_factors",
+      "column": "updated_at"
+    },
+    {
+      "type": "text",
+      "table": "mfa_factors",
+      "column": "secret"
+    },
+    {
+      "type": "text",
+      "table": "mfa_factors",
+      "column": "phone"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "mfa_factors",
+      "column": "last_challenged_at"
+    },
+    {
+      "type": "jsonb",
+      "table": "mfa_factors",
+      "column": "web_authn_credential"
+    },
+    {
+      "type": "uuid",
+      "table": "mfa_factors",
+      "column": "web_authn_aaguid"
+    },
+    {
+      "type": "jsonb",
+      "table": "mfa_factors",
+      "column": "last_webauthn_challenge_data"
+    },
+    {
+      "type": "uuid",
+      "table": "sessions",
+      "column": "id"
+    },
+    {
+      "type": "uuid",
+      "table": "sessions",
+      "column": "user_id"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "sessions",
+      "column": "created_at"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "sessions",
+      "column": "updated_at"
+    },
+    {
+      "type": "uuid",
+      "table": "sessions",
+      "column": "factor_id"
+    },
+    {
+      "type": "USER-DEFINED",
+      "table": "sessions",
+      "column": "aal"
+    },
+    {
+      "type": "timestamp with time zone",
+      "table": "sessions",
+      "column": "not_after"
+    },
+    {
+      "type": "timestamp without time zone",
+      "table": "sessions",
+      "column": "refreshed_at"
+    },
+    {
+      "type": "text",
+      "table": "sessions",
+      "column": "user_agent"
+    },
+    {
+      "type": "inet",
+      "table": "sessions",
+      "column": "ip"
+    },
+    {
+      "type": "text",
+      "table": "sessions",
+      "column": "tag"
+    },
+    {
+      "type": "uuid",
+      "table": "sessions",
+      "column": "oauth_client_id"
+    },
+    {
+      "type": "text",
+      "table": "sessions",
+      "column": "refresh_token_hmac_key"
+    },
+    {
+      "type": "bigint",
+      "table": "sessions",
+      "column": "refresh_token_counter"
+    },
+    {
+      "type": "text",
+      "table": "sessions",
+      "column": "scopes"
+    }
+  ],
+  "users_columns": [
+    {
+      "type": "uuid",
+      "column": "id"
+    },
+    {
+      "type": "text",
+      "column": "email"
+    },
+    {
+      "type": "text",
+      "column": "username"
+    },
+    {
+      "type": "text",
+      "column": "full_name"
+    },
+    {
+      "type": "text",
+      "column": "avatar_url"
+    },
+    {
+      "type": "text",
+      "column": "role"
+    },
+    {
+      "type": "text",
+      "column": "status"
+    },
+    {
+      "type": "timestamp with time zone",
+      "column": "created_at"
+    },
+    {
+      "type": "timestamp with time zone",
+      "column": "last_login_at"
+    },
+    {
+      "type": "text",
+      "column": "phone"
+    },
+    {
+      "type": "text",
+      "column": "notification_email"
+    },
+    {
+      "type": "boolean",
+      "column": "email_notifications_enabled"
+    },
+    {
+      "type": "jsonb",
+      "column": "email_notification_preferences"
+    }
+  ],
+  "client_definer_rpcs": [
+    {
+      "args": "p_data jsonb, p_expected_version bigint, p_request_id uuid",
+      "name": "admin_pwa_investment_commit",
+      "schema": "public"
+    },
+    {
+      "args": "p_data jsonb, p_expected_version bigint, p_request_id uuid",
+      "name": "admin_pwa_investment_import",
+      "schema": "public"
+    },
+    {
+      "args": "",
+      "name": "admin_pwa_investment_read",
+      "schema": "public"
+    },
+    {
+      "args": "",
+      "name": "advance_room_meter_on_invoice_payment",
+      "schema": "public"
+    },
+    {
+      "args": "p_invoice_id text, p_expected_total integer, p_expected_paid integer, p_expected_electric_new numeric, p_expected_water_new numeric",
+      "name": "confirm_invoice_debt_atomic",
+      "schema": "public"
+    },
+    {
+      "args": "",
+      "name": "contract_account_readiness",
+      "schema": "public"
+    },
+    {
+      "args": "",
+      "name": "email_server_status",
+      "schema": "public"
+    },
+    {
+      "args": "",
+      "name": "management_directory_access",
+      "schema": "public"
+    },
+    {
+      "args": "p_bank bigint, p_cash bigint, p_expected_total bigint, p_reason text",
+      "name": "reconcile_wallet_balances",
+      "schema": "public"
+    },
+    {
+      "args": "p_invoice_id text, p_amount integer, p_payment_method text, p_payment_date date, p_note text, p_external_ref text, p_external_id text, p_source text",
+      "name": "record_invoice_payment_atomic",
+      "schema": "public"
+    },
+    {
+      "args": "p_invoice_id text",
+      "name": "reopen_invoice_debt_atomic",
+      "schema": "public"
+    },
+    {
+      "args": "p_email text",
+      "name": "tenant_email_check",
+      "schema": "public"
+    },
+    {
+      "args": "p_source text, p_amount bigint, p_request_id text",
+      "name": "transfer_between_wallets",
+      "schema": "public"
+    }
+  ],
+  "management_directory_access": "CREATE OR REPLACE FUNCTION public.management_directory_access()\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select exists (\n    select 1 from public.users u\n    where u.id = auth.uid() and u.status = 'active' and u.role in ('admin', 'user')\n  );\n$function$\n"
+}

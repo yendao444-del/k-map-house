@@ -17,6 +17,7 @@ import {
 } from '../lib/db';
 import { RoomVehiclePanel } from './VehiclesTab';
 import { LogoLoading } from './LogoLoading';
+import { usePasswordConfirmation } from './PasswordConfirmationDialog';
 import airConditionerImage from '../assets/room-assets/air-conditioner.webp';
 import bedImage from '../assets/room-assets/bed.webp';
 import ceilingFanImage from '../assets/room-assets/ceiling-fan.webp';
@@ -177,6 +178,7 @@ const RoomAssetPanel: React.FC<{
   onGuideHandled?: () => void;
 }> = ({ room, onReceivePendingChange, guideMode, guideRoomId, onGuideHandled }) => {
   const queryClient = useQueryClient();
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation();
   const { data: assets = [], isLoading } = useQuery({
     queryKey: ['room_assets', room.id],
     queryFn: () => getRoomAssets(room.id),
@@ -194,6 +196,7 @@ const RoomAssetPanel: React.FC<{
     queryFn: () => getAssetSnapshots(room.id, 'handover'),
   });
   const [modal, setModal] = useState<'add' | 'adjust' | 'move_in' | 'move_out' | null>(null);
+  const [snapshotError, setSnapshotError] = useState('');
   const [selectedAssets, setSelectedAssets] = useState<Record<string, number>>({});
   const [manualName, setManualName] = useState('');
   const [adjustDrafts, setAdjustDrafts] = useState<Record<string, AssetAdjustmentDraft>>({});
@@ -327,7 +330,12 @@ const RoomAssetPanel: React.FC<{
   });
 
   const saveSnaps = useMutation({
-    mutationFn: (data: Partial<AssetSnapshot>[]) => createAssetSnapshots(data),
+    mutationFn: async (data: Partial<AssetSnapshot>[]) => {
+      setSnapshotError('');
+      await requirePassword(data.some((snapshot) => snapshot.type === 'move_out')
+        ? 'Lưu và chốt đối chiếu trả phòng' : 'Lưu tình trạng nhận phòng và tài sản');
+      return createAssetSnapshots(data);
+    },
     onSuccess: () => {
       invalidate();
       if (modal === 'move_in') {
@@ -336,12 +344,14 @@ const RoomAssetPanel: React.FC<{
       setModal(null);
     },
     onError: (error) => {
-      alert(error instanceof Error ? error.message : 'Khong luu duoc doi chieu tai san.');
+      if (error instanceof Error && error.message === 'Đã hủy thao tác.') return;
+      setSnapshotError(error instanceof Error ? error.message : 'Không lưu được đối chiếu tài sản.');
     },
   });
 
   const openMoveIn = () => {
     if (assetsLocked) return;
+    setSnapshotError('');
     const next: Record<string, string> = {};
     assets.forEach((asset) => {
       next[asset.id] = 'new';
@@ -368,6 +378,7 @@ const RoomAssetPanel: React.FC<{
   }, [room.id, receivePending, assets, assetsLocked]);
 
   const openMoveOut = () => {
+    setSnapshotError('');
     const conditions: Record<string, string> = {};
     const deductions: Record<string, number> = {};
     assets.forEach((asset) => {
@@ -444,16 +455,17 @@ const RoomAssetPanel: React.FC<{
     (item) => item.quantity !== item.originalQuantity
   ).length;
 
-  const saveMoveIn = () =>
-    saveSnaps.mutate(
-      assets.map((asset) => ({
-        room_asset_id: asset.id,
-        room_id: room.id,
-        type: 'move_in' as const,
-        condition: inConditions[asset.id] || 'new',
-        deduction: 0,
-      }))
-    );
+  const saveMoveIn = () => {
+      saveSnaps.mutate(
+        assets.map((asset) => ({
+          room_asset_id: asset.id,
+          room_id: room.id,
+          type: 'move_in' as const,
+          condition: inConditions[asset.id] || 'new',
+          deduction: 0,
+        }))
+      );
+  };
 
   const saveMoveOut = () => {
     const handoverAssetId = assets[0]?.id;
@@ -462,29 +474,31 @@ const RoomAssetPanel: React.FC<{
       return;
     }
 
-    saveSnaps.mutate([
-      ...assets.map((asset) => ({
-        room_asset_id: asset.id,
-        room_id: room.id,
-        type: 'move_out' as const,
-        condition: outConditions[asset.id] || 'good',
-        deduction: outDeductions[asset.id] || 0,
-      })),
-      ...HANDOVER_ITEMS.map((item) => ({
-        room_asset_id: handoverAssetId,
-        room_id: room.id,
-        type: 'handover' as const,
-        condition: handoverConditions[item.id] || 'ok',
-        deduction: handoverConditions[item.id] === 'not_done' ? handoverDeductions[item.id] || 0 : 0,
-        note: item.id,
-      })),
-    ]);
+      saveSnaps.mutate([
+        ...assets.map((asset) => ({
+          room_asset_id: asset.id,
+          room_id: room.id,
+          type: 'move_out' as const,
+          condition: outConditions[asset.id] || 'good',
+          deduction: outDeductions[asset.id] || 0,
+        })),
+        ...HANDOVER_ITEMS.map((item) => ({
+          room_asset_id: handoverAssetId,
+          room_id: room.id,
+          type: 'handover' as const,
+          condition: handoverConditions[item.id] || 'ok',
+          deduction: handoverConditions[item.id] === 'not_done' ? handoverDeductions[item.id] || 0 : 0,
+          note: item.id,
+        })),
+      ]);
   };
 
   if (isLoading) return <LogoLoading className="flex-1 p-8" />;
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f8fafb]">
+    <>
+      {passwordConfirmation}
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-[#f8fafb]">
       <div className="shrink-0 border-b border-slate-100 bg-white px-5 py-3">
         <div className="flex min-h-0 items-stretch gap-5">
           <img src={roomInteriorImage} alt={`Không gian ${room.name}`} className="h-28 w-48 rounded-2xl object-cover shadow-sm" />
@@ -926,7 +940,7 @@ const RoomAssetPanel: React.FC<{
       )}
 
       {modal === 'move_in' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => { if (!saveSnaps.isPending) setModal(null); }}>
           <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-blue-100 bg-blue-50 px-5 py-4 font-bold text-blue-900">Chốt nhận phòng · {room.name}</div>
             <div className="max-h-[55vh] space-y-2 overflow-y-auto p-5">
@@ -942,18 +956,20 @@ const RoomAssetPanel: React.FC<{
                 </div>
               ))}
             </div>
+            {snapshotError && <p role="alert" className="px-5 py-3 text-sm text-red-700">{snapshotError}</p>}
             <div className="flex justify-end gap-2 border-t border-gray-100 bg-gray-50 px-5 py-4">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
-              <button onClick={saveMoveIn} disabled={saveSnaps.isPending || assets.length === 0} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">Lưu tình trạng</button>
+              <button onClick={() => setModal(null)} disabled={saveSnaps.isPending} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
+              <button onClick={saveMoveIn} disabled={saveSnaps.isPending || assets.length === 0} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saveSnaps.isPending ? 'Đang xử lý…' : 'Lưu tình trạng'}</button>
             </div>
           </div>
         </div>
       )}
 
       {modal === 'move_out' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModal(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => { if (!saveSnaps.isPending) setModal(null); }}>
           <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="border-b border-red-100 bg-red-50 px-5 py-4 font-bold text-red-900">Đối chiếu trả phòng · {room.name}</div>
+            {snapshotError && <p role="alert" className="px-5 py-3 text-sm text-red-700">{snapshotError}</p>}
             <div className="max-h-[60vh] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500">
@@ -1077,8 +1093,8 @@ const RoomAssetPanel: React.FC<{
               </div>
             </div>
             <div className="flex justify-end gap-2 border-t border-gray-100 bg-gray-50 px-5 py-4">
-              <button onClick={() => setModal(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
-              <button onClick={saveMoveOut} disabled={saveSnaps.isPending || Object.keys(handoverConditions).length < HANDOVER_ITEMS.length} className="rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">Lưu & Chốt đối chiếu</button>
+              <button onClick={() => setModal(null)} disabled={saveSnaps.isPending} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">Hủy</button>
+              <button onClick={saveMoveOut} disabled={saveSnaps.isPending || Object.keys(handoverConditions).length < HANDOVER_ITEMS.length} className="rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">{saveSnaps.isPending ? 'Đang xử lý…' : 'Lưu & Chốt đối chiếu'}</button>
             </div>
           </div>
         </div>
@@ -1092,7 +1108,8 @@ const RoomAssetPanel: React.FC<{
           confirmDisabled={deleteMut.isPending}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

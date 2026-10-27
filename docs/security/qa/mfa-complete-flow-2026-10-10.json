@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-10T02:36:01.529Z",
+  "checks": [
+    "AAL2 alone cannot bypass email step-up",
+    "Direct REST and SECURITY DEFINER RPC deny a fresh AAL1 session",
+    "Email + TOTP + acknowledged recovery bundle authorizes business access",
+    "Auth rejects a wrong current password at AAL2",
+    "Trusted browser still needs TOTP and skips email only with matching server-issued device token",
+    "Device revocation invalidates attached business sessions",
+    "Single-use recovery only permits re-enrollment; new verified factor and saved codes restore access",
+    "Sign-out-all revokes business access"
+  ],
+  "customerDataChanged": false,
+  "evidenceScope": "Local gateway handler with real production Auth/DB and real HTTP REST/RPC hook; email provider intercepted only for disposable mailbox. Live provider delivery is separately verified.",
+  "secretsLogged": false
+}

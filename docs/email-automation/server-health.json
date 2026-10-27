@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-10T06:28:44.680Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "pollAt": "2026-10-10T06:28:03.642+00:00",
+  "enabled": true,
+  "workerAt": "2026-10-10T06:28:04.407+00:00",
+  "pollError": null,
+  "cronActive": true,
+  "dailyLimit": 90,
+  "repeatDays": 7,
+  "lastCronRun": {
+    "end": "2026-10-10T06:28:00.093292+00:00",
+    "start": "2026-10-10T06:28:00.080141+00:00",
+    "status": "succeeded"
+  },
+  "reminderHour": 8,
+  "sepayEnabled": true,
+  "lastHttpResponse": {
+    "status": 200,
+    "created": "2026-10-10T06:28:00.094487+00:00",
+    "timedOut": false
+  },
+  "workerStatus": {
+    "ok": true,
+    "enabled": true,
+    "sepay_enabled": true,
+    "last_worker_at": "2026-10-10T06:28:04.407+00:00",
+    "last_poll_at": "2026-10-10T06:28:03.642+00:00",
+    "last_poll_error": null,
+    "configured": true
+  }
+}

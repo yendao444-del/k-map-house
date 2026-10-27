@@ -1,5 +1,30 @@
 # Design QA — Website người thuê mobile · 06/10/2026
 
+## 08/10/2026 — Corrected fidelity after user comparison
+
+Source truth: `C:/Users/Admin/AppData/Local/Temp/codex-clipboard-eefb4a83-4cda-4254-a128-0554d94e43eb.png` (853×1844). Normalized proportionally to 426×922 in `qa/tenant-home-reference-426.png`. Browser implementation: `qa/tenant-home-approved-426.png`, CSS viewport 426×922, screenshot density 1; same visible tenant name, room, two inventory items, rates and handover readings, using isolated synthetic fixtures only.
+
+Full comparison: `qa/tenant-home-premium-comparison.png` (source left, implementation right). Detail comparison: `qa/tenant-home-premium-details-comparison.png`.
+
+### Findings and fixes
+
+- P1 corrected: prior implementation compressed labels to 11px, headings to 13–15px and asset icons into mint squares. Restored readable scale, 16px asset names, 18px inventory heading, 13px supporting text, flat cube icons and larger quantity chips.
+- P2 corrected: desktop framing and fixed minimum-height padding introduced empty space and outer borders absent from the selected reference. The tenant surface has no outer shadow/radius or body padding. Existing other app surfaces retain their own styles.
+- P2 corrected: electricity/water columns inherited rounded inner sections; removed inner radius and restored the straight column divider. Added real library icons for Internet and cleaning.
+- P2 corrected in second comparison: excess spacing pushed payment below the target. Adjusted heading margins, panel padding, section heading and list rhythm, then recaptured the same viewport.
+
+### Required fidelity surfaces
+
+- Typography: real Inter Vietnamese font; restored the target hierarchy and body sizes. Raster-generated letter shapes differ slightly from the actual font (P3).
+- Layout: header approx 99px at 426px width, utility group approx 243px, flat asset rows approx 68px. Full comparison shows the major regions aligned; small baseline/spacing differences remain P3.
+- Colors: existing forest/mint/ink tokens retained; no artificial texture from the generated mock added.
+- Images/icons: actual supplied brand logo preserved; outline icons from the existing library now match target semantics. Broom and cube strokes differ slightly from the generated illustration (P3).
+- Copy: identical reference tenant fixture, rates, assets and date; handover labels remain explicit. No synthetic data connected to production.
+
+Browser checks: 320px and 390px layouts, no horizontal overflow at 320px, 44×44 menu target, menu → assets → home works, browser error logs empty. TypeScript/Vite and public secret check passed.
+
+final result: passed
+
 final result: passed
 
 ## 07/10/2026 — Electron contract confirmation history
@@ -48,6 +73,14 @@ The approved contract editor and option 1 email design remain in use. The obsole
 6. **Comparison normalization.** Không dùng các screenshot desktop bị resize như bằng chứng fidelity mobile. `scripts/compose-qa.mjs` bắt buộc capture rộng đúng 393 px, crop phần 900 px đầu, dùng bản public sau deploy làm bằng chứng.
 
 Không còn P0/P1/P2 cần sửa trong phạm vi demo UI đã chốt.
+
+## 08/10/2026 — Phương án 1 premium, không khung ngoài
+
+Người dùng chốt phương án 1 và yêu cầu bỏ khung viền ngoài. Trang chủ giữ header AK/AN KHANG HOME và danh sách phẳng, đồng thời gom Điện, Nước, Internet và Vệ sinh vào một vùng trắng có viền mảnh; không thêm device mockup, không thêm dữ liệu phòng.
+
+Browser-rendered synthetic fixture tại 390×844 và 320×568 xác nhận không tràn ngang, đủ ba tài sản, giá điện nước và chỉ số bàn giao. Menu trái, làm mới tài sản, trạng thái trống/lỗi và đăng xuất vẫn hoạt động. Build TypeScript/Vite và kiểm tra public build đạt.
+
+final result: passed
 
 ## Năm bề mặt fidelity
 
@@ -249,3 +282,13 @@ final result: passed
 - Giao diện QA dùng dữ liệu giả và adapter không ghi backend/không gửi thư. Ảnh `qa/contract-cancellation-policy.png`.
 - Hợp đồng hủy có màn trạng thái Gmail, nút gửi lại khi lỗi chắc chắn chưa gửi và lịch sử gửi riêng. Không có bước đồng ý của khách.
 - 18 live policy checks, 18 lifecycle regression checks, 21 initial contract/history checks và 37 unit checks về backend/Gmail/feedback đều đạt. Source policy production khớp project test; không tác động hợp đồng hoặc email thật trong QA.
+
+## 08/10/2026 — Thanh toán thật và menu nhóm
+
+- Giữ direction trang chủ đã duyệt: logo Electron, xanh #064A31/#00AB60, nền #F7FAF8, không thêm viền khung app. Thanh toán dùng cùng header/menu và kiểu hóa đơn gọn đã có; đây là hoàn thiện nghiệp vụ trong direction hiện tại.
+- Menu cuối: Trang chủ; Thông tin phòng → Thông tin chung / Điện & nước / Thiết bị trong phòng; Thanh toán; Tài khoản; Đăng xuất.
+- Hóa đơn có giá phòng, chỉ số cũ → mới, tiêu thụ, đơn giá, phí dịch vụ và tổng tiền. Điện/nước nhấn bằng màu chữ; QR 200px với chủ tài khoản, BIDV, số tài khoản, cảnh báo đúng mã.
+- IAB đã chạy chọn ảnh điện → xác nhận → nước → hóa đơn → paid với dữ liệu UI giả lập. Mobile 390×844 và 320×568; input file gây tràn ngang đã sửa. Nút chụp/chọn ảnh nằm trong viewport ở màn thấp, có safe-area và sticky action area.
+- Bằng chứng: qa/tenant-payment-capture-390.png, qa/tenant-payment-capture-320.png, qa/tenant-payment-invoice-390.png, qa/tenant-payment-invoice-320.png, qa/tenant-payment-paid-390.png. QR/tài khoản trong ảnh QA là minh họa, không dùng chuyển khoản.
+- So với direction đã duyệt: giữ màu/logo/header/khoảng cách/menu, thêm dữ liệu nghiệp vụ. Không tuyên bố pixel-perfect cho các màn mới vì không có mockup riêng được duyệt cho chúng.
+- Build/public secret scan, 25 backend/unit checks, SQL riêng và Gemini E2E riêng đạt. Production deploy/API/cron đạt; xem phases/phase-15-tenant-monthly-payment.md và qa/tenant-payment-review.md.

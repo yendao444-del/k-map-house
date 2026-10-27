@@ -18,6 +18,7 @@ export async function commitInvestmentWallet(options: {
   previous?: InvestmentTransaction
   next?: InvestmentTransaction
   nextStore: InvestmentStore
+  preparePurchase?: () => Promise<{ store: InvestmentStore; transfers: InvestmentTransaction[] }>
   readCurrent: () => Promise<InvestmentStore>
   readOperating: () => Promise<FundingBalances>
   createPosting: (posting: WalletPosting) => Promise<string>
@@ -30,6 +31,9 @@ export async function commitInvestmentWallet(options: {
     if (legacy && (options.actorRole !== 'admin' || options.next)) {
       throw new Error('Giao dịch cũ thuộc Ví vận hành. Cần đối soát trước khi sửa hoặc hủy; tài sản hiện có vẫn được bán/tất toán vào Ví đầu tư.')
     }
+    const prepared = options.preparePurchase ? await options.preparePurchase() : { store: options.nextStore, transfers: [] }
+    options.nextStore = prepared.store
+    if (prepared.transfers.length) await options.readCurrent()
     const balance = investmentBalance(options.nextStore)
     if (!Number.isFinite(balance) || balance < 0) throw new Error(`Ví đầu tư không đủ tiền. Hiện có ${money(investmentBalance(current))}. Hãy chuyển vốn từ Ví vận hành.`)
     const operatingPosting = (tx?: InvestmentTransaction): WalletPosting | undefined =>
@@ -37,13 +41,19 @@ export async function commitInvestmentWallet(options: {
         ? { paymentMethod: tx.walletPosting.paymentMethod, amount: -tx.walletPosting.amount } : undefined
     const previous = legacy ? options.previous?.walletPosting : operatingPosting(options.previous)
     const adjustments = fundingAdjustments(previous ? { walletPosting: previous } as InvestmentTransaction : undefined, operatingPosting(options.next))
+    const ordinaryAdjustmentCount = adjustments.length
+    adjustments.push(...prepared.transfers.map(tx => ({ paymentMethod: tx.walletPosting!.paymentMethod, amount: -tx.walletPosting!.amount })))
     if (adjustments.length) validateFunding(await options.readOperating(), adjustments)
     const created: string[] = []
     try {
       for (const posting of adjustments) created.push(await options.createPosting(posting))
       if (options.next && created.length) {
         options.nextStore = { ...options.nextStore, transactions: options.nextStore.transactions.map(tx =>
-          tx.id === options.next?.id ? { ...tx, operatingPostingIds: [...(options.previous?.operatingPostingIds || []), ...created] } : tx) }
+          tx.id === options.next?.id ? { ...tx, operatingPostingIds: [...(options.previous?.operatingPostingIds || []), ...created.slice(0, ordinaryAdjustmentCount)] } : tx) }
+        options.nextStore = { ...options.nextStore, transactions: options.nextStore.transactions.map(tx => {
+          const index = prepared.transfers.findIndex(transfer => transfer.id === tx.id)
+          return index >= 0 ? { ...tx, operatingPostingIds: [created[ordinaryAdjustmentCount + index]] } : tx
+        }) }
       }
       await options.persist(options.nextStore)
     } catch (error) {

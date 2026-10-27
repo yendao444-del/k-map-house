@@ -1,0 +1,1 @@
+export function startCameraPreview(options: { canvas: HTMLCanvasElement; onReady: (ready: boolean) => void; onFailure: (reason: string) => void }): { stop: () => void; source: HTMLVideoElement; isReady: () => boolean }

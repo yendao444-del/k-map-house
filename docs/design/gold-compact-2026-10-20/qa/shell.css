@@ -1,0 +1,7 @@
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: Inter, sans-serif; background: #0b111b; }
+.qa-shell { height: 56px; display: flex; gap: 12px; align-items: center; padding: 0 16px; color: #e7eef7; background: #0b1727; border-bottom: 1px solid #26364a; font-size: 14px; }
+.qa-shell img { width: 34px; height: 34px; object-fit: contain; border-radius: 6px; background: white; }
+.qa-shell span { margin-left: auto; color: #8fa1b5; font-size: 12px; }
+.qa-app { display: flex; height: calc(100% - 56px); }
+@media (max-width: 600px) { .qa-shell span { display: none; } }

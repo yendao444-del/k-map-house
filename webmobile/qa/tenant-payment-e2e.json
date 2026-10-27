@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-09T08:15:42.754Z",
+  "project": "gsianbstkmyutnhromwc",
+  "passed": true,
+  "readings": [
+    {
+      "meter": "electric",
+      "reading": 12692,
+      "elapsedMs": 4907
+    },
+    {
+      "meter": "water",
+      "reading": 287,
+      "elapsedMs": 3053
+    }
+  ],
+  "invoiceTotal": 4159400,
+  "qrConfigured": true,
+  "duplicateInvoicePrevented": true,
+  "sepayMatched": true,
+  "paidStatusVerified": true,
+  "receiptQueued": true,
+  "realEmailSent": false,
+  "realBankTransfer": false,
+  "productionDataChanged": false
+}

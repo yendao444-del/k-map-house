@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-12T04:26:29.446Z",
+  "function": "admin-pwa-auth",
+  "priorVersion": 10,
+  "version": 11,
+  "anonymousDenied": 403,
+  "customerDataChanged": false,
+  "policy": "Mandatory MFA and six-hour deadline preserved"
+}

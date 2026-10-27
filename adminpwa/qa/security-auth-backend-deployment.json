@@ -1,0 +1,11 @@
+{
+  "deployedAt": "2026-10-08T12:07:09.385Z",
+  "function": "admin-pwa-auth",
+  "version": 1,
+  "status": "ACTIVE",
+  "pagesProject": "ankhanghome-admin-pwa",
+  "priorProductionDeployment": "d21a6ac5-ee04-4993-8125-83b5edc32504",
+  "rateRollbackTests": "passed",
+  "directEdgeCall": 403,
+  "scope": "New private Auth function and dedicated PWA gateway env only; public resolver remains open until frontend verification."
+}

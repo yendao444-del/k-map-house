@@ -1,0 +1,12 @@
+{
+  "verifiedAt": "2026-10-11T07:19:28.203Z",
+  "recipient": "delivered@resend.dev",
+  "maskedRecipient": "d***@resend.dev",
+  "securitySender": "baomat@phongtroankhang.com",
+  "challengeIdReturned": true,
+  "customerDataChanged": false,
+  "delivery": "Resend simulation accepted and delivered; signed webhook persisted and joined to the challenge. Does not prove Gmail Inbox placement.",
+  "deliveryStatus": "email.delivered",
+  "providerAccepted": true,
+  "factorVerifiedInDisposableAccount": true
+}

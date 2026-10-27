@@ -1,0 +1,58 @@
+{
+  "ok": true,
+  "cycle": {
+    "id": "room999-sandbox-cycle",
+    "period": "2026-10-01",
+    "period_start": "2026-10-01",
+    "period_end": "2026-10-31",
+    "electric_old": 12600,
+    "water_old": 280,
+    "electric_new": 12692,
+    "water_new": 287,
+    "invoice_id": "room999-sandbox-invoice"
+  },
+  "invoices": [
+    {
+      "id": "room999-sandbox-invoice",
+      "month": 10,
+      "year": 2026,
+      "invoice_date": "2026-10-08",
+      "due_date": "2026-10-13",
+      "billing_period_start": "2026-10-01",
+      "billing_period_end": "2026-10-31",
+      "billing_reason": "monthly",
+      "electric_old": 12600,
+      "electric_new": 12692,
+      "electric_usage": 92,
+      "electric_cost": 294400,
+      "electric_price_snapshot": 3200,
+      "water_old": 280,
+      "water_new": 287,
+      "water_usage": 7,
+      "water_cost": 245000,
+      "water_price_snapshot": 35000,
+      "room_cost": 3500000,
+      "wifi_cost": 50000,
+      "garbage_cost": 70000,
+      "old_debt": 0,
+      "total_amount": 4159400,
+      "paid_amount": 4159400,
+      "payment_status": "paid",
+      "transferContent": "P999T102026CROOM999TEST",
+      "payment_date": "2026-10-08",
+      "remaining": 0,
+      "qr": "data:image/png;base64,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"
+    }
+  ],
+  "bank": {
+    "name": "BIDV",
+    "account": "96247Q3PE9",
+    "owner": "Đỗ Kim Ngân"
+  },
+  "notices": [],
+  "nextDate": "2026-11-05",
+  "simulation": {
+    "noWrites": true,
+    "label": "Phòng 999 · kiểm nghiệm"
+  }
+}

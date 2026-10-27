@@ -1,4 +1,5 @@
 import { PAYMENT_SUCCESS_ICON_BASE64, PAYMENT_SUCCESS_ICON_CID } from './payment-email-assets'
+import { approvedEmailBanners } from './approved-email-banners'
 // Standard Lucide status icons rasterized to PNG for reliable Gmail CID rendering.
 export const notificationEmailIcons = {
   success: { cid: PAYMENT_SUCCESS_ICON_CID, base64: PAYMENT_SUCCESS_ICON_BASE64 },
@@ -25,7 +26,7 @@ export const notificationEmailIcons = {
 } as const
 
 export function notificationEmailPreviewHtml(html: string): string {
-  for (const icon of Object.values(notificationEmailIcons))
+  for (const icon of Object.values({ ...notificationEmailIcons, ...approvedEmailBanners }))
     html = html.replaceAll('cid:' + icon.cid, 'data:image/png;base64,' + icon.base64)
   return html
 }

@@ -84,7 +84,7 @@ html{scrollbar-width:none}html::-webkit-scrollbar{display:none}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}.reading-spinner{animation:none}}
 .payment-screen{padding-top:20px}.payment-screen>h2{font-size:26px;line-height:1.3;letter-spacing:-.7px;margin-top:18px}.payment-room{font-size:15px;color:var(--muted);margin-top:8px}.payment-total{display:block;font-size:38px;line-height:1.3;font-weight:800;letter-spacing:-1px;margin:14px 0;color:#064A31}.payment-qr{background:white;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}.payment-qr img{width:176px;height:176px;margin:auto}.payment-qr p{font-size:12px;color:#88410D;margin-top:8px;line-height:1.5}.payment-reference{margin-top:15px;padding:14px;background:var(--mint);border-radius:10px}.payment-reference>span{display:block;font-size:13px;color:var(--muted)}.payment-reference>strong{display:block;font-size:16px;word-break:break-all;letter-spacing:.5px;margin-top:7px;user-select:text}.payment-reference .text-button{font-size:14px;min-height:40px}.payment-status{font-size:14px;line-height:1.6;color:#007749;margin:14px 0}.payment-review{background:#FFF0DA;color:#88410D;padding:12px;border-radius:8px}.payment-breakdown{border-top:1px solid var(--line);margin-top:15px;padding:12px 0}.payment-breakdown summary,.payment-demo-controls summary{min-height:36px;font-weight:650;font-size:15px;cursor:pointer}.payment-breakdown dl>div{display:flex;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px}.payment-breakdown dt small{display:block;color:var(--muted);font-size:12px;margin-top:5px}.payment-breakdown dd{font-weight:700;white-space:nowrap}.payment-breakdown>p{font-size:12px;color:var(--muted);line-height:1.6;margin-top:8px}.payment-demo-controls{margin-top:24px;padding:14px;border:1px dashed #C4D3C9;border-radius:10px;color:#536159}.payment-demo-controls p{font-size:13px;line-height:1.6;margin:8px 0 12px}.payment-demo-controls>div{display:flex;flex-wrap:wrap;gap:8px}.payment-demo-controls button{background:white;border:1px solid #D2E1D7;border-radius:6px;min-height:44px;padding:8px 12px;font-size:13px;color:#007749;display:flex;align-items:center;gap:6px}.payment-demo-controls svg{width:16px;height:16px}.payment-success-icon{width:60px;height:60px;color:var(--green);margin-top:26px}.payment-receipt{margin:16px 0}.payment-receipt>div{padding:12px 0;border-bottom:1px solid var(--line);font-size:14px}.payment-receipt dt{color:var(--muted);margin-bottom:6px}.payment-receipt dd{font-weight:600;overflow-wrap:anywhere;line-height:1.5}
 
-.camera-screen{padding-top:24px}.camera-screen h2{font-size:26px;line-height:1.3;margin-bottom:10px}.camera-screen>p{font-size:14px;line-height:1.6;color:var(--muted);margin-bottom:16px}.meter-zoom{margin-bottom:16px;border:1px solid var(--line);border-radius:8px;padding:12px}.meter-zoom summary{cursor:pointer;color:#007749;font-size:14px;min-height:32px}.meter-zoom img{width:100%;height:auto;margin-top:8px}.camera-preview{position:relative;background:#14271c;border-radius:10px;overflow:hidden;margin-bottom:16px;aspect-ratio:3/4}.camera-preview video{width:100%;height:100%;object-fit:cover}.camera-guide{position:absolute;top:50%;left:50%;width:80%;aspect-ratio:1;transform:translate(-50%,-50%);border:2px solid #25ed90;border-radius:18px;box-shadow:0 0 0 999px #0008;pointer-events:none}.camera-guide::before{content:"";position:absolute;inset:6px;border:1px solid #ffffff40;border-radius:12px}.camera-guide::after{content:"";position:absolute;left:7%;right:7%;top:25%;height:2px;background:#25ed90;box-shadow:0 0 10px #25ed90;animation:meter-scan 2.5s ease-in-out infinite}@keyframes meter-scan{50%{top:65%}}@media(prefers-reduced-motion:reduce){.camera-guide::after{animation:none}}.camera-guide span{position:absolute;bottom:10px;left:8px;right:8px;font-size:12px;line-height:1.5;text-align:center;padding:6px;color:white;background:#0009;border-radius:5px}.payment-success-icon{display:block}.invoice-metadata,.invoice-bank{background:white;border:1px solid var(--line);border-radius:10px;padding:16px;margin:18px 0}.invoice-metadata h3,.invoice-bank h3,.invoice-meter-values h3{font-size:16px;line-height:1.5;margin-bottom:8px}.invoice-metadata dl>div,.invoice-bank dl>div,.invoice-contacts dl>div,.invoice-meter-values dl>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:13px;line-height:1.6}.invoice-metadata dt,.invoice-bank dt,.invoice-contacts dt,.invoice-meter-values dt{color:var(--muted);flex-shrink:0}.invoice-metadata dd,.invoice-bank dd,.invoice-contacts dd,.invoice-meter-values dd{text-align:right;font-weight:550;overflow-wrap:anywhere;min-width:0}.invoice-bank p{font-size:12px;color:#88410D;line-height:1.6;margin-top:10px}.invoice-contacts{padding:12px 0;border-top:1px solid var(--line)}.invoice-contacts summary{font-size:14px;color:#007749;min-height:32px;cursor:pointer}.invoice-meter-values{display:grid;gap:12px;margin:10px 0}.invoice-meter-values>section{background:var(--mint);border-radius:8px;padding:12px}.invoice-grand-total{font-weight:750;color:var(--dark)}.invoice-grand-total dd{font-size:19px}.payment-breakdown{margin-top:12px}.payment-breakdown dd{white-space:normal;text-align:right;overflow-wrap:anywhere}.payment-breakdown dt{min-width:0}.payment-receipt{margin-bottom:8px}
+.camera-state{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidden}.camera-state .flow-header{flex-shrink:0}.camera-state .app-scroll{flex:1;min-height:0;display:flex;overflow:hidden}.camera-state .camera-content{flex:1;min-height:0;display:flex;flex-direction:column;padding:0 16px max(12px,env(safe-area-inset-bottom));overflow:hidden}.camera-screen{height:100%;min-height:0;padding:14px 0 0;display:flex;flex-direction:column;gap:10px}.camera-copy{flex-shrink:0}.camera-screen h2{font-size:22px;line-height:1.25;margin-bottom:4px}.camera-screen p{font-size:14px;line-height:1.45;color:var(--muted)}.camera-preview{position:relative;flex:1 1 auto;min-height:220px;background:#14271c;border-radius:12px;overflow:hidden}.camera-preview video{display:block;width:100%;height:100%;object-fit:cover;background:#0b120e}.camera-guide{position:absolute;top:50%;left:50%;width:min(84%,420px);aspect-ratio:1.35;transform:translate(-50%,-50%);border:2px solid #25ed90;border-radius:18px;box-shadow:0 0 0 999px #0008;pointer-events:none}.camera-guide::before{content:"";position:absolute;inset:7px;border:1px solid #ffffff55;border-radius:12px}.camera-guide::after{content:"";position:absolute;left:7%;right:7%;top:25%;height:2px;background:#25ed90;box-shadow:0 0 10px #25ed90;animation:meter-scan 2.5s ease-in-out infinite}@keyframes meter-scan{50%{top:65%}}@media(prefers-reduced-motion:reduce){.camera-guide::after{animation:none}}.camera-guide span{position:absolute;bottom:10px;left:8px;right:8px;font-size:12px;line-height:1.5;text-align:center;padding:6px;color:white;background:#0009;border-radius:5px}.camera-actions{flex-shrink:0;display:grid;gap:6px;padding-top:2px}.camera-actions .primary-button{min-height:54px}.camera-actions .secondary-button{margin-top:0}.camera-actions .text-button{margin:0;justify-content:center;min-height:34px}.camera-screen>.error-message{margin:0}.payment-success-icon{display:block}.invoice-metadata,.invoice-bank{background:white;border:1px solid var(--line);border-radius:10px;padding:16px;margin:18px 0}.invoice-metadata h3,.invoice-bank h3,.invoice-meter-values h3{font-size:16px;line-height:1.5;margin-bottom:8px}.invoice-metadata dl>div,.invoice-bank dl>div,.invoice-contacts dl>div,.invoice-meter-values dl>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:13px;line-height:1.6}.invoice-metadata dt,.invoice-bank dt,.invoice-contacts dt,.invoice-meter-values dt{color:var(--muted);flex-shrink:0}.invoice-metadata dd,.invoice-bank dd,.invoice-contacts dd,.invoice-meter-values dd{text-align:right;font-weight:550;overflow-wrap:anywhere;min-width:0}.invoice-bank p{font-size:12px;color:#88410D;line-height:1.6;margin-top:10px}.invoice-contacts{padding:12px 0;border-top:1px solid var(--line)}.invoice-contacts summary{font-size:14px;color:#007749;min-height:32px;cursor:pointer}.invoice-meter-values{display:grid;gap:12px;margin:10px 0}.invoice-meter-values>section{background:var(--mint);border-radius:8px;padding:12px}.invoice-grand-total{font-weight:750;color:var(--dark)}.invoice-grand-total dd{font-size:19px}.payment-breakdown{margin-top:12px}.payment-breakdown dd{white-space:normal;text-align:right;overflow-wrap:anywhere}.payment-breakdown dt{min-width:0}.payment-receipt{margin-bottom:8px}
 
 /* Compact invoice: transfer card and charge summary first; full fields on demand. */
 .payment-state .flow-header{height:64px}
@@ -176,3 +176,193 @@ html{scrollbar-width:none}html::-webkit-scrollbar{display:none}
 .contract-password { display: grid; gap: 12px; max-width: 430px; margin: 28px auto; }
 .contract-password input { width: 100%; padding: 12px; border: 1px solid #dbe6df; border-radius: 10px; font: inherit; }
 .contract-success { text-align: center; display: grid; gap: 12px; justify-items: center; margin: 36px 0; color: #087f5b; }
+/* Real tenant navigation and inventory share the existing Electron palette. */
+.tenant-live-app .tenant-menu-header{position:sticky;top:0;z-index:10;justify-content:center;padding:12px;gap:8px;padding-top:calc(12px + env(safe-area-inset-top,0px));height:calc(99px + env(safe-area-inset-top,0px))}
+.tenant-live-app .tenant-menu-header img{width:220px;max-width:calc(100% - 104px);object-fit:contain}
+.tenant-header-spacer{width:44px;flex-shrink:0}
+.tenant-live-app .home-content{padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.tenant-live-app .tenant-page-title{margin:0 0 8px;font-size:24px;line-height:1.3;letter-spacing:-.7px;overflow-wrap:anywhere}
+.tenant-page-hint{color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:18px;overflow-wrap:anywhere}
+.tenant-live-app .menu-item{min-height:60px;line-height:1.5;gap:10px;padding:12px 0;font-size:15px}
+.tenant-live-app .menu-item svg:first-child{margin-left:0}
+.tenant-live-app .menu-item svg:last-child:not(:first-child){margin-left:auto}
+.tenant-live-app .tenant-logout{margin-top:18px;color:#A43737}
+.tenant-live-app .tenant-logout svg{color:inherit;margin-left:0}
+.tenant-assets-launcher{display:flex;align-items:center;gap:12px;width:100%;border:1px solid var(--line);border-radius:10px;background:white;margin-top:14px;min-height:68px;padding:12px;text-align:left;color:var(--dark)}
+.tenant-assets-launcher>span{flex:1;min-width:0}.tenant-assets-launcher strong{display:block;font-size:15px}.tenant-assets-launcher small{display:block;margin-top:5px;font-size:12px;color:var(--muted);line-height:1.5}.tenant-assets-launcher svg{width:23px;height:23px}.tenant-assets-launcher:hover{background:var(--mint)}
+.tenant-section-heading{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}.tenant-section-heading h1{flex:1}.tenant-refresh{color:var(--dark);margin-top:-5px}
+.tenant-assets-list{list-style:none;padding:0;margin:0}.tenant-assets-list>li{display:flex;align-items:center;gap:12px;padding:15px 0;border-bottom:1px solid var(--line)}
+.tenant-asset-symbol{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:var(--mint);color:var(--dark);flex-shrink:0}.tenant-asset-symbol svg{width:23px;height:23px}
+.tenant-assets-list>li>div{flex:1;min-width:0}.tenant-assets-list h3{font-size:15px;line-height:1.5;overflow-wrap:anywhere}.tenant-asset-status{font-size:12px;line-height:1.5;color:#007749;margin-top:3px}.tenant-asset-status.needs-attention{color:#97430A}
+.tenant-asset-quantity{font-size:13px;font-weight:650;white-space:nowrap;padding:6px 9px;border-radius:8px;background:#EAF2ED;color:var(--dark)}
+.tenant-assets-empty{display:flex;flex-direction:column;align-items:center;gap:14px;padding:36px 18px;text-align:center;color:var(--muted);font-size:15px;line-height:1.6}.tenant-assets-empty svg{width:40px;height:40px;color:var(--dark)}
+.tenant-utilities{display:grid;gap:12px;margin-top:20px}.tenant-utilities section{padding:14px;border:1px solid var(--line);border-radius:10px;background:white}.tenant-utilities h2{display:flex;align-items:center;gap:8px;font-size:16px;color:var(--dark);margin-bottom:9px}.tenant-utilities h2 svg{width:21px;height:21px}
+.tenant-utilities dl>div,.tenant-service-details>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;font-size:13px;line-height:1.6}.tenant-utilities dt,.tenant-service-details dt{color:var(--muted)}.tenant-utilities dd,.tenant-service-details dd{text-align:right;font-weight:650;overflow-wrap:anywhere}.tenant-service-details{margin-top:14px}.tenant-invoice-day{font-size:13px;color:var(--muted);line-height:1.5;margin-top:12px}
+.tenant-account-details>div{padding:16px 0;border-bottom:1px solid var(--line)}.tenant-account-details dt{font-size:13px;color:var(--muted);margin-bottom:6px}.tenant-account-details dd{font-size:16px;font-weight:600;overflow-wrap:anywhere;line-height:1.5}
+@media(max-height:760px){.tenant-live-app .tenant-menu-header{height:calc(78px + env(safe-area-inset-top,0px))}.tenant-live-app .tenant-menu-header img{width:190px}}
+@media(max-height:680px){.tenant-live-app .tenant-menu-header{height:calc(64px + env(safe-area-inset-top,0px));padding-top:calc(8px + env(safe-area-inset-top,0px));padding-bottom:8px}.tenant-live-app .tenant-menu-header img{width:165px}}
+@media(max-width:374px){.tenant-live-app .tenant-menu-header{gap:4px}.tenant-live-app .tenant-page-title{font-size:22px}.tenant-assets-launcher{padding:10px;gap:9px}.tenant-assets-list>li{gap:9px}}
+
+/* Current room details are visible directly on the home page. */
+.tenant-overview .greeting{font-size:13px;line-height:1.4}
+.tenant-overview .tenant-name{font-size:19px;margin-top:2px;letter-spacing:-.4px}
+.tenant-overview .room-title{font-size:32px;line-height:1.2;margin:10px 0 12px;letter-spacing:-.9px}
+.tenant-overview .room-details>div{min-height:42px;gap:10px}
+.tenant-overview .room-details dt{font-size:13px;gap:9px}
+.tenant-overview .room-details dt svg{width:21px;height:21px}
+.tenant-overview .room-details dd{font-size:14px;letter-spacing:-.2px}
+.tenant-overview .tenant-invoice-day{font-size:12px;margin-top:8px}
+.tenant-overview .tenant-utility-panel{border:1px solid var(--line);border-radius:11px;background:white;padding:12px;margin-top:12px}
+.tenant-overview .tenant-utilities{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin-top:0;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.tenant-overview .tenant-utilities section{padding:0 10px;min-width:0;background:transparent;border:0}
+.tenant-overview .tenant-utilities section+section{border-left:1px solid var(--line)}
+.tenant-overview .tenant-utilities h2{font-size:14px;margin-bottom:5px;gap:6px}
+.tenant-overview .tenant-utilities h2 svg{width:18px;height:18px}
+.tenant-overview .tenant-utilities dl>div{display:block;padding:4px 0;font-size:12px;line-height:1.5}
+.tenant-overview .tenant-utilities dt{font-size:11px}
+.tenant-overview .tenant-utilities dd{text-align:left;margin-top:2px}
+.tenant-overview .tenant-service-details{margin-top:4px}
+.tenant-overview .tenant-service-details>div{font-size:12px;padding:4px 0}
+.tenant-overview-assets{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.tenant-overview-assets .tenant-section-heading{align-items:center}
+.tenant-overview-assets .tenant-section-heading h2{font-size:15px;line-height:1.5}
+.tenant-overview-assets .tenant-refresh{margin:0}
+.tenant-overview-assets .tenant-refresh svg{width:20px;height:20px}
+.tenant-overview .tenant-assets-list>li{padding:9px 0;gap:9px}
+.tenant-overview .tenant-asset-symbol{width:32px;height:32px;border-radius:8px}
+.tenant-overview .tenant-asset-symbol svg{width:19px;height:19px}
+.tenant-overview .tenant-assets-list h3{font-size:13px}
+.tenant-overview .tenant-asset-status{font-size:11px;margin-top:1px}
+.tenant-overview .tenant-asset-quantity{font-size:12px;padding:5px 8px}
+.tenant-overview .tenant-assets-empty{padding:12px 0;align-items:flex-start;text-align:left;font-size:12px}
+.tenant-overview .tenant-assets-empty>svg{display:none}
+.tenant-overview-payment{background:var(--mint);border-radius:8px;padding:10px 12px;margin-top:14px}
+.tenant-overview-payment h2{font-size:14px;line-height:1.5}
+.tenant-overview-payment p{font-size:12px;line-height:1.6;margin-top:2px;color:#536159}
+@media(max-width:374px){.tenant-overview .room-details dd{font-size:13px}.tenant-overview .room-details dt{font-size:12px}}
+
+/* Approved option 1: use its readable scale and flat inventory treatment. */
+body:has(.tenant-live-app){padding:0}
+.tenant-live-app{border-radius:0;box-shadow:none;overflow:visible;container-type:inline-size}
+.tenant-live-app .tenant-menu-header{height:calc(clamp(78px,23.2cqw,103px) + env(safe-area-inset-top,0px));padding:12px 20px;position:sticky}
+.tenant-live-app .tenant-menu-header>.icon-button{position:absolute;left:16px}
+.tenant-live-app .tenant-menu-header img{width:clamp(180px,51cqw,226px);max-width:calc(100% - 100px)}
+.tenant-live-app .tenant-header-spacer{display:none}
+.tenant-live-app .home-content{padding:16px 20px 24px}
+.tenant-overview .greeting{font-size:14px;color:#536159}
+.tenant-overview .tenant-name{font-size:20px;line-height:1.3;margin-top:2px}
+.tenant-overview .room-title{font-size:32px;line-height:1.2;letter-spacing:-1px;margin:10px 0 12px}
+.tenant-overview .room-details>div{min-height:43px}
+.tenant-overview .room-details dt{font-size:13px;gap:14px}
+.tenant-overview .room-details dt svg{width:24px;height:24px;color:#15231D}
+.tenant-overview .room-details dd{font-size:14px}
+.tenant-overview .tenant-invoice-day{font-size:13px;line-height:1.5;margin-top:8px}
+.tenant-overview .tenant-utility-panel{padding:0;margin-top:12px;border-radius:7px;background:#FFFFFF90}
+.tenant-overview .tenant-utilities{padding:8px 0;align-items:stretch}
+.tenant-overview .tenant-utilities section{padding:0 16px;border-radius:0}
+.tenant-overview .tenant-utilities h2{font-size:16px;gap:8px;margin-bottom:9px;line-height:1.4}
+.tenant-overview .tenant-utilities h2 svg{width:25px;height:25px}
+.tenant-overview .tenant-utilities dl>div{font-size:14px;line-height:1.4;padding:3px 0}
+.tenant-overview .tenant-utilities dl>div+div{margin-top:5px}
+.tenant-overview .tenant-utilities dt{font-size:13px}
+.tenant-overview .tenant-utilities dd{font-weight:700;margin-top:3px}
+.tenant-overview .tenant-service-details{margin:0;padding:0 16px}
+.tenant-overview .tenant-service-details>div{font-size:14px;padding:10px 0;line-height:1.5;align-items:center;gap:8px}
+.tenant-overview .tenant-service-details>div+div{border-top:1px solid var(--line)}
+.tenant-overview .tenant-service-details dt{display:flex;align-items:center;gap:13px;color:#34423B}
+.tenant-overview .tenant-service-details dt svg{width:25px;height:25px;color:var(--dark)}
+.tenant-overview .tenant-service-details dd{font-weight:700;white-space:nowrap}
+.tenant-overview-assets{border-top:0;padding-top:0;margin-top:14px}
+.tenant-overview-assets .tenant-section-heading{height:40px;align-items:flex-start}
+.tenant-overview-assets .tenant-section-heading h2{padding-top:5px}
+.tenant-overview-assets .tenant-refresh{margin-top:-4px}
+.tenant-overview-assets .tenant-section-heading h2{font-size:18px;letter-spacing:-.5px;line-height:1.4}
+.tenant-overview-assets .tenant-refresh svg{width:25px;height:25px}
+.tenant-overview .tenant-assets-list>li{padding:12px 0;gap:14px;min-height:68px}
+.tenant-overview .tenant-assets-list>li:last-child{border-bottom:0}
+.tenant-overview .tenant-asset-symbol{width:36px;height:36px;border-radius:0;background:transparent}
+.tenant-overview .tenant-asset-symbol svg{width:29px;height:29px}
+.tenant-overview .tenant-assets-list h3{font-size:16px;line-height:1.4}
+.tenant-overview .tenant-asset-status{font-size:13px;margin-top:3px;line-height:1.4}
+.tenant-overview .tenant-asset-quantity{font-size:14px;padding:8px 12px;background:var(--mint)}
+.tenant-overview-payment{padding:14px;margin:8px -2px 0;border-radius:8px}
+.tenant-overview-payment h2{font-size:17px;line-height:1.4}
+.tenant-overview-payment p{font-size:13px;margin-top:5px;line-height:1.5}
+.tenant-service-details dt svg{width:21px;height:21px;vertical-align:middle;margin-right:8px}
+.tenant-overview .tenant-service-details dt svg{margin-right:0}
+.tenant-payment-link{display:flex;align-items:center;gap:8px;padding:6px 0;min-height:44px;background:transparent;color:var(--dark);font-size:14px;font-weight:650;text-align:left;margin-top:4px}
+.tenant-payment-link svg{width:18px;height:18px}
+.tenant-payment-pending{padding:22px 18px;border:1px solid var(--line);border-radius:10px;background:white}
+.tenant-payment-pending>svg{width:32px;height:32px;color:var(--dark);margin-bottom:14px}
+.tenant-payment-pending h2{font-size:18px;line-height:1.4;margin-bottom:8px}
+.tenant-payment-pending p{font-size:14px;line-height:1.7;color:var(--muted)}
+.tenant-room-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:#EAF2ED;border-radius:9px;margin-bottom:20px}
+.tenant-room-sections button{padding:8px 6px;min-height:52px;background:transparent;border-radius:6px;color:#536159;font-size:13px;font-weight:600;line-height:1.4}
+.tenant-room-sections button[aria-pressed=true]{background:white;color:var(--dark);box-shadow:0 1px 3px #064A3110}
+.tenant-room-section-title{font-size:18px;line-height:1.4;margin:0 0 14px;letter-spacing:-.4px}
+.tenant-room-panel .tenant-section-heading{align-items:flex-start}
+.tenant-room-panel .tenant-section-heading .tenant-room-section-title{padding-top:5px}
+.tenant-payment-workflow h2{font-size:19px;line-height:1.4;margin:10px 0}
+.tenant-sandbox-banner{display:grid;gap:2px;padding:11px 12px;margin:0 0 14px;border:1px solid #f0d8ad;border-radius:9px;background:#fff7ea;color:#88410d;font-size:12px;line-height:1.45}
+.tenant-sandbox-banner strong{font-size:13px;letter-spacing:.04em}
+.tenant-payment-workflow p{font-size:14px;line-height:1.6}
+.tenant-payment-cycle{padding:18px;background:var(--mint);border-radius:10px;margin-bottom:20px}
+.tenant-payment-cycle .primary-button{margin-top:14px}
+.tenant-payment-notice{padding:20px 18px;margin:20px 0;background:#f7faf8;border:1px solid var(--line);border-radius:12px;color:#15231D}
+.tenant-payment-notice h2{margin:12px 0 8px;font-size:20px;line-height:1.3;letter-spacing:-.3px}
+.tenant-payment-notice p{margin:0;color:#536159;line-height:1.55}
+.tenant-payment-notice .tenant-next-payment{margin-top:14px;color:#15231D}
+.tenant-payment-notice .tenant-next-payment strong{color:var(--green);font-size:18px}
+.tenant-payment-notice.is-waiting{background:var(--mint);border-color:#c7e8d5}
+.tenant-meter-guide{display:flex;gap:14px;background:var(--mint);padding:20px;border-radius:10px;margin:20px 0;align-items:center}
+.tenant-meter-guide>svg{min-width:30px;width:30px;height:30px;color:var(--dark)}
+.tenant-capture-actions{position:sticky;bottom:0;background:var(--paper,#F7FAF8);padding:12px 0 max(12px,env(safe-area-inset-bottom));display:grid;gap:8px;z-index:2}
+.tenant-meter-photo{width:100%;max-height:240px;object-fit:contain;margin:12px 0;border-radius:8px;background:#edf2ef}
+.tenant-meter-example{margin:12px 0 4px}
+.tenant-meter-example img{display:block;width:100%;height:clamp(100px,23dvh,190px);object-fit:contain;border-radius:12px;background:var(--mint)}
+.tenant-meter-example figcaption{text-align:center;font-size:12px;color:var(--muted,#68766F);line-height:1.4;margin:8px 0}
+.tenant-reading-label{display:grid;gap:6px;margin:12px 0;font-size:14px;font-weight:600}
+.tenant-reading-label input{width:100%;font-size:28px;font-weight:700;padding:12px;background:white;border:1px solid var(--line);border-radius:8px;color:var(--dark)}
+.tenant-payment-workflow .primary-button,.tenant-payment-workflow .secondary-button{width:100%;min-height:48px;margin-top:8px}
+.tenant-camera-state{height:100dvh;min-height:0;overflow:hidden}.tenant-camera-state .tenant-menu-header{display:none}.tenant-camera-state .tenant-camera-content{height:100dvh;min-height:0;padding:0 16px max(12px,env(safe-area-inset-bottom));overflow:hidden;display:flex}.tenant-camera-state .tenant-payment-workflow{height:100%;min-height:0;display:flex;flex-direction:column}.tenant-camera-state .camera-screen{flex:1;min-height:0}.tenant-camera-state .camera-preview{min-height:220px}.tenant-camera-state .camera-actions{padding-bottom:0}
+.tenant-payment-workflow .text-button{min-height:44px}
+/* Only canvas is visible; the detached media source has no UI to tap. */
+.camera-preview{flex:1 1 0;min-height:0!important}
+.camera-preview canvas{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:center;pointer-events:none}
+.camera-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;text-align:center;color:white!important;background:#0b120ec0}
+.camera-fallback .camera-guide{visibility:hidden}
+.camera-guide{height:min(74%,310px);width:auto;max-width:84%;aspect-ratio:1.35}
+.camera-guide::after{display:none}
+.camera-guide span{bottom:6px;font-size:11px;padding:4px}
+.camera-screen{padding-top:max(14px,env(safe-area-inset-top,0px))}
+.camera-screen .camera-actions .primary-button{margin-top:0;min-height:52px}
+.camera-screen .camera-actions .text-button{min-height:36px}
+.tenant-camera-content .tenant-payment-workflow{width:100%}
+.camera-screen .error-message{color:#97430A;flex-shrink:0}
+@media(max-height:480px){.camera-screen{gap:6px;padding-top:8px}.camera-copy h2{font-size:18px}.camera-copy p{font-size:12px}.camera-guide span{display:none}}
+.tenant-invoice-heading{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.tenant-invoice-heading h2{font-size:18px}.tenant-invoice-heading .badge{font-size:11px;white-space:nowrap}
+.tenant-real-invoice .payment-total{font-size:34px;margin:14px 0 4px;display:block}
+.tenant-real-invoice .payment-qr{margin:16px auto;text-align:center}
+.tenant-real-invoice .payment-qr img{display:block;width:200px;height:200px;max-width:100%;margin:auto}
+.tenant-real-invoice .payment-qr p{font-size:15px;color:var(--dark);font-weight:650;margin:8px 0 4px}
+.tenant-real-invoice .payment-reference{overflow-wrap:anywhere;text-align:center}
+.tenant-invoice-lines{margin:14px 0}.tenant-invoice-lines>div{display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding:9px 0;font-size:14px}
+.tenant-invoice-lines dt small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.tenant-invoice-lines dd{font-weight:650;white-space:nowrap}
+.tenant-invoice-lines .utility-line dt,.tenant-invoice-lines .utility-line dd{color:#07805b}
+.tenant-payment-history{list-style:none;padding:0;margin-top:12px}.tenant-payment-history button{display:flex;justify-content:space-between;align-items:center;width:100%;background:transparent;text-align:left;padding:14px 0;border-bottom:1px solid var(--line);font-size:14px;gap:10px}
+.tenant-payment-history small{display:block;margin-top:4px;color:var(--muted)}
+@media(max-width:374px){
+ .tenant-live-app .home-content{padding-left:16px;padding-right:16px}
+ .tenant-overview .room-title{font-size:30px}
+ .tenant-overview .room-details dt,.tenant-overview .room-details dd{font-size:13px}
+ .tenant-overview .room-details dt{gap:8px}
+ .tenant-overview .tenant-utilities section{padding:0 11px}
+ .tenant-overview .tenant-utilities dl>div{font-size:13px}
+ .tenant-overview .tenant-utilities dt{font-size:12px}
+ .tenant-overview .tenant-service-details{padding:0 11px}
+ .tenant-overview .tenant-service-details>div{font-size:13px}
+ .tenant-overview .tenant-service-details dt{gap:8px}
+ .tenant-overview .tenant-assets-list>li{gap:10px}
+}

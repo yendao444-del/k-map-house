@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-13T08:25:04.621Z",
+  "fixtureOnly": true,
+  "realEmailsSent": false,
+  "checks": [
+    {
+      "width": 320,
+      "emailLoginWithoutTotp": true,
+      "wrongOtpDenied": true,
+      "resendCooldown": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 390,
+      "emailLoginWithoutTotp": true,
+      "wrongOtpDenied": true,
+      "resendCooldown": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 1440,
+      "emailLoginWithoutTotp": true,
+      "wrongOtpDenied": true,
+      "resendCooldown": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "scenario": "unverified",
+      "passed": true
+    },
+    {
+      "scenario": "send-failed",
+      "passed": true
+    },
+    {
+      "scenario": "totp",
+      "passed": true
+    },
+    {
+      "scenario": "switch",
+      "passed": true
+    },
+    {
+      "scenario": "cancel",
+      "passed": true
+    }
+  ]
+}

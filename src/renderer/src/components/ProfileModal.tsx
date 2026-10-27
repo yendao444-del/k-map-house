@@ -1,22 +1,36 @@
-import React, { useState } from 'react'
-import { updateUser, type AppUser } from '../lib/db'
+import React, { useState, useRef } from 'react'
+import { X, Upload } from 'lucide-react'
+import { updateUser, changeOwnPassword, type AppUser } from '../lib/db'
+import { AccountHeader, useAccountFocus, type ProfileSection } from './AccountMenu'
+import { SecurityProfilePanel } from './SecurityProfilePanel'
 
 interface ProfileModalProps {
     currentUser: AppUser
     onClose: () => void
     onUpdate: (user: AppUser) => void
+    initialSection?: ProfileSection
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
     currentUser,
     onClose,
-    onUpdate
+    onUpdate,
+    initialSection = 'profile'
 }) => {
     const isLegacyLocalAdmin = currentUser.id === 'legacy-local-admin'
     const [fullName, setFullName] = useState(currentUser.full_name || '')
     const [avatarUrl, setAvatarUrl] = useState(currentUser.avatar_url || '')
     const [error, setError] = useState('')
     const [saving, setSaving] = useState(false)
+    const [processing, setProcessing] = useState(false)
+    const [passwordPending, setPasswordPending] = useState(false)
+    const [securityPending, setSecurityPending] = useState(false)
+    const busy = saving || processing || passwordPending || securityPending
+    const [section, setSection] = useState<ProfileSection>(initialSection)
+    const securitySurface = section !== 'profile'
+    const ref = useRef<HTMLDivElement>(null)
+    const uploadRef = useRef<HTMLInputElement>(null)
+    useAccountFocus(ref, () => { if (!busy) onClose() }, true)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -30,7 +44,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             if (isLegacyLocalAdmin) {
                 onUpdate({
                     ...currentUser,
-                    full_name: fullName,
+                    full_name: fullName.trim(),
                     avatar_url: avatarUrl
                 })
                 onClose()
@@ -38,7 +52,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             }
 
             const updatedUser = await updateUser(currentUser.id, {
-                full_name: fullName,
+                full_name: fullName.trim(),
                 avatar_url: avatarUrl
             })
             onUpdate(updatedUser)
@@ -70,7 +84,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     const canvas = document.createElement('canvas')
                     canvas.width = OUTPUT_PX
                     canvas.height = OUTPUT_PX
-                    const ctx = canvas.getContext('2d')!
+                    const ctx = canvas.getContext('2d')
+                    if (!ctx) { reject(new Error('Không thể xử lý ảnh trên thiết bị này.')); return }
                     ctx.drawImage(img, sx, sy, side, side, 0, 0, OUTPUT_PX, OUTPUT_PX)
 
                     // --- Nén JPEG, giảm chất lượng cho đến khi ≤ MAX_SIZE_KB ---
@@ -104,11 +119,14 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             return
         }
         setError('')
+        setProcessing(true)
         try {
             const processed = await processAvatarImage(file)
             setAvatarUrl(processed)
         } catch (err: any) {
             setError(err.message || 'Không xử lý được ảnh')
+        } finally {
+            setProcessing(false)
         }
         // Reset input để cho phép chọn lại cùng file
         e.target.value = ''
@@ -122,127 +140,89 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     ]
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-[32px] bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-                <div className="relative h-24 bg-gradient-to-r from-emerald-500 to-teal-600 p-6">
-                    <button
-                        onClick={onClose}
-                        className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-                    >
-                        <i className="fa-solid fa-xmark"></i>
-                    </button>
-                    <h2 className="text-xl font-black text-white">Hồ sơ cá nhân</h2>
-                </div>
-
-                <div className="relative -mt-10 px-6 pb-8">
-                    <div className="flex justify-center">
-                        <div className="h-24 w-24 rounded-[28px] border-4 border-white bg-white p-1 shadow-xl">
-                            <img
-                                src={avatarUrl || (currentUser.role === 'admin' ? avatarOptions[0].url : `https://ui-avatars.com/api/?name=${fullName || currentUser.username}&background=00ffcc&color=00151a&bold=true`)}
-                                className="h-full w-full rounded-[24px] object-cover"
-                                alt="Avatar Preview"
-                            />
+        <div className="account-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}>
+            <div className={`account-surface account-dialog${securitySurface ? ' account-security-dialog' : ''}`} ref={ref} role="dialog" aria-modal="true" aria-label="Hồ sơ và bảo mật tài khoản" aria-busy={busy}>
+                {securitySurface ? <header className="account-security-heading"><div className="account-security-brand">AN KHANG HOME</div><button className="account-text-button account-profile-link" type="button" disabled={busy} onClick={() => setSection('profile')}>Hồ sơ cá nhân</button><h2>Bảo mật tài khoản</h2><p>Quản lý phương thức bảo mật, thiết bị tin cậy và phiên đăng nhập của bạn.</p></header> : <AccountHeader user={{ ...currentUser, full_name: fullName || currentUser.username, avatar_url: avatarUrl }} />}
+                <button type="button" className="account-close" aria-label="Đóng hồ sơ" disabled={busy} onClick={onClose}><X size={18} /></button>
+                {!securitySurface && <div className="account-tabs" role="tablist" aria-label="Thông tin tài khoản">
+                    {([['profile', 'Hồ sơ cá nhân'], ['security', '2FA'], ['activity', 'Hoạt động']] as const).map(([key, label]) =>
+                        <button key={key} id={`account-tab-${key}`} type="button" role="tab" aria-selected={section === key} aria-controls="account-panel" tabIndex={section === key ? 0 : -1} disabled={busy}
+                            onClick={() => setSection(key)} onKeyDown={event => {
+                                const sections: ProfileSection[] = ['profile', 'security', 'activity']
+                                if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+                                    event.preventDefault()
+                                    const next = event.key === 'Home' ? 'profile' : event.key === 'End' ? 'activity' : sections[(sections.indexOf(section) + (event.key === 'ArrowRight' ? 1 : 2)) % 3]
+                                    setSection(next)
+                                    document.getElementById(`account-tab-${next}`)?.focus()
+                                }
+                            }}>{label}</button>)}
+                </div>}
+                <div id="account-panel" role={securitySurface ? undefined : 'tabpanel'} aria-labelledby={securitySurface ? undefined : `account-tab-${section}`} className="account-content">
+                    {section === 'profile' && <form className="account-form" onSubmit={handleSubmit}>
+                        <div><h3>Thông tin cá nhân</h3><p>Để mọi người dễ dàng nhận ra bạn.</p></div>
+                        <div className="account-field">
+                            <label htmlFor="profile-name">Họ và tên</label>
+                            <input id="profile-name" className="account-input" required maxLength={120} autoComplete="name" value={fullName} onChange={event => setFullName(event.target.value)} disabled={saving} placeholder="Nhập họ tên của bạn" />
                         </div>
-                    </div>
-
-                    <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Họ và tên</label>
-                            <input
-                                type="text"
-                                value={fullName}
-                                onChange={(e) => setFullName(e.target.value)}
-                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-bold text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                                placeholder="Nhập họ tên của bạn"
-                            />
-                        </div>
-
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ảnh đại diện</label>
-
-                            {/* Upload từ PC */}
-                            <input
-                                id="avatar-file-input"
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleFileUpload}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    document.getElementById('avatar-file-input')?.click()
-                                }}
-                                className="flex w-full items-center justify-center gap-2.5 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50 py-3 text-sm font-bold text-emerald-600 transition-all hover:border-emerald-400 hover:bg-emerald-100 active:scale-95"
-                            >
-                                <i className="fa-solid fa-upload text-xs"></i>
-                                Upload ảnh từ máy tính
-                            </button>
-
-                            {/* URL input */}
-                            <input
-                                type="text"
-                                value={avatarUrl.startsWith('data:') ? '' : avatarUrl}
-                                onChange={(e) => setAvatarUrl(e.target.value)}
-                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-sm font-bold text-slate-700 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                                placeholder={avatarUrl.startsWith('data:') ? '📎 Đang dùng ảnh từ máy tính' : 'Hoặc dán link ảnh tại đây...'}
-                            />
-
-                            <div className="flex justify-between gap-2">
-                                {avatarOptions.map((opt) => (
-                                    <button
-                                        key={opt.name}
-                                        type="button"
-                                        onClick={() => {
-                                            setAvatarUrl(opt.url)
-                                        }}
-                                        className={`h-12 w-12 rounded-xl border-2 p-0.5 transition-all hover:scale-110 ${avatarUrl === opt.url ? 'border-emerald-500 ring-4 ring-emerald-500/10' : 'border-transparent'}`}
-                                    >
-                                        <img src={opt.url} className="h-full w-full rounded-[8px] object-cover" alt={opt.name} />
-                                    </button>
-                                ))}
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setAvatarUrl('')
-                                    }}
-                                    className={`flex h-12 w-12 items-center justify-center rounded-xl border-2 text-[10px] font-bold transition-all hover:scale-110 ${!avatarUrl ? 'border-emerald-500 ring-4 ring-emerald-500/10 bg-emerald-50 text-emerald-600' : 'border-slate-100 text-slate-400'}`}
-                                >
-                                    Auto
-                                </button>
+                        <fieldset className="account-field account-fieldset" disabled={saving || processing}>
+                            <legend>Ảnh đại diện</legend>
+                            <input ref={uploadRef} type="file" accept="image/*" className="hidden" aria-label="Chọn ảnh đại diện" onChange={handleFileUpload} />
+                            <button type="button" className="account-upload" onClick={() => uploadRef.current?.click()}><Upload size={17} /> {processing ? 'Đang xử lý ảnh…' : 'Tải ảnh từ thiết bị'}</button>
+                            <label htmlFor="profile-avatar-url">Hoặc dùng đường dẫn ảnh</label>
+                            <input id="profile-avatar-url" className="account-input" type="url" value={avatarUrl.startsWith('data:') ? '' : avatarUrl} onChange={event => setAvatarUrl(event.target.value)} placeholder={avatarUrl.startsWith('data:') ? 'Đang dùng ảnh đã tải lên' : 'https://…'} />
+                            <div className="account-presets" aria-label="Ảnh đại diện có sẵn">
+                                {avatarOptions.map(opt => <button key={opt.name} type="button" aria-label={`Dùng ảnh ${opt.name}`} aria-pressed={avatarUrl === opt.url} onClick={() => setAvatarUrl(opt.url)}><img src={opt.url} alt="" /></button>)}
+                                <button type="button" className="account-auto" aria-pressed={!avatarUrl} onClick={() => setAvatarUrl('')}>Mặc định</button>
                             </div>
-                        </div>
-
-                        {error && (
-                            <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-[11px] font-bold text-red-600 animate-in fade-in slide-in-from-top-1">
-                                <i className="fa-solid fa-circle-exclamation mr-2"></i>
-                                {error}
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={onClose}
-                                className="flex-1 rounded-[20px] bg-slate-100 py-4 text-xs font-black uppercase tracking-widest text-slate-500 transition hover:bg-slate-200"
-                            >
-                                Hủy
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={saving}
-                                className="flex-[2] rounded-[20px] bg-emerald-500 py-4 text-xs font-black uppercase tracking-widest text-white shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-600 active:scale-95 disabled:opacity-50"
-                            >
-                                {saving ? (
-                                    <i className="fa-solid fa-spinner animate-spin"></i>
-                                ) : (
-                                    'Lưu thay đổi'
-                                )}
-                            </button>
-                        </div>
-                    </form>
+                        </fieldset>
+                        <div className="account-field"><label htmlFor="profile-username">Tên đăng nhập</label><input id="profile-username" className="account-input" value={currentUser.username} readOnly autoComplete="username" /></div>
+                        {currentUser.email && <div className="account-field"><label htmlFor="profile-email">Email tài khoản</label><input id="profile-email" className="account-input" value={currentUser.email} readOnly /></div>}
+                        {error && <div className="account-alert" role="alert">{error}</div>}
+                        <div className="account-buttons"><button type="button" className="account-secondary" disabled={saving || processing} onClick={onClose}>Hủy</button><button type="submit" className="account-primary" disabled={saving || processing}>{saving ? 'Đang lưu…' : 'Lưu thay đổi'}</button></div>
+                    </form>}
+                    {securitySurface && <SecurityProfilePanel isLegacyLocalAdmin={isLegacyLocalAdmin} onPendingChange={setSecurityPending} initialView={section === 'activity' ? 'activity' : 'security'} passwordForm={!isLegacyLocalAdmin ? <PasswordForm onPendingChange={setPasswordPending} /> : undefined} passwordPending={passwordPending} />}
                 </div>
             </div>
         </div>
     )
+}
+
+
+function PasswordForm({ onPendingChange }: { onPendingChange: (pending: boolean) => void }) {
+    const [currentPassword, setCurrentPassword] = useState('')
+    const [newPassword, setNewPassword] = useState('')
+    const [confirmation, setConfirmation] = useState('')
+    const [pending, setPending] = useState(false)
+    const [error, setError] = useState('')
+    const [success, setSuccess] = useState(false)
+    const completionLock = useRef(false)
+    const submit = async (event: React.FormEvent) => {
+        event.preventDefault()
+        if (completionLock.current) return
+        setError(''); setSuccess(false)
+        if (!currentPassword) { setError('Nhập mật khẩu hiện tại.'); return }
+        if (newPassword.length < 12) { setError('Mật khẩu mới cần ít nhất 12 ký tự.'); return }
+        if (newPassword !== confirmation) { setError('Mật khẩu xác nhận không khớp.'); return }
+        completionLock.current = true
+        setPending(true); onPendingChange(true)
+        try {
+            await changeOwnPassword(newPassword, currentPassword)
+            setSuccess(true)
+        } catch (err) { setError(err instanceof Error ? err.message : 'Không thể đổi mật khẩu. Vui lòng thử lại.') }
+        finally {
+            setCurrentPassword(''); setNewPassword(''); setConfirmation('')
+            completionLock.current = false; setPending(false); onPendingChange(false)
+        }
+    }
+    return <form className="account-form" onSubmit={submit}>
+        <div><h3>Đổi mật khẩu</h3><p>Nhập mật khẩu hiện tại để xác nhận. Mật khẩu mới cần ít nhất 12 ký tự.</p></div>
+        {([
+            ['profile-current-password', 'Mật khẩu hiện tại', currentPassword, setCurrentPassword, 'current-password'],
+            ['profile-new-password', 'Mật khẩu mới', newPassword, setNewPassword, 'new-password'],
+            ['profile-confirm-password', 'Xác nhận mật khẩu mới', confirmation, setConfirmation, 'new-password']
+        ] as const).map(([id, label, value, setter, autoComplete]) => <div key={id} className="account-field"><label htmlFor={id}>{label}</label><input id={id} className="account-input" type="password" required maxLength={256} disabled={pending} autoComplete={autoComplete} value={value} onChange={event => { setter(event.target.value); setError(''); setSuccess(false) }} /></div>)}
+        {error && <div className="account-alert" role="alert">{error}</div>}
+        {success && <div className="account-alert account-success" role="status">Đổi mật khẩu thành công.</div>}
+        <button type="submit" className="account-primary" disabled={pending}>{pending ? 'Đang lưu…' : 'Xác nhận và đổi mật khẩu'}</button>
+    </form>
 }

@@ -29,19 +29,16 @@ function isJoinedImage(image: HTMLImageElement): boolean {
   return Math.max(...differences.slice(77, 82)) > Math.max(18, average * 3);
 }
 
-export function TenantIdentityPreview({ source }: { source?: string }) {
+export function useTenantIdentityPhotos(source?: string) {
   const [splitOverride, setSplitOverride] = useState<boolean | null>(null);
   const [photos, setPhotos] = useState<IdentityPhotos>({});
-  const [loading, setLoading] = useState(false);
-  const [zoom, setZoom] = useState<'front' | 'back' | null>(null);
-  const viewerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [loading, setLoading] = useState(Boolean(source));
 
-  useEffect(() => { setSplitOverride(null); setZoom(null); }, [source]);
+  useEffect(() => { setSplitOverride(null); }, [source]);
 
   useEffect(() => {
     setPhotos({});
-    if (!source) return;
+    if (!source) { setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     const image = new Image();
@@ -72,6 +69,17 @@ export function TenantIdentityPreview({ source }: { source?: string }) {
     return () => { cancelled = true; image.onload = null; image.onerror = null; };
   }, [source, splitOverride]);
 
+  return { photos, loading, toggleSplit: () => setSplitOverride(!photos.back) };
+}
+
+export function TenantIdentityPreview({ source }: { source?: string }) {
+  const { photos, loading, toggleSplit } = useTenantIdentityPhotos(source);
+  const [zoom, setZoom] = useState<'front' | 'back' | null>(null);
+  const viewerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => { setZoom(null); }, [source]);
+
   useEffect(() => {
     if (!zoom) return;
     const previousFocus = triggerRef.current;
@@ -96,7 +104,7 @@ export function TenantIdentityPreview({ source }: { source?: string }) {
           </div>
         ))}
       </div>
-      {source && !loading && !photos.error && <button type="button" onClick={() => setSplitOverride(!photos.back)} className="mt-2 text-[11px] text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600">{photos.back ? 'Xem ảnh gốc' : 'Tách ảnh ghép hai mặt'}</button>}
+      {source && !loading && !photos.error && <button type="button" onClick={toggleSplit} className="mt-2 text-[11px] text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-600">{photos.back ? 'Xem ảnh gốc' : 'Tách ảnh ghép hai mặt'}</button>}
       {zoom && photos[zoom] && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm" onClick={event => { event.stopPropagation(); setZoom(null); }}>
           <div ref={viewerRef} role="dialog" aria-modal="true" aria-label={`Ảnh ${zoom === 'front' ? 'mặt trước' : 'mặt sau'}`} onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setZoom(null); } if (event.key === 'Tab') { event.stopPropagation(); event.preventDefault(); viewerRef.current?.querySelector('button')?.focus(); } }} className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
@@ -108,3 +116,5 @@ export function TenantIdentityPreview({ source }: { source?: string }) {
     </>
   );
 }
+
+

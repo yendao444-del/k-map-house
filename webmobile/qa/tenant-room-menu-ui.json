@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-08T07:05:32.582Z",
+  "passed": true,
+  "evidence": [
+    {
+      "width": 320,
+      "height": 568,
+      "leftMenu": true,
+      "homeShowsRoomUtilitiesAndAssets": true,
+      "assetsAndStatuses": true,
+      "zeroInitialReading": true,
+      "horizontalOverflow": false,
+      "errors": []
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "leftMenu": true,
+      "homeShowsRoomUtilitiesAndAssets": true,
+      "assetsAndStatuses": true,
+      "zeroInitialReading": true,
+      "horizontalOverflow": false,
+      "errors": []
+    }
+  ],
+  "emptyAndUnavailableStates": true,
+  "noContractState": true,
+  "logout": true,
+  "syntheticOnly": true
+}

@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-12T04:26:46.689Z",
+  "checks": [
+    "Real Auth: cancel removes only unverified replacement; premature retirement denied",
+    "Real Auth: new code verified; old factor removed atomically; current session survives; saved new recovery codes restore ready state",
+    "Real Auth/DB: recovery regeneration and acknowledgement complete without a new login",
+    "Deployed Edge: existing AAL2 session reads devices/history outside fresh-MFA window; stale proof cannot mutate a device"
+  ],
+  "customerDataChanged": false,
+  "emailProvider": "intercepted for disposable identity only",
+  "secretsLogged": false
+}

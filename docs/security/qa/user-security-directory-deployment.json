@@ -1,0 +1,18 @@
+{
+  "appliedAt": "2026-10-12T03:14:32.978Z",
+  "checks": [
+    "verified TOTP only",
+    "email provisioning is not OTP proof",
+    "OTP survives session cleanup",
+    "changed email invalidates old proof",
+    "fixed projection without secrets",
+    "admin directory",
+    "staff self only",
+    "anonymous/unknown/inactive denied",
+    "revoked session denied",
+    "client cannot forge verification"
+  ],
+  "profileOrPermissionChanges": false,
+  "backfill": "Existing successful OTP evidence for current login emails only",
+  "testData": "Transaction-local synthetic users/sessions/factors; rollback only"
+}

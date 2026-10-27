@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-13T04:45:05.929Z",
+  "origin": "https://app.phongtroankhang.com",
+  "buildId": "b55e4679cac99a35",
+  "checks": [
+    {
+      "file": "index.html",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "sha256": "b55e4679cac99a3504dab65129413bed15aa9d6f2add4b58dad3e7466d5630ae",
+      "matchesLocal": true
+    },
+    {
+      "file": "version.json",
+      "status": 200,
+      "contentType": "application/json",
+      "sha256": "8dde3c05e2e66fe472a886ad6f29293f9ee61628bdbfe64f7210cb850c53ce99",
+      "matchesLocal": true
+    },
+    {
+      "file": "sw.js",
+      "status": 200,
+      "contentType": "application/javascript",
+      "sha256": "41041c7bfaff75f76438b533b2b51766c28614f452d563703e968a03dfd7336b",
+      "matchesLocal": true
+    },
+    {
+      "file": "assets/index-Bm3iWd-5.js",
+      "status": 200,
+      "contentType": "application/javascript",
+      "sha256": "ad77db53381af59f6a880aa9d937361c5f846ce8233be81af9863b7e44c03fe1",
+      "matchesLocal": true
+    }
+  ],
+  "anonymousStatus": 401,
+  "noRealMessagesSent": true
+}

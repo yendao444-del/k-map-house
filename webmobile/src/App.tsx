@@ -168,14 +168,14 @@ export default function App({ ScrollContainer = NativeScroll, ReadingInput = Nat
   }
   const isHome = screen === 'home'
   const screenTitle = screen === 'payment' ? currentInvoice?.status === 'paid' ? 'Biên lai' : 'Thanh toán' : screen === 'camera' ? 'Camera' : screen === 'menu' ? 'Tài khoản' : screen === 'history' ? 'Lịch sử thanh toán' : screen === 'detail' ? `Hóa đơn ${selected.month}` : 'Chụp điện & nước'
-  return <div className={`tenant-app ${framed ? 'framed-app' : ''} ${isHome ? 'home-state' : screen === 'capture' ? 'capture-state' : screen === 'payment' ? 'payment-state' : ''}`}>
+  return <div className={`tenant-app ${framed ? 'framed-app' : ''} ${isHome ? 'home-state' : screen === 'capture' ? 'capture-state' : screen === 'camera' ? 'camera-state' : screen === 'payment' ? 'payment-state' : ''}`}>
     <header className={isHome ? 'brand-header' : 'flow-header'}>
       {isHome ? <><img src="/assets/brand-white.png" width="232" height="78" alt="AN KHANG HOME" /><button className="icon-button" aria-label="Mở menu" onClick={() => go('menu')}><Menu /></button></> : <><button className="icon-button" aria-label="Quay lại" onClick={() => go(screen === 'detail' ? 'history' : ['review', 'camera'].includes(screen) ? 'capture' : 'home')}><ArrowLeft /></button><h1>{screenTitle}</h1></>}
     </header>
     <ScrollContainer className="app-scroll" key={`${kind}-${screen}-${meter}`}>
-      <main className={`app-content ${isHome ? 'home-content' : screen === 'capture' || screen === 'review' ? 'capture-content' : ''}`}>
+      <main className={`app-content ${isHome ? 'home-content' : screen === 'capture' || screen === 'review' ? 'capture-content' : screen === 'camera' ? 'camera-content' : ''}`}>
         {['capture', 'camera'].includes(screen) && <input ref={fileInput} tabIndex={-1} className="file-input" type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Chọn ảnh công tơ ${label[meter]}`} onChange={e => { loadFile(e.target.files?.[0]); e.target.value = '' }} />}
-        {screen === 'camera' && <MeterCamera meterLabel={label[meter]} onPhoto={acceptPhoto} onCancel={() => go('capture')} onFile={() => fileInput.current?.click()} />}
+        {screen === 'camera' && <MeterCamera meterLabel={label[meter]} onPhoto={acceptPhoto} onCancel={() => go('capture')} />}
         {isHome && <>
           <p className="greeting">Xin chào</p><h2 className="tenant-name" ref={heading} tabIndex={-1}>{tenant.name}</h2>
           <h1 className="room-title">Phòng {tenant.room}</h1>

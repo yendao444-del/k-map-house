@@ -114,6 +114,7 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
   const [payInvoice, setPayInvoice] = useState<Invoice | null>(null)
   const [isEditingArea, setIsEditingArea] = useState(false)
   const [areaInput, setAreaInput] = useState(String(room.area || ''))
+  const [areaError, setAreaError] = useState<string | null>(null)
   const [isEditingRent, setIsEditingRent] = useState(false)
   const [rentInput, setRentInput] = useState(formatVND(room.base_rent || 0))
   const [rentReason, setRentReason] = useState('')
@@ -150,10 +151,38 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
       move_in_date: latestRoom.move_in_date || '',
       contract_expiration: latestRoom.contract_expiration || ''
     })
-    setAreaInput(String(latestRoom.area || ''))
     setMeterElectric(latestRoom.electric_new ?? latestRoom.electric_old ?? 0)
     setMeterWater(latestRoom.water_new ?? latestRoom.water_old ?? 0)
   }, [latestRoom])
+
+  useEffect(() => {
+    if (!isEditingArea) setAreaInput(String(room.area ?? ''))
+  }, [room.area, isEditingArea])
+
+  const areaUpdateMutation = useMutation({
+    mutationFn: (area: number) => updateRoom(room.id, { area }),
+    onSuccess: (updatedRoom) => {
+      queryClient.setQueryData(['room', room.id], updatedRoom)
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['room', room.id] })
+      setAreaError(null)
+      setIsEditingArea(false)
+    },
+    onError: (error: Error) => {
+      setAreaError(error.message || 'Không thể lưu diện tích. Vui lòng thử lại.')
+    }
+  })
+
+  const handleSaveArea = () => {
+    if (areaUpdateMutation.isPending) return
+    const area = Number(areaInput)
+    if (!areaInput.trim() || !Number.isFinite(area) || area <= 0) {
+      setAreaError('Diện tích phải là số lớn hơn 0 m².')
+      return
+    }
+    setAreaError(null)
+    areaUpdateMutation.mutate(area)
+  }
 
   const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ['invoices', room.id],
@@ -683,47 +712,66 @@ export const RoomDetailsModal: React.FC<RoomDetailsModalProps> = ({
                         <div>
                           <div className="text-xs text-gray-500 mb-1">Diện tích</div>
                           {isEditingArea ? (
-                            <div className="flex items-center gap-1.5">
-                              <input
-                                type="number"
-                                value={areaInput}
-                                onChange={(e) => setAreaInput(e.target.value)}
-                                onKeyDown={async (e) => {
-                                  if (e.key === 'Enter') {
-                                    const val = Number(areaInput) || undefined
-                                    await updateRoom(room.id, { area: val })
-                                    queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <input
+                                  type="number"
+                                  aria-label="Diện tích phòng (m²)"
+                                  aria-invalid={!!areaError}
+                                  min="0"
+                                  step="any"
+                                  disabled={areaUpdateMutation.isPending}
+                                  value={areaInput}
+                                  onChange={(e) => {
+                                    setAreaInput(e.target.value)
+                                    setAreaError(null)
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault()
+                                      handleSaveArea()
+                                    }
+                                    if (e.key === 'Escape' && !areaUpdateMutation.isPending) {
+                                      setAreaError(null)
+                                      setIsEditingArea(false)
+                                    }
+                                  }}
+                                  autoFocus
+                                  className="w-20 border border-blue-300 rounded px-2 py-0.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                                <span className="text-xs text-gray-500">m²</span>
+                                <button
+                                  type="button"
+                                  onClick={handleSaveArea}
+                                  disabled={areaUpdateMutation.isPending}
+                                  className="text-[11px] text-green-600 font-bold disabled:opacity-50"
+                                >
+                                  {areaUpdateMutation.isPending ? 'Đang lưu...' : 'Lưu'}
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={areaUpdateMutation.isPending}
+                                  onClick={() => {
+                                    setAreaError(null)
                                     setIsEditingArea(false)
-                                  }
-                                  if (e.key === 'Escape') setIsEditingArea(false)
-                                }}
-                                autoFocus
-                                className="w-20 border border-blue-300 rounded px-2 py-0.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-200"
-                              />
-                              <span className="text-xs text-gray-500">m²</span>
-                              <button
-                                onClick={async () => {
-                                  const val = Number(areaInput) || undefined
-                                  await updateRoom(room.id, { area: val })
-                                  queryClient.invalidateQueries({ queryKey: ['rooms'] })
-                                  setIsEditingArea(false)
-                                }}
-                                className="text-[11px] text-green-600 font-bold"
-                              >
-                                Lưu
-                              </button>
-                              <button
-                                onClick={() => setIsEditingArea(false)}
-                                className="text-[11px] text-gray-400"
-                              >
-                                Hủy
-                              </button>
+                                  }}
+                                  className="text-[11px] text-gray-400 disabled:opacity-50"
+                                >
+                                  Hủy
+                                </button>
+                              </div>
+                              {areaError && (
+                                <div role="alert" className="text-[11px] font-medium text-red-500">
+                                  {areaError}
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div
                               className="font-semibold text-gray-800 cursor-pointer hover:text-blue-600 flex items-center gap-1 group"
                               onClick={() => {
                                 setAreaInput(String(room.area || ''))
+                                setAreaError(null)
                                 setIsEditingArea(true)
                               }}
                             >

@@ -15,6 +15,13 @@ function load(relativePath, context) {
 }
 
 const emailAssets = load('src/shared/payment-email-assets.ts', {})
+const contractTemplate = load('src/shared/contract-email-template.ts', {})
+const contractAssets = load('src/shared/contract-email-assets.ts', {
+  require(name) {
+    if (name === './contract-email-template') return contractTemplate
+    return require(name)
+  }
+})
 const notificationAssets = load('src/shared/notification-email-assets.ts', {
   require(name) {
     if (name === './payment-email-assets') return emailAssets
@@ -26,12 +33,18 @@ test('packaged Gmail IPC exists and never loads Google or reads dev tokens', asy
   const handlers = new Map()
   let googleLoads = 0
   const gmail = load('src/main/gmail-dev.ts', {
+    process: { env: {} },
     require(name) {
       if (name === '../shared/payment-email-assets') return emailAssets
       if (name === '../shared/notification-email-assets') return notificationAssets
-      if (name === 'electron')
+      if (name === '../shared/contract-email-assets') return contractAssets
+      if (name === 'electron' || name === './trusted-ipc')
         return {
           app: { isPackaged: true },
+          trustedIpcMain: {
+            removeHandler: (name) => handlers.delete(name),
+            handle: (name, fn) => handlers.set(name, fn)
+          },
           ipcMain: {
             removeHandler: (name) => handlers.delete(name),
             handle: (name, fn) => handlers.set(name, fn)
@@ -61,12 +74,18 @@ test('packaged Gmail IPC exists and never loads Google or reads dev tokens', asy
 test('dev Gmail remains registered, availability does not load Google SDK', () => {
   const handlers = new Map()
   const gmail = load('src/main/gmail-dev.ts', {
+    process: { env: { DEV_GMAIL_CLIENT_ID: 'synthetic-client', DEV_GMAIL_CLIENT_SECRET: 'synthetic-secret' } },
     require(name) {
       if (name === '../shared/payment-email-assets') return emailAssets
       if (name === '../shared/notification-email-assets') return notificationAssets
-      if (name === 'electron')
+      if (name === '../shared/contract-email-assets') return contractAssets
+      if (name === 'electron' || name === './trusted-ipc')
         return {
           app: { isPackaged: false, getPath: () => 'mock-profile' },
+          trustedIpcMain: {
+            removeHandler: (name) => handlers.delete(name),
+            handle: (name, fn) => handlers.set(name, fn)
+          },
           ipcMain: {
             removeHandler: (name) => handlers.delete(name),
             handle: (name, fn) => handlers.set(name, fn)
@@ -186,10 +205,10 @@ test('benchmark never restores an authenticated session or auto-posts SePay', ()
     ),
     source.slice(
       source.indexOf(
-        '  useEffect(() => {\n    if (window.api?.perf.benchmarkMode || sepayBackgroundMatches'
+        '  useEffect(() => {\n    if (window.api?.perf.benchmarkMode || emailDeliveryAvailability?.sepayEnabled'
       ),
-      source.indexOf('\n  }, [queryClient, sepayBackgroundMatches])') +
-        '\n  }, [queryClient, sepayBackgroundMatches])'.length
+      source.indexOf('\n  }, [queryClient, sepayBackgroundMatches, emailDeliveryAvailability?.sepayEnabled])') +
+        '\n  }, [queryClient, sepayBackgroundMatches, emailDeliveryAvailability?.sepayEnabled])'.length
     )
   ]
   let ready = false
@@ -207,6 +226,7 @@ test('benchmark never restores an authenticated session or auto-posts SePay', ()
       passwordRecovery: false,
       queryClient: {},
       sepayBackgroundMatches: [{}],
+      emailDeliveryAvailability: { sepayEnabled: false },
       getCurrentSessionUser() {
         throw new Error('Live session accessed')
       },

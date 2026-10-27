@@ -1,0 +1,71 @@
+// Room 999 payment rehearsal. Memory-only: no Supabase, Electron invoice,
+// SePay webhook or email worker is called.
+import { build } from 'esbuild'
+import { createServer } from 'node:http'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+import { networkInterfaces } from 'node:os'
+import QRCode from 'qrcode'
+import { createManualFallback } from './manual-fallback.mjs'
+import { root, privateConfig } from '../../scripts/private-config.mjs'
+import { readCloudMeter } from '../../cloud/online-reader.mjs'
+import { assessReading } from '../../src/meter-policy.mjs'
+import { paymentBankFromEnv } from '../../server/payment-recipient.mjs'
+
+const env = await privateConfig()
+const lan = process.argv.includes('--lan')
+const dir = path.join(root, 'test/room999-payment/.runtime')
+await mkdir(dir, { recursive: true })
+const source = `import React from 'react';import{createRoot}from'react-dom/client';import TenantHome from './src/TenantHome';
+const profile={mode:'tenant',kind:'existing',simulation:true,name:'Khách kiểm nghiệm',room:'Phòng 999',contractId:'room999-sandbox',email:'room999@simulation.invalid',userId:'room999-sandbox',tenantId:'room999-sandbox',start:'2026-10-08',rent:3500000,floor:1,area:null,assets:[],services:{electricPrice:3200,waterPrice:35000,internetPrice:50000,cleaningPrice:70000},electricInitial:12600,waterInitial:280,invoiceDay:5};createRoot(document.getElementById('root')).render(<TenantHome profile={profile} onLogout={async()=>{}}/>);`
+const bundle = await build({ stdin: { contents: source, resolveDir: root, loader: 'tsx' }, bundle: true, write: false, format: 'iife', platform: 'browser', jsx: 'automatic' })
+await writeFile(path.join(dir, 'bundle.js'), bundle.outputFiles[0].contents)
+const revision = Date.now().toString(36)
+const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="stylesheet" href="/styles.css?v=${revision}"></head><body><div id="root"></div><script src="/bundle.js?v=${revision}"></script></body></html>`
+const cycle = { id: 'room999-sandbox-cycle', period: '2026-10-01', period_start: '2026-10-01', period_end: '2026-10-31', electric_old: 12600, water_old: 280, electric_new: null, water_new: null, invoice_id: null }
+const meterContexts = { electric: { previousReading: cycle.electric_old, elapsedDays: 30, maxDailyUsage: 40, recentDailyUsage: [3, 3.2, 3.4], spikeMultiplier: 3, minimumSpikeDailyUsage: 5 }, water: { previousReading: cycle.water_old, elapsedDays: 30, maxDailyUsage: 2, recentDailyUsage: [.23, .25, .27], spikeMultiplier: 3, minimumSpikeDailyUsage: .5 } }
+const reviews = new Map(); let invoice = null
+const manualFallback = createManualFallback(meterContexts)
+const MAX_METER_JPEG_BYTES = 2_962_482
+const MAX_METER_MULTIPART_BYTES = MAX_METER_JPEG_BYTES + 65_536
+const bank = (() => { try { return paymentBankFromEnv(env)||{ name: 'BIDV', account: 'TEST-ROOM-999', owner: 'Đỗ Kim Ngân' } } catch { return { name: 'BIDV', account: 'TEST-ROOM-999', owner: 'Đỗ Kim Ngân' } } })()
+async function readWithRetry(image, meter) {
+ let last
+ for (let attempt=0; attempt<3; attempt++) {
+  try { return await readCloudMeter(image,meter,env) } catch (cause) { last=cause;if(!['provider_busy','provider_unavailable'].includes(cause.message)||attempt===2)throw cause;await new Promise(resolve=>setTimeout(resolve,500*(attempt+1))) }
+ }
+ throw last
+}
+async function currentInvoice() { if (!invoice) return [];const remaining=Math.max(0,invoice.total_amount-invoice.paid_amount);const qr=await QRCode.toDataURL(`ANKHANGHOME-ROOM999-SANDBOX:${invoice.transferContent}`,{width:200,margin:1});return [{...invoice,remaining,qr}] }
+function json(res,status,value){res.statusCode=status;res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');res.end(JSON.stringify(value))}
+function requestError(reason,status=400){return Object.assign(new Error(reason),{status})}
+async function readBody(req,limit){const declared=Number(req.headers['content-length']);if(Number.isFinite(declared)&&declared>limit)throw requestError('Ảnh quá lớn. Hãy chọn ảnh nhỏ hơn.',413);const chunks=[];let size=0;for await(const chunk of req){const bytes=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);size+=bytes.length;if(size>limit)throw requestError('Ảnh quá lớn. Hãy chọn ảnh nhỏ hơn.',413);chunks.push(bytes)}return Buffer.concat(chunks)}
+async function jsonBody(req){if(!/^application\/json(?:\s*;|$)/i.test(String(req.headers['content-type']||'')))throw requestError('Yêu cầu không hợp lệ.',415);const raw=await readBody(req,4_100_000);try{const data=JSON.parse(raw.toString('utf8')||'{}');if(!data||typeof data!=='object'||Array.isArray(data))throw Error();return data}catch{throw requestError('Yêu cầu không hợp lệ.')}}
+function singleFormValue(form,name){const values=form.getAll(name);return values.length===1?values[0]:null}
+async function meterBody(req){const contentType=String(req.headers['content-type']||'');if(/^multipart\/form-data\s*;/i.test(contentType)){const raw=await readBody(req,MAX_METER_MULTIPART_BYTES);let form;try{form=await new Request('http://localhost/api/meter-ocr',{method:'POST',headers:{'Content-Type':contentType},body:raw}).formData()}catch{throw requestError('Ảnh hoặc loại công tơ không hợp lệ.')};const meter=singleFormValue(form,'meter'),contractId=singleFormValue(form,'contractId'),image=singleFormValue(form,'image');if(!['electric','water'].includes(meter)||typeof contractId!=='string'||!contractId||contractId.length>128||contractId.trim()!==contractId||/[\u0000-\u001f\u007f]/.test(contractId)||!image||typeof image==='string'||String(image.type||'').toLowerCase()!=='image/jpeg'||typeof image.arrayBuffer!=='function')throw requestError('Ảnh hoặc loại công tơ không hợp lệ.');if(!Number.isSafeInteger(image.size)||image.size<4)throw requestError('Ảnh hoặc loại công tơ không hợp lệ.');if(image.size>MAX_METER_JPEG_BYTES)throw requestError('Ảnh quá lớn. Hãy chọn ảnh nhỏ hơn.',413);const bytes=Buffer.from(await image.arrayBuffer());if(bytes.length!==image.size||bytes[0]!==0xff||bytes[1]!==0xd8||bytes[2]!==0xff)throw requestError('Ảnh hoặc loại công tơ không hợp lệ.');return{meter,contractId,image:`data:image/jpeg;base64,${bytes.toString('base64')}`}}if(!/^application\/json(?:\s*;|$)/i.test(contentType))throw requestError('Yêu cầu không hợp lệ.',415);return jsonBody(req)}
+function resetSandbox(){cycle.electric_new=null;cycle.water_new=null;cycle.invoice_id=null;invoice=null;reviews.clear();manualFallback.reset();delete cycle.electric_source;delete cycle.water_source}
+const server=createServer(async(req,res)=>{try{res.setHeader('Cache-Control','no-store');const url=new URL(req.url,'http://localhost'),name=url.pathname
+ if(req.headers.origin&&new URL(req.headers.origin).host!==req.headers.host)return json(res,403,{ok:false,reason:'Yêu cầu phải xuất phát từ trang kiểm nghiệm.'})
+ if(name==='/test-tools'){
+  res.setHeader('Content-Type','text/html; charset=utf-8');res.setHeader('Cache-Control','no-store')
+  res.end('<!doctype html><html lang="vi"><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/styles.css"><title>Công cụ kiểm thử phòng 999</title></head><body><main style="max-width:440px;margin:32px auto;padding:20px"><h1>Công cụ kiểm thử</h1><p>Dữ liệu chỉ lưu trong RAM. QR không chuyển tiền được; không chuyển khoản thủ công vào tài khoản hiển thị.</p><button class="primary-button" id="paid">Ghi nhận thanh toán thử</button><p role="status" id="status"></p><p><a href="/?screen=payment">Mở giao diện khách thuê</a></p><p><a href="/reset">Bắt đầu lại</a></p></main><script>document.getElementById("paid").onclick=async()=>{const status=document.getElementById("status");status.textContent="Đang xử lý…";try{const state=await (await fetch("/api/tenant-payments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"state"})})).json();const invoice=state.invoices[0];if(!invoice)throw new Error("Chưa có hóa đơn. Hoàn tất điện và nước trước.");const result=await (await fetch("/api/sandbox-payment",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({invoiceId:invoice.id})})).json();if(!result.ok)throw new Error(result.reason);status.textContent="Đã ghi nhận trong RAM. Mở lại giao diện khách thuê để xem trạng thái."}catch(error){status.textContent=error.message}};</script></body></html>');return
+ }
+ if(name.startsWith('/api/')){const data=name==='/api/meter-ocr'?await meterBody(req):await jsonBody(req)
+  if(name==='/api/meter-ocr'){if(invoice)return json(res,409,{ok:false,reason:'Da lap hoa don mo phong. Bat dau lai kiem nghiem de doi chi so.'});const meter=data.meter;if(!['electric','water'].includes(meter))return json(res,400,{ok:false,reason:'Loại công tơ không hợp lệ.'})
+   if(data.mode==='simulation'){const reading=meter==='electric'?12692:287;const assessment=assessReading(reading,meter,meterContexts[meter]);if(assessment.status!=='pass')return json(res,400,{ok:false,reason:assessment.reason,assessment});const reviewToken=crypto.randomUUID();reviews.set(reviewToken,{meter,reading,expiresAt:Date.now()+600000});return json(res,200,{ok:true,reading,digits:String(reading),unit:meter==='electric'?'kWh':'m3',source:'ai-ocr',simulation:true,assessment,reviewToken,needsConfirmation:true})}
+   if(data.mode==='manual'){const result=manualFallback.confirm(data);if(result.ok){cycle[`${meter}_new`]=data.reading;cycle[`${meter}_source`]='manual'}return json(res,result.ok?200:400,result)}
+   if(data.mode==='check'){const review=reviews.get(data.reviewToken);if(!review||review.meter!==meter||review.expiresAt<Date.now())return json(res,400,{ok:false,reason:'Ảnh kiểm nghiệm đã hết hạn. Hãy chọn lại ảnh.'});const assessment=assessReading(data.reading,meter,meterContexts[meter]);if(assessment.status!=='pass')return json(res,400,{ok:false,reason:assessment.reason,assessment});cycle[`${meter}_new`]=data.reading;review.confirmed=true;return json(res,200,{ok:true,assessment,source:data.reading===review.reading?'ai-ocr':'manual',confirmationToken:data.reviewToken})}
+   let result;try { result=await readWithRetry(data.image,meter) } catch (cause) { manualFallback.failed(meter);const messages={provider_busy:'Gemini đang bận. Hãy thử lại sau ít giây.',provider_unavailable:'Gemini chưa sẵn sàng.',provider_quota:'Gemini đã đạt giới hạn lượt đọc.'};return json(res,503,{ok:false,reason:messages[cause.message]||'Gemini chưa đọc được ảnh. Hãy chụp lại.'}) }if(!result.ok){if(!result.reason?.includes('chưa xác định đúng công tơ'))manualFallback.failed(meter);return json(res,200,{...result,ok:false})};const assessment=assessReading(result.reading,meter,meterContexts[meter]);if(assessment.status!=='pass'){manualFallback.failed(meter);return json(res,200,{...result,ok:true,assessment,reviewToken:null})};const reviewToken=crypto.randomUUID();for(const [token,review] of reviews)if(review.expiresAt<Date.now())reviews.delete(token);reviews.set(reviewToken,{meter,reading:result.reading,expiresAt:Date.now()+600000});return json(res,200,{...result,ok:true,assessment,reviewToken,needsConfirmation:true})
+  }
+  if(name==='/api/tenant-payments'){if(data.action==='create'){if(invoice)return json(res,200,{ok:true,invoiceId:invoice.id});if(cycle.electric_new==null||cycle.water_new==null)return json(res,409,{ok:false,reason:'Cần xác nhận cả điện và nước.'});const eu=cycle.electric_new-cycle.electric_old,wu=cycle.water_new-cycle.water_old,total=3500000+50000+70000+eu*3200+wu*35000;invoice={id:'room999-sandbox-invoice',month:10,year:2026,invoice_date:'2026-10-08',due_date:'2026-10-13',billing_period_start:'2026-10-01',billing_period_end:'2026-10-31',billing_reason:'monthly',electric_old:cycle.electric_old,electric_new:cycle.electric_new,electric_usage:eu,electric_cost:eu*3200,electric_price_snapshot:3200,water_old:cycle.water_old,water_new:cycle.water_new,water_usage:wu,water_cost:wu*35000,water_price_snapshot:35000,room_cost:3500000,wifi_cost:50000,garbage_cost:70000,old_debt:0,total_amount:total,paid_amount:0,payment_status:'unpaid',transferContent:'P999T102026CROOM999TEST'};cycle.invoice_id=invoice.id;return json(res,200,{ok:true,invoiceId:invoice.id})}return json(res,200,{ok:true,cycle,invoices:await currentInvoice(),bank,notices:[],manualFallback:manualFallback.available(),nextDate:'2026-11-05',simulation:{noWrites:true,lan,label:'Phòng 999 · kiểm nghiệm'}})}
+  if(name==='/api/sandbox-payment'){if(!invoice||data.invoiceId!==invoice.id)return json(res,404,{ok:false,reason:'Chưa có hóa đơn kiểm nghiệm.'});invoice.paid_amount=invoice.total_amount;invoice.payment_status='paid';invoice.payment_date='2026-10-08';return json(res,200,{ok:true,simulation:true})}
+  if(name==='/api/sandbox-reset'){resetSandbox();return json(res,200,{ok:true,simulation:true})}
+  return json(res,404,{ok:false,reason:'Không tìm thấy API kiểm nghiệm.'})}
+ if(name==='/reset'){resetSandbox();res.statusCode=302;res.setHeader('Location','/?screen=payment');res.end();return}
+ const target=name==='/bundle.js'?path.join(dir,'bundle.js'):name==='/styles.css'?path.join(root,'src/styles.css'):name.startsWith('/assets/')?path.join(root,'public',name):null;const content=target?await readFile(target):html;res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':name.endsWith('.webp')?'image/webp':name.endsWith('.png')?'image/png':'text/html; charset=utf-8');res.end(content)
+ }catch(cause){json(res,cause.status||500,{ok:false,reason:cause.message||'Không xử lý được kiểm nghiệm.'})}})
+server.on('error',cause=>{console.error(cause.code==='EADDRINUSE'?'Cong 5298 dang duoc su dung. Dong ban kiem nghiem cu roi chay lai.':cause.message);process.exitCode=1})
+server.listen(5298,lan?'0.0.0.0':'127.0.0.1',()=>{
+ console.log('ROOM 999 PAYMENT SANDBOX: http://127.0.0.1:5298/?screen=payment | reset: /reset | memory-only, no database writes')
+ if(lan)for(const addresses of Object.values(networkInterfaces()))for(const address of addresses||[])if(address.family==='IPv4'&&!address.internal)console.log(`DIEN THOAI CUNG WIFI: http://${address.address}:5298/?screen=payment`)
+})

@@ -68,7 +68,7 @@ const helper = ts.transpileModule(`${transferSource}\nexport ${words.getText(ast
 if (/\b(?:import|require)\s*(?:\(|['"{*])/.test(helper)) throw new Error('Electron helpers must remain pure.')
 const bundle = await build({ entryPoints: [path.join(root, 'cloud/edge.mjs')], bundle: true, write: false, format: 'esm', platform: 'node', target: 'es2022', external: ['node:*'], plugins: [{
   name: 'pure-electron-helpers-and-deno-packages', setup(plugin) {
-    plugin.onResolve({ filter: /^\.\/electron-transfer-adapter\.mjs$/ }, () => ({ path: 'electron-pure', namespace: 'pure' }))
+    plugin.onResolve({ filter: /electron-transfer-adapter\.mjs$/ }, () => ({ path: 'electron-pure', namespace: 'pure' }))
     plugin.onLoad({ filter: /.*/, namespace: 'pure' }, () => ({ contents: helper, loader: 'js' }))
     plugin.onResolve({ filter: /^(qrcode|jpeg-js)$/ }, args => ({ path: args.path === 'qrcode' ? 'npm:qrcode@1.5.4' : 'npm:jpeg-js@0.4.4', external: true }))
   }

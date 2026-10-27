@@ -22,7 +22,7 @@ await testManagement(env,'/database/query',{query:testReset})
 const emailSeparation=(await readFile(path.join(root,'../supabase/migrations/20261008220000_tenant_system_email_separation.sql'),'utf8')).replaceAll('public.',`${schema}.`).replaceAll('search_path=public',`search_path=${schema}`)
 await testManagement(env,'/database/query',{query:emailSeparation})
 
-for (const file of ['20261008223000_contract_account_visibility.sql', '20261008224000_contract_wrong_email_cancellation.sql', '20261008233000_tenant_auth_provisioning.sql']) {
+for (const file of ['20261008223000_contract_account_visibility.sql', '20261008224000_contract_wrong_email_cancellation.sql', '20261008233000_tenant_auth_provisioning.sql', '20261008235000_contract_test_without_notice.sql']) {
  const rules=(await readFile(path.join(root,'../supabase/migrations',file),'utf8')).replaceAll('public.',`${schema}.`).replaceAll('search_path=public',`search_path=${schema}`)
  await testManagement(env,'/database/query',{query:rules})
 }

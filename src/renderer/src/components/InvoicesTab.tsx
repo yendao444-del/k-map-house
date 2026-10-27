@@ -1720,6 +1720,7 @@ export const InvoicesTab: React.FC<{
         <SePaySyncModal
           invoices={sepayInvoices}
           rooms={rooms}
+          userId={currentUser?.id}
           onClose={() => setShowSePaySync(false)}
         />
       )}

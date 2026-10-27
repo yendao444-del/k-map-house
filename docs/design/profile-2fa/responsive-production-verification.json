@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-10-12T07:26:54.936Z",
+  "url": "https://app.phongtroankhang.com",
+  "buildId": "7300445e89d78cf8",
+  "profileAsset": "ProfileModal-BYwIC5Lc.js",
+  "sha256": "aa430d1fcb16862b641b7d06fa2f5efed55468cda8e1449e35c5da905377a083",
+  "stylesheet": "index-BOmMdtbN.css",
+  "stylesheetSha256": "07769347da37fb73f06d1a3396726203e4cbeb8028e451b22b8977d69fd7137d",
+  "remoteMatchesLocal": true,
+  "profile2faPresent": true,
+  "responsiveVerified": true,
+  "qaFixtureNotPublished": true
+}

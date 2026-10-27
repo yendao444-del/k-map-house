@@ -1,4 +1,6 @@
-import { app, shell, BrowserWindow, ipcMain, clipboard, dialog, ClipboardItem } from 'electron'
+import { app, shell, BrowserWindow, clipboard, dialog, ClipboardItem } from 'electron'
+import { registerTrustedRenderer, trustedIpcMain as ipcMain } from './trusted-ipc'
+import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
 import { basename, dirname, extname, join, resolve } from 'path'
 import { tmpdir } from 'os'
@@ -16,6 +18,7 @@ import { registerDevGmailHandlers, startDevGmailOAuth } from './gmail-dev'
 import { reportTelegramError } from './telegram-reporter'
 import { registerTenantIdentityHandlers } from './tenant-identity-handlers'
 import { registerContractTestLauncher } from './contract-test-launcher'
+import { registerDevDevice } from './dev-device'
 
 type MarketScanRequest = {
   propertyAddress: string
@@ -239,6 +242,16 @@ function setupInvestmentHandlers(): void {
   ipcMain.removeHandler('investment:read')
   ipcMain.removeHandler('investment:write')
   ipcMain.removeHandler('investment:fundNav')
+  ipcMain.removeHandler('investment:myHanhGold')
+  ipcMain.handle('investment:myHanhGold', async () => {
+    const { fetchMyHanhGoldPrices } = await import('./my-hanh-gold')
+    return fetchMyHanhGoldPrices(join(app.getPath('userData'), 'my-hanh-estimate-history.json'))
+  })
+  ipcMain.removeHandler('investment:myHanhGoldHistory')
+  ipcMain.handle('investment:myHanhGoldHistory', async () => {
+    const { fetchMyHanhGoldHistory } = await import('./my-hanh-gold')
+    return fetchMyHanhGoldHistory(join(app.getPath('userData'), 'my-hanh-estimate-history.json'))
+  })
   ipcMain.handle('investment:read', () => readInvestmentStore())
   ipcMain.handle('investment:fundNav', async (_event, symbol: string) => {
     const { fetchFundNav } = await import('./fund-nav')
@@ -776,6 +789,7 @@ function setupSupabaseAdminHandlers(): void {
   ipcMain.handle('supabase:admin:createUser', async (_event, data: {
     email: string; password: string; full_name: string; username?: string
   }, accessToken: string) => {
+    if (typeof data.password !== 'string' || data.password.length < 12) return { ok: false, error: 'Mật khẩu quản trị phải có ít nhất 12 ký tự.' }
     const auth = await verifyAdminAccessToken(accessToken)
     if (!auth.ok) return auth
     return supabaseAdminRequest('POST', '/auth/v1/admin/users', {
@@ -787,6 +801,7 @@ function setupSupabaseAdminHandlers(): void {
   })
 
   ipcMain.handle('supabase:admin:resetPassword', async (_event, userId: string, newPassword: string, accessToken: string) => {
+    if (typeof newPassword !== 'string' || newPassword.length < 12) return { ok: false, error: 'Mật khẩu quản trị phải có ít nhất 12 ký tự.' }
     const auth = await verifyAdminAccessToken(accessToken)
     if (!auth.ok) return auth
     return supabaseAdminRequest('PUT', `/auth/v1/admin/users/${userId}`, { password: newPassword })
@@ -1288,6 +1303,14 @@ function createWindow(): void {
     event.preventDefault()
   })
 
+  // The toolkit suppresses Ctrl+R in packaged builds. Handle recovery in the
+  // main process so a waiting renderer request cannot trap the user.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.code !== 'KeyR' || !(input.control || input.meta) || input.alt) return
+    event.preventDefault()
+    mainWindow.webContents.reload()
+  })
+
   mainWindow.on('ready-to-show', () => {
     writeStartupMark('window-ready-to-show')
     writeDebugLog('window:ready-to-show')
@@ -1390,6 +1413,11 @@ function createWindow(): void {
     void reportTelegramError('preload-error', { preloadPath, message: error.message, stack: error.stack })
   })
 
+  const safeRendererUrl = 'data:text/html;charset=utf-8,<html><body><h1>AN KHANG HOME Safe Window</h1></body></html>'
+  const rendererFile = join(__dirname, '../renderer/index.html')
+  const devRendererUrl = is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined
+  registerTrustedRenderer(mainWindow, useSafeWindow ? safeRendererUrl : devRendererUrl || pathToFileURL(rendererFile).href)
+
   mainWindow.webContents.setWindowOpenHandler((details) => {
     try {
       const url = new URL(details.url)
@@ -1402,13 +1430,11 @@ function createWindow(): void {
   })
 
   if (useSafeWindow) {
-    mainWindow.loadURL(
-      'data:text/html;charset=utf-8,<html><body><h1>AN KHANG HOME Safe Window</h1></body></html>'
-    )
-  } else if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    mainWindow.loadURL(safeRendererUrl)
+  } else if (devRendererUrl) {
+    mainWindow.loadURL(devRendererUrl)
   } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    mainWindow.loadFile(rendererFile)
   }
 }
 
@@ -1447,6 +1473,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   registerDevGmailHandlers()
   registerTenantIdentityHandlers()
   registerContractTestLauncher()
+  registerDevDevice()
   writeStartupMark('all-ipc-ready')
   createWindow()
   writeStartupMark('window-created')

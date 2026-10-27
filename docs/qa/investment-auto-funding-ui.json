@@ -1,0 +1,62 @@
+{
+  "verifiedAt": "2026-10-21T05:41:54.161Z",
+  "fixtureOnly": true,
+  "checks": [
+    {
+      "platform": "electron",
+      "category": "gold",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "electron",
+      "category": "stocks",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "electron",
+      "category": "bonds",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "electron",
+      "category": "savings",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "pwa",
+      "category": "gold",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "pwa",
+      "category": "stocks",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "pwa",
+      "category": "bonds",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    },
+    {
+      "platform": "pwa",
+      "category": "savings",
+      "cancelNoWrites": true,
+      "exactShortfall": 9000000,
+      "insufficientBlocked": true
+    }
+  ]
+}

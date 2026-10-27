@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-10-09T08:53:05.407Z",
+  "mode": "read-only; no Pages/DNS/Auth mutation",
+  "domain": "app.phongtroankhang.com",
+  "intendedProject": "ankhanghome-admin-pwa",
+  "projectRead": {
+    "status": 200,
+    "success": true,
+    "exists": true,
+    "existingDomainOwner": [
+      "ankhanghome-admin-pwa"
+    ],
+    "errors": []
+  },
+  "zoneRead": {
+    "status": 200,
+    "success": true,
+    "matchingZones": 0,
+    "errors": []
+  },
+  "dns": {
+    "checked": false
+  },
+  "publicResponse": {
+    "reachable": true,
+    "status": 200,
+    "finalUrl": "https://app.phongtroankhang.com/",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "publicDns": {
+    "nameservers": [
+      "aurora.ns.cloudflare.com",
+      "rudy.ns.cloudflare.com"
+    ],
+    "soa": {
+      "primary": "aurora.ns.cloudflare.com",
+      "administrator": "dns.cloudflare.com"
+    }
+  },
+  "credentialSources": [
+    {
+      "source": "../../.env",
+      "status": 200,
+      "success": true,
+      "matchingZones": 0,
+      "errorCodes": []
+    }
+  ],
+  "invariants": [
+    "Only app.phongtroankhang.com is in deployment scope.",
+    "Do not overwrite any existing unrelated DNS record/project.",
+    "pay.phongtroankhang.com and root/www site remain untouched.",
+    "PWA must use HTTPS for installation and service workers."
+  ]
+}

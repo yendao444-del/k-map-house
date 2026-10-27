@@ -1,0 +1,630 @@
+{
+  "CapturedAt": "2026-10-09T02:55:07.8151663+00:00",
+  "Executable": "G:\\PHONG TRO\\app\\dist\\win-unpacked\\DBY Home.exe",
+  "ExecutableSHA256": "3ACC30EB89713FA3C83E7E93A68A2F9A4FF8CB5244ED119475B482FD233973B8",
+  "UnpackedFiles": [
+    {
+      "Path": "node_modules\\@img\\colour\\color.cjs",
+      "SHA256": "F7C3EFCF482624007F2019FFFEE3E1DEC56B8CB893FAA9A420B2832805888DCE"
+    },
+    {
+      "Path": "node_modules\\@img\\colour\\index.cjs",
+      "SHA256": "E6E93E7FB209420A20FDF2EC676E9C67413BE8D5ACE99EEC64F9468480F0368D"
+    },
+    {
+      "Path": "node_modules\\@img\\colour\\package.json",
+      "SHA256": "D8DE837C60986566EF156246162F79D5EBC90D9DFE515F3207406759962B4B14"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\index.cjs",
+      "SHA256": "6ECBD583F45E914233410FE83A614E4F5FF1A6875A7EB828B03B7258E8BA6944"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\lib\\libvips-42.dll",
+      "SHA256": "06DAB07CC386748513337A31672B1D5269FBC770A14FF403080575665BF0813F"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\lib\\libvips-cpp-8.18.7.dll",
+      "SHA256": "25001DBD05305A0A29119AB49933622C70B4A20EA12EF1D5D20CA40181DB53BF"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\lib\\sharp-win32-x64-0.35.5.node",
+      "SHA256": "971048779F9C8598DF14641DFC03C625885C93F473A788E65CA2DEB50D0B083E"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\LICENSE",
+      "SHA256": "DC1F5D2D43C5531DFE0ACAF4E950EA5DBE3E61E1850CF0E983BDA7EFC10D6693"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\package.json",
+      "SHA256": "697B3D89590E3B988B51764BD22DFD6F4A1B35CD4EB12C664ECA7987E8EE6115"
+    },
+    {
+      "Path": "node_modules\\@img\\sharp-win32-x64\\versions.json",
+      "SHA256": "E2611D5D854815A8B33C8A3D2EC649511A9596CCF16844E8EAE7CF81E79881C4"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\channel.cjs",
+      "SHA256": "7445567E8001F4BE3126374E4C17E282777ED14C718ACCA875C91BEC69A2D7A1"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\channel.mjs",
+      "SHA256": "6067B0BA5EBCC9682A01D0B450A12B54849A95C8ED017F8485BDDB5FD0B9DB91"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\colour.cjs",
+      "SHA256": "DA760186E75D4FD8B6DA0A617ECF122DEEC2FA6D95FDCC194BBEE0CB1C5E4605"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\colour.mjs",
+      "SHA256": "760E7FA8161432A9CC97F0A3D9F3E0B757E66089C967E6B36F3131C9FDAFA1B5"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\composite.cjs",
+      "SHA256": "6E0837309D25C2B642D42B557F3E1292C2B057AF09746647A3A6D54DE772A157"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\composite.mjs",
+      "SHA256": "16EADC26BA57417E90E4BB73AFF1116B56AD26766088793AB0B7C4BBDD2BC9FC"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\constructor.cjs",
+      "SHA256": "6B8978E0F1614D83A219CBBD455E3EED7922BC4212A5B3B99C5D37C3AF3B3226"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\constructor.mjs",
+      "SHA256": "8BE8DA679D2A028D0F53B02CE52F07F295134A297CAF3068944CD8D0B57AB3D1"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\index.cjs",
+      "SHA256": "D69F275BC49FCD2A6188B26B35C986D4DB32A1B008653FEF88ADB4598688232A"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\index.mjs",
+      "SHA256": "0E8F955C68A1B0BCCF0BA5343C924DBFA6A46A76A0D491EC27FE6B328311363E"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\input.cjs",
+      "SHA256": "E5EB5C891C0893098DBE8BC0358A2F2C7E800581018923A7956732FE1A5DDF8F"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\input.mjs",
+      "SHA256": "4B0A51E678F9022CEC06A1FFB34E17EA3498CFB707492B54DE87541CCAC54125"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\is.cjs",
+      "SHA256": "46FA32E93964D8A31D6E851DC3BB7F3EC36935F9E8323B59603FF6CD84A7FAA7"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\is.mjs",
+      "SHA256": "96A3B1B82D389B7B57569332FED93E46CF9B5AA79F2BABB82CBB15FE1581A409"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\libvips.cjs",
+      "SHA256": "3419F6CB4303FEAF4A76ABE122CE1CAF5DC755F9F17FA013AFD5561827B61062"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\libvips.mjs",
+      "SHA256": "D9984601B0AAFE44C393B29CE4B0712B1C40890C3D740D4FDA49842A4EA5873D"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\operation.cjs",
+      "SHA256": "11EB4921F37E4E06C0B349F55E186852CDD094203CC3C5651681801EEA5D80F8"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\operation.mjs",
+      "SHA256": "A3B14C3A13305DBE8FDE48A263D13B0A104DCB97AFC65FE5F55B8E556D054BE1"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\output.cjs",
+      "SHA256": "4C2878241A264095B661FB321ACCF86FA9BE033BFE541D5A70AC2F8D80150893"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\output.mjs",
+      "SHA256": "D1BE82AACE2D7F96BFC29E6E76538521FC8DFE6D4E90F7EDA71A8F4C2A1597BA"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\resize.cjs",
+      "SHA256": "E03DCE87AAEE233FECF191EC3C713A9F856E13D0D9CCD7B0A7DBF35B65E36538"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\resize.mjs",
+      "SHA256": "E3D26F31CF391E28F3F96E708CCB96745CF016E18F8EF4486C837E5EFCB3C922"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\sharp.cjs",
+      "SHA256": "76120D3971051FCC469C0BFA36E7B23D3C388B6A2F5785BF1491BBDB90FF0176"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\sharp.mjs",
+      "SHA256": "D0C3CE3837636A140E8363850823E3B8DC2B000928303664CC9FC1AA2BA326EE"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\utility.cjs",
+      "SHA256": "0F7A14858DFA8EBD01B2C6C2272297F7A34C4AF3D84F0C0B926146C49A2655B1"
+    },
+    {
+      "Path": "node_modules\\sharp\\dist\\utility.mjs",
+      "SHA256": "761566E165BC1FC90BC6DD67A3B560C1A63E6CFE98009B726D35288606D629B9"
+    },
+    {
+      "Path": "node_modules\\sharp\\install\\build.js",
+      "SHA256": "FEA92E0D55CCE8692413C479021173AA1512304E1B849039949CBEE9D6CEB1DE"
+    },
+    {
+      "Path": "node_modules\\sharp\\LICENSE",
+      "SHA256": "73BA74DFAA520B49A401B5D21459A8523A146F3B7518A833EEA5EFA85130BF68"
+    },
+    {
+      "Path": "node_modules\\sharp\\package.json",
+      "SHA256": "0CC09C779DA7380AAC6A45A51EB50D4CBD7F0DA207CAC166067B6DB0968D3609"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\common.h",
+      "SHA256": "70A4F13F5E56A956EDD8340066240865E39D3039157BD511930DE2BF5AA17BA9"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\metadata.h",
+      "SHA256": "5E02C25EC821A525B0CAF31161B1E8675FF32CFD098C17CDA0B888440362B057"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\operations.h",
+      "SHA256": "6F41D329634471DFF8E093D12E38FF356293079E2AEECC5B922FC23BA99799E6"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\pipeline.h",
+      "SHA256": "E09C3DBD873071A373E6D95679B470A6FE1BE5FC2EF781B00FD87958B5AB5E98"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\stats.h",
+      "SHA256": "DB854F0C3C4A0DB1751021ED676413C6D5CA00BECC08BDC13258B29047450B8C"
+    },
+    {
+      "Path": "node_modules\\sharp\\src\\utilities.h",
+      "SHA256": "0B126AB63CF1AEDF8E71E6CB8179899D3EF02C46419100E847B2CA4284B8901B"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\index.js",
+      "SHA256": "CC5D319080BC2EF3C288128690EA598C8CBC1D1F2F13A6A750C0BA344FF5A162"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\LICENSE",
+      "SHA256": "C6596EB7BE8581C18BE736C846FB9173B69ECCF6EF94C5135893EC56BD92BA08"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\package.json",
+      "SHA256": "C204FEC97B7936F3E957C3ADAA971E37B1E49620C7CC6D363B6F3D0964DBB8BC"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-lstm.js",
+      "SHA256": "6510EFC4E8B45C5465DF30679B9911FFE0071CD2EE982FA064E6F5136EF2DE85"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-lstm.wasm",
+      "SHA256": "66B17DF6E20C5329A17FFA9C202A47EAA3E32500B253D4C7F38E7F2BC01457C3"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-lstm.wasm.js",
+      "SHA256": "EEF5F8B2F8E20E150680B20ADAEC4A60BABAFEE3ADBE8A94583C81FEE46E8680"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd-lstm.js",
+      "SHA256": "A37AC78B707E8D5D3D2E532CC3C4E69B04D127EA44A608F1E7DE17640402AA5C"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd-lstm.wasm",
+      "SHA256": "7985C92D4C64E7267D24CADFFE1B2A1DA6BF8AA55FDCAF953FE94FE122A24545"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd-lstm.wasm.js",
+      "SHA256": "861A536CF9EF8E63CB644D57BAB39C388F37F7D6B6F60024B741C5F6B39A59B3"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd.js",
+      "SHA256": "716BE037611F21B568347421F582F1E1A6456B6D5C3A7C2406C8A2A6C0136427"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd.wasm",
+      "SHA256": "45F8C9B516DF326B6AE6B493ED3A6289DF5CBD10490E7B6FF8BF5B12EA42D1DA"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-relaxedsimd.wasm.js",
+      "SHA256": "843074AA5BAD1CC6421B74A86201768CED9F244795E4D81435435A61A40CE535"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd-lstm.js",
+      "SHA256": "E48E2F02DDAE3716C8DD24BF41CD290D4EFA96892D689CDC4013C2545D63F469"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd-lstm.wasm",
+      "SHA256": "34E8D50CAC216427D86BF397D610FDD9F49492539BBCDFBFCCC4EDA20C810BEA"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd-lstm.wasm.js",
+      "SHA256": "C58B46A4C796C0B8AFCCF77591D5B875B6896B45D402BBCE8CAA6F5362447B38"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd.js",
+      "SHA256": "DA428FD7989BA749855EA16718A83B23E7CE04016FE31866AD2735813EFC7133"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd.wasm",
+      "SHA256": "7D237A13EDFEB0FA2F104744FCCDE0A00E0C076C3E23B7A8FC7AF75EC9AF2C3E"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core-simd.wasm.js",
+      "SHA256": "6B61EF4E911B5CF57E656BBFE983D6E2B3711A02DD164154DDDA064566E8E09D"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core.js",
+      "SHA256": "A824C1B99A19E122D87E4467FE16AABB56C495D6CC9A08BC58CB8A7342636B43"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core.wasm",
+      "SHA256": "C7F5ACE62AC0AD065E71E9C6725F1D7CDF82E7EDA8FBA532CBB9563964DA7098"
+    },
+    {
+      "Path": "node_modules\\tesseract.js-core\\tesseract-core.wasm.js",
+      "SHA256": "0BC6CE3E5FBBD0CD89706CF2FD70960E3372F4F01EE24265B26990808AAEB286"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\dist\\tesseract.esm.min.js",
+      "SHA256": "64871D76C75609FD5413B88A8171E2EF40DEEDD77D5875BA23DF104B2D05EB29"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\dist\\tesseract.min.js",
+      "SHA256": "000C27D9CD0DEF655F77B36C72A389C0AB13793AA31CB4D7AAB56D09C0AFBC7E"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\dist\\tesseract.min.js.LICENSE.txt",
+      "SHA256": "CDF963CED7D25A0F98901A547647B4D6E2DBE0197FD78C87A059A87B0E542FE2"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\dist\\worker.min.js",
+      "SHA256": "576B7DF7E3393E137E51849357C9ADB53FE7AC1BB69BFA06CF3D61520F182C6D"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\dist\\worker.min.js.LICENSE.txt",
+      "SHA256": "45F54171AEAA1D10C0C1A66F374B7BBA1F02472B1487FBE892EEC04F840002AC"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\package.json",
+      "SHA256": "98132FFFD056413D5187F908E3CE866C23606538E4216E6BAA2F0748F7DA3684"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\scripts\\rollup.esm.mjs",
+      "SHA256": "EF7D5A2644B2C4605E85BF416B93A5516B7DE4FE4DF8E30DB2D63074ED7529C2"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\scripts\\server.js",
+      "SHA256": "5CD640B147B7D29D5DBB7924EB6C8A4D84CA2894A15912B8F6222E4287ADF754"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\scripts\\test-helper.mjs",
+      "SHA256": "CC69ECE57FB789A7E2505940E16904D851ED39EBE46A23104C2D9D8D30CA512E"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\scripts\\webpack.config.common.js",
+      "SHA256": "D333039F12D485B2A54FCDB1AA6D6CD459148F01F1D66359B607EFF1898F1A30"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\scripts\\webpack.config.prod.js",
+      "SHA256": "E6134FED4003ABEDAC5316DF0AD2B8B9E25CDA9E9779BC7B8E74A10E84BA371C"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\constants\\defaultOptions.js",
+      "SHA256": "C133A00E603DDE9AE7AA2B5A59FA3DED7CDD5C1846AF1C36940BD866C7F09D1B"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\constants\\imageType.js",
+      "SHA256": "64DF6196DF12DF3B9CD2009556D21C9DA421CF6F8D6960F05ECE04CF6963280F"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\constants\\languages.js",
+      "SHA256": "C1DE5AC399D8DD62E6763EE7936B2E6241A05ABAC11E8925414386B1CC0BC4F8"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\constants\\OEM.js",
+      "SHA256": "01235A54415543FDDF2C8C114328500FE6027E5FF5C084FE9D9A491C7895A442"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\constants\\PSM.js",
+      "SHA256": "3780FFD6BCD377D943546D42D3B00221D2D62F9A1C1F1DF2BC8AED98ED48C3F3"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\createJob.js",
+      "SHA256": "E96D0EDB2D5FE1011F31F135518F0E79D934C6C3A512E66E87C4A3C4CFC601A1"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\createScheduler.js",
+      "SHA256": "2F456F3EC13E5C89F32B52F5CEF69AD3AA5BCB7AF6E4A3D72997F57F054C7532"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\createWorker.js",
+      "SHA256": "730C82036C801416256CDBF4BF36DF934B0F25F2DCB3913454BCCD9E2CFDB857"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\index.js",
+      "SHA256": "882360F8435A9F2B80265FFFC5DF2A7C849C39AFD05C36FFD89DB9D1024979D0"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\Tesseract.js",
+      "SHA256": "5EDDC3F16FB0643F9CD4B7F1F8FD71316C262A0D2C29A5AC2FF9D6F5F2C03F7B"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\utils\\getEnvironment.js",
+      "SHA256": "90867901571990B7B8665567A81E10C827DA9A1D2642328A619F9704F0A7EAEF"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\utils\\getId.js",
+      "SHA256": "F27F8C6C0BBE48CB49DCD73AFA4C3797C9701FCE0D1E63A09185B3C1267CFE55"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\utils\\log.js",
+      "SHA256": "979B83C424EE6440894C51B0B0A41629F67E130D721FC33D2C703E60203FC3AD"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\utils\\resolvePaths.js",
+      "SHA256": "55333A374178C5C4BA30200A5F0471FB3523575062436CB9CA215FC19E7A7686"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\browser\\cache.js",
+      "SHA256": "7D6355676F282E48BA6C95242880EC6131570E21258F2CB7B8D23A1406B8247B"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\browser\\getCore.js",
+      "SHA256": "1B02AE0477AF3201147C7BA4AC8F19248940B8E185A38F1F1E9F97A017280412"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\browser\\gunzip.js",
+      "SHA256": "91228AFC0954F53C64E4428017DD0764AE51435164C17DCF4098E2B077431789"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\browser\\index.js",
+      "SHA256": "ED824CC16D15782A2764CB6264FB5F677C60D5BDE92D03F7AB0537B3D818027C"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\constants\\defaultOutput.js",
+      "SHA256": "0BBCE30AB5AF59468849E19FA3EC01CAF93E7A0760CB69B2A8955EE6D17D3909"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\index.js",
+      "SHA256": "A5759D6D3D8BEDA31134DD041E2D3482B3ADF26B6DA4A3E7DA9B1C5379114268"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\node\\cache.js",
+      "SHA256": "815947619B583B3BBE91CAB4AA9825DB0987E26F8DC762E14A11C592EB70DBBD"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\node\\getCore.js",
+      "SHA256": "139E22C350E002FD3794D32A850FC45F5593EE66F9160D70DF5FD492BCBEC4CB"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\node\\gunzip.js",
+      "SHA256": "AA725AFCEFA41FD181F6DDF9E1D228C5174E1E40C87C2C359B0B35B3D4B58F98"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\node\\index.js",
+      "SHA256": "A973C23CE067BC752C0BF602297EAC843098E531AC03F3EA34CDF694326A6D02"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\utils\\arrayBufferToBase64.js",
+      "SHA256": "B8EF005B926588A88DBE3D7F61A2D00C817842578131C180EE1E9C5ADA8D4AE1"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\utils\\dump.js",
+      "SHA256": "09A7E2585627056D48E5AE0FACF77CD21A97FCD8219F0CA6ABD21065D157AD9F"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker-script\\utils\\setImage.js",
+      "SHA256": "608F928A37D0C456EF60EC3A6B1E9B17ACC14CE3363FB39FED138ABA7208490C"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\defaultOptions.js",
+      "SHA256": "66A296B99446FDF1BC80004F601E17C2D1F77861874091923EB3D92C079C082F"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\index.js",
+      "SHA256": "0886CE2448B0634A83EB15FBF2FEB9DB9D140AB1C68C5C87F5ECF4B82C40CEC6"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\loadImage.js",
+      "SHA256": "7C4A6B296AA741C6A4425B56570774C73125726ED7FFB5BBA9645837FC814157"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\onMessage.js",
+      "SHA256": "AC93C361F5B181668E49B2270F37F03A6B84CD43A76289E8C69223B1CED69634"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\send.js",
+      "SHA256": "D07042E9F38FAFF1CF37DD3E51EC7CD24E7FCF27B244184320949254608CBC34"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\spawnWorker.js",
+      "SHA256": "39A3B5DCB28A649111974BA97D14C6651AB4A48696034727CB8CC2706501B84F"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\browser\\terminateWorker.js",
+      "SHA256": "2924D34DE86A287933D54E4494248E2CAA16277D0D5B53630DAE0D2B06BE03FB"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\defaultOptions.js",
+      "SHA256": "DA02FC10C3545154AE143D0CC762B2493CDE4207272EE0F5AB5DA6BEA67249E7"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\index.js",
+      "SHA256": "EDC9DE52FB13BBA841158741C883A68F8ADEA9D2505869DFC63266A623EE38BD"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\loadImage.js",
+      "SHA256": "FE47EB386A2A802B2621ABEC973E191FB9A0D9609DCF633DCE085F82621D287F"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\onMessage.js",
+      "SHA256": "F6A148F1EC9C175FCDEE8565B82B8C5EDC3058C69DF644DEDDA7B422A9112B64"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\send.js",
+      "SHA256": "D07042E9F38FAFF1CF37DD3E51EC7CD24E7FCF27B244184320949254608CBC34"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\spawnWorker.js",
+      "SHA256": "0F1DC3715AA3ABEB3EC28865A64C526D1CF5436C836AAE53098201064F54C929"
+    },
+    {
+      "Path": "node_modules\\tesseract.js\\src\\worker\\node\\terminateWorker.js",
+      "SHA256": "264591091B8AB0BF015FC015E5E2D514917F3EAD561668A0932EFADC3508F4AA"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\cjs\\full\\index.js",
+      "SHA256": "0A132BC0C716C9A83FB0090F6E13B958317CE61DD0B4774723A928FC54A80054"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\cjs\\package.json",
+      "SHA256": "8005A3491DB7D92F36AC66369861589F9C47123D3A7C71E643FC2C06168CD45A"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\cjs\\reader\\index.js",
+      "SHA256": "A972D9D7182386E1A3C00A3F367CDCF5C5B6AB208FEC9F3CF36FFC7531049570"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\cjs\\share.js",
+      "SHA256": "2F21516A3421D9ED305795A348982A119CD1682F520A53A70F817DA819ED150E"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\cjs\\writer\\index.js",
+      "SHA256": "C7E9FB664213E8F50375DA5019081AB58A6E311EAAA3AF13EED125DE5D1B644D"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\es\\full\\index.js",
+      "SHA256": "C5CD010B79DDDCB0C330BBA96141A6126416695BD548A31E7F3465E48E8CA7DF"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\es\\reader\\index.js",
+      "SHA256": "D90C69A827AFF3B7C8C8CA310EFEBE91671EF076F7A0EC83722BFC542814F484"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\es\\share.js",
+      "SHA256": "08868FB770B0A4E4B9EB3D717015CD5FBF3CEB06492D4CB2D2DD2739DB11890F"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\es\\writer\\index.js",
+      "SHA256": "D2C30A246BD62C9E2D3F76EB82E3518C09046FCE4583B41B79BF00CF345ABAF9"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\full\\zxing_full.wasm",
+      "SHA256": "5721ED87DA5D582B7A65A69EA4BED7852699E7C4A1CF5A77D6EF9376152D96A5"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\iife\\full\\index.js",
+      "SHA256": "BA31D78FF926ADB2C028BDE46D73CE613ED6E08148E91648874F225290B179C1"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\iife\\reader\\index.js",
+      "SHA256": "D33D09CE132A692FAFFBED0DCE656C36CB2573B4B843885A6E036390D1071D95"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\iife\\writer\\index.js",
+      "SHA256": "B2328EC5FC5D553CBE3313877A890DB19F9D972228AE1D1ABC1296D3EE0CEF74"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\miniprogram\\index.js",
+      "SHA256": "6AEE28E24A6DC9D27998C7E2A12492E83416FF80C256EBA97E8A5F7EE7EAAA9F"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\miniprogram\\package.json",
+      "SHA256": "8005A3491DB7D92F36AC66369861589F9C47123D3A7C71E643FC2C06168CD45A"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\reader\\zxing_reader.wasm",
+      "SHA256": "E8AF31EDB56D0522F4DE74495839385EF019BA8BC90D38E5ECB2F18795D86FB2"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\dist\\writer\\zxing_writer.wasm",
+      "SHA256": "F78BE8B66F1F6D6ABA6CE1E34180D36BF509F73EDC26CA542810F92C08DC5950"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\LICENSE",
+      "SHA256": "FB506E4ADE12D7A9EFA67C9D76A9A28C8E15D347CA49A69E48E29B40B34AD2AB"
+    },
+    {
+      "Path": "node_modules\\zxing-wasm\\package.json",
+      "SHA256": "FA36A7B23B0B36865DB85B74B2875A746F44E721C0C7061800E9DB1BE3F951EA"
+    },
+    {
+      "Path": "out\\main\\fund-nav-DAEEVgWo.js",
+      "SHA256": "AE24F4B2B79842D03FCA205BBC9EBB93AD84E06185E84E973448A6A899339020"
+    },
+    {
+      "Path": "out\\main\\index.js",
+      "SHA256": "D27C8770C01D5C256B19F7F237AA6FE96DE8C4D143737603434704032A369578"
+    },
+    {
+      "Path": "out\\main\\market-crawler-dxxSeeJy.js",
+      "SHA256": "F765FD15749B1924E4502016A0E47D7A4AB07F681F500B7615730A85ECE39462"
+    },
+    {
+      "Path": "out\\main\\telegram-ultraviewer-86oBmkOC.js",
+      "SHA256": "A9A5589723EF47FB55DF0CD0F1615EAFB0A5C4F753EE34DA1E2F909C990D12E8"
+    },
+    {
+      "Path": "out\\main\\tenant-identity-reader-DvZNwTM1.js",
+      "SHA256": "DD21DA466153C5FF4BAB0E9CA10C91BF6108F70366DFDA8648A131FF2C1688B8"
+    },
+    {
+      "Path": "out\\main\\update-handlers-CtRbW7uq.js",
+      "SHA256": "99A20ECC464D1B7100F37D538339EE57DA0813B695AC0DF12416A610FE2BC38E"
+    },
+    {
+      "Path": "out\\preload\\index.js",
+      "SHA256": "A120AE6EC532C86514B3BDE91D39637BE84B7B1082988DBA6D29414F4F31A73B"
+    },
+    {
+      "Path": "out\\renderer\\assets\\index-3r27WnNY.js",
+      "SHA256": "ACBD3E8D30C9E8ACA9194ECF97FA383C10DA3C0C8F2D16E9C242DE5739DB8F20"
+    },
+    {
+      "Path": "resources\\icon.png",
+      "SHA256": "EDBA93C74C443CFAB3B80C37A0BF383CE003385DA3E321F430276D33A54A40A7"
+    },
+    {
+      "Path": "resources\\identity-ocr\\eng.traineddata",
+      "SHA256": "7D4322BD2A7749724879683FC3912CB542F19906C83BCC1A52132556427170B2"
+    },
+    {
+      "Path": "resources\\identity-ocr\\README.md",
+      "SHA256": "DA0C31DEFAC3C3B781DFAE6FB0966444EBA470BFA2CF05C62110BAE3E6E27CBC"
+    },
+    {
+      "Path": "resources\\identity-ocr\\vie.traineddata",
+      "SHA256": "79DF64CAF7BCFB2A27DF5042ECB6121E196EADA34DA774956995747636D5BFA1"
+    }
+  ],
+  "Note": "These results do not prove authenticated modules are ready under 3 seconds.",
+  "Results": [
+    {
+      "Mode": "software",
+      "Run": 1,
+      "Status": "complete",
+      "Scope": "isolated fresh profile: login screen and module code only",
+      "MilestonesSeconds": {
+        "main-module-evaluated": 2.857,
+        "main-runtime-configured": 2.859,
+        "app-ready": 2.892,
+        "core-ipc-ready": 2.894,
+        "profile-isolated": 2.894,
+        "all-ipc-ready": 2.895,
+        "window-created": 2.967,
+        "renderer-document-loaded": 3.058,
+        "window-ready-to-show": 3.059,
+        "renderer-painted": 3.116,
+        "icon-style-ready": 3.154,
+        "login-painted": 3.157,
+        "module-code-ready": 3.19
+      },
+      "AuthenticatedDataTested": false,
+      "MainWorkingSetMB": 100.1,
+      "AsarSHA256": "F51F0DE97AE38DE821907C63918941E8035739DAFF127EFDE5B3F1CE0EE1C002"
+    }
+  ]
+}

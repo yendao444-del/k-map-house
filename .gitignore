@@ -42,9 +42,12 @@ typings/
 .env.production.local
 .env.local
 .env.contract-test.local
+.env.auth-private.json
+.dev-auth/
 .contract-test-profile/
 .contract-test-out/
 dist-contract-test/
+dist-electron-fix*/
 webmobile/qa/private/
 
 # next.js

@@ -1,0 +1,65 @@
+{
+  "appliedAt": "2026-10-08T12:00:53.907Z",
+  "before": [
+    {
+      "policyname": "Allow public delete room-images",
+      "permissive": "PERMISSIVE",
+      "roles": "{public}",
+      "cmd": "DELETE",
+      "qual": "(bucket_id = 'room-images'::text)",
+      "with_check": null
+    },
+    {
+      "policyname": "Allow public upload room-images",
+      "permissive": "PERMISSIVE",
+      "roles": "{public}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(bucket_id = 'room-images'::text)"
+    }
+  ],
+  "after": [
+    {
+      "policyname": "Allow public delete room-images",
+      "permissive": "PERMISSIVE",
+      "roles": "{public}",
+      "cmd": "DELETE",
+      "qual": "(bucket_id = 'room-images'::text)",
+      "with_check": null
+    },
+    {
+      "policyname": "Allow public upload room-images",
+      "permissive": "PERMISSIVE",
+      "roles": "{public}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(bucket_id = 'room-images'::text)"
+    },
+    {
+      "policyname": "room_images_management_delete_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{public}",
+      "cmd": "DELETE",
+      "qual": "((bucket_id <> 'room-images'::text) OR (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text]))))))",
+      "with_check": null
+    },
+    {
+      "policyname": "room_images_management_insert_guard",
+      "permissive": "RESTRICTIVE",
+      "roles": "{public}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((bucket_id <> 'room-images'::text) OR (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text]))))))"
+    },
+    {
+      "policyname": "room_images_management_select",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((bucket_id = 'room-images'::text) AND (EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text) AND (u.role = ANY (ARRAY['admin'::text, 'user'::text]))))))",
+      "with_check": null
+    }
+  ],
+  "rollbackRoleTests": "passed: anon/unknown denied; available active admin/staff can upload and delete",
+  "scope": "Storage room-images only; no manager roles or business table policies changed; no physical files touched."
+}

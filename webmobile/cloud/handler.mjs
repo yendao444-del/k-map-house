@@ -3,17 +3,55 @@ import { createDemoPaymentStore } from '../server/demo-payments.mjs'
 import { readCloudMeter } from './online-reader.mjs'
 import { paymentBankFromEnv, invoicePropertyFromEnv } from '../server/payment-recipient.mjs'
 import { authService } from './auth.mjs'
+import { tenantPaymentRequest } from './tenant-payments.mjs'
 
 const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i
 const reply = (status, body) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
 const fail = (reason, status = 400) => Object.assign(new Error(reason), { status })
+// `data:image/jpeg;base64,` is 23 characters; this is the exact old 3,950,000-character ceiling.
+const MAX_METER_JPEG_BYTES = 2_962_482
+const meterUploadFields = new Set(['meter', 'contractId', 'image'])
+
+function base64(bytes) {
+  let text = ''
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) text += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + 0x8000)))
+  return btoa(text)
+}
+
+async function requestData(request, endpoint) {
+  const contentType = request.headers.get('content-type') || ''
+  if (endpoint === 'meter-ocr' && /^multipart\/form-data\s*;/i.test(contentType)) {
+    const form = await request.formData()
+    for (const [name] of form) if (!meterUploadFields.has(name)) throw fail('Ảnh hoặc loại công tơ không hợp lệ.')
+    const meters = form.getAll('meter'), contractIds = form.getAll('contractId'), images = form.getAll('image')
+    if (meters.length !== 1 || contractIds.length !== 1 || images.length !== 1) throw fail('Ảnh hoặc loại công tơ không hợp lệ.')
+    const meter = meters[0], contractId = contractIds[0], image = images[0]
+    if (!['electric', 'water'].includes(meter) || typeof contractId !== 'string' || !contractId || contractId !== contractId.trim() || contractId.length > 160 || /[\u0000-\u001f\u007f]/.test(contractId) || !image || typeof image === 'string' || String(image.type || '').toLowerCase() !== 'image/jpeg' || typeof image.arrayBuffer !== 'function') throw fail('Ảnh hoặc loại công tơ không hợp lệ.')
+    if (!Number.isSafeInteger(image.size) || image.size < 4) throw fail('Ảnh hoặc loại công tơ không hợp lệ.')
+    if (image.size > MAX_METER_JPEG_BYTES) throw fail('Ảnh quá lớn để đọc.', 413)
+    const bytes = new Uint8Array(await image.arrayBuffer())
+    // MIME metadata is client supplied, so also require JPEG's start marker.
+    if (bytes.byteLength !== image.size || bytes.length < 3 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw fail('Ảnh hoặc loại công tơ không hợp lệ.')
+    return { meter, contractId, image: `data:image/jpeg;base64,${base64(bytes)}` }
+  }
+  if (!contentType.startsWith('application/json')) throw fail('Yêu cầu không hợp lệ.', 415)
+  const text = await request.text()
+  if (text.length > (endpoint === 'meter-ocr' ? 4_100_000 : 8192)) throw fail('Yêu cầu quá lớn.', 413)
+  return JSON.parse(text)
+}
 
 export function cloudHandler(env, rpc, reader = readCloudMeter, authentication = authService(env, rpc)) {
   return async request => {
     if (!env.WEBMOBILE_GATEWAY_SECRET || request.headers.get('authorization') !== `Bearer ${env.WEBMOBILE_GATEWAY_SECRET}`) return reply(403, { ok: false, reason: 'Không cho phép truy cập.' })
     const endpoint = request.headers.get('x-webmobile-endpoint')
-    if (endpoint === 'health' && request.method === 'GET') return reply(200, { ok: true, mode: 'demo', backend: 'online', ocrConfigured: !!env.METER_CLOUD_API_KEY, provider: env.METER_CLOUD_PROVIDER || null, authRequired: env.WEBMOBILE_AUTH_REQUIRED === 'true', realPayments: false, realTenantData: true, realTenantAccounts: true })
-    if (!['meter-ocr', 'demo-payments', 'auth'].includes(endpoint) || (endpoint !== 'auth' && request.method !== 'POST')) return reply(405, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
+    if (endpoint === 'health' && request.method === 'GET') return reply(200, {
+      ok: true,
+      mode: 'tenant',
+      backend: 'online',
+      ocrConfigured: !!env.METER_CLOUD_API_KEY,
+      authRequired: env.WEBMOBILE_AUTH_REQUIRED === 'true'
+    })
+    if (!['meter-ocr', 'demo-payments', 'tenant-payments', 'auth'].includes(endpoint) || (endpoint !== 'auth' && request.method !== 'POST')) return reply(405, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
     if (endpoint === 'auth') {
       try {
         const authId = request.headers.get('x-webmobile-auth-session')
@@ -29,18 +67,22 @@ export function cloudHandler(env, rpc, reader = readCloudMeter, authentication =
         return reply(400, { ok: false, reason: 'Thao tác tài khoản không hợp lệ.' })
       } catch (cause) { return reply(cause.status || 503, { ok: false, reason: cause.status ? cause.message : 'Chưa kết nối được dịch vụ đăng nhập. Hãy thử lại.' }) }
     }
-    if (!request.headers.get('content-type')?.startsWith('application/json')) return reply(415, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
     const id = request.headers.get('x-webmobile-session'), ip = request.headers.get('x-webmobile-ip')
     if (!uuid.test(id || '') || !/^[a-f0-9]{64}$/.test(ip || '')) return reply(403, { ok: false, reason: 'Phiên thử không hợp lệ.' })
     let state, lease
     try {
-      const text = await request.text()
-      if (text.length > (endpoint === 'meter-ocr' ? 4_100_000 : 8192)) return reply(413, { ok: false, reason: 'Yêu cầu quá lớn.' })
-      const data = JSON.parse(text)
       let profile
-      if (env.WEBMOBILE_AUTH_REQUIRED === 'true') {
+      // Authorize the browser session before parsing or converting an image upload.
+      if (env.WEBMOBILE_AUTH_REQUIRED === 'true' || endpoint === 'tenant-payments') {
         profile = await authentication.session(request.headers.get('x-webmobile-auth-session'))
-        if (profile.mode === 'tenant') throw fail('Chức năng điện nước và thanh toán thật đang được kết nối. Không dùng hóa đơn demo cho tài khoản thật.', 403)
+      }
+      const data = await requestData(request, endpoint)
+      if (profile) {
+        if (profile.mode === 'tenant') {
+          if (endpoint === 'demo-payments') throw fail('Không dùng hóa đơn demo cho tài khoản thật.',403)
+          return reply(200,await tenantPaymentRequest(profile,endpoint,data,env,rpc,reader,ip,id))
+        }
+        if(endpoint==='tenant-payments') throw fail('Tài khoản demo không được truy cập hóa đơn thật.',403)
         if ((endpoint === 'meter-ocr' || data.action === 'create') && data.contractId !== profile.contractId) throw fail('Bạn không có quyền truy cập phòng này.', 403)
         if (endpoint === 'demo-payments' && data.action === 'simulate') throw fail('Giao dịch thử chỉ dành cho kiểm thử nội bộ.', 403)
       }

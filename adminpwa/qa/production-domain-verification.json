@@ -1,0 +1,54 @@
+{
+  "verifiedAt": "2026-10-10T09:57:12.040Z",
+  "target": "https://app.phongtroankhang.com",
+  "pagesDomainStatus": "active",
+  "dnsEvidence": [
+    {
+      "server": "1.1.1.1",
+      "addresses": [
+        "172.67.129.130",
+        "104.21.2.175"
+      ]
+    },
+    {
+      "server": "8.8.8.8",
+      "addresses": [
+        "172.67.129.130",
+        "104.21.2.175"
+      ]
+    },
+    {
+      "server": "172.64.34.110",
+      "addresses": [
+        "172.67.129.130",
+        "104.21.2.175"
+      ]
+    }
+  ],
+  "systemDns": {
+    "resolved": true,
+    "address": "172.67.129.130",
+    "family": 4
+  },
+  "transport": "Public-DNS-resolved IP with real production hostname/SNI and normal certificate validation",
+  "tlsVerified": true,
+  "status": 200,
+  "entry": "/assets/index-B87T-3wN.js",
+  "expectedEntry": "/assets/index-B87T-3wN.js",
+  "assetStatus": 200,
+  "manifestStatus": 200,
+  "serviceWorkerStatus": 200,
+  "httpRedirect": {
+    "status": 301,
+    "location": "https://app.phongtroankhang.com/"
+  },
+  "securityHeaders": {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://qr.sepay.vn https://histdatafeed.vps.com.vn https://www.vang.today https://api.vang.today https://fmarket.vn https://api.sepay.vn https://my.sepay.vn https://pay.phongtroankhang.com https://phongtroankhang.com; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests",
+    "cache-control": "no-store"
+  },
+  "limitations": [
+    "Authenticated mobile workflows still require acceptance."
+  ]
+}

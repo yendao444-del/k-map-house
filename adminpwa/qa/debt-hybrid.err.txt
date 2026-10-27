@@ -1,0 +1,6 @@
+debt-mobile-demo-hybrid.png attempt 1: Generation HTTP 429
+debt-mobile-demo-hybrid.png attempt 2: Generation HTTP 502
+debt-mobile-demo-hybrid.png attempt 3: Generation HTTP 502
+Error: Generation HTTP 502
+    at generate (G:\PHONG TRO\app\adminpwa\qa\generate-debt-mobile-demos.cjs:28:31)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

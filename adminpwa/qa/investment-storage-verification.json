@@ -1,0 +1,157 @@
+{
+  "verifiedAt": "2026-10-08T09:08:25.883Z",
+  "additiveMigrations": [
+    "20261008_investment_cloud.sql",
+    "20261008_investment_atomic_commit.sql",
+    "20261008_investment_import.sql"
+  ],
+  "testMode": "authenticated/anonymous role simulation with real database RPCs; synthetic 1 VND receipt in rollback-only transaction; no retained financial posting or actual money transfer",
+  "assertions": [
+    {
+      "name": "active-staff-read-allowed",
+      "passed": true
+    },
+    {
+      "name": "active-staff-save-allowed",
+      "passed": true
+    },
+    {
+      "name": "anonymous-commit-denied",
+      "passed": true
+    },
+    {
+      "name": "anonymous-import-denied",
+      "passed": true
+    },
+    {
+      "name": "anonymous-rpc-denied",
+      "passed": true
+    },
+    {
+      "name": "atomic-receipt-delete-denied",
+      "passed": true
+    },
+    {
+      "name": "atomic-receipt-edit-denied",
+      "passed": true
+    },
+    {
+      "name": "authorized-management-save",
+      "passed": true
+    },
+    {
+      "name": "direct-table-access-denied",
+      "passed": true
+    },
+    {
+      "name": "duplicate-asset-symbol-denied",
+      "passed": true
+    },
+    {
+      "name": "duplicate-transaction-id-denied",
+      "passed": true
+    },
+    {
+      "name": "explicit-import-no-double-wallet-posting",
+      "passed": true
+    },
+    {
+      "name": "funded-retry-no-double-posting",
+      "passed": true
+    },
+    {
+      "name": "funded-save-and-receipt-atomic",
+      "passed": true
+    },
+    {
+      "name": "idempotency-key-actor-binding",
+      "passed": true
+    },
+    {
+      "name": "idempotency-key-payload-binding",
+      "passed": true
+    },
+    {
+      "name": "idempotent-retry-no-duplicate-version",
+      "passed": true
+    },
+    {
+      "name": "import-idempotent-retry",
+      "passed": true
+    },
+    {
+      "name": "import-overwrite-denied",
+      "passed": true
+    },
+    {
+      "name": "malformed-store-rejected",
+      "passed": true
+    },
+    {
+      "name": "negative-investment-wallet-denied",
+      "passed": true
+    },
+    {
+      "name": "non-atomic-writer-denied",
+      "passed": true
+    },
+    {
+      "name": "opening-fund-bypass-denied",
+      "passed": true
+    },
+    {
+      "name": "sale-without-asset-denied",
+      "passed": true
+    },
+    {
+      "name": "snapshot-failure-rolls-back-receipt",
+      "passed": true
+    },
+    {
+      "name": "staff-import-denied",
+      "passed": true
+    },
+    {
+      "name": "stale-device-conflict",
+      "passed": true
+    },
+    {
+      "name": "stale-funded-save-no-receipt",
+      "passed": true
+    },
+    {
+      "name": "unknown-auth-user-denied",
+      "passed": true
+    }
+  ],
+  "before": [
+    {
+      "portfolios": 0,
+      "commits": 0,
+      "cashrows": 86,
+      "cashfingerprint": "53641afcc82668da477f247058be891b"
+    }
+  ],
+  "after": [
+    {
+      "portfolios": 0,
+      "commits": 0,
+      "cashrows": 86,
+      "cashfingerprint": "53641afcc82668da477f247058be891b"
+    }
+  ],
+  "guards": [
+    {
+      "relname": "admin_pwa_investment_commits",
+      "relrowsecurity": true
+    },
+    {
+      "relname": "admin_pwa_investment_store",
+      "relrowsecurity": true
+    }
+  ],
+  "limitations": [
+    "HTTP Auth login is not tested by SQL role simulation.",
+    "File-picker/import UI and real historical portfolio import still need verification; no actual user JSON was imported."
+  ]
+}

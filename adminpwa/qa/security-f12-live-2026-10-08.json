@@ -1,0 +1,306 @@
+{
+  "checkedAt": "2026-10-08T11:45:47.439Z",
+  "scope": "Unauthenticated public website and API; read-only requests; no login attempts or business mutations",
+  "site": "https://app.phongtroankhang.com",
+  "headers": {
+    "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://qr.sepay.vn https://histdatafeed.vps.com.vn https://www.vang.today https://api.vang.today https://fmarket.vn https://api.sepay.vn https://my.sepay.vn https://pay.phongtroankhang.com https://phongtroankhang.com; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests",
+    "x-frame-options": "DENY",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "permissions-policy": "camera=(self), microphone=(), geolocation=(), payment=(), usb=()",
+    "strict-transport-security": null,
+    "cache-control": "no-store"
+  },
+  "bundle": {
+    "entry": "/assets/index-3L3k7CFH.js",
+    "files": 40,
+    "failures": [],
+    "jwtRoles": [
+      "anon"
+    ],
+    "knownPrivateValuesFound": [],
+    "privateKeyBlock": false,
+    "secretKeyPrefixes": false,
+    "sourceMapReferences": [],
+    "debtLocalPersistence": true,
+    "projectMatchesWorkspace": true
+  },
+  "files": [
+    {
+      "path": "/.env",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "spaFallback": true,
+      "envLike": false,
+      "gitHeadLike": false,
+      "sourceMapLike": false
+    },
+    {
+      "path": "/.env.local",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "spaFallback": true,
+      "envLike": false,
+      "gitHeadLike": false,
+      "sourceMapLike": false
+    },
+    {
+      "path": "/.git/HEAD",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "spaFallback": true,
+      "envLike": false,
+      "gitHeadLike": false,
+      "sourceMapLike": false
+    },
+    {
+      "path": "/assets/index-3L3k7CFH.js.map",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "spaFallback": true,
+      "envLike": false,
+      "gitHeadLike": false,
+      "sourceMapLike": false
+    },
+    {
+      "path": "/qa/payment-security-readonly-audit.json",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8",
+      "spaFallback": true,
+      "envLike": false,
+      "gitHeadLike": false,
+      "sourceMapLike": false
+    }
+  ],
+  "tables": [
+    {
+      "table": "rooms",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "tenants",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "contracts",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "invoices",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "users",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "cash_transactions",
+      "status": 200,
+      "rowsReturned": 0,
+      "errorCode": null
+    },
+    {
+      "table": "debt_entries",
+      "status": 401,
+      "rowsReturned": null,
+      "errorCode": "42501"
+    },
+    {
+      "table": "app_settings",
+      "status": 401,
+      "rowsReturned": null,
+      "errorCode": "42501"
+    },
+    {
+      "table": "app_secrets",
+      "status": 401,
+      "rowsReturned": null,
+      "errorCode": "42501"
+    },
+    {
+      "table": "webmobile_auth_sessions",
+      "status": 401,
+      "rowsReturned": null,
+      "errorCode": "42501"
+    }
+  ],
+  "endpoints": [
+    {
+      "name": "admin-pwa-sepay",
+      "status": 401,
+      "ok": false
+    },
+    {
+      "name": "admin-pwa-market",
+      "status": 401,
+      "ok": false
+    },
+    {
+      "name": "contract-confirmation",
+      "status": 401,
+      "ok": false
+    },
+    {
+      "name": "tenant-web-admin",
+      "status": 401,
+      "ok": false
+    },
+    {
+      "name": "send-email-notification",
+      "status": 401,
+      "ok": false
+    }
+  ],
+  "loginLookup": [
+    {
+      "inputKind": "synthetic absent username",
+      "status": 200,
+      "emailReturned": false,
+      "nullReturned": true
+    },
+    {
+      "inputKind": "single common username",
+      "status": 200,
+      "emailReturned": true,
+      "nullReturned": false
+    }
+  ],
+  "productionMetadata": {
+    "checkedAt": "2026-10-08T11:48:07.818Z",
+    "auth": {
+      "disable_signup": false,
+      "external_email_enabled": true,
+      "hook_custom_access_token_enabled": false,
+      "hook_before_user_created_enabled": false,
+      "jwt_exp": 3600,
+      "mailer_autoconfirm": false,
+      "password_hibp_enabled": false,
+      "password_min_length": 6,
+      "security_captcha_enabled": false,
+      "security_update_password_require_current_password": false,
+      "security_update_password_require_reauthentication": false,
+      "sessions_inactivity_timeout": 0,
+      "sessions_timebox": 0
+    },
+    "profileDefaults": [
+      {
+        "column_name": "role",
+        "column_default": "'user'::text"
+      },
+      {
+        "column_name": "status",
+        "column_default": "'active'::text"
+      }
+    ],
+    "authProvisioning": [
+      {
+        "tgname": "on_auth_user_created",
+        "trigger_definition": "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_auth_user_created()",
+        "function_definition": "CREATE OR REPLACE FUNCTION public.handle_auth_user_created()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  derived_username text;\r\n  derived_full_name text;\r\nbegin\r\n  derived_username := coalesce(\r\n    nullif(new.raw_user_meta_data ->> 'username', ''),\r\n    split_part(coalesce(new.email, new.id::text), '@', 1)\r\n  );\r\n\r\n  derived_full_name := coalesce(\r\n    nullif(new.raw_user_meta_data ->> 'full_name', ''),\r\n    derived_username,\r\n    new.email,\r\n    new.id::text\r\n  );\r\n\r\n  insert into public.users (id, email, username, full_name, avatar_url)\r\n  values (\r\n    new.id,\r\n    new.email,\r\n    derived_username,\r\n    derived_full_name,\r\n    nullif(new.raw_user_meta_data ->> 'avatar_url', '')\r\n  )\r\n  on conflict (id) do update\r\n  set\r\n    email = excluded.email,\r\n    username = coalesce(public.users.username, excluded.username),\r\n    full_name = coalesce(public.users.full_name, excluded.full_name),\r\n    avatar_url = coalesce(public.users.avatar_url, excluded.avatar_url);\r\n\r\n  return new;\r\nend;\r\n$function$\n"
+      }
+    ],
+    "managementSelectPolicies": [
+      {
+        "tablename": "contracts",
+        "policyname": "authenticated_active_select",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+      },
+      {
+        "tablename": "invoices",
+        "policyname": "authenticated_active_select",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+      },
+      {
+        "tablename": "rooms",
+        "policyname": "authenticated_active_select",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+      },
+      {
+        "tablename": "tenants",
+        "policyname": "authenticated_active_select",
+        "permissive": "PERMISSIVE",
+        "roles": "{authenticated}",
+        "qual": "(EXISTS ( SELECT 1\n   FROM users u\n  WHERE ((u.id = auth.uid()) AND (u.status = 'active'::text))))"
+      }
+    ],
+    "storagePolicies": [
+      {
+        "policyname": "Allow public delete room-images",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "DELETE",
+        "qual": "(bucket_id = 'room-images'::text)",
+        "with_check": null
+      },
+      {
+        "policyname": "Allow public upload room-images",
+        "permissive": "PERMISSIVE",
+        "roles": "{public}",
+        "cmd": "INSERT",
+        "qual": null,
+        "with_check": "(bucket_id = 'room-images'::text)"
+      }
+    ],
+    "storageRoleGrants": [
+      {
+        "anon_insert": true,
+        "anon_delete": true,
+        "anon_select": true
+      }
+    ],
+    "buckets": [
+      {
+        "id": "room-images",
+        "public": true,
+        "file_size_limit": 5242880,
+        "allowed_mime_types": [
+          "image/*"
+        ]
+      }
+    ],
+    "lookupRoutine": [
+      {
+        "anon_execute": true,
+        "definition": "CREATE OR REPLACE FUNCTION public.resolve_login_email(login_name text)\n RETURNS text\n LANGUAGE sql\n STABLE STRICT SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n  select u.email\n  from public.users as u\n  where char_length(btrim(login_name)) between 1 and 128\n    and u.status = 'active'\n    and u.email is not null\n    and (\n      lower(u.username) = lower(btrim(login_name))\n      or lower(u.email) = lower(btrim(login_name))\n    )\n  limit 1\n$function$\n"
+      }
+    ]
+  },
+  "localVerification": {
+    "securityTests": {
+      "passed": 28,
+      "failed": 0,
+      "suites": [
+        "sepay-security.test.mjs",
+        "market-proxy.test.mjs",
+        "service-worker.test.mjs"
+      ]
+    },
+    "publicBuildSecretScan": "passed",
+    "productionDependencyAudit": {
+      "knownVulnerabilities": 0
+    }
+  },
+  "limitations": [
+    "No new Auth account created to validate the signup chain end to end.",
+    "No Storage upload/delete attempted; public policy and grants verified, actual API deletion prerequisites not tested.",
+    "No authenticated manager/tenant sessions exercised.",
+    "No hostile payload written to business records.",
+    "Local source may include concurrent edits newer than deployed website."
+  ]
+}

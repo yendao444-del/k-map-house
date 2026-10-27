@@ -1,0 +1,3297 @@
+import { changeOwnPasswordWithConfirmation } from './mfa'
+import { supabase, safeQuery } from './supabase'
+import { adminBridgeError } from './admin-bridge-error'
+import { assertManagementProfile } from './management-auth-policy'
+import { managementLogin, managementRecovery } from './management-auth-client'
+import { isDepositOnlyInvoice } from './invoice-kind'
+export { isDepositOnlyInvoice } from './invoice-kind'
+import { normalizeEmailNotificationPreferences, type EmailNotificationPreferences } from './email-notification-preferences'
+import { fetchAllPages } from './paged-query'
+import { assertTenantEmail, normalizeTenantEmail } from './tenant-email'
+import { getInvoicePaymentFlow } from './invoice-payment-flow'
+import { requireSessionMfa, verifyTotpChallenge, securityState, authorizeSecuritySession, SecurityStepUpRequired } from './mfa'
+import { clearManagementSessionExpiry, isManagementSessionExpired, recordManagementSessionExpiry } from './auth-storage'
+import { assertSingleWalletExpense, resolveWalletMethod, summarizeWalletEntries, type WalletMethod, type WalletCheckpoint, type WalletAccountingBasis } from './wallet-accounting'
+
+// =========================================================
+// TYPES & CONSTANTS
+// =========================================================
+export type RoomStatus = 'vacant' | 'occupied' | 'maintenance' | 'ending'
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'merged' | 'cancelled'
+export type PaymentMethod = 'cash' | 'transfer'
+export type UserRole = 'admin' | 'user'
+export type UserStatus = 'active' | 'inactive'
+
+export interface AppUser {
+  id: string
+  username: string
+  email?: string
+  phone?: string
+  notification_email?: string | null
+  email_notifications_enabled?: boolean
+  email_notification_preferences?: EmailNotificationPreferences
+  full_name: string
+  avatar_url?: string
+  password_hash?: string
+  role: UserRole
+  status: UserStatus
+  authenticator_verified?: boolean
+  email_verified?: boolean
+  last_login_at?: string
+  created_at: string
+}
+export interface InvoicePaymentRecord {
+  id: string
+  amount: number
+  payment_method?: PaymentMethod
+  payment_date: string
+  note?: string
+  created_at: string
+  external_ref?: string
+  external_id?: string
+  source?: string
+}
+
+export type DebtEntryType = 'totalDebt' | 'paid' | 'offset'
+
+export interface DebtEntryRecord {
+  id: string
+  type: DebtEntryType
+  amount: number
+  reason: string
+  note?: string
+  created_at: string
+}
+export interface ServiceZone {
+  id: string
+  name: string
+  electric_price: number
+  water_price: number
+  internet_price: number
+  cleaning_price: number
+  created_at: string
+}
+export interface Room {
+  id: string
+  name: string
+  floor: number
+  base_rent: number
+  status: RoomStatus
+  created_at: string
+  service_zone_id?: string
+  area?: number
+  max_occupants?: number
+  default_deposit?: number
+  invoice_day?: number
+  billing_cycle?: string
+  notes?: string
+  move_in_date?: string
+  contract_expiration?: string
+  tenant_name?: string
+  tenant_phone?: string
+  tenant_email?: string
+  tenant_id_card?: string
+  electric_old?: number
+  electric_new?: number
+  water_old?: number
+  water_new?: number
+  old_debt?: number
+  max_vehicles?: number
+  has_move_in_receipt?: boolean
+  expected_end_date?: string
+  electric_price?: number
+  water_price?: number
+  wifi_price?: number
+  garbage_price?: number
+  image_urls?: string[]
+}
+export interface Tenant {
+  id: string
+  full_name: string
+  phone?: string
+  email?: string
+  identity_card?: string
+  id_card_issued_date?: string
+  id_card_issued_place?: string
+  address?: string
+  identity_image_url?: string
+  notes?: string
+  is_active: boolean
+  last_room_name?: string
+  left_at?: string
+  created_at: string
+  updated_at: string
+}
+export interface Invoice {
+  id: string
+  room_id: string
+  tenant_id: string
+  billing_reason?: string
+  month: number
+  year: number
+  invoice_date?: string
+  due_date?: string
+  billing_period_start?: string
+  billing_period_end?: string
+  electric_old: number
+  electric_new: number
+  electric_usage: number
+  electric_cost: number
+  water_old: number
+  water_new: number
+  water_usage: number
+  water_cost: number
+  room_cost: number
+  wifi_cost: number
+  garbage_cost: number
+  old_debt: number
+  total_amount: number
+  adjustment_amount?: number
+  adjustment_note?: string
+  note?: string
+  paid_amount: number
+  payment_status: PaymentStatus
+  debt_confirmed_at?: string | null
+  debt_confirmed_by?: string | null
+  payment_method?: PaymentMethod
+  payment_date?: string
+  payment_records?: InvoicePaymentRecord[]
+  is_first_month?: boolean
+  is_settlement?: boolean
+  deposit_amount?: number
+  deposit_applied?: number
+  damage_amount?: number
+  damage_note?: string
+  merged_invoice_ids?: string[]
+  merged_debt_total?: number
+  electric_price_snapshot?: number
+  water_price_snapshot?: number
+  prorata_days?: number
+  has_transfer?: boolean
+  transfer_old_room_name?: string
+  transfer_days?: number
+  transfer_room_cost?: number
+  transfer_electric_cost?: number
+  transfer_water_cost?: number
+  transfer_service_cost?: number
+  transfer_electric_usage?: number
+  transfer_water_usage?: number
+  new_room_days?: number
+  new_room_cost?: number
+  new_room_service_cost?: number
+  created_at: string
+  allow_duplicate?: boolean
+}
+export type ContractStatus = 'active' | 'expired' | 'terminated' | 'cancelled'
+export interface Contract {
+  id: string
+  room_id: string
+  tenant_name: string
+  tenant_phone?: string
+  tenant_id_card?: string
+  tenant_id_card_issued_date?: string
+  tenant_id_card_issued_place?: string
+  tenant_address?: string
+  tenant_dob?: string
+  occupant_count: number
+  move_in_date: string
+  duration_months: number
+  expiration_date?: string
+  base_rent: number
+  deposit_amount: number
+  billing_cycle: number
+  invoice_day: number
+  electric_init: number
+  water_init: number
+  status: ContractStatus
+  notes?: string
+  created_at: string
+  end_date?: string
+  end_note?: string
+  final_electric?: number
+  final_water?: number
+  tenant_id?: string
+  is_migration?: boolean
+  migration_debt?: number
+  deposit_pre_collected?: boolean
+  transfer_history?: any
+}
+export interface MoveInReceipt {
+  id: string
+  room_id: string
+  tenant_id?: string
+  move_in_date: string
+  deposit_amount: number
+  prorata_days: number
+  prorata_amount: number
+  next_month_rent: number
+  electric_init: number
+  water_init: number
+  total_amount: number
+  payment_status: PaymentStatus
+  payment_method?: PaymentMethod
+  payment_date?: string
+  created_at: string
+}
+export type CashTransactionType = 'income' | 'expense'
+export type CashTransactionCategory = string
+export interface CashTransaction {
+  id: string
+  type: CashTransactionType
+  category: CashTransactionCategory
+  transaction_date: string
+  amount: number
+  room_id?: string
+  payment_method?: PaymentMethod
+  note?: string
+  created_at: string
+  updated_at: string
+}
+export interface ExpenseCategory {
+  id: string
+  value: string
+  name: string
+  type: CashTransactionType
+  icon?: string
+  color?: string
+  is_default: boolean
+  sort_order: number
+  created_at: string
+}
+export interface AssetTemplate {
+  id: string
+  name: string
+  sort_order: number
+  is_active: boolean
+}
+export type AssetType = 'furniture' | 'appliance' | 'plumbing' | 'electrical'
+export interface RoomAsset {
+  id: string
+  room_id: string
+  name: string
+  quantity: number
+  sort_order: number
+  type?: AssetType
+  status?: 'ok' | 'error' | 'repairing'
+  issue_note?: string
+  icon?: string
+  repairman_name?: string
+  repairman_phone?: string
+  repair_called_at?: string
+  repaired_at?: string
+}
+export interface RoomAssetAdjustment {
+  id: string
+  room_id: string
+  room_asset_id?: string
+  action: 'add' | 'update'
+  name: string
+  quantity: number
+  reason: string
+  recorded_at: string
+}
+export interface MeterReadingAdjustment {
+  id: string
+  room_id: string
+  invoice_id?: string
+  contract_id?: string
+  old_electric: number
+  new_electric: number
+  old_water: number
+  new_water: number
+  reason: string
+  adjusted_by?: string
+  adjusted_by_name?: string
+  recorded_at: string
+}
+export interface AssetSnapshot {
+  id: string
+  room_id: string
+  contract_id?: string
+  tenant_id?: string
+  room_asset_id: string
+  type: 'move_in' | 'move_out' | 'handover'
+  condition: string
+  deduction: number
+  note?: string
+  recorded_at: string
+}
+export interface RoomVehicle {
+  id: string
+  room_id: string
+  owner_name?: string
+  license_plate: string
+  vehicle_type?: string
+  brand?: string
+  color?: string
+  registered_at: string
+}
+export interface AppSettings {
+  bank_id?: string
+  account_no?: string
+  account_name?: string
+  sepay_api_token?: string
+  property_name?: string
+  property_address?: string
+  property_owner_name?: string
+  property_owner_phone?: string
+  property_owner_id_card?: string
+  notification_read_ids?: string[]
+  contract_template?: string
+  opening_balance_cash?: number
+  opening_balance_bank?: number
+  opening_balance_date?: string
+  wallet_checkpoint?: WalletCheckpoint
+  wallet_accounting_basis?: WalletAccountingBasis
+  wallet_guard_ready?: boolean
+}
+
+// List views do not need room notes or image arrays. Keep those payloads in the detail query.
+const ROOM_LIST_SELECT = [
+  'id',
+  'name',
+  'floor',
+  'base_rent',
+  'status',
+  'created_at',
+  'service_zone_id',
+  'area',
+  'max_occupants',
+  'default_deposit',
+  'invoice_day',
+  'billing_cycle',
+  'move_in_date',
+  'contract_expiration',
+  'tenant_name',
+  'tenant_phone',
+  'tenant_email',
+  'tenant_id_card',
+  'electric_old',
+  'electric_new',
+  'water_old',
+  'water_new',
+  'old_debt',
+  'max_vehicles',
+  'has_move_in_receipt',
+  'expected_end_date',
+  'electric_price',
+  'water_price',
+  'wifi_price',
+  'garbage_price'
+].join(',')
+
+const USER_PROFILE_SELECT = [
+  'id', 'username', 'email', 'phone', 'notification_email',
+  'email_notifications_enabled', 'email_notification_preferences',
+  'full_name', 'avatar_url', 'role', 'status', 'last_login_at', 'created_at'
+].join(',')
+
+const ROOM_IMAGE_BUCKET = 'room-images'
+const roomImagePath = (value: string): string | null => {
+  try {
+    const url = new URL(value)
+    const marker = `/object/public/${ROOM_IMAGE_BUCKET}/`
+    const signedMarker = `/object/sign/${ROOM_IMAGE_BUCKET}/`
+    const index = url.pathname.indexOf(marker)
+    const signedIndex = url.pathname.indexOf(signedMarker)
+    const start = index >= 0 ? index + marker.length : signedIndex >= 0 ? signedIndex + signedMarker.length : -1
+    return start >= 0 ? decodeURIComponent(url.pathname.slice(start)) : null
+  } catch {
+    return value.includes('/') && !value.startsWith('http') ? value : null
+  }
+}
+const normalizeRoomImagePaths = (urls?: string[]): string[] | undefined =>
+  urls?.map(roomImagePath).filter((path): path is string => Boolean(path))
+const signRoomImages = async (urls?: string[]): Promise<string[] | undefined> => {
+  const paths = normalizeRoomImagePaths(urls)
+  if (!paths?.length) return paths
+  const { data, error } = await supabase.storage.from(ROOM_IMAGE_BUCKET).createSignedUrls(paths, 3600)
+  if (error) throw new Error(error.message)
+  return (data || []).map((item, index) => item.signedUrl || paths[index]).filter(Boolean)
+}
+
+const ASSET_SNAPSHOT_LIST_SELECT =
+  'id,room_id,contract_id,tenant_id,room_asset_id,type,condition,deduction,note,recorded_at'
+
+export const getCollectedDepositAmount = (
+  contract:
+    | Pick<
+        Contract,
+        | 'tenant_id'
+        | 'room_id'
+        | 'created_at'
+        | 'move_in_date'
+        | 'deposit_pre_collected'
+        | 'deposit_amount'
+      >
+    | null
+    | undefined,
+  invoices: Pick<
+    Invoice,
+    | 'tenant_id'
+    | 'room_id'
+    | 'created_at'
+    | 'payment_status'
+    | 'paid_amount'
+    | 'total_amount'
+    | 'deposit_amount'
+    | 'billing_reason'
+    | 'is_first_month'
+    | 'is_settlement'
+    | 'room_cost'
+    | 'wifi_cost'
+    | 'garbage_cost'
+    | 'old_debt'
+    | 'electric_cost'
+    | 'water_cost'
+    | 'transfer_room_cost'
+    | 'transfer_electric_cost'
+    | 'transfer_water_cost'
+    | 'transfer_service_cost'
+    | 'new_room_cost'
+    | 'new_room_service_cost'
+  >[] = []
+): number => {
+  if (!contract) return 0
+  if (contract.deposit_pre_collected) return Math.max(0, Number(contract.deposit_amount || 0))
+
+  const contractStartedAt = contract.created_at || contract.move_in_date || ''
+  return invoices.reduce((sum, invoice) => {
+    const depositAmount = Math.max(0, Number(invoice.deposit_amount || 0))
+    if (depositAmount <= 0) return sum
+    if (
+      invoice.is_settlement ||
+      invoice.payment_status === 'cancelled' ||
+      invoice.payment_status === 'merged'
+    )
+      return sum
+    if (contract.tenant_id && invoice.tenant_id !== contract.tenant_id) return sum
+    if (invoice.room_id !== contract.room_id) return sum
+    if (contractStartedAt && invoice.created_at && invoice.created_at < contractStartedAt)
+      return sum
+
+    if (
+      invoice.payment_status === 'paid' ||
+      Number(invoice.paid_amount || 0) >= Number(invoice.total_amount || 0)
+    ) {
+      return sum + depositAmount
+    }
+
+    if (isDepositOnlyInvoice(invoice)) {
+      return sum + Math.min(depositAmount, Math.max(0, Number(invoice.paid_amount || 0)))
+    }
+
+    return sum
+  }, 0)
+}
+
+// =========================================================
+// UTILS
+// =========================================================
+const formatRoomName = (name: string) => {
+  const cleanedName = name.trim().replace(/\s+/g, ' ')
+  if (!cleanedName) return ''
+  const suffix = cleanedName.replace(/^(ph[oò]ng\s+)+/i, '').trim()
+  if (/^\d+$/.test(suffix)) return 'Phòng ' + suffix
+  if (/^\d+$/.test(cleanedName)) return 'Phòng ' + cleanedName
+  return cleanedName
+}
+
+const createEntityId = (prefix: string): string =>
+  `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+const extractPaymentRefFromNote = (note?: string): string => {
+  const value = note || ''
+  return value.match(/\(Ref:\s*([^)]+)\)/i)?.[1]?.trim() || ''
+}
+
+const normalizeRemoteErrorMessage = (message: string): string => {
+  if (/failed to fetch|fetch failed|enotfound|networkerror/i.test(message)) {
+    return 'Không kết nối được máy chủ dữ liệu. Vui lòng kiểm tra Internet/DNS rồi thử lại.'
+  }
+  return message
+}
+
+export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategory[] = [
+  {
+    id: 'default-electric',
+    value: 'electric',
+    name: 'Hóa đơn điện tổng',
+    type: 'expense',
+    icon: 'fa-bolt',
+    color: 'yellow',
+    is_default: true,
+    sort_order: 10,
+    created_at: ''
+  },
+  {
+    id: 'default-water',
+    value: 'water',
+    name: 'Hóa đơn nước tổng',
+    type: 'expense',
+    icon: 'fa-droplet',
+    color: 'sky',
+    is_default: true,
+    sort_order: 20,
+    created_at: ''
+  },
+  {
+    id: 'default-internet',
+    value: 'internet',
+    name: 'Internet / wifi',
+    type: 'expense',
+    icon: 'fa-wifi',
+    color: 'blue',
+    is_default: true,
+    sort_order: 30,
+    created_at: ''
+  },
+  {
+    id: 'default-cleaning',
+    value: 'cleaning',
+    name: 'Rác / vệ sinh / môi trường',
+    type: 'expense',
+    icon: 'fa-broom',
+    color: 'emerald',
+    is_default: true,
+    sort_order: 40,
+    created_at: ''
+  },
+  {
+    id: 'default-maintenance',
+    value: 'maintenance',
+    name: 'Bảo trì / sửa chữa',
+    type: 'expense',
+    icon: 'fa-screwdriver-wrench',
+    color: 'orange',
+    is_default: true,
+    sort_order: 50,
+    created_at: ''
+  },
+  {
+    id: 'default-management',
+    value: 'management',
+    name: 'Lương / quản lý',
+    type: 'expense',
+    icon: 'fa-user-tie',
+    color: 'violet',
+    is_default: true,
+    sort_order: 60,
+    created_at: ''
+  },
+  {
+    id: 'default-software',
+    value: 'software',
+    name: 'Phần mềm / công cụ',
+    type: 'expense',
+    icon: 'fa-laptop-code',
+    color: 'indigo',
+    is_default: true,
+    sort_order: 70,
+    created_at: ''
+  },
+  {
+    id: 'default-debt-repayment',
+    value: 'debt_repayment',
+    name: 'Trả nợ',
+    type: 'expense',
+    icon: 'fa-hand-holding-dollar',
+    color: 'rose',
+    is_default: true,
+    sort_order: 80,
+    created_at: ''
+  },
+  {
+    id: 'default-family-living',
+    value: 'family_living',
+    name: 'Sinh hoạt gia đình',
+    type: 'expense',
+    icon: 'fa-house-user',
+    color: 'amber',
+    is_default: true,
+    sort_order: 90,
+    created_at: ''
+  },
+  {
+    id: 'default-tuition',
+    value: 'tuition',
+    name: 'Tiền học',
+    type: 'expense',
+    icon: 'fa-graduation-cap',
+    color: 'cyan',
+    is_default: true,
+    sort_order: 100,
+    created_at: ''
+  },
+  {
+    id: 'default-other-expense',
+    value: 'other_expense',
+    name: 'Chi phí khác',
+    type: 'expense',
+    icon: 'fa-receipt',
+    color: 'slate',
+    is_default: true,
+    sort_order: 110,
+    created_at: ''
+  },
+  {
+    id: 'default-other-income',
+    value: 'other_income',
+    name: 'Khoản thu khác',
+    type: 'income',
+    icon: 'fa-circle-dollar-to-slot',
+    color: 'emerald',
+    is_default: true,
+    sort_order: 10,
+    created_at: ''
+  }
+]
+
+const resolveUserRole = (role: unknown): UserRole => (role === 'admin' ? 'admin' : 'user')
+
+const resolveUserStatus = (status: unknown): UserStatus =>
+  status === 'inactive' ? 'inactive' : 'active'
+
+const buildAppUser = (
+  row: Record<string, unknown> | null | undefined,
+  authUser?: {
+    id: string
+    email?: string | null
+    created_at?: string
+    last_sign_in_at?: string | null
+    user_metadata?: Record<string, unknown>
+  } | null
+): AppUser => {
+  const email =
+    (typeof row?.email === 'string' && row.email.trim()) ||
+    (typeof authUser?.email === 'string' && authUser.email.trim()) ||
+    undefined
+  const fallbackUsername = email || authUser?.id || String(row?.id || 'user')
+  const username = (typeof row?.username === 'string' && row.username.trim()) || fallbackUsername
+  const fullName =
+    (typeof row?.full_name === 'string' && row.full_name.trim()) ||
+    (typeof authUser?.user_metadata?.full_name === 'string' &&
+      authUser.user_metadata.full_name.trim()) ||
+    email ||
+    username
+  const avatarUrl =
+    (typeof row?.avatar_url === 'string' && row.avatar_url.trim()) ||
+    (typeof authUser?.user_metadata?.avatar_url === 'string' &&
+      authUser.user_metadata.avatar_url.trim()) ||
+    undefined
+
+  return {
+    id: String(row?.id || authUser?.id || ''),
+    username,
+    email,
+    phone: typeof row?.phone === 'string' ? row.phone : '',
+    notification_email: typeof row?.notification_email === 'string' ? row.notification_email : null,
+    email_notifications_enabled: row?.email_notifications_enabled === true,
+    email_notification_preferences: normalizeEmailNotificationPreferences(row?.email_notification_preferences),
+    full_name: fullName,
+    avatar_url: avatarUrl,
+    password_hash: typeof row?.password_hash === 'string' ? row.password_hash : undefined,
+    role: resolveUserRole(row?.role),
+    status: resolveUserStatus(row?.status),
+    authenticator_verified: typeof row?.authenticator_verified === 'boolean' ? row.authenticator_verified : undefined,
+    email_verified: typeof row?.email_verified === 'boolean' ? row.email_verified : undefined,
+    last_login_at:
+      (typeof row?.last_login_at === 'string' && row.last_login_at) ||
+      (typeof authUser?.last_sign_in_at === 'string' && authUser.last_sign_in_at) ||
+      undefined,
+    created_at:
+      (typeof row?.created_at === 'string' && row.created_at) ||
+      (typeof authUser?.created_at === 'string' && authUser.created_at) ||
+      new Date().toISOString()
+  }
+}
+
+const isValidNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value)
+
+const normalizeDateToMonthYear = (dateInput?: string): { month: number; year: number } | null => {
+  if (!dateInput) return null
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) return null
+  return { month: date.getMonth() + 1, year: date.getFullYear() }
+}
+
+const getRoomById = async (
+  roomId: string
+): Promise<Pick<Room, 'id' | 'name' | 'status'> | null> => {
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('id,name,status')
+    .eq('id', roomId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return (data as Pick<Room, 'id' | 'name' | 'status'> | null) || null
+}
+
+const getTenantById = async (
+  tenantId: string
+): Promise<Pick<Tenant, 'id' | 'is_active' | 'full_name' | 'phone' | 'identity_card'> | null> => {
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id,is_active,full_name,phone,identity_card')
+    .eq('id', tenantId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return (
+    (data as Pick<Tenant, 'id' | 'is_active' | 'full_name' | 'phone' | 'identity_card'> | null) ||
+    null
+  )
+}
+// =========================================================
+// ROOMS
+// =========================================================
+export const getRooms = async (): Promise<Room[]> => {
+  let data: unknown
+  try {
+    data = await safeQuery(() =>
+      supabase.from('rooms').select(ROOM_LIST_SELECT).order('name', { ascending: true })
+    )
+  } catch (error) {
+    if (!/column .+ does not exist|could not find .+ column/i.test(error instanceof Error ? error.message : String(error))) throw error
+    // Older production schemas do not have optional per-room price columns.
+    // The full row remains compatible; service-zone prices are resolved by the UI.
+    console.warn('Không tải được projection danh sách phòng, thử truy vấn tương thích:', error)
+    data = await safeQuery(() =>
+      supabase.from('rooms').select('*').order('name', { ascending: true })
+    )
+  }
+  return ((data || []) as unknown as Room[]).map((room) => {
+    if (room.status === 'vacant' && room.expected_end_date && room.tenant_name) {
+      return { ...room, status: 'ending' }
+    }
+    return room
+  })
+}
+
+export const getRoom = async (id: string): Promise<Room> => {
+  const data = await safeQuery(() => supabase.from('rooms').select('*').eq('id', id).single())
+  const room = data as any as Room
+  room.image_urls = await signRoomImages(room.image_urls)
+  if (room.status === 'vacant' && room.expected_end_date && room.tenant_name) {
+    return { ...room, status: 'ending' }
+  }
+  return room
+}
+
+export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
+  const roomName = formatRoomName(roomData.name || '')
+  if (!roomName) throw new Error('Tên phòng không được để trống.')
+
+  // Check before insert so the form can show a useful error without relying on a
+  // database error. The migration trigger remains the final race-safe guard.
+  const existingRooms = await safeQuery(() => supabase.from('rooms').select('id,name'))
+  const normalizedName = roomName.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
+  if (
+    (existingRooms as Array<{ id: string; name?: string }>).some(
+      (room) =>
+        (room.name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN') === normalizedName
+    )
+  ) {
+    throw new Error('Tên phòng này đã tồn tại. Vui lòng nhập tên khác.')
+  }
+
+  const newRoom = {
+    ...roomData,
+    ...(roomData.image_urls ? { image_urls: normalizeRoomImagePaths(roomData.image_urls) } : {}),
+    id: createEntityId('room'),
+    name: roomName,
+    status: 'vacant',
+    created_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() => supabase.from('rooms').insert(newRoom).select().single())
+  const createdRoom = result as unknown as Room
+  if (createdRoom?.image_urls) createdRoom.image_urls = await signRoomImages(createdRoom.image_urls)
+  return createdRoom
+}
+
+export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Room> => {
+  if (updates.image_urls) updates = { ...updates, image_urls: normalizeRoomImagePaths(updates.image_urls) }
+  if (typeof updates.name === 'string') {
+    updates.name = formatRoomName(updates.name)
+    if (!updates.name) throw new Error('Tên phòng không được để trống.')
+
+    const existingRooms = await safeQuery(() =>
+      supabase.from('rooms').select('id,name').neq('id', id)
+    )
+    const normalizedName = updates.name
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleLowerCase('vi-VN')
+    if (
+      (existingRooms as Array<{ id: string; name?: string }>).some(
+        (room) =>
+          (room.name || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN') ===
+          normalizedName
+      )
+    ) {
+      throw new Error('Tên phòng này đã tồn tại. Vui lòng nhập tên khác.')
+    }
+  }
+  const result = await safeQuery(() =>
+    supabase.from('rooms').update(updates).eq('id', id).select().single()
+  )
+  const updatedRoom = result as unknown as Room
+  if (updatedRoom?.image_urls) updatedRoom.image_urls = await signRoomImages(updatedRoom.image_urls)
+  return updatedRoom
+}
+
+const insertMeterReadingAdjustmentLog = async (
+  log: Omit<MeterReadingAdjustment, 'id' | 'recorded_at'>
+): Promise<void> => {
+  const entry = { ...log, id: createEntityId('meter-adj'), recorded_at: new Date().toISOString() }
+  const { error } = await supabase.from('meter_reading_adjustments').insert(entry)
+  if (!error) return
+
+  const message = String(error.message || '')
+  const missingTable = error.code === 'PGRST205' || /meter_reading_adjustments/i.test(message)
+  if (!missingTable) {
+    console.warn('Khong ghi duoc audit dieu chinh chi so:', message)
+    return
+  }
+
+  const fallbackNote = [
+    '[METER_READING_ADJUSTMENT]',
+    `Thoi gian: ${entry.recorded_at}`,
+    `Nguoi sua: ${entry.adjusted_by_name || entry.adjusted_by || 'admin'}`,
+    `Dien: ${entry.old_electric} -> ${entry.new_electric}`,
+    `Nuoc: ${entry.old_water} -> ${entry.new_water}`,
+    `Ly do: ${entry.reason}`
+  ].join(' | ')
+
+  const { data: room } = await supabase
+    .from('rooms')
+    .select('notes')
+    .eq('id', entry.room_id)
+    .maybeSingle()
+  const nextNotes = [room?.notes || '', fallbackNote].filter(Boolean).join('\n')
+  const { error: fallbackError } = await supabase
+    .from('rooms')
+    .update({ notes: nextNotes } as any)
+    .eq('id', entry.room_id)
+  if (fallbackError)
+    console.warn('Khong ghi duoc fallback audit dieu chinh chi so:', fallbackError.message)
+}
+
+export const adjustRoomMeterReadings = async (data: {
+  room_id: string
+  electric_reading: number
+  water_reading: number
+  reason: string
+  adjusted_by?: string
+  adjusted_by_name?: string
+}): Promise<{ room: Room; invoice?: Invoice }> => {
+  if (!data.room_id) throw new Error('Thiếu phòng cần điều chỉnh.')
+  if (!data.reason.trim()) throw new Error('Vui lòng nhập lý do điều chỉnh chỉ số.')
+  if (!isValidNumber(data.electric_reading) || data.electric_reading < 0)
+    throw new Error('Chỉ số điện không hợp lệ.')
+  if (!isValidNumber(data.water_reading) || data.water_reading < 0)
+    throw new Error('Chỉ số nước không hợp lệ.')
+
+  const { data: roomData, error: roomError } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', data.room_id)
+    .maybeSingle()
+  if (roomError) throw new Error(roomError.message)
+  if (!roomData) throw new Error('Không tìm thấy phòng.')
+  const room = roomData as Room
+
+  const { data: activeContract } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const { data: invoiceRows, error: invoiceError } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .neq('payment_status', 'cancelled')
+    .neq('payment_status', 'merged')
+    .or('billing_reason.eq.monthly,has_transfer.eq.true')
+    .order('year', { ascending: false })
+    .order('month', { ascending: false })
+    .order('created_at', { ascending: false })
+  if (invoiceError) throw new Error(invoiceError.message)
+
+  const hasUtilityHistory = ((invoiceRows || []) as Invoice[]).some(
+    (invoice) =>
+      Number(invoice.electric_usage || 0) > 0 ||
+      Number(invoice.water_usage || 0) > 0 ||
+      Number(invoice.electric_cost || 0) > 0 ||
+      Number(invoice.water_cost || 0) > 0 ||
+      invoice.billing_reason === 'monthly' ||
+      invoice.has_transfer === true
+  )
+  if (hasUtilityHistory) {
+    throw new Error(
+      'Phòng đã có lịch sử điện/nước. Không thể sửa mốc đầu kỳ; hãy xử lý bằng khoản điều chỉnh ở hóa đơn kỳ sau.'
+    )
+  }
+
+  const updatedRoom = await updateRoom(data.room_id, {
+    electric_old: data.electric_reading,
+    electric_new: data.electric_reading,
+    water_old: data.water_reading,
+    water_new: data.water_reading
+  })
+
+  if (activeContract?.id) {
+    await supabase
+      .from('contracts')
+      .update({ electric_init: data.electric_reading, water_init: data.water_reading } as any)
+      .eq('id', activeContract.id)
+  }
+
+  await insertMeterReadingAdjustmentLog({
+    room_id: data.room_id,
+    contract_id: activeContract?.id,
+    old_electric: Number(room.electric_new || room.electric_old || 0),
+    new_electric: data.electric_reading,
+    old_water: Number(room.water_new || room.water_old || 0),
+    new_water: data.water_reading,
+    reason: data.reason.trim(),
+    adjusted_by: data.adjusted_by,
+    adjusted_by_name: data.adjusted_by_name
+  })
+
+  return { room: updatedRoom }
+}
+
+export const deleteRoom = async (id: string): Promise<void> => {
+  const relatedTables = [
+    ['contracts', 'hợp đồng'],
+    ['invoices', 'hóa đơn'],
+    ['move_in_receipts', 'biên lai nhận phòng'],
+    ['room_assets', 'tài sản'],
+    ['asset_snapshots', 'lịch sử tài sản'],
+    ['room_vehicles', 'xe'],
+    ['room_asset_adjustments', 'điều chỉnh tài sản'],
+    ['meter_reading_adjustments', 'lịch sử chỉ số']
+  ] as const
+
+  for (const [table, label] of relatedTables) {
+    let query = supabase.from(table).select('id').eq('room_id', id).limit(1)
+    // The assets screen hides zero-quantity rows, so they should not prevent
+    // deleting a newly created room that has no active assets.
+    if (table === 'room_assets') query = query.gt('quantity', 0)
+    const { data, error } = await query
+    // Some older deployments do not have the optional audit table yet.
+    if (error?.code === 'PGRST205') continue
+    if (error) throw new Error(error.message)
+    if (data && data.length > 0) {
+      throw new Error(`Không thể xóa phòng vì vẫn còn ${label} liên quan.`)
+    }
+  }
+
+  const { error } = await supabase.from('rooms').delete().eq('id', id)
+  if (error) {
+    if (error.code === '42501' || /permission|policy|row-level security/i.test(error.message)) {
+      throw new Error('Chỉ tài khoản quản trị đang hoạt động mới được xóa phòng chưa có dữ liệu.')
+    }
+    throw new Error(error.message)
+  }
+}
+
+// =========================================================
+// TENANTS
+// =========================================================
+export const getTenants = async (): Promise<Tenant[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('tenants')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Tenant[]
+  })
+}
+
+export const createTenant = async (tenantData: Partial<Tenant>): Promise<Tenant> => {
+  await assertTenantEmail(tenantData.email)
+  const newTenant = {
+    ...tenantData,
+    email: normalizeTenantEmail(tenantData.email),
+    id: createEntityId('tenant'),
+    is_active: true,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() => supabase.from('tenants').insert(newTenant).select().single())
+  return result as any as Tenant
+}
+
+export const updateTenant = async (id: string, updates: Partial<Tenant>): Promise<Tenant> => {
+  if ('email' in updates) {
+    await assertTenantEmail(updates.email)
+    updates = { ...updates, email: normalizeTenantEmail(updates.email) }
+  }
+  const result = await safeQuery(() =>
+    supabase
+      .from('tenants')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+  )
+  return result as any as Tenant
+}
+
+export const deleteTenant = async (id: string): Promise<void> => {
+  void id
+  throw new Error(
+    'Đã chặn xóa vĩnh viễn khách thuê để bảo vệ hợp đồng và lịch sử thanh toán. Hãy dùng “Đánh dấu đã chuyển đi”.'
+  )
+}
+
+export const markTenantLeft = async (tenantId: string): Promise<Tenant> => {
+  const result = await safeQuery(() =>
+    supabase
+      .from('tenants')
+      .update({
+        is_active: false,
+        left_at: new Date().toISOString().split('T')[0],
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', tenantId)
+      .select()
+      .single()
+  )
+  return result as any as Tenant
+}
+
+// =========================================================
+// SERVICE ZONES
+// =========================================================
+export const getServiceZones = async (): Promise<ServiceZone[]> => {
+  const data = await safeQuery(() =>
+    supabase.from('service_zones').select('*').order('name', { ascending: true })
+  )
+  return data || []
+}
+
+export const createServiceZone = async (zoneData: Partial<ServiceZone>): Promise<ServiceZone> => {
+  const newZone = { ...zoneData, id: createEntityId('zone'), created_at: new Date().toISOString() }
+  const result = await safeQuery(() =>
+    supabase.from('service_zones').insert(newZone).select().single()
+  )
+  return result as any as ServiceZone
+}
+
+export const updateServiceZone = async (
+  id: string,
+  updates: Partial<ServiceZone>
+): Promise<ServiceZone> => {
+  const result = await safeQuery(() =>
+    supabase.from('service_zones').update(updates).eq('id', id).select().single()
+  )
+  return result as any as ServiceZone
+}
+
+export const deleteServiceZone = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('service_zones').delete().eq('id', id))
+}
+
+// =========================================================
+// CONTRACTS
+// =========================================================
+export const getContracts = async (): Promise<Contract[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Contract[]
+  })
+}
+
+// The room dashboard only needs the active contract identity, tenant display
+// fields, dates and deposit state. Keep history/detail queries on getContracts()
+// so this projection cannot remove fields from those modules.
+const ACTIVE_CONTRACT_LIST_FIELDS = [
+  'id',
+  'room_id',
+  'tenant_id',
+  'tenant_name',
+  'tenant_phone',
+  'move_in_date',
+  'occupant_count',
+  'expiration_date',
+  'deposit_amount',
+  'deposit_pre_collected',
+  'is_migration',
+  'status',
+  'created_at'
+] as const satisfies readonly (keyof Contract)[]
+export type ActiveContractListItem = Pick<Contract, (typeof ACTIVE_CONTRACT_LIST_FIELDS)[number]>
+const ACTIVE_CONTRACT_LIST_SELECT = ACTIVE_CONTRACT_LIST_FIELDS.join(',')
+
+export const getActiveContracts = async (): Promise<ActiveContractListItem[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select(ACTIVE_CONTRACT_LIST_SELECT)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as unknown as ActiveContractListItem[]
+  })
+}
+
+export const createContract = async (data: Partial<Contract>): Promise<Contract> => {
+  if (!data.room_id) throw new Error('Thiếu room_id khi tạo hợp đồng.')
+  if (!data.move_in_date) throw new Error('Thiếu ngày vào ở khi tạo hợp đồng.')
+
+  const room = await getRoomById(data.room_id)
+  if (!room) throw new Error('Không tìm thấy phòng.')
+  let tenantForContract: Awaited<ReturnType<typeof getTenantById>> = null
+
+  const roomActiveContracts = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id')
+      .eq('room_id', data.room_id as string)
+      .eq('status', 'active')
+  )
+  const activeRoomContracts = (roomActiveContracts || []) as Array<{ id: string }>
+
+  if (activeRoomContracts.length > 0) {
+    if (room.status === 'occupied') {
+      throw new Error('Phòng đã có hợp đồng đang hiệu lực.')
+    }
+    await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .update({ status: 'expired' } as any)
+        .in(
+          'id',
+          activeRoomContracts.map((item) => item.id)
+        )
+    )
+  }
+
+  if (data.tenant_id) {
+    const tenant = await getTenantById(data.tenant_id)
+    if (!tenant || !tenant.is_active) {
+      throw new Error('Khách thuê không tồn tại hoặc đã ngừng hoạt động.')
+    }
+    tenantForContract = tenant
+
+    const tenantActiveContracts = await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .select('id,room_id')
+        .eq('tenant_id', data.tenant_id as string)
+        .eq('status', 'active')
+        .neq('room_id', data.room_id as string)
+        .limit(1)
+    )
+    if ((tenantActiveContracts || []).length > 0) {
+      throw new Error('Khách thuê đang có hợp đồng hiệu lực ở phòng khác.')
+    }
+  }
+
+  const tenantName = (data.tenant_name || tenantForContract?.full_name || '').trim()
+  if (!tenantName) {
+    throw new Error('Thiếu tên khách thuê khi tạo hợp đồng.')
+  }
+
+  const newContract = {
+    ...data,
+    tenant_name: tenantName,
+    tenant_phone: data.tenant_phone || tenantForContract?.phone || undefined,
+    tenant_id_card: data.tenant_id_card || tenantForContract?.identity_card || undefined,
+    id: createEntityId('contract'),
+    status: 'active',
+    created_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() =>
+    supabase.from('contracts').insert(newContract).select().single()
+  )
+  const contract = result as any as Contract
+  await supabase
+    .from('rooms')
+    .update({
+      status: 'occupied',
+      tenant_name: contract.tenant_name,
+      tenant_phone: contract.tenant_phone,
+      move_in_date: contract.move_in_date,
+      base_rent: contract.base_rent,
+      invoice_day: contract.invoice_day,
+      electric_old: contract.electric_init,
+      electric_new: contract.electric_init,
+      water_old: contract.water_init,
+      water_new: contract.water_init
+    } as any)
+    .eq('id', contract.room_id)
+
+  // Hợp đồng di cư đã thu cọc từ app cũ → tạo hóa đơn cọc paid tự động
+  if (
+    contract.is_migration &&
+    contract.deposit_pre_collected &&
+    (contract.deposit_amount || 0) > 0
+  ) {
+    const now = new Date().toISOString()
+    const d = new Date()
+    await supabase.from('invoices').insert({
+      id: createEntityId('inv'),
+      room_id: contract.room_id,
+      tenant_id: contract.tenant_id,
+      month: d.getMonth() + 1,
+      year: d.getFullYear(),
+      electric_old: 0,
+      electric_new: 0,
+      electric_usage: 0,
+      electric_cost: 0,
+      water_old: 0,
+      water_new: 0,
+      water_usage: 0,
+      water_cost: 0,
+      room_cost: 0,
+      wifi_cost: 0,
+      garbage_cost: 0,
+      old_debt: 0,
+      total_amount: contract.deposit_amount,
+      paid_amount: contract.deposit_amount,
+      deposit_amount: contract.deposit_amount,
+      payment_status: 'paid',
+      payment_date: contract.move_in_date,
+      billing_reason: 'deposit_collect',
+      note: 'Tiền đặt cọc đã thu từ app cũ',
+      created_at: now
+    })
+  }
+
+  return contract
+}
+
+export const updateContract = async (id: string, updates: Partial<Contract>): Promise<Contract> => {
+  const result = await safeQuery(() =>
+    supabase.from('contracts').update(updates).eq('id', id).select().single()
+  )
+  return result as any as Contract
+}
+
+export const cancelContract = async (id: string, notes: string, kind: import('./contract-confirmation').CancellationKind, referenceId: string): Promise<void> => {
+  const rows = await getContracts()
+  const contract = rows.find(item => item.id === id) || rows.find(item => item.room_id === id && item.status === 'active')
+  if (!contract) throw new Error('Không tìm thấy hợp đồng đang hiệu lực.')
+  const { cancelContractWithReason } = await import('./contract-confirmation')
+  await cancelContractWithReason(contract.id, notes, kind, referenceId)
+}
+
+export const terminateContract = async (data: {
+  room_id: string
+  contract_id: string
+  end_date: string
+  final_electric: number
+  final_water: number
+  merge_invoice_ids: string[]
+  damage_amount: number
+  damage_note: string
+  payment_method: PaymentMethod
+  final_room_cost?: number
+  final_wifi_cost?: number
+  final_garbage_cost?: number
+  final_period_start?: string
+  final_period_end?: string
+  final_prorata_days?: number
+}): Promise<void> => {
+  if (!data.contract_id) throw new Error('Không tìm thấy hợp đồng đang hiệu lực để tất toán.')
+
+  // Fetch song song room + contract để tính toán tất toán
+  const [{ data: room }, { data: contract }] = await Promise.all([
+    supabase.from('rooms').select('*').eq('id', data.room_id).maybeSingle(),
+    supabase.from('contracts').select('*').eq('id', data.contract_id).maybeSingle()
+  ])
+  if (!room) throw new Error('Không tìm thấy phòng.')
+  if (!contract) throw new Error('Không tìm thấy hợp đồng.')
+
+  let zone: ServiceZone | null = null
+  if (room.service_zone_id) {
+    const { data: zoneData } = await supabase
+      .from('service_zones')
+      .select('*')
+      .eq('id', room.service_zone_id)
+      .maybeSingle()
+    zone = zoneData || null
+  }
+
+  // Giá điện/nước tại thời điểm tất toán
+  const electricPrice = (room as any).electric_price || zone?.electric_price || 0
+  const waterPrice = (room as any).water_price || zone?.water_price || 0
+  const { data: contractInvoices } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('room_id', data.room_id)
+    .eq('tenant_id', contract.tenant_id || '')
+    .neq('payment_status', 'cancelled')
+  const depositHeld = getCollectedDepositAmount(
+    contract as Contract,
+    (contractInvoices || []) as Invoice[]
+  )
+  const existingSettlement = (contractInvoices || []).find(
+    (invoice: Invoice) =>
+      invoice.is_settlement &&
+      invoice.payment_status !== 'cancelled' &&
+      invoice.payment_status !== 'merged'
+  )
+  if (existingSettlement) throw new Error('Hợp đồng này đã có hóa đơn tất toán.')
+
+  // Tính điện/nước cuối kỳ
+  const electricOld = (room as Room).electric_new || 0
+  const electricUsage = Math.max(0, data.final_electric - electricOld)
+  const electricCost = electricUsage * electricPrice
+  const waterOld = (room as Room).water_new || 0
+  const waterUsage = Math.max(0, data.final_water - waterOld)
+  const waterCost = waterUsage * waterPrice
+  const finalRoomCost = Math.max(0, Number(data.final_room_cost || 0))
+  const finalWifiCost = Math.max(0, Number(data.final_wifi_cost || 0))
+  const finalGarbageCost = Math.max(0, Number(data.final_garbage_cost || 0))
+
+  // Tổng nợ gộp
+  let mergedDebtTotal = 0
+  if (data.merge_invoice_ids.length > 0) {
+    const { data: mergedInvoices } = await supabase
+      .from('invoices')
+      .select('total_amount,paid_amount')
+      .in('id', data.merge_invoice_ids)
+    mergedDebtTotal = (mergedInvoices || []).reduce(
+      (sum: number, i: any) => sum + Math.max(0, i.total_amount - i.paid_amount),
+      0
+    )
+  }
+
+  // netDue < 0 → chủ nhà hoàn tiền; > 0 → khách còn thiếu; = 0 → hòa
+  const totalCharges =
+    finalRoomCost +
+    finalWifiCost +
+    finalGarbageCost +
+    electricCost +
+    waterCost +
+    mergedDebtTotal +
+    (data.damage_amount || 0)
+  const depositApplied = Math.min(depositHeld, totalCharges)
+  const netDue = totalCharges - depositHeld
+
+  let paymentStatus: PaymentStatus
+  if (netDue === 0) {
+    paymentStatus = 'paid'
+  } else {
+    paymentStatus = 'unpaid'
+  }
+
+  // Tạo hóa đơn tất toán trước. Nếu bước này lỗi thì không được đổi trạng thái phòng/hợp đồng.
+  const endDateObj = new Date(data.end_date)
+  await safeQuery(() =>
+    supabase.from('invoices').insert({
+      id: createEntityId('inv'),
+      room_id: data.room_id,
+      tenant_id: contract.tenant_id || '',
+      billing_reason: 'contract_end',
+      month: endDateObj.getMonth() + 1,
+      year: endDateObj.getFullYear(),
+      invoice_date: data.end_date,
+      billing_period_start: data.final_period_start || data.end_date,
+      billing_period_end: data.final_period_end || data.end_date,
+      electric_old: electricOld,
+      electric_new: data.final_electric,
+      electric_usage: electricUsage,
+      electric_cost: electricCost,
+      electric_price_snapshot: electricPrice,
+      water_old: waterOld,
+      water_new: data.final_water,
+      water_usage: waterUsage,
+      water_cost: waterCost,
+      water_price_snapshot: waterPrice,
+      room_cost: finalRoomCost,
+      wifi_cost: finalWifiCost,
+      garbage_cost: finalGarbageCost,
+      old_debt: 0,
+      total_amount: netDue,
+      paid_amount: 0,
+      payment_status: paymentStatus,
+      payment_method: data.payment_method,
+      is_settlement: true,
+      deposit_applied: depositApplied,
+      deposit_amount: depositHeld > 0 ? -depositHeld : 0,
+      prorata_days: data.final_prorata_days,
+      adjustment_amount: (data.damage_amount || 0) > 0 ? data.damage_amount || 0 : undefined,
+      adjustment_note:
+        (data.damage_amount || 0) > 0 ? data.damage_note || 'Đền bù thiệt hại tài sản' : undefined,
+      damage_amount: data.damage_amount || 0,
+      damage_note: data.damage_note || undefined,
+      merged_invoice_ids: data.merge_invoice_ids.length > 0 ? data.merge_invoice_ids : undefined,
+      merged_debt_total: mergedDebtTotal > 0 ? mergedDebtTotal : undefined,
+      created_at: new Date().toISOString()
+    })
+  )
+
+  if (data.merge_invoice_ids.length > 0) {
+    await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .update({ payment_status: 'merged' })
+        .in('id', data.merge_invoice_ids)
+    )
+  }
+
+  // Nếu còn khoản phải thu thì giữ phòng ở trạng thái sắp trả để hóa đơn tất toán đi qua luồng thanh toán/SePay.
+  if (netDue > 0) {
+    await safeQuery(() =>
+      supabase
+        .from('rooms')
+        .update({ status: 'ending', expected_end_date: data.end_date } as any)
+        .eq('id', data.room_id)
+    )
+  } else {
+    await safeQuery(() =>
+      supabase
+        .from('rooms')
+        .update({
+          status: 'vacant',
+          tenant_name: null,
+          tenant_phone: null,
+          move_in_date: null,
+          expected_end_date: null,
+          electric_old: data.final_electric,
+          electric_new: data.final_electric,
+          water_old: data.final_water,
+          water_new: data.final_water,
+          has_move_in_receipt: false
+        } as any)
+        .eq('id', data.room_id)
+    )
+    await safeQuery(() =>
+      supabase
+        .from('contracts')
+        .update({
+          status: 'terminated',
+          end_date: data.end_date,
+          end_note: data.damage_note,
+          final_electric: data.final_electric,
+          final_water: data.final_water
+        } as any)
+        .eq('id', data.contract_id)
+    )
+  }
+}
+
+export const changeRoom = async (data: {
+  old_room_id: string
+  new_room_id: string
+  change_date: string
+  final_electric: number
+  final_water: number
+  new_base_rent: number
+  new_deposit: number
+  new_electric_init: number
+  new_water_init: number
+}): Promise<void> => {
+  const { data: oldContract, error: oldContractError } = await supabase
+    .from('contracts')
+    .select('*')
+    .eq('room_id', data.old_room_id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (oldContractError) throw new Error(oldContractError.message)
+  if (!oldContract) throw new Error('Không tìm thấy hợp đồng cũ')
+  await supabase
+    .from('rooms')
+    .update({
+      status: 'vacant',
+      tenant_name: null,
+      tenant_phone: null,
+      move_in_date: null,
+      electric_old: data.final_electric,
+      electric_new: data.final_electric,
+      water_old: data.final_water,
+      water_new: data.final_water,
+      has_move_in_receipt: false
+    } as any)
+    .eq('id', data.old_room_id)
+  await supabase
+    .from('contracts')
+    .update({
+      status: 'terminated',
+      end_date: data.change_date,
+      end_note: `Chuyển sang phòng ${data.new_room_id}`,
+      final_electric: data.final_electric,
+      final_water: data.final_water
+    })
+    .eq('id', oldContract.id)
+  const newContract = {
+    ...oldContract,
+    id: createEntityId('contract'),
+    room_id: data.new_room_id,
+    move_in_date: data.change_date,
+    base_rent: data.new_base_rent,
+    deposit_amount: data.new_deposit,
+    electric_init: data.new_electric_init,
+    water_init: data.new_water_init,
+    status: 'active',
+    created_at: new Date().toISOString()
+  }
+  delete (newContract as any).end_date
+  delete (newContract as any).end_note
+  await supabase.from('contracts').insert(newContract)
+  await supabase
+    .from('rooms')
+    .update({
+      status: 'occupied',
+      tenant_name: oldContract.tenant_name,
+      tenant_phone: oldContract.tenant_phone,
+      move_in_date: data.change_date,
+      electric_old: data.new_electric_init,
+      electric_new: data.new_electric_init,
+      water_old: data.new_water_init,
+      water_new: data.new_water_init
+    } as any)
+    .eq('id', data.new_room_id)
+}
+
+// =========================================================
+// INVOICES
+// =========================================================
+export type InvoiceListOptions = {
+  month?: number
+  year?: number
+  limit?: number
+  offset?: number
+}
+
+export function getInvoices(): Promise<Invoice[]>
+export function getInvoices(options: InvoiceListOptions): Promise<Invoice[]>
+export async function getInvoices(options: InvoiceListOptions = {}): Promise<Invoice[]> {
+  if (options.limit !== undefined) {
+    let query = supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+    if (options.month !== undefined) query = query.eq('month', options.month)
+    if (options.year !== undefined) query = query.eq('year', options.year)
+    const offset = Math.max(0, options.offset || 0)
+    query = query.range(offset, offset + Math.max(0, options.limit - 1))
+    const data = await safeQuery(() => query)
+    return data || []
+  }
+
+  // Supabase caps an unbounded response. Read complete pages in bounded waves
+  // so long histories do not add one network round-trip per 1,000 rows.
+  return fetchAllPages(async (offset, pageSize) => {
+    let query = supabase
+      .from('invoices')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (options.month !== undefined) query = query.eq('month', options.month)
+    if (options.year !== undefined) query = query.eq('year', options.year)
+    return ((await safeQuery(() => query)) || []) as Invoice[]
+  })
+}
+
+export const getOutstandingInvoices = async (): Promise<Invoice[]> => {
+  const invoices = await fetchAllPages<Invoice>(async (offset, pageSize) => {
+    const page = (await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .in('payment_status', ['unpaid', 'partial'])
+        .gt('total_amount', 0)
+        .order('year', { ascending: true })
+        .order('month', { ascending: true })
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )) as Invoice[]
+    return page || []
+  })
+  return invoices.filter((invoice) => invoice.total_amount > invoice.paid_amount)
+}
+
+export const getInvoiceMonthCounts = async (): Promise<Record<string, number>> => {
+  const counts: Record<string, number> = {}
+  const rows = await fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase.from('invoices').select('month,year').order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )
+    const page = (data || []) as Array<{ month?: number; year?: number }>
+    return page
+  })
+  for (const row of rows) {
+      if (!row.month || !row.year) continue
+      const key = `${row.year}-${row.month}`
+      counts[key] = (counts[key] || 0) + 1
+    }
+  return counts
+}
+
+export type InvoiceMonthSummary = {
+  total: number
+  paid: number
+  unpaid: number
+  partial: number
+  settlement: number
+  merged: number
+  cancelled: number
+}
+
+export const getInvoiceMonthSummary = async (
+  month: number,
+  year: number
+): Promise<InvoiceMonthSummary> => {
+  const summary: InvoiceMonthSummary = {
+    total: 0,
+    paid: 0,
+    unpaid: 0,
+    partial: 0,
+    settlement: 0,
+    merged: 0,
+    cancelled: 0
+  }
+  const rows = await fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('payment_status,is_settlement')
+        .eq('month', month)
+        .eq('year', year)
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )
+    const page = (data || []) as Array<{
+      payment_status?: Invoice['payment_status']
+      is_settlement?: boolean
+    }>
+    return page
+  })
+  for (const invoice of rows) {
+      summary.total++
+      if (invoice.is_settlement) summary.settlement++
+      if (invoice.payment_status === 'merged') summary.merged++
+      if (invoice.payment_status === 'cancelled') summary.cancelled++
+      if (invoice.is_settlement) continue
+      if (invoice.payment_status === 'paid') summary.paid++
+      if (invoice.payment_status === 'unpaid') summary.unpaid++
+      if (invoice.payment_status === 'partial') summary.partial++
+    }
+  return summary
+}
+
+export const getRoomInvoices = async (): Promise<Invoice[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Invoice[]
+  })
+}
+
+export const getInvoicesByRoom = async (roomId: string): Promise<Invoice[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('invoices')
+        .select('*')
+        .eq('room_id', roomId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as Invoice[]
+  })
+}
+
+export const confirmInvoiceDebt = async (invoice: Invoice): Promise<Invoice> => {
+  const { data, error } = await supabase.rpc('confirm_invoice_debt_atomic', {
+    p_invoice_id: invoice.id,
+    p_expected_total: invoice.total_amount,
+    p_expected_paid: invoice.paid_amount,
+    p_expected_electric_new: invoice.electric_new,
+    p_expected_water_new: invoice.water_new
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+  const result = data as { invoice?: Invoice } | null
+  if (!result?.invoice) throw new Error('Không nhận được kết quả chốt nợ.')
+  return result.invoice
+}
+
+export const reopenInvoiceDebt = async (invoiceId: string): Promise<Invoice> => {
+  const { data, error } = await supabase.rpc('reopen_invoice_debt_atomic', {
+    p_invoice_id: invoiceId
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+  const result = data as { invoice?: Invoice } | null
+  if (!result?.invoice) throw new Error('Không nhận được kết quả hoàn tác chốt nợ.')
+  return result.invoice
+}
+
+export const createInvoice = async (invoiceData: Partial<Invoice>): Promise<Invoice> => {
+  if (!invoiceData.room_id) throw new Error('Thiếu room_id khi tạo hóa đơn.')
+  if (!invoiceData.tenant_id) throw new Error('Thiếu tenant_id khi tạo hóa đơn.')
+  if (!isValidNumber(invoiceData.month) || !isValidNumber(invoiceData.year)) {
+    throw new Error('Thiếu kỳ hóa đơn (tháng/năm).')
+  }
+
+  const month = invoiceData.month
+  const year = invoiceData.year
+
+  if (invoiceData.is_first_month) {
+    const { data: migratedContract, error: migratedContractError } = await supabase
+      .from('contracts')
+      .select('id')
+      .eq('room_id', invoiceData.room_id as string)
+      .eq('tenant_id', invoiceData.tenant_id as string)
+      .eq('status', 'active')
+      .eq('is_migration', true)
+      .limit(1)
+
+    if (migratedContractError) throw new Error(migratedContractError.message)
+    if ((migratedContract || []).length > 0) {
+      throw new Error('Khách cũ từ phần mềm khác không được lập hóa đơn tháng đầu.')
+    }
+  }
+
+  const shouldCheckReasonDuplicate =
+    !!invoiceData.billing_reason &&
+    invoiceData.billing_reason !== 'deposit_collect' &&
+    !invoiceData.is_first_month &&
+    !invoiceData.allow_duplicate
+
+  const duplicateBase = () =>
+    supabase
+      .from('invoices')
+      .select('id')
+      .eq('room_id', invoiceData.room_id as string)
+      .eq('tenant_id', invoiceData.tenant_id as string)
+      .eq('month', month)
+      .eq('year', year)
+      .neq('payment_status', 'cancelled')
+
+  const checks: any[] = []
+  if (invoiceData.is_first_month) {
+    checks.push(duplicateBase().eq('is_first_month', true).limit(1))
+  } else if (shouldCheckReasonDuplicate) {
+    checks.push(
+      duplicateBase()
+        .eq('billing_reason', invoiceData.billing_reason as string)
+        .limit(1)
+    )
+  } else {
+    checks.push(Promise.resolve({ data: [] }))
+  }
+
+  if (
+    !invoiceData.is_first_month &&
+    !invoiceData.is_settlement &&
+    invoiceData.billing_reason !== 'deposit_collect'
+  ) {
+    checks.push(duplicateBase().eq('is_first_month', true).limit(1))
+  } else {
+    checks.push(Promise.resolve({ data: [] }))
+  }
+
+  const [dupRes, firstMonthGateRes] = await Promise.all(checks)
+  if ((dupRes?.data || []).length > 0) {
+    if (invoiceData.is_first_month) {
+      throw new Error('Đã tồn tại hóa đơn tháng đầu cho khách thuê này trong tháng hiện tại.')
+    }
+    throw new Error('Loại hóa đơn này đã tồn tại cho khách thuê trong cùng tháng.')
+  }
+  if ((firstMonthGateRes?.data || []).length > 0) {
+    throw new Error('Tháng hiện tại đã có hóa đơn tháng đầu; vui lòng tạo từ tháng kế tiếp.')
+  }
+
+  const period = normalizeDateToMonthYear(
+    invoiceData.billing_period_start || invoiceData.invoice_date
+  )
+  if (invoiceData.is_first_month && period && (period.month !== month || period.year !== year)) {
+    throw new Error('Hóa đơn tháng đầu phải trùng tháng/năm vào ở.')
+  }
+
+  const { allow_duplicate: _dup, ...invoiceInsertData } = invoiceData as any
+  const newInvoice = {
+    ...invoiceInsertData,
+    id: createEntityId('inv'),
+    created_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() =>
+    supabase.from('invoices').insert(newInvoice).select().single()
+  )
+  const inv = result as any as Invoice
+  return inv
+}
+
+export const updateInvoice = async (id: string, updates: Partial<Invoice>): Promise<Invoice> => {
+  await requireWalletGuards()
+  const { data: current, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!current) throw new Error('Khong tim thay hoa don.')
+
+  const isMoneyFieldUpdated = [
+    'room_cost',
+    'deposit_amount',
+    'wifi_cost',
+    'garbage_cost',
+    'electric_cost',
+    'water_cost',
+    'old_debt',
+    'adjustment_amount',
+    'total_amount'
+  ].some((key) => Object.prototype.hasOwnProperty.call(updates, key))
+
+  if (isMoneyFieldUpdated && Number(current.paid_amount || 0) > 0) {
+    throw new Error(
+      'Hoa don da co giao dich thu tien. Khong duoc sua so tien de tranh sai lech doi soat.'
+    )
+  }
+
+  const nextTotal = Object.prototype.hasOwnProperty.call(updates, 'total_amount')
+    ? Number((updates as any).total_amount || 0)
+    : Number(current.total_amount || 0)
+
+  const nextPaid = Object.prototype.hasOwnProperty.call(updates, 'paid_amount')
+    ? Number((updates as any).paid_amount || 0)
+    : Number(current.paid_amount || 0)
+
+  const nextStatus: PaymentStatus =
+    nextPaid <= 0 ? 'unpaid' : nextPaid >= nextTotal ? 'paid' : 'partial'
+
+  const result = await safeQuery(() =>
+    supabase
+      .from('invoices')
+      .update({ ...updates, payment_status: nextStatus } as any)
+      .eq('id', id)
+      .select()
+      .single()
+  )
+
+  return result as any as Invoice
+}
+
+export const deleteInvoice = async (id: string): Promise<Invoice> => {
+  await requireWalletGuards()
+  const { data: current, error } = await supabase
+    .from('invoices')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!current) throw new Error('Không tìm thấy hóa đơn.')
+
+  const result = await safeQuery(() =>
+    supabase
+      .from('invoices')
+      .update({ payment_status: 'cancelled', note: '[Đã hủy phiếu]' } as any)
+      .eq('id', id)
+      .select()
+      .single()
+  )
+  const cancelled = result as any as Invoice
+
+  if (current.room_id && !current.is_settlement) {
+    const { data: laterInvoices } = await supabase
+      .from('invoices')
+      .select('id')
+      .eq('room_id', current.room_id)
+      .neq('id', current.id)
+      .neq('payment_status', 'cancelled')
+      .neq('payment_status', 'merged')
+      .gt('created_at', current.created_at)
+      .limit(1)
+
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('electric_new,water_new')
+      .eq('id', current.room_id)
+      .maybeSingle()
+
+    if (
+      (!laterInvoices || laterInvoices.length === 0) &&
+      room &&
+      Number(room.electric_new || 0) === Number(current.electric_new || 0) &&
+      Number(room.water_new || 0) === Number(current.water_new || 0)
+    ) {
+      await supabase
+        .from('rooms')
+        .update({
+          electric_old: current.electric_old,
+          electric_new: current.electric_old,
+          water_old: current.water_old,
+          water_new: current.water_old
+        } as any)
+        .eq('id', current.room_id)
+    }
+  }
+
+  return cancelled
+}
+
+export const recordInvoicePayment = async (
+  id: string,
+  data: {
+    amount: number
+    payment_method: PaymentMethod
+    payment_date: string
+    note?: string
+    external_ref?: string
+    external_id?: string
+    source?: string
+  }
+): Promise<Invoice> => {
+  if (data.source?.trim().toLowerCase() === 'sepay') throw new Error('Khoản thu SePay phải được xác minh tại máy chủ bằng mã giao dịch, không ghi từ trình duyệt.')
+  await requireWalletGuards()
+  const amount = Number(data.amount || 0)
+  if (!Number.isFinite(amount) || amount === 0) throw new Error('Số tiền thu không hợp lệ.')
+  if (amount < 0) {
+    assertSingleWalletExpense(Math.abs(amount), data.payment_method, await getWalletBalanceSummary())
+  }
+  const normalizedPaymentDate = data.payment_date.slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedPaymentDate)) {
+    throw new Error('Ngày thanh toán không hợp lệ.')
+  }
+
+  const { data: billingVersion, error: billingError } = await supabase.rpc('invoice_debt_schema_version')
+  // Older production databases already have the atomic payment RPC but may not
+  // have the later schema-version helper. Do not block valid payments solely
+  // because that optional compatibility check is missing.
+  const missingSchemaVersionFunction = billingError && (
+    billingError.code === 'PGRST202' ||
+    billingError.code === '42883' ||
+    /could not find the function|function .* does not exist|schema cache/i.test(billingError.message || '')
+  )
+  if (billingError && !missingSchemaVersionFunction) {
+    throw new Error(normalizeRemoteErrorMessage(billingError.message))
+  }
+  if (!billingError && billingVersion !== 1) {
+    throw new Error('Database chưa cập nhật nghiệp vụ chốt nợ. Cần chạy migration trước khi thu tiền; giao dịch này chưa được ghi nhận.')
+  }
+
+  const { data: paymentResult, error } = await supabase.rpc('record_invoice_payment_atomic', {
+    p_invoice_id: id,
+    p_amount: amount,
+    p_payment_method: data.payment_method,
+    p_payment_date: normalizedPaymentDate,
+    p_note: data.note || null,
+    p_external_ref: data.external_ref || extractPaymentRefFromNote(data.note) || null,
+    p_external_id: data.external_id || null,
+    p_source: data.source || null
+  })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+
+  const rpcResult = paymentResult as {
+    invoice?: Invoice
+    applied?: boolean
+    transitioned_to_paid?: boolean
+  } | null
+  if (!rpcResult?.invoice) throw new Error('Không nhận được kết quả ghi nhận thanh toán.')
+
+  const updated = rpcResult.invoice
+  const transitionedToPaid = rpcResult.transitioned_to_paid === true
+
+  if (transitionedToPaid && updated.room_id && updated.is_settlement) {
+    const [{ data: room }, { data: activeContract }] = await Promise.all([
+      supabase.from('rooms').select('id,status').eq('id', updated.room_id).maybeSingle(),
+      supabase
+        .from('contracts')
+        .select('id,tenant_id')
+        .eq('room_id', updated.room_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ])
+
+    const canFinalizeMoveOut =
+      room?.status === 'ending' &&
+      activeContract?.id &&
+      (!activeContract.tenant_id || activeContract.tenant_id === updated.tenant_id)
+
+    if (canFinalizeMoveOut) {
+      await safeQuery(() =>
+        supabase
+          .from('rooms')
+          .update({
+            status: 'vacant',
+            tenant_name: null,
+            tenant_phone: null,
+            move_in_date: null,
+            expected_end_date: null,
+            electric_old: updated.electric_new,
+            electric_new: updated.electric_new,
+            water_old: updated.water_new,
+            water_new: updated.water_new,
+            has_move_in_receipt: false
+          } as any)
+          .eq('id', updated.room_id)
+      )
+
+      await safeQuery(() =>
+        supabase
+          .from('contracts')
+          .update({
+            status: 'terminated',
+            end_date: updated.invoice_date || data.payment_date,
+            end_note: updated.damage_note || updated.adjustment_note || undefined,
+            final_electric: updated.electric_new,
+            final_water: updated.water_new
+          } as any)
+          .eq('id', activeContract.id)
+      )
+    }
+  }
+
+  return updated
+}
+
+// =========================================================
+// ASSETS & SNAPSHOTS
+// =========================================================
+export const getRoomAssets = async (roomId: string): Promise<RoomAsset[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('room_assets')
+      .select('*')
+      .eq('room_id', roomId)
+      .gt('quantity', 0)
+      .order('sort_order', { ascending: true })
+  )
+  return data || []
+}
+
+export const getAllRoomAssets = async (): Promise<RoomAsset[]> => {
+  return fetchAllPages(async (offset, pageSize) => {
+    const data = await safeQuery(() =>
+      supabase
+        .from('room_assets')
+        .select('*')
+        .gt('quantity', 0)
+        .order('sort_order', { ascending: true })
+        .order('id', { ascending: true })
+        .range(offset, offset + pageSize - 1)
+    )
+    return (data || []) as RoomAsset[]
+  })
+}
+
+export const addRoomAsset = async (data: Partial<RoomAsset>): Promise<RoomAsset> => {
+  const newAsset = { ...data, id: createEntityId('rasset'), status: 'ok' }
+  const result = await safeQuery(() =>
+    supabase.from('room_assets').insert(newAsset).select().single()
+  )
+  return result as any as RoomAsset
+}
+
+export const updateRoomAsset = async (
+  id: string,
+  updates: Partial<RoomAsset>
+): Promise<RoomAsset> => {
+  const result = await safeQuery(() =>
+    supabase.from('room_assets').update(updates).eq('id', id).select().single()
+  )
+  return result as any as RoomAsset
+}
+
+export const deleteRoomAsset = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('room_assets').delete().eq('id', id))
+}
+
+export const getAssetTemplates = async (): Promise<AssetTemplate[]> => {
+  const data = await safeQuery(() =>
+    supabase.from('asset_templates').select('*').order('sort_order', { ascending: true })
+  )
+  return data || []
+}
+
+export const createAssetTemplate = async (data: Partial<AssetTemplate>): Promise<AssetTemplate> => {
+  const newT = { ...data, id: createEntityId('atemplate'), is_active: true }
+  const result = await safeQuery(() =>
+    supabase.from('asset_templates').insert(newT).select().single()
+  )
+  return result as any as AssetTemplate
+}
+
+export const updateAssetTemplate = async (
+  id: string,
+  updates: Partial<AssetTemplate>
+): Promise<AssetTemplate> => {
+  const result = await safeQuery(() =>
+    supabase.from('asset_templates').update(updates).eq('id', id).select().single()
+  )
+  return result as any as AssetTemplate
+}
+
+export const deleteAssetTemplate = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('asset_templates').delete().eq('id', id))
+}
+
+const getSnapshotContractForRoom = async (
+  roomId: string
+): Promise<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null> => {
+  const data = (await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,tenant_id,status,created_at')
+      .eq('room_id', roomId)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+  )) as Array<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'>> | null
+
+  if (!data || data.length === 0) return null
+  return data.find((contract) => contract.status === 'active') || data[0]
+}
+
+const getActiveSnapshotContractForRoom = async (
+  roomId: string
+): Promise<Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,tenant_id,status,created_at')
+      .eq('room_id', roomId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  )
+  return data as Pick<Contract, 'id' | 'room_id' | 'tenant_id' | 'status' | 'created_at'> | null
+}
+
+export const getAssetSnapshots = async (
+  roomId: string,
+  type?: string
+): Promise<AssetSnapshot[]> => {
+  const contract = await getSnapshotContractForRoom(roomId)
+  if (!contract) return []
+
+  let q = supabase
+    .from('asset_snapshots')
+    .select(ASSET_SNAPSHOT_LIST_SELECT)
+    .eq('room_id', roomId)
+    .eq('contract_id', contract.id)
+  if (type) q = q.eq('type', type)
+  const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
+  return data || []
+}
+
+export const getAssetSnapshotsByRoomIds = async (
+  roomIds: string[],
+  types?: Array<AssetSnapshot['type']>
+): Promise<AssetSnapshot[]> => {
+  if (roomIds.length === 0) return []
+
+  const contracts = (await safeQuery(() =>
+    supabase
+      .from('contracts')
+      .select('id,room_id,status,created_at')
+      .in('room_id', roomIds)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+  )) as Array<Pick<Contract, 'id' | 'room_id' | 'status' | 'created_at'>> | null
+
+  const contractByRoom = new Map<
+    string,
+    Pick<Contract, 'id' | 'room_id' | 'status' | 'created_at'>
+  >()
+  for (const contract of contracts || []) {
+    const existing = contractByRoom.get(contract.room_id)
+    if (!existing || (contract.status === 'active' && existing.status !== 'active')) {
+      contractByRoom.set(contract.room_id, contract)
+    }
+  }
+
+  const contractIds = Array.from(contractByRoom.values(), (contract) => contract.id)
+  if (contractIds.length === 0) return []
+
+  let q = supabase
+    .from('asset_snapshots')
+    .select(ASSET_SNAPSHOT_LIST_SELECT)
+    .in('contract_id', contractIds)
+  if (types && types.length > 0) q = q.in('type', types)
+  const data = await safeQuery(() => q.order('recorded_at', { ascending: false }))
+  return data || []
+}
+
+export const createAssetSnapshots = async (
+  data: Partial<AssetSnapshot>[]
+): Promise<AssetSnapshot[]> => {
+  if (data.length === 0) return []
+
+  const roomIds = Array.from(
+    new Set(data.map((snap) => snap.room_id).filter((roomId): roomId is string => !!roomId))
+  )
+  const contracts = await Promise.all(
+    roomIds.map((roomId) => getActiveSnapshotContractForRoom(roomId))
+  )
+  const contractByRoom = new Map(
+    contracts
+      .filter((contract): contract is NonNullable<typeof contract> => !!contract)
+      .map((contract) => [contract.room_id, contract])
+  )
+
+  const missingContractRoom = roomIds.find((roomId) => !contractByRoom.has(roomId))
+  if (missingContractRoom) {
+    throw new Error('Phòng chưa có hợp đồng để ghi nhận bàn giao tài sản.')
+  }
+
+  const recordedAt = new Date().toISOString()
+  const snaps = data.map((s) => {
+    const contract = contractByRoom.get(s.room_id || '')!
+    return {
+      ...s,
+      contract_id: contract.id,
+      tenant_id: s.tenant_id || contract.tenant_id,
+      id: createEntityId('snap'),
+      recorded_at: recordedAt
+    }
+  })
+  const result = await safeQuery(() => supabase.from('asset_snapshots').insert(snaps).select())
+  return result as any as AssetSnapshot[]
+}
+
+export const createAssetSnapshot = async (data: Partial<AssetSnapshot>): Promise<AssetSnapshot> => {
+  if (!data.room_id) throw new Error('Thiếu phòng khi ghi nhận tài sản.')
+  const contract = await getActiveSnapshotContractForRoom(data.room_id)
+  if (!contract) throw new Error('Phòng chưa có hợp đồng để ghi nhận bàn giao tài sản.')
+  const newSnap = {
+    ...data,
+    contract_id: contract.id,
+    tenant_id: data.tenant_id || contract.tenant_id,
+    id: createEntityId('snap'),
+    recorded_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() =>
+    supabase.from('asset_snapshots').insert(newSnap).select().single()
+  )
+  return result as any as AssetSnapshot
+}
+
+export const updateAssetSnapshot = async (
+  id: string,
+  updates: Partial<AssetSnapshot>
+): Promise<AssetSnapshot> => {
+  const result = await safeQuery(() =>
+    supabase.from('asset_snapshots').update(updates).eq('id', id).select().single()
+  )
+  return result as any as AssetSnapshot
+}
+
+export const deleteAssetSnapshot = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('asset_snapshots').delete().eq('id', id))
+}
+
+export const getRoomAssetAdjustments = async (roomId: string): Promise<RoomAssetAdjustment[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('room_asset_adjustments')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('recorded_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const createRoomAssetAdjustment = async (
+  data: Partial<RoomAssetAdjustment>
+): Promise<RoomAssetAdjustment> => {
+  const newAdj = { ...data, id: createEntityId('adj'), recorded_at: new Date().toISOString() }
+  const result = await safeQuery(() =>
+    supabase.from('room_asset_adjustments').insert(newAdj).select().single()
+  )
+  return result as any as RoomAssetAdjustment
+}
+
+export const getInvoicePaymentRecords = (invoice: Invoice): InvoicePaymentRecord[] =>
+  invoice.payment_records || []
+
+export const getDebtEntries = async (): Promise<DebtEntryRecord[]> => {
+  try {
+    const data = await safeQuery(() =>
+      supabase
+        .from('debt_entries')
+        .select('id,type,amount,reason,note,created_at')
+        .order('created_at', { ascending: false })
+    )
+    return (data || []) as DebtEntryRecord[]
+  } catch (error) {
+    // Older production databases may not have received the optional note migration yet.
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const legacyData = await safeQuery(() =>
+      supabase
+        .from('debt_entries')
+        .select('id,type,amount,reason,created_at')
+        .order('created_at', { ascending: false })
+    )
+    return ((legacyData || []) as Omit<DebtEntryRecord, 'note'>[]).map((entry) => ({
+      ...entry,
+      note: ''
+    }))
+  }
+}
+
+const isMissingDebtNoteColumn = (error: unknown): boolean =>
+  /debt_entries\.note|column .*note does not exist/i.test(
+    error instanceof Error ? error.message : String(error)
+  )
+
+export const createDebtEntry = async (entry: Omit<DebtEntryRecord, 'created_at'> & { created_at?: string }): Promise<DebtEntryRecord> => {
+  const payload = { ...entry, created_at: entry.created_at || new Date().toISOString() }
+  try {
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').insert(payload).select('id,type,amount,reason,note,created_at').single()
+    )
+    return result as unknown as DebtEntryRecord
+  } catch (error) {
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const { note: _note, ...legacyPayload } = payload
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').insert(legacyPayload).select('id,type,amount,reason,created_at').single()
+    )
+    return { ...(result as unknown as Omit<DebtEntryRecord, 'note'>), note: '' }
+  }
+}
+
+export const updateDebtEntry = async (
+  id: string,
+  updates: Pick<DebtEntryRecord, 'type' | 'amount' | 'reason' | 'note'> & { created_at?: string }
+): Promise<DebtEntryRecord> => {
+  const payload = { ...updates, updated_at: new Date().toISOString() }
+  try {
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').update(payload).eq('id', id).select('id,type,amount,reason,note,created_at').single()
+    )
+    return result as unknown as DebtEntryRecord
+  } catch (error) {
+    if (!isMissingDebtNoteColumn(error)) throw error
+    const { note: _note, ...legacyPayload } = payload
+    const result = await safeQuery(() =>
+      supabase.from('debt_entries').update(legacyPayload).eq('id', id).select('id,type,amount,reason,created_at').single()
+    )
+    return { ...(result as unknown as Omit<DebtEntryRecord, 'note'>), note: '' }
+  }
+}
+
+export const deleteDebtEntry = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('debt_entries').delete().eq('id', id))
+}
+
+// =========================================================
+// VEHICLES
+// =========================================================
+export const getVehicles = async (): Promise<RoomVehicle[]> => {
+  const data = await safeQuery(() =>
+    supabase.from('room_vehicles').select('*').order('registered_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const getRoomVehicles = async (roomId: string): Promise<RoomVehicle[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('room_vehicles')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('registered_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const addRoomVehicle = async (data: Partial<RoomVehicle>): Promise<RoomVehicle> => {
+  const newV = { ...data, id: createEntityId('veh'), registered_at: new Date().toISOString() }
+  const result = await safeQuery(() =>
+    supabase.from('room_vehicles').insert(newV).select().single()
+  )
+  return result as any as RoomVehicle
+}
+
+export const updateRoomVehicle = async (
+  id: string,
+  updates: Partial<RoomVehicle>
+): Promise<RoomVehicle> => {
+  const result = await safeQuery(() =>
+    supabase.from('room_vehicles').update(updates).eq('id', id).select().single()
+  )
+  return result as any as RoomVehicle
+}
+
+export const deleteRoomVehicle = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('room_vehicles').delete().eq('id', id))
+}
+
+// =========================================================
+// CASH TRANSACTIONS
+// =========================================================
+export type CashTransactionListOptions = {
+  startDate?: string
+  endDate?: string
+  endDateExclusive?: string
+  limit?: number
+  offset?: number
+}
+
+export function getCashTransactions(): Promise<CashTransaction[]>
+export function getCashTransactions(options: CashTransactionListOptions): Promise<CashTransaction[]>
+export async function getCashTransactions(
+  options: CashTransactionListOptions = {}
+): Promise<CashTransaction[]> {
+  if (options.limit !== undefined) {
+    let query = supabase
+      .from('cash_transactions')
+      .select('*')
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: false })
+    if (options.startDate) query = query.gte('transaction_date', options.startDate)
+    if (options.endDateExclusive) query = query.lt('transaction_date', options.endDateExclusive)
+    else if (options.endDate) query = query.lte('transaction_date', options.endDate)
+    const offset = Math.max(0, options.offset || 0)
+    query = query.range(offset, offset + Math.max(0, options.limit - 1))
+    const data = await safeQuery(() => query)
+    return data || []
+  }
+
+  return fetchAllPages(async (offset, pageSize) => {
+    let query = supabase
+      .from('cash_transactions')
+      .select('*')
+      .order('transaction_date', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+    if (options.startDate) query = query.gte('transaction_date', options.startDate)
+    if (options.endDateExclusive) query = query.lt('transaction_date', options.endDateExclusive)
+    else if (options.endDate) query = query.lte('transaction_date', options.endDate)
+    return ((await safeQuery(() => query)) || []) as CashTransaction[]
+  })
+}
+
+const validateCashTransactionTarget = (
+  data: Pick<Partial<CashTransaction>, 'type' | 'category' | 'room_id'>
+) => {
+  if (data.type === 'expense' && data.category === 'maintenance' && !data.room_id?.trim()) {
+    throw new Error('Vui lòng gắn phòng cho khoản chi bảo trì / sửa chữa.')
+  }
+  if (
+    data.type === 'expense' &&
+    (data.category === 'electric' || data.category === 'water') &&
+    !/^building:\d+$/i.test(data.room_id?.trim() || '')
+  ) {
+    throw new Error('Vui lòng gắn tòa cho khoản chi điện / nước.')
+  }
+}
+
+export const createCashTransaction = async (
+  data: Partial<CashTransaction>
+): Promise<CashTransaction> => {
+  await requireWalletGuards()
+  if (resolveWalletMethod(data.payment_method) === 'unknown') {
+    throw new Error(data.type === 'income' ? 'Vui lòng chọn ví nhận tiền.' : 'Vui lòng chọn ví chi tiền.')
+  }
+  validateCashTransactionTarget(data)
+  await validateCashExpenseBalance(data)
+  const newTx = {
+    ...data,
+    id: createEntityId('tx'),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() =>
+    supabase.from('cash_transactions').insert(newTx).select().single()
+  )
+  return result as any as CashTransaction
+}
+
+async function requireAdminCashTransactionChange(): Promise<void> {
+  // Recheck the authenticated identity and database role at save time, not
+  // only the role used to show buttons when the report was first rendered.
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) {
+    throw new Error('Vui lòng đăng nhập bằng tài khoản admin để sửa/xóa giao dịch.')
+  }
+  const { data: profile, error } = await supabase
+    .from('users')
+    .select('role,status')
+    .eq('id', authData.user.id)
+    .maybeSingle()
+  if (error || profile?.role !== 'admin' || profile.status !== 'active') {
+    throw new Error('Chỉ admin đang hoạt động mới được sửa/xóa giao dịch.')
+  }
+}
+
+export const updateCashTransaction = async (
+  id: string,
+  updates: Partial<CashTransaction>
+): Promise<CashTransaction> => {
+  await requireAdminCashTransactionChange()
+  await requireWalletGuards()
+  const current = (await safeQuery(() =>
+    supabase.from('cash_transactions').select('*').eq('id', id).single()
+  )) as CashTransaction
+  validateCashTransactionTarget({ ...current, ...updates })
+  await validateCashExpenseBalance({ ...current, ...updates }, current)
+  const result = await safeQuery(() =>
+    supabase
+      .from('cash_transactions')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single()
+  )
+  return result as any as CashTransaction
+}
+
+export const deleteCashTransaction = async (id: string): Promise<void> => {
+  await requireAdminCashTransactionChange()
+  await requireWalletGuards()
+  await safeQuery(() => supabase.from('cash_transactions').delete().eq('id', id))
+}
+
+async function validateCashExpenseBalance(
+  next: Partial<CashTransaction>,
+  previous?: CashTransaction
+): Promise<void> {
+  if (next.type !== 'expense') return
+  if (next.payment_method !== 'cash' && next.payment_method !== 'transfer') {
+    throw new Error('Vui lòng chọn ví chi tiền.')
+  }
+  const amount = Number(next.amount)
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Số tiền phải lớn hơn 0.')
+  const summary = await getWalletBalanceSummary()
+  const balances = { ...summary }
+  // Remove the old entry before validating its replacement, including a source change.
+  if (previous) {
+    const settings = await getAppSettings()
+    if (!settings.opening_balance_date || previous.transaction_date >= settings.opening_balance_date) {
+      const method = resolveWalletMethod(previous.payment_method)
+      const delta = previous.type === 'income' ? previous.amount : -previous.amount
+      if (method === 'cash') balances.cashBalance -= delta
+      else if (method === 'transfer') balances.bankBalance -= delta
+      else balances.unassignedCount = Math.max(0, (balances.unassignedCount || 0) - 1)
+    }
+    // Reclassifying an already recorded expense does not spend new money.
+    // Let users resolve legacy entries one by one even if others remain pending.
+    if (previous.type === 'expense' && amount <= Number(previous.amount)) {
+      balances.unassignedCount = 0
+    }
+  }
+  assertSingleWalletExpense(amount, next.payment_method, balances)
+}
+
+// =========================================================
+// MOVE-IN RECEIPTS
+// =========================================================
+export const getMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
+  const data = await safeQuery(() =>
+    supabase.from('move_in_receipts').select('*').order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const getRoomMoveInReceipts = async (): Promise<MoveInReceipt[]> => {
+  const data = await safeQuery(() =>
+    supabase.from('move_in_receipts').select('*').order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const getRoomMoveInReceiptRefs = async (): Promise<
+  Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
+> => fetchAllPages(async (offset, pageSize) => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('move_in_receipts')
+      .select('id,room_id')
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .range(offset, offset + pageSize - 1)
+  )
+  return (data || []) as Array<Pick<MoveInReceipt, 'id' | 'room_id'>>
+})
+
+export const getMoveInReceiptsByTenant = async (tenantId: string): Promise<MoveInReceipt[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('move_in_receipts')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const getMoveInReceiptsByRoom = async (roomId: string): Promise<MoveInReceipt[]> => {
+  const data = await safeQuery(() =>
+    supabase
+      .from('move_in_receipts')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: false })
+  )
+  return data || []
+}
+
+export const updateMoveInReceipt = async (
+  id: string,
+  updates: Partial<MoveInReceipt>
+): Promise<MoveInReceipt> => {
+  const result = await safeQuery(() =>
+    supabase.from('move_in_receipts').update(updates).eq('id', id).select().single()
+  )
+  return result as any as MoveInReceipt
+}
+
+export const deleteMoveInReceipt = async (id: string): Promise<void> => {
+  await safeQuery(() => supabase.from('move_in_receipts').delete().eq('id', id))
+}
+
+// =========================================================
+// SETTINGS & USERS
+// =========================================================
+async function requireWalletGuards(): Promise<void> {
+  // This stable RPC only reads a version. POST would incorrectly require a
+  // recent security step-up; actual financial writes still enforce it.
+  let result
+  try {
+    result = await supabase.rpc('wallet_guard_version', undefined, { get: true })
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : 'Không thể kiểm tra bảo vệ số dư ví. Vui lòng thử lại.'
+    throw new Error(normalizeRemoteErrorMessage(message))
+  }
+  const { data, error, status } = result
+  if (error) {
+    if (/Management MFA\/session verification required/i.test(error.message)) {
+      throw new Error('Phiên bảo mật cần xác nhận lại. Vui lòng đăng nhập lại rồi thực hiện giao dịch; giao dịch chưa được ghi nhận.')
+    }
+    if (status === 401 || ['PGRST301', 'PGRST302', 'PGRST303'].includes(error.code) || /JWT expired|invalid JWT|invalid token/i.test(error.message)) {
+      throw new Error('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại; giao dịch chưa được ghi nhận.')
+    }
+    if (error.code === '42501' || status === 403) {
+      throw new Error('Tài khoản hoặc phiên hiện tại không có quyền kiểm tra bảo vệ số dư ví. Vui lòng đăng nhập lại hoặc liên hệ quản trị viên; giao dịch chưa được ghi nhận.')
+    }
+    if (['PGRST202', '42883'].includes(error.code)) {
+      throw new Error('Database chưa cập nhật bảo vệ số dư ví. Cần áp dụng migration đối soát ví trước khi ghi giao dịch.')
+    }
+    throw new Error(normalizeRemoteErrorMessage(error.message || 'Không thể kiểm tra bảo vệ số dư ví. Vui lòng thử lại.'))
+  }
+  if (![1, 2].includes(data)) {
+    throw new Error('Phiên bản bảo vệ số dư ví chưa tương thích. Vui lòng cập nhật ứng dụng hoặc liên hệ quản trị viên; giao dịch chưa được ghi nhận.')
+  }
+}
+
+export const reconcileWalletBalances = async (bank: number, cash: number, expectedTotal: number, reason: string): Promise<WalletCheckpoint> => {
+  await requireWalletGuards()
+  const { data, error } = await supabase.rpc('reconcile_wallet_balances', {
+    p_bank: bank, p_cash: cash, p_expected_total: expectedTotal, p_reason: reason
+  })
+  if (error) throw new Error(error.message)
+  return data as WalletCheckpoint
+}
+
+export const transferBetweenWallets = async (source: PaymentMethod, amount: number, requestId: string): Promise<void> => {
+  await requireWalletGuards()
+  const { error } = await supabase.rpc('transfer_between_wallets', { p_source: source, p_amount: amount, p_request_id: requestId })
+  if (error) throw new Error(error.message)
+}
+
+export const getAppSettings = async (): Promise<AppSettings> => {
+  const data = await safeQuery<any[]>(() =>
+    supabase
+      .from('app_settings')
+      .select(
+        'id,bank_id,account_no,account_name,property_name,property_address,property_owner_name,property_owner_phone,property_owner_id_card,notification_read_ids,contract_template,opening_balance_cash,opening_balance_bank,opening_balance_date'
+      )
+      .limit(1)
+  )
+  const { data: checkpoint, error } = await supabase.from('wallet_reconciliations').select('*').limit(1).maybeSingle()
+  if (error && !['PGRST205', '42P01'].includes(error.code)) throw new Error(error.message)
+  const { data: basis, error: basisError } = await supabase.from('wallet_accounting_basis').select('*').limit(1).maybeSingle()
+  if (basisError && !['PGRST205', '42P01'].includes(basisError.code)) throw new Error(basisError.message)
+  return { ...((data?.[0] as AppSettings) || {}), wallet_checkpoint: checkpoint || undefined,
+    wallet_accounting_basis: basis || undefined, wallet_guard_ready: !error }
+}
+
+export type WalletBalanceSummary = {
+  bankBalance: number
+  cashBalance: number
+  totalBalance: number
+  availableBalance: number
+  unassignedBalance?: number
+  unassignedCount?: number
+  reconciliationRequired?: boolean
+  entries: Array<{
+    id: string
+    date: string
+    title: string
+    amount: number
+    type: 'income' | 'expense'
+    paymentMethod: WalletMethod
+    source: string
+  }>
+}
+
+/** Uses the same invoice/manual ledger as the Wallet tab for cross-module totals. */
+export const getWalletBalanceSummary = async (): Promise<WalletBalanceSummary> => {
+  const [cashTransactions, invoices, appSettings] = await Promise.all([
+    getCashTransactions(),
+    getInvoices(),
+    getAppSettings()
+  ])
+  return buildWalletBalanceSummary(cashTransactions, invoices, appSettings)
+}
+
+/** Pure display calculation. Transaction validation still uses fresh remote reads above. */
+export const buildWalletBalanceSummary = (
+  cashTransactions: CashTransaction[],
+  invoices: Invoice[],
+  appSettings: AppSettings
+): WalletBalanceSummary => {
+  const invoiceRows = invoices
+    .filter((invoice) => invoice.payment_status !== 'cancelled' && invoice.payment_status !== 'merged')
+    .flatMap((invoice) =>
+      getInvoicePaymentRecords(invoice).map((record) => ({
+        id: `invoice-${invoice.id}-${record.id}`,
+        date: record.payment_date || record.created_at,
+        title: getInvoicePaymentFlow(invoice, record).label,
+        amount: getInvoicePaymentFlow(invoice, record).amount,
+        type: getInvoicePaymentFlow(invoice, record).type,
+        paymentMethod: resolveWalletMethod(record.payment_method, record.source),
+        source: 'Hóa đơn'
+      }))
+    )
+  const manualRows = cashTransactions.map((item) => ({
+    id: `cash-${item.id}`,
+    date: item.transaction_date || item.created_at,
+    title:
+      item.category === 'investment_transfer'
+        ? item.note?.replace(/^\[Đầu tư\]\s*/, '') || 'Giao dịch đầu tư'
+        : item.category === 'wallet_transfer'
+        ? 'Chuyển giữa các ví'
+        : DEFAULT_EXPENSE_CATEGORIES.find((category) => category.value === item.category)?.name ||
+          item.category ||
+          'Giao dịch ví',
+    amount: Number(item.amount) || 0,
+    type: item.type,
+    paymentMethod: resolveWalletMethod(item.payment_method),
+    source: 'Thủ công'
+  }))
+  const openingDate = appSettings.wallet_accounting_basis?.starts_on || appSettings.opening_balance_date || ''
+  const ledgerRows = [...invoiceRows, ...manualRows]
+    .filter((row) => !openingDate || row.date >= openingDate)
+    .map(row => ({ ...row,
+      paymentMethod: appSettings.wallet_accounting_basis?.method_overrides[row.id] || row.paymentMethod
+    }))
+  return {
+    ...summarizeWalletEntries(ledgerRows, appSettings),
+    entries: ledgerRows.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))
+  }
+}
+
+export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<AppSettings> => {
+  const safeUpdates = { ...updates }
+  delete safeUpdates.sepay_api_token
+  delete safeUpdates.wallet_checkpoint
+  delete safeUpdates.wallet_accounting_basis
+  delete safeUpdates.wallet_guard_ready
+  const existingRows = await safeQuery<any[]>(() =>
+    supabase.from('app_settings').select('id').limit(1)
+  )
+  const existing = existingRows?.[0]
+  if (existing?.id) {
+    const result = await safeQuery(() =>
+      supabase.from('app_settings').update(safeUpdates).eq('id', existing.id).select().single()
+    )
+    return result as any as AppSettings
+  } else {
+    const result = await safeQuery(() =>
+      supabase
+        .from('app_settings')
+        .upsert({ ...safeUpdates, id: 'settings' }, { onConflict: 'id' })
+        .select()
+        .single()
+    )
+    return result as any as AppSettings
+  }
+}
+
+export const getUsers = async (): Promise<AppUser[]> => {
+  const data = await safeQuery(() =>
+    supabase.rpc('management_user_directory', undefined, { get: true }).order('created_at', { ascending: false })
+  )
+  return ((data || []) as unknown as Record<string, unknown>[]).map((row) => buildAppUser(row))
+}
+
+export const getNotificationRecipients = async (): Promise<AppUser[]> => {
+  const data = await safeQuery(() => supabase.rpc('notification_recipients'))
+  return ((data || []) as unknown as Record<string, unknown>[]).map((row) => buildAppUser(row))
+}
+
+export const createUser = async (data: Partial<AppUser>): Promise<AppUser> => {
+  const newUser = {
+    ...data,
+    id: createEntityId('user'),
+    status: 'active',
+    created_at: new Date().toISOString()
+  }
+  const result = await safeQuery(() => supabase.from('users').insert(newUser).select(USER_PROFILE_SELECT).single())
+  return buildAppUser((result || {}) as Record<string, unknown>)
+}
+
+export const createUserViaAdmin = async (data: {
+  email: string
+  password: string
+  full_name: string
+  username?: string
+  role?: UserRole
+}): Promise<AppUser> => {
+  if (data.password.length < 12) throw new Error('Mật khẩu quản trị phải có ít nhất 12 ký tự.')
+  const res = await invokeAdminBridge('admin_create', {
+    data: {
+      email: data.email.trim(),
+      password: data.password,
+      full_name: data.full_name.trim(),
+      username: data.username
+    }
+  })
+  if (!res.ok) throw new Error(res.error || 'Khong the tao tai khoan.')
+  const authUser = (res.data as any)?.user ?? (res.data as any)
+  const userId = authUser?.id
+  if (!userId) throw new Error('Khong lay duoc ID nguoi dung.')
+
+  if (data.role === 'admin') {
+    await supabase.from('users').update({ role: 'admin' }).eq('id', userId)
+  }
+
+  const { data: profile } = await supabase.from('users').select(USER_PROFILE_SELECT).eq('id', userId).maybeSingle()
+
+  return buildAppUser(
+    (profile || {
+      id: userId,
+      email: data.email.trim(),
+      full_name: data.full_name.trim(),
+      username: (data.username || data.email.split('@')[0]).trim(),
+      role: data.role || 'user',
+      status: 'active',
+      created_at: new Date().toISOString()
+    }) as unknown as Record<string, unknown>
+  )
+}
+
+export const updateUser = async (id: string, updates: Partial<AppUser>): Promise<AppUser> => {
+  const result = await safeQuery(() =>
+    supabase.from('users').update(updates).eq('id', id).select(USER_PROFILE_SELECT).single()
+  )
+  return buildAppUser((result || {}) as Record<string, unknown>)
+}
+
+export const updateUserRole = async (userId: string, role: UserRole): Promise<AppUser> => {
+  return updateUser(userId, { role })
+}
+export const updateUserStatus = async (userId: string, status: UserStatus): Promise<AppUser> => {
+  return updateUser(userId, { status })
+}
+export const updateUserProfile = async (
+  userId: string,
+  data: { full_name: string; phone: string; notification_email: string; email_notifications_enabled: boolean; email_notification_preferences: EmailNotificationPreferences }
+): Promise<AppUser> => {
+  const full_name = data.full_name.trim()
+  const phone = data.phone.trim()
+  const notification_email = data.notification_email.trim().toLowerCase()
+  if (!full_name) throw new Error('Vui lòng nhập họ và tên.')
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notification_email)) {
+    throw new Error('Vui lòng nhập Gmail nhận thông báo hợp lệ.')
+  }
+  if (phone && !/^\+?[\d\s().-]{8,20}$/.test(phone)) {
+    throw new Error('Số điện thoại không hợp lệ.')
+  }
+  return updateUser(userId, { full_name, phone, notification_email, email_notifications_enabled: data.email_notifications_enabled, email_notification_preferences: normalizeEmailNotificationPreferences(data.email_notification_preferences) })
+}
+
+export type EmailDeliveryStatus = 'blocked' | 'queued' | 'sending' | 'sent' | 'failed' | 'skipped'
+export interface EmailNotificationDelivery {
+  id: string
+  recipient_user_id?: string | null
+  recipient_email: string
+  recipient_name: string
+  event_type: string
+  dedupe_key: string
+  subject: string
+  payload: Record<string, unknown>
+  status: EmailDeliveryStatus
+  provider?: string | null
+  error_message?: string | null
+  created_at: string
+  sent_at?: string | null
+}
+
+export const getEmailDeliveryAvailability = async (): Promise<{available:boolean;authenticated:boolean;server?:boolean;sepayEnabled?:boolean}> => {
+  const {data,error}=await supabase.rpc('email_server_status')
+  if(!error&&data?.enabled)return {available:true,authenticated:true,server:true,sepayEnabled:data.sepayEnabled===true}
+  if(error && !['PGRST202','42883'].includes(String(error.code||''))) return {available:false,authenticated:false}
+  const gmail=typeof window!=='undefined'?window.api?.gmail:undefined
+  return gmail?gmail.getAvailability().then(value=>({...value,authenticated:value.authenticated===true})).catch(()=>({available:false,authenticated:false})):{available:false,authenticated:false}
+}
+
+export const getEmailNotificationDeliveries = async (recipientUserId?: string): Promise<EmailNotificationDelivery[]> => {
+  void recipientUserId // The server returns the combined, admin-authorized delivery history.
+  return (await safeQuery(() => supabase.rpc('email_delivery_history', { p_limit: 100 }))) as EmailNotificationDelivery[]
+}
+
+export const sendEmailNotification = async (payload: {
+  recipientUserId: string
+  eventType: string
+  subject: string
+  html: string
+  dedupeKey: string
+  payload?: Record<string, unknown>
+  resend?: boolean
+}): Promise<{ ok: boolean; status?: string; error?: string; deliveryId?: string }> => {
+  const { data: serverStatus, error: statusError } = await supabase.rpc('email_server_status')
+  if (!statusError && serverStatus?.enabled) {
+    const { data, error } = await supabase.functions.invoke('send-email-notification', { body: payload })
+    if (error) return { ok: false, error: 'Không gửi được email trên máy chủ. Vui lòng kiểm tra lịch sử gửi.' }
+    return data || { ok: false, error: 'Máy chủ không trả kết quả gửi email.' }
+  }
+  if (statusError && !['PGRST202', '42883'].includes(String(statusError.code || ''))) {
+    return { ok: false, error: 'Không xác định được trạng thái máy chủ email.' }
+  }
+  const localGmail = typeof window !== 'undefined' ? window.api?.gmail : undefined
+  if (localGmail) {
+    const availability = await localGmail.getAvailability().catch(() => ({ available: false }))
+    if (availability.available) {
+      const { data: recipient, error: recipientError } = await supabase
+        .from('users')
+        .select('id,full_name,notification_email,email_notifications_enabled,email_notification_preferences')
+        .eq('id', payload.recipientUserId)
+        .single()
+      if (recipientError || !recipient?.notification_email) return { ok: false, error: 'Tài khoản chưa có Gmail nhận thông báo.' }
+      if (!recipient.email_notifications_enabled) return { ok: false, error: 'Tài khoản đã tắt nhận thông báo qua Gmail.' }
+      // A deliberate test checks the sender without enabling a real notification category.
+      if (payload.eventType !== 'email_test' && normalizeEmailNotificationPreferences(recipient.email_notification_preferences)[payload.eventType as keyof EmailNotificationPreferences] !== true) return { ok: false, error: 'Tài khoản đã tắt loại thông báo này.' }
+      let deliveryId: string | undefined
+      if (!payload.resend) {
+        const { data: existing, error: lookupError } = await supabase.from('email_notification_deliveries').select('id,status').eq('dedupe_key', payload.dedupeKey).maybeSingle()
+        if (lookupError) return { ok: false, error: lookupError.message }
+        if (existing && existing.status !== 'failed') return { ok: true, status: 'skipped', deliveryId: existing.id }
+        if (existing) {
+          // Claim the failed row atomically so only one dev window retries it.
+          const { data: claimed, error: claimError } = await supabase.from('email_notification_deliveries').update({ status: 'sending', error_message: null }).eq('id', existing.id).eq('status', 'failed').select('id').maybeSingle()
+          if (claimError) return { ok: false, error: claimError.message }
+          if (!claimed) return { ok: true, status: 'skipped', deliveryId: existing.id }
+          deliveryId = claimed.id
+        }
+      }
+      if (!deliveryId) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const { data: row, error: insertError } = await supabase.from('email_notification_deliveries').insert({ recipient_user_id: recipient.id, recipient_email: recipient.notification_email, recipient_name: recipient.full_name, event_type: payload.eventType, dedupe_key: payload.resend ? `${payload.dedupeKey}:${crypto.randomUUID()}` : payload.dedupeKey, subject: payload.subject, payload: payload.payload || {}, status: 'sending', created_by: sessionData.session?.user.id || null }).select('id').single()
+        if (insertError?.code === '23505' && !payload.resend) return { ok: true, status: 'skipped' }
+        if (insertError) return { ok: false, error: insertError.message }
+        deliveryId = row.id
+      }
+      const sent = await localGmail.sendNotification({ to: recipient.notification_email, subject: payload.subject, html: payload.html }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'Gửi Gmail thất bại.', messageId: undefined }))
+      const { error: historyError } = await supabase.from('email_notification_deliveries').update(sent.ok ? { status: 'sent', provider: 'gmail-local', provider_message_id: sent.messageId, sent_at: new Date().toISOString() } : { status: 'failed', error_message: sent.error || 'Gửi Gmail thất bại.' }).eq('id', deliveryId!)
+      if (historyError) console.error('Không lưu được lịch sử gửi Gmail:', historyError.message)
+      return sent.ok ? { ok: true, status: 'sent', deliveryId } : { ok: false, error: sent.error || 'Gửi Gmail thất bại.' }
+    }
+    return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
+  }
+  return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
+}
+export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+  if (newPassword.length < 12) throw new Error('Mật khẩu quản trị phải có ít nhất 12 ký tự.')
+  const result = await invokeAdminBridge('admin_reset_password', { userId, password: newPassword })
+  if (!result?.ok) throw new Error(result?.error || 'Khong the doi mat khau')
+}
+
+export const changeOwnPassword = async (newPassword: string, currentPassword: string): Promise<void> => {
+  await changeOwnPasswordWithConfirmation(newPassword, currentPassword)
+}
+
+export const deleteUser = async (id: string): Promise<void> => {
+  const result = await invokeAdminBridge('admin_delete', { userId: id })
+  if (!result?.ok) throw new Error(result?.error || 'Khong the xoa tai khoan')
+}
+
+export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
+  const isManagementSecurityGuardError = (error: unknown): boolean => {
+    const value = error as { code?: unknown; message?: unknown } | null
+    const code = String(value?.code || '')
+    const message = String(value?.message || error || '')
+    return /management\s+mfa\/session\s+verification\s+required/i.test(message) && (!code || code === '42501')
+  }
+  // The database guard is authoritative; this prevents a visible stale UI at
+  // the same deadline when the app is already open.
+  if (isManagementSessionExpired()) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
+  let {
+    data: { session },
+    error: sessionError
+  } = await supabase.auth.getSession()
+  if (sessionError) {
+    if (/jwt expired|token is expired|session.*expired/i.test(sessionError.message)) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      return null
+    }
+    throw new Error(normalizeRemoteErrorMessage(sessionError.message))
+  }
+  if (!session?.user) return null
+
+  // Electron can stay open long enough for Supabase's background refresh timer
+  // to be delayed. Refresh shortly before expiry before querying the profile.
+  const expiresAt = Number(session.expires_at || 0) * 1000
+  if (expiresAt > 0 && expiresAt <= Date.now() + 60_000) {
+    const refreshed = await supabase.auth.refreshSession()
+    if (refreshed.error || !refreshed.data.session) {
+      // A transient network failure must not erase a valid stored session.
+      if (refreshed.error && (!navigator.onLine || /network|fetch|timeout/i.test(refreshed.error.message))) {
+        throw new Error('Không thể kiểm tra phiên đăng nhập. Kiểm tra mạng và thử lại.')
+      }
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+      return null
+    }
+    session = refreshed.data.session
+  }
+
+  const user = session.user
+
+  // A failed network check blocks access without deleting a valid saved login.
+  const security = await securityState()
+  if (security.state === 'expired') {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
+  if (security.state !== 'recovery' && security.state !== 'enroll') await requireSessionMfa(security)
+  if (!['optional', 'authorize', 'ready'].includes(String(security.state))) {
+    throw new SecurityStepUpRequired(String(security.state))
+  }
+  if (security.state !== 'ready') await authorizeSecuritySession()
+  recordManagementSessionExpiry(security.expires_at)
+
+  const { data: profile, error: profileError } = await supabase
+    .from('users')
+    .select(
+      'id,username,email,phone,notification_email,email_notifications_enabled,email_notification_preferences,full_name,avatar_url,role,status,last_login_at,created_at'
+    )
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (profileError) {
+    // A restored session may still need the mandatory security step. Keep the
+    // database guard internal and route the user through the verification UI.
+    if (isManagementSecurityGuardError(profileError)) throw new SecurityStepUpRequired('authorize')
+    throw new Error(normalizeRemoteErrorMessage(profileError.message))
+  }
+
+  if (isManagementSessionExpired()) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
+
+  try {
+    assertManagementProfile(profile, user.id)
+  } catch (error) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    throw error
+  }
+  await requireSessionMfa(security)
+  return buildAppUser(profile, user)
+}
+
+export const signInUser = async (login: string, password: string): Promise<AppUser> => {
+  const normalizedLogin = login.trim()
+  if (!normalizedLogin || !password) {
+    throw new Error('Vui lòng nhập email/username và mật khẩu.')
+  }
+
+  clearManagementSessionExpiry()
+  const tokens = await managementLogin(normalizedLogin, password)
+  const { error } = await supabase.auth.setSession(tokens)
+  if (error) {
+    if (error.status === 400 || error.status === 401) throw new Error('Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản không được phép truy cập.')
+    throw new Error(normalizeRemoteErrorMessage(error.message))
+  }
+
+  const user = await getCurrentSessionUser()
+  if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi đăng nhập.')
+  return user
+}
+
+export const completeMfaLogin = async (factorId: string, challengeId: string, code: string): Promise<AppUser> => {
+  await verifyTotpChallenge(factorId, challengeId, code)
+  const user = await getCurrentSessionUser()
+  if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi xác minh MFA.')
+  return user
+}
+
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const normalizedEmail = email.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error('Vui lòng nhập địa chỉ email hợp lệ.')
+  }
+
+  await managementRecovery(normalizedEmail)
+}
+
+export const resetPasswordFromRecoveryLink = async (newPassword: string): Promise<void> => {
+  if (newPassword.length < 12) {
+    throw new Error('Mật khẩu mới phải có ít nhất 12 ký tự.')
+  }
+
+  const {
+    data: { session },
+    error: sessionError
+  } = await supabase.auth.getSession()
+  if (sessionError) throw new Error(normalizeRemoteErrorMessage(sessionError.message))
+  if (!session) {
+    throw new Error(
+      'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng gửi lại yêu cầu.'
+    )
+  }
+
+  try {
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) throw new Error(normalizeRemoteErrorMessage(updateError.message))
+  } finally {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    window.sessionStorage.removeItem('an-khang-password-recovery')
+    window.history.replaceState({}, document.title, window.location.pathname)
+  }
+}
+
+export const signOutUser = async (): Promise<void> => {
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+}
+
+export const getCurrentAccessToken = async (): Promise<string> => {
+  const {
+    data: { session }
+  } = await supabase.auth.getSession()
+  return session?.access_token || ''
+}
+
+type AdminBridgeResponse = {
+  ok: boolean
+  data?: unknown
+  error?: string
+  configured?: boolean
+  maskedToken?: string
+}
+
+export const invokeAdminBridge = async (
+  action: string,
+  payload: Record<string, unknown> = {}
+): Promise<AdminBridgeResponse> => {
+  if (import.meta.env.VITE_CONTRACT_TEST === '1') return action === 'sepay_status' ? { ok: true, configured: false } : { ok: false, error: 'SePay thật không được bật trong môi trường TEST.' }
+  const { data, error } = await supabase.functions.invoke<AdminBridgeResponse>(
+    'admin-sepay-bridge',
+    {
+      body: { action, ...payload },
+      headers: { Authorization: `Bearer ${await getCurrentAccessToken()}` }
+    }
+  )
+  if (error) {
+    return { ok: false, error: await adminBridgeError(error) }
+  }
+  return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ.' }
+}
+
+export const getSepayTokenStatus = (): Promise<AdminBridgeResponse> =>
+  invokeAdminBridge('sepay_status')
+export const setSepayToken = (token: string): Promise<AdminBridgeResponse> =>
+  invokeAdminBridge('sepay_set', { token })
+export const fetchSepayTransactions = async (): Promise<AdminBridgeResponse> => {
+  if (import.meta.env.VITE_CONTRACT_TEST === '1') return { ok: false, error: 'SePay thật không được bật trong môi trường TEST.' }
+  const { data, error } = await supabase.functions.invoke<AdminBridgeResponse>('admin-pwa-sepay', { body: { action: 'list' } })
+  if (error) return { ok: false, error: await adminBridgeError(error) }
+  return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ SePay.' }
+}
+
+export async function reconcileVerifiedSepay(transactionId: string, invoiceId?: string, mode: 'reconcile' | 'suggested-reconcile' = 'reconcile'): Promise<{ invoice?: Invoice; receiptId?: string; duplicate?: boolean }> {
+  const action = invoiceId ? mode : 'bank-receipt'
+  const { data, error } = await supabase.functions.invoke('admin-pwa-sepay', { body: { action, transactionId, ...(invoiceId ? { invoiceId } : {}) } })
+  if (error || !data?.ok) throw new Error(data?.error || 'Chưa xác minh được đối soát tại máy chủ. Tải lại hóa đơn và sổ ngân hàng trước khi thử lại.')
+  if (invoiceId ? !data.data?.invoice : !data.data?.receiptId) throw new Error('Chưa xác định kết quả đối soát. Không tự ghi bù; hãy tải lại dữ liệu.')
+  return data.data
+}
+
+// =========================================================
+// COMPATIBILITY (LEGACY)
+// =========================================================
+export const dbOptions = { readDB: () => ({ users: [], app_settings: {} }), writeDB: () => {} }
+export async function getDB() {
+  return {}
+}
+
+// =========================================================
+// ROOM IMAGES
+// =========================================================
+const compressImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const scale = Math.min(1, maxWidth / img.width)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Nén ảnh thất bại'))),
+        'image/jpeg',
+        quality
+      )
+    }
+    img.onerror = () => reject(new Error('Không đọc được file ảnh'))
+    img.src = url
+  })
+
+export const uploadRoomImage = async (roomId: string, file: File): Promise<string> => {
+  const compressed = await compressImage(file)
+  const path = `${roomId}/${Date.now()}.jpg`
+  const { error } = await supabase.storage
+    .from('room-images')
+    .upload(path, compressed, { contentType: 'image/jpeg' })
+  if (error) throw new Error(error.message)
+  const { data: signed, error: signError } = await supabase.storage.from(ROOM_IMAGE_BUCKET).createSignedUrl(path, 3600)
+  if (signError || !signed?.signedUrl) throw new Error(signError?.message || 'Không tạo được đường dẫn ảnh tạm thời')
+  return signed.signedUrl
+}
+
+export const deleteRoomImage = async (url: string): Promise<void> => {
+  const path = roomImagePath(url)
+  if (!path) return
+  await supabase.storage.from(ROOM_IMAGE_BUCKET).remove([path])
+}

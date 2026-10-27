@@ -24,7 +24,7 @@ await query(testRules)
 let emailRules=await readFile(path.join(root,'../supabase/migrations/20261008220000_tenant_system_email_separation.sql'),'utf8')
 if(test) emailRules=emailRules.replaceAll('public.',`${schema}.`).replaceAll('search_path=public',`search_path=${schema}`)
 await query(emailRules)
-for (const file of ['20261008223000_contract_account_visibility.sql', '20261008224000_contract_wrong_email_cancellation.sql', '20261008233000_tenant_auth_provisioning.sql']) {
+for (const file of ['20261008223000_contract_account_visibility.sql', '20261008224000_contract_wrong_email_cancellation.sql', '20261008233000_tenant_auth_provisioning.sql', '20261008235000_contract_test_without_notice.sql']) {
  let rules=await readFile(path.join(root,'../supabase/migrations',file),'utf8')
  if(test) rules=rules.replaceAll('public.',`${schema}.`).replaceAll('search_path=public',`search_path=${schema}`)
  await query(rules)

@@ -1,5 +1,12 @@
 export async function onRequest({ request, env }) {
-  const json = (status, error) => Response.json({ ok: false, error }, { status, headers: { 'Cache-Control': 'no-store' } })
+  const securityHeaders = {
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+  }
+  const json = (status, error) => Response.json({ ok: false, error }, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } })
   if (request.method !== 'POST') return json(405, 'Yêu cầu không hợp lệ.')
   const origin = new URL(request.url).origin
   if (request.headers.get('origin') && request.headers.get('origin') !== origin || request.headers.get('sec-fetch-site') === 'cross-site') return json(403, 'Không cho phép truy cập.')
@@ -16,6 +23,6 @@ export async function onRequest({ request, env }) {
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${env.CONTRACT_GATEWAY_SECRET}:${request.headers.get('cf-connecting-ip') || 'unknown'}`))
     const ip = [...new Uint8Array(digest)].map(x => x.toString(16).padStart(2,'0')).join('')
     const result = await fetch(env.CONTRACT_EDGE_URL, { method: 'POST', headers: { Authorization: `Bearer ${env.CONTRACT_GATEWAY_SECRET}`, 'Content-Type': 'application/json', 'x-contract-ip': ip }, body, signal: AbortSignal.timeout(25000) })
-    return new Response(await result.text(), { status: result.status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff' } })
+    return new Response(await result.text(), { status: result.status, headers: { ...securityHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } })
   } catch { return json(503, 'Dịch vụ xác nhận chưa phản hồi. Hãy thử lại.') }
 }

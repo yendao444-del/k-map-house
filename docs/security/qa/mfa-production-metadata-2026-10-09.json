@@ -1,0 +1,35 @@
+{
+  "inspectedAt": "2026-10-10T05:53:43.094Z",
+  "scope": "Read-only production metadata; no account or customer data changed.",
+  "database": {
+    "readiness_rpc": true,
+    "rollout_flags": {
+      "enforce_management": true,
+      "enrollment_enabled": true
+    },
+    "aal2_guard_rpc": true,
+    "public_rls_tables": 48,
+    "audit_events_table": true,
+    "guarded_rls_policies": 196,
+    "recovery_codes_table": true,
+    "security_service_rpc": true,
+    "trusted_devices_table": true,
+    "verified_totp_factors": 1,
+    "pre_request_configured": true,
+    "security_sessions_table": true,
+    "ready_management_accounts": 1,
+    "active_management_accounts": 3,
+    "remaining_disposable_auth_accounts": 0
+  },
+  "auth": {
+    "password_min_length": 8,
+    "security_update_password_require_reauthentication": true,
+    "security_update_password_require_current_password": true,
+    "security_refresh_token_reuse_interval": 10,
+    "mfa_totp_enroll_enabled": true,
+    "mfa_totp_verify_enabled": true,
+    "sessions_timebox": 0,
+    "sessions_inactivity_timeout": 0,
+    "password_hibp_enabled": false
+  }
+}

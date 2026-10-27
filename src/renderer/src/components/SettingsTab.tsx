@@ -49,9 +49,12 @@ import {
   type UserRole
 } from '../lib/db'
 import { LogoLoading } from './LogoLoading'
+import { AccountSecurityStatus } from './AccountSecurityStatus'
 import { EmailNotificationPanel } from './EmailNotificationPanel'
 import { normalizeEmailNotificationPreferences } from '../lib/email-notification-preferences'
 import TenantWebAccountsTab from './TenantWebAccountsTab'
+import { confirmSensitivePassword } from '../lib/mfa'
+import { usePasswordConfirmation } from './PasswordConfirmationDialog'
 
 type SettingsSection = 'general' | 'zones' | 'users' | 'tenant-accounts' | 'account' | 'updates'
 
@@ -152,6 +155,7 @@ function buildVietQrFallbackUrl(bankId: string, accountNo: string, accountName: 
 }
 
 const GeneralSettingsSafe = (): React.JSX.Element => {
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
   const queryClient = useQueryClient()
   const [settings, setSettings] = useState<AppSettings>({})
   const [initialSettings, setInitialSettings] = useState<AppSettings>({})
@@ -335,6 +339,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
 
     setSavingPayment(true)
     try {
+      await requirePassword('Lưu cấu hình tài khoản nhận tiền và SePay')
       const savedPaymentSettings = { ...paymentSettings, account_name: accountName }
       await updateAppSettings(savedPaymentSettings)
       if (sepayApiToken !== initialSepayApiToken) {
@@ -400,6 +405,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-3 pb-20 md:p-6 md:pb-20">
+      {passwordConfirmation}
       <header className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
@@ -931,6 +937,7 @@ const UsersSettings = (): React.JSX.Element => {
     role: 'user' as UserRole
   })
   const [resetPasswords, setResetPasswords] = useState<Record<string, string>>({})
+  const [adminPassword, setAdminPassword] = useState('')
 
   const createMutation = useMutation({
     mutationFn: createUser,
@@ -952,8 +959,11 @@ const UsersSettings = (): React.JSX.Element => {
   })
 
   const resetPasswordMutation = useMutation({
-    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
-      resetUserPassword(userId, password),
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      await confirmSensitivePassword(adminPassword)
+      setAdminPassword('')
+      return resetUserPassword(userId, password)
+    },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setResetPasswords((prev) => ({ ...prev, [variables.userId]: '' }))
@@ -969,6 +979,8 @@ const UsersSettings = (): React.JSX.Element => {
 
       <div className="grid flex-1 gap-6 p-6 md:grid-cols-[360px_1fr] md:p-8">
         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-5">
+          <label className="mb-2 block text-xs font-black uppercase tracking-[0.18em] text-gray-500">Mật khẩu hiện tại của bạn</label>
+          <input type="password" autoComplete="current-password" maxLength={256} value={adminPassword} onChange={event => setAdminPassword(event.target.value)} placeholder="Dùng để xác nhận thao tác nhạy cảm" className="mb-4 h-10 w-full rounded-lg border border-gray-300 px-3 text-sm outline-none focus:border-primary" />
           <div className="mb-4 text-sm font-black uppercase tracking-[0.18em] text-gray-500">
             Thêm tài khoản
           </div>
@@ -1132,6 +1144,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   const [editingUser, setEditingUser] = useState<AppUser | null>(null)
   const [editForm, setEditForm] = useState({ full_name: '', phone: '', notification_email: '', email_notifications_enabled: false, email_notification_preferences: normalizeEmailNotificationPreferences(null) })
   const [passwordUser, setPasswordUser] = useState<AppUser | null>(null)
+  const [adminPassword, setAdminPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [deletingUser, setDeletingUser] = useState<AppUser | null>(null)
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
@@ -1158,10 +1171,14 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   })
 
   const passwordMutation = useMutation({
-    mutationFn: ({ id, password }: { id: string; password: string }) =>
-      resetUserPassword(id, password),
+    mutationFn: async ({ id, password }: { id: string; password: string }) => {
+      try { await confirmSensitivePassword(adminPassword) }
+      finally { setAdminPassword('') }
+      return resetUserPassword(id, password)
+    },
     onSuccess: () => {
       setPasswordUser(null)
+      setAdminPassword('')
       setNewPassword('')
     }
   })
@@ -1245,19 +1262,19 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
             <div className="grid grid-cols-3 gap-3">
               <AccountMetricCard
                 label="Tổng tài khoản"
-                value={String(totalUsers).padStart(2, '0')}
+                value={isLoading || (usersError && users.length === 0) ? '—' : String(totalUsers).padStart(2, '0')}
                 tone="blue"
                 icon={<UsersRound size={20} />}
               />
               <AccountMetricCard
                 label="Đang hoạt động"
-                value={String(activeUsers).padStart(2, '0')}
+                value={isLoading || (usersError && users.length === 0) ? '—' : String(activeUsers).padStart(2, '0')}
                 tone="emerald"
                 icon={<CheckCircle2 size={20} />}
               />
               <AccountMetricCard
                 label="Đã khóa"
-                value={String(totalUsers - activeUsers).padStart(2, '0')}
+                value={isLoading || (usersError && users.length === 0) ? '—' : String(totalUsers - activeUsers).padStart(2, '0')}
                 tone="rose"
                 icon={<LockKeyhole size={20} />}
               />
@@ -1265,8 +1282,8 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
           </div>
 
           {usersError && (
-            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700">
-              {usersError instanceof Error ? usersError.message : 'Không thể tải danh sách tài khoản.'}
+            <div role="alert" className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700">
+              Không thể tải danh sách tài khoản. Nhấn Làm mới để thử lại.
             </div>
           )}
 
@@ -1391,10 +1408,10 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       <input
                         type="password"
                         required
-                        minLength={6}
+                        minLength={12}
                         value={newUserForm.password}
                         onChange={(event) => setNewUserForm((form) => ({ ...form, password: event.target.value }))}
-                        placeholder="Tối thiểu 6 ký tự"
+                        placeholder="Tối thiểu 12 ký tự"
                         className="account-form-input"
                       />
                     </AccountFormField>
@@ -1454,28 +1471,56 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                 </form>
               )}
 
-              <div className="overflow-hidden">
-                <table className="w-full table-fixed border-collapse text-left">
+              <div className="divide-y divide-slate-100 md:hidden">
+                {isLoading && <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[38vh]" />}
+                {!isLoading && !usersError && filteredUsers.length === 0 && <p className="px-5 py-10 text-center text-sm text-slate-500">Không có tài khoản phù hợp</p>}
+                {filteredUsers.map(user => (
+                  <button
+                    key={user.id}
+                    type="button"
+                    onClick={() => setDetailUser(user)}
+                    className="block w-full space-y-3 px-5 py-4 text-left hover:bg-slate-50"
+                    aria-label={`Xem chi tiết tài khoản ${user.full_name}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-black ${accountAvatarTone(user.id)}`}>{accountUserInitials(user)}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black text-[#10233f]">{user.full_name}{user.id === currentUser.id && <span className="ml-2 text-[10px] text-emerald-700">Tôi</span>}</p>
+                        <p className="truncate text-xs text-slate-400">{user.email || `@${user.username}`}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                      <span className={`rounded-lg px-2 py-1 ${user.role === 'admin' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>{accountRoleLabel(user.role)}</span>
+                      <span className={`rounded-full px-2 py-1 ${user.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>{user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</span>
+                    </div>
+                    <AccountSecurityStatus user={user} />
+                    <p className="text-xs text-slate-400">Đăng nhập: {user.last_login_at ? accountFormatDateTime(user.last_login_at) : 'Chưa đăng nhập'}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[1040px] table-fixed border-collapse text-left">
                   <thead>
                     <tr className="border-b border-slate-200 bg-[#f7f9fa] text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      <th className="w-[34%] px-5 py-3.5">Tài khoản</th>
-                      <th className="w-[16%] px-4 py-3.5">Vai trò</th>
-                      <th className="w-[18%] px-4 py-3.5">Trạng thái</th>
-                      <th className="w-[20%] px-4 py-3.5">Đăng nhập</th>
-                      <th className="w-[12%] px-4 py-3.5 text-right">Thao tác</th>
+                      <th className="w-[24%] px-5 py-3.5">Tài khoản</th>
+                      <th className="w-[12%] px-4 py-3.5">Vai trò</th>
+                      <th className="w-[14%] px-4 py-3.5">Trạng thái</th>
+                      <th className="w-[24%] px-4 py-3.5">Bảo mật</th>
+                      <th className="w-[16%] px-4 py-3.5">Đăng nhập</th>
+                      <th className="w-[10%] px-4 py-3.5 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {isLoading && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-14 text-center text-sm text-slate-400">
+                        <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
                           <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[38vh]" />
                         </td>
                       </tr>
                     )}
-                    {!isLoading && filteredUsers.length === 0 && (
+                    {!isLoading && !usersError && filteredUsers.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-16 text-center">
+                        <td colSpan={6} className="px-6 py-16 text-center">
                           <div className="font-bold text-slate-700">Không có tài khoản phù hợp</div>
                           <div className="mt-2 text-sm text-slate-400">Thử thay đổi từ khóa hoặc bộ lọc trạng thái.</div>
                         </td>
@@ -1512,7 +1557,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3.5">
+                          <td className="px-3 py-3.5">
                             <select
                               value={user.role}
                               onClick={(event) => event.stopPropagation()}
@@ -1533,8 +1578,8 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                               <option value="admin">Quản trị viên</option>
                             </select>
                           </td>
-                          <td className="px-4 py-3.5">
-                            <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ${
+                          <td className="px-3 py-3.5">
+                            <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-bold ${
                               user.status === 'active'
                                 ? 'bg-emerald-50 text-emerald-700'
                                 : 'bg-rose-50 text-rose-600'
@@ -1543,10 +1588,13 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                               {user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3.5 text-sm text-slate-500">
+                          <td className="px-4 py-3.5">
+                            <AccountSecurityStatus user={user} />
+                          </td>
+                          <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-500">
                             {user.last_login_at ? accountFormatDateTime(user.last_login_at) : 'Chưa đăng nhập'}
                           </td>
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-3 py-3.5 text-right">
                             <div className="relative inline-flex items-center gap-2">
                               {gmailAvailability?.available && <button
                                 type="button"
@@ -1643,7 +1691,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 text-sm text-slate-400">
-                <span>Hiển thị {filteredUsers.length} trong {totalUsers} tài khoản</span>
+                <span>{usersError && users.length === 0 ? 'Chưa tải được danh sách tài khoản' : isLoading ? 'Đang tải danh sách tài khoản...' : `Hiển thị ${filteredUsers.length} trong ${totalUsers} tài khoản`}</span>
                 <div className="flex items-center gap-2">
                   <button disabled className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-300">‹</button>
                   <button className="h-9 min-w-9 rounded-xl bg-[#06603f] px-3 font-bold text-white shadow-sm">1</button>
@@ -1772,6 +1820,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
               <div className="w-full max-w-md rounded-[24px] bg-white p-6 shadow-2xl">
                 <div className="flex items-start justify-between"><div><h4 className="text-lg font-black text-[#10233f]">Chi tiết tài khoản</h4><p className="mt-1 text-sm text-slate-400">{detailUser.full_name}</p></div><button type="button" onClick={() => setDetailUser(null)} className="text-2xl text-slate-400">×</button></div>
                 <div className="mt-5 space-y-3 rounded-2xl bg-slate-50 p-4 text-sm"><p><span className="text-slate-500">Username: </span><strong>{detailUser.username}</strong></p><p><span className="text-slate-500">Họ và tên: </span><strong>{detailUser.full_name}</strong></p><p><span className="text-slate-500">Số điện thoại: </span><strong>{detailUser.phone || 'Chưa cập nhật'}</strong></p><p className="break-all"><span className="text-slate-500">Gmail nhận thông báo: </span><strong>{detailUser.notification_email || detailUser.email || 'Chưa cập nhật'}</strong></p><p><span className="text-slate-500">Trạng thái: </span><strong>{detailUser.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</strong></p></div>
+                <div className="mt-4"><AccountSecurityStatus user={users.find(user => user.id === detailUser.id) ?? detailUser} /></div>
                 <div className={`mt-5 grid gap-2 ${gmailAvailability?.available ? 'grid-cols-2' : 'grid-cols-1'}`}>{gmailAvailability?.available && <button type="button" onClick={() => { setEmailUser(detailUser); setDetailUser(null) }} className="rounded-xl bg-[#06603f] px-4 py-2.5 text-sm font-bold text-white"><Mail size={15} className="mr-2 inline" />Gửi email</button>}<button type="button" onClick={() => { setEditForm({ full_name: detailUser.full_name, phone: detailUser.phone || '', notification_email: detailUser.notification_email ?? detailUser.email ?? '', email_notifications_enabled: detailUser.email_notifications_enabled === true, email_notification_preferences: normalizeEmailNotificationPreferences(detailUser.email_notification_preferences) }); setEditingUser(detailUser); setDetailUser(null) }} className="rounded-xl border border-[#06603f] px-4 py-2.5 text-sm font-bold text-[#06603f]">Sửa thông tin</button></div>
               </div>
             </div>
@@ -1844,6 +1893,11 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
           >
             <div className="mb-1 text-base font-bold text-slate-800">Đổi mật khẩu</div>
             <div className="mb-5 text-sm text-slate-500">@{passwordUser.username}</div>
+            <div className="mb-4 flex flex-col gap-1.5">
+              <label htmlFor="admin-current-password" className="text-xs font-bold text-slate-600">Mật khẩu hiện tại của bạn <span className="text-rose-500">*</span></label>
+              <input id="admin-current-password" type="password" autoComplete="current-password" required maxLength={256} disabled={passwordMutation.isPending} value={adminPassword} onChange={event => setAdminPassword(event.target.value)} placeholder="Nhập mật khẩu tài khoản đang đăng nhập" className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10" />
+              <p className="text-xs text-slate-500">Xác nhận bằng mật khẩu của bạn để đổi mật khẩu cho tài khoản này.</p>
+            </div>
             {passwordMutation.error && (
               <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
                 {passwordMutation.error instanceof Error ? passwordMutation.error.message : 'Có lỗi xảy ra.'}
@@ -1857,15 +1911,15 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
               <input
                 type="password"
                 required
-                minLength={6}
+                minLength={12}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Tối thiểu 6 ký tự"
+                placeholder="Tối thiểu 12 ký tự"
                 className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
               />
             </div>
             <div className="mt-6 flex justify-end gap-3">
-              <button type="button" onClick={() => { setPasswordUser(null); setNewPassword(''); passwordMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
+              <button type="button" disabled={passwordMutation.isPending} onClick={() => { setPasswordUser(null); setAdminPassword(''); setNewPassword(''); passwordMutation.reset() }} className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Đóng</button>
               <button type="submit" disabled={passwordMutation.isPending} className="rounded-xl bg-[#00558d] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#004470] disabled:opacity-60">
                 {passwordMutation.isPending ? 'Đang lưu...' : 'Đổi mật khẩu'}
               </button>
@@ -2673,26 +2727,32 @@ export const ContractsSection = (): React.JSX.Element => {
 
 // ─── My Account Panel ────────────────────────────────────────────────────────
 const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.Element => {
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-
+  const [passwordChanged, setPasswordChanged] = useState(false)
+  const submissionLock = useRef(false)
+  const clearSensitiveState = () => {
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+    setShowNew(false); setShowConfirm(false)
+  }
   const changePwMutation = useMutation({
-    mutationFn: () => changeOwnPassword(newPassword),
-    onSuccess: () => {
-      setNewPassword('')
-      setConfirmPassword('')
-    }
+    mutationFn: () => changeOwnPassword(newPassword, currentPassword),
+    onSuccess: () => setPasswordChanged(true),
+    onSettled: () => { clearSensitiveState(); submissionLock.current = false }
   })
-
   const roleLabel: Record<string, string> = { admin: 'Quản trị viên', user: 'Nhân viên' }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newPassword.length < 6) return
-    if (newPassword !== confirmPassword) return
-    changePwMutation.mutate()
+  const passwordFieldsValid = Boolean(currentPassword) && newPassword.length >= 12 && newPassword === confirmPassword
+  const isBusy = changePwMutation.isPending
+  const passwordChangeError = changePwMutation.error
+  const resetFeedback = () => { setPasswordChanged(false); changePwMutation.reset() }
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!passwordFieldsValid || submissionLock.current) return
+    submissionLock.current = true
+    resetFeedback(); changePwMutation.mutate()
   }
 
   return (
@@ -2717,22 +2777,28 @@ const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.El
       {/* Change password */}
       <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
         <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-500">Đổi mật khẩu</h3>
-        <p className="mb-5 text-xs text-gray-400">Mật khẩu mới phải có ít nhất 6 ký tự.</p>
+        <p className="mb-5 text-xs text-gray-400">Mật khẩu mới phải có ít nhất 12 ký tự.</p>
 
-        {changePwMutation.isSuccess && (
+        {passwordChanged && (
           <div className="mb-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
             <i className="fa-solid fa-circle-check"></i>
             Đổi mật khẩu thành công.
           </div>
         )}
-        {changePwMutation.error && (
+        {passwordChangeError && (
           <div className="mb-4 flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
             <i className="fa-solid fa-circle-exclamation"></i>
-            {changePwMutation.error instanceof Error ? changePwMutation.error.message : 'Có lỗi xảy ra.'}
+            {passwordChangeError instanceof Error ? passwordChangeError.message : 'Có lỗi xảy ra.'}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="own-current-password" className="mb-1.5 block text-xs font-bold text-gray-600">Mật khẩu hiện tại <span className="text-rose-500">*</span></label>
+            <input id="own-current-password" type="password" autoComplete="current-password" required disabled={isBusy} value={currentPassword}
+              onChange={(e) => { setCurrentPassword(e.target.value); resetFeedback() }}
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          </div>
           <div>
             <label className="mb-1.5 block text-xs font-bold text-gray-600">
               Mật khẩu mới <span className="text-rose-500">*</span>
@@ -2741,20 +2807,22 @@ const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.El
               <input
                 type={showNew ? 'text' : 'password'}
                 value={newPassword}
-                onChange={(e) => { setNewPassword(e.target.value); changePwMutation.reset() }}
-                placeholder="Tối thiểu 6 ký tự"
+                disabled={isBusy}
+                onChange={(e) => { setNewPassword(e.target.value); resetFeedback() }}
+                placeholder="Tối thiểu 12 ký tự"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <button
                 type="button"
+                disabled={isBusy}
                 onClick={() => setShowNew((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <i className={showNew ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'}></i>
               </button>
             </div>
-            {newPassword.length > 0 && newPassword.length < 6 && (
-              <p className="mt-1 text-xs text-rose-500">Mật khẩu phải có ít nhất 6 ký tự.</p>
+            {newPassword.length > 0 && newPassword.length < 12 && (
+              <p className="mt-1 text-xs text-rose-500">Mật khẩu phải có ít nhất 12 ký tự.</p>
             )}
           </div>
 
@@ -2766,12 +2834,14 @@ const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.El
               <input
                 type={showConfirm ? 'text' : 'password'}
                 value={confirmPassword}
-                onChange={(e) => { setConfirmPassword(e.target.value); changePwMutation.reset() }}
+                disabled={isBusy}
+                onChange={(e) => { setConfirmPassword(e.target.value); resetFeedback() }}
                 placeholder="Nhập lại mật khẩu mới"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <button
                 type="button"
+                disabled={isBusy}
                 onClick={() => setShowConfirm((v) => !v)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
@@ -2784,22 +2854,8 @@ const MyAccountPanel = ({ currentUser }: { currentUser: AppUser }): React.JSX.El
           </div>
 
           <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={
-                changePwMutation.isPending ||
-                newPassword.length < 6 ||
-                newPassword !== confirmPassword
-              }
-              className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary/90 disabled:opacity-50"
-            >
-              {changePwMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <i className="fa-solid fa-spinner fa-spin"></i> Đang lưu...
-                </span>
-              ) : (
-                'Lưu mật khẩu'
-              )}
+            <button type="submit" disabled={isBusy || !passwordFieldsValid} className="rounded-xl bg-primary px-6 py-2.5 text-sm font-bold text-white transition hover:bg-primary/90 disabled:opacity-50">
+              {isBusy ? 'Đang lưu...' : 'Xác nhận và đổi mật khẩu'}
             </button>
           </div>
         </form>

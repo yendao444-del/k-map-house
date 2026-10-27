@@ -1,0 +1,17 @@
+{
+  "verifiedAt": "2026-10-11T06:48:26.525Z",
+  "checks": [
+    {
+      "client": "src/renderer/src",
+      "rowsLoaded": 25,
+      "compatibilityFallback": true
+    },
+    {
+      "client": "adminpwa/src/renderer/src",
+      "rowsLoaded": 25,
+      "compatibilityFallback": true
+    }
+  ],
+  "scope": "Actual shipped getRooms functions against production REST with privileged read-only verification; browser user-session flow not tested",
+  "customerDataChanged": false
+}

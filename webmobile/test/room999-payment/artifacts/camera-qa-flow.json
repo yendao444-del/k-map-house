@@ -1,0 +1,22 @@
+{
+  "synthetic": true,
+  "noDatabaseWrites": true,
+  "cycle": {
+    "id": "camera-qa",
+    "period": "2026-10-01",
+    "period_start": "2026-10-01",
+    "period_end": "2026-10-31",
+    "electric_old": 12600,
+    "water_old": 280,
+    "electric_new": 12692,
+    "water_new": null,
+    "invoice_id": null
+  },
+  "confirmations": [
+    {
+      "meter": "electric",
+      "source": "manual",
+      "reading": 12692
+    }
+  ]
+}

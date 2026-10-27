@@ -1,0 +1,10 @@
+{
+  "publishedAt": "2026-10-14T10:01:11.615Z",
+  "environment": "production",
+  "project": "ankhanghome-admin-pwa",
+  "url": "https://app.phongtroankhang.com",
+  "deploymentId": "3e709621-f3ef-40ab-b1d0-5de0df77d2ff",
+  "priorProductionDeployment": "4ff05ec2-0ea4-4a56-9397-38a76c650a45",
+  "buildId": "245141238b5cda91",
+  "productionDeployment": "3e709621-f3ef-40ab-b1d0-5de0df77d2ff"
+}

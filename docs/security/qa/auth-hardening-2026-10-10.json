@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-10T02:38:56.224Z",
+  "before": {
+    "password_min_length": 8,
+    "password_hibp_enabled": false,
+    "sessions_timebox": 0,
+    "sessions_inactivity_timeout": 0
+  },
+  "after": {
+    "password_min_length": 8,
+    "password_hibp_enabled": false,
+    "sessions_timebox": 0,
+    "sessions_inactivity_timeout": 0,
+    "reauthentication": true,
+    "currentPassword": true
+  },
+  "authPatchApplied": false,
+  "hibpRequested": true,
+  "hibpEnabled": false,
+  "patchError": "Supabase management 402 /config/auth",
+  "customerDataChanged": false
+}

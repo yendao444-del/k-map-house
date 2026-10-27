@@ -1,0 +1,22 @@
+{
+  "appliedAt": "2026-10-09T03:02:52.818Z",
+  "production": true,
+  "policies": [
+    {
+      "policyname": "management_directory_read_guard",
+      "permissive": "RESTRICTIVE",
+      "cmd": "SELECT",
+      "roles": "{authenticated}",
+      "qual": "((id = auth.uid()) OR management_directory_access())"
+    }
+  ],
+  "rollbackChecks": [
+    "active admin and staff can read directory",
+    "self-profile update allowed",
+    "staff cannot promote itself",
+    "inactive profile cannot read other profiles or settings",
+    "unknown authenticated subject sees no directory",
+    "anonymous cannot execute helper"
+  ],
+  "dataChanges": "Policy and boolean helper only; role/status/profile test changes rolled back."
+}

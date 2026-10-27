@@ -3,6 +3,11 @@ productName: DBY HOME
 directories:
   buildResources: build
 files:
+  # Ship compiled application code and runtime resources only. A workspace may
+  # contain web projects, deployment credentials and local browser profiles.
+  - out/**/*
+  - resources/**/*
+  - package.json
   - '!**/.vscode/*'
   - '!src/**/*'
   - '!supabase/**/*'
@@ -25,6 +30,10 @@ files:
   - '!RAG/**/*'
   - '!phase/**/*'
   - '!webmobile/**/*'
+  - '!adminpwa/**/*'
+  - '!docs/**/*'
+  - '!**/.env'
+  - '!**/.env.*'
   - '!node_modules/**/*.map'
   - '!node_modules/**/@types/**/*'
   - '!node_modules/**/{README,CHANGELOG,CHANGELOG.*}.md'

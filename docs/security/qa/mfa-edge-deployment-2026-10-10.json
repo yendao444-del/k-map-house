@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-10T05:46:49.860Z",
+  "deployed": [
+    {
+      "slug": "admin-pwa-sepay",
+      "version": 7,
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "admin-sepay-bridge",
+      "version": 18,
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "send-email-notification",
+      "version": 20,
+      "status": "ACTIVE"
+    }
+  ],
+  "customerDataChanged": false,
+  "emailsSentByDeployment": false
+}

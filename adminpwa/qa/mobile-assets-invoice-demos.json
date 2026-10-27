@@ -1,0 +1,17 @@
+{
+  "model": "cx/gpt-5.5-image",
+  "results": [
+    {
+      "output": "G:\\PHONG TRO\\app\\adminpwa\\qa\\mobile-assets-header-demo.png",
+      "model": "cx/gpt-5.5-image",
+      "reference": "G:\\PHONG TRO\\app\\adminpwa\\qa\\ref-assets-room-header.png",
+      "generatedAt": "2026-10-09T02:27:44.608Z"
+    },
+    {
+      "output": "G:\\PHONG TRO\\app\\adminpwa\\qa\\mobile-invoice-actions-demo.png",
+      "model": "cx/gpt-5.5-image",
+      "reference": "G:\\PHONG TRO\\app\\adminpwa\\qa\\ref-invoice-header.png",
+      "generatedAt": "2026-10-09T02:26:42.436Z"
+    }
+  ]
+}

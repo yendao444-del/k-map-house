@@ -4,7 +4,7 @@ import { tenantAdminHandler } from '../cloud/tenant-admin.mjs'
 import { authService } from '../cloud/auth.mjs'
 import { cloudHandler } from '../cloud/handler.mjs'
 
-const env={SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture-service'}
+const env={SUPABASE_URL:'https://fixture.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture-service',SUPABASE_ANON_KEY:'fixture-anon'}
 const userId='bbd2a643-0268-4f41-973c-5ce142f2abae'
 const tenantId='tenant-fixture'
 const account={tenant_id:tenantId,auth_user_id:userId,email:'fixture@example.invalid',status:'pending',session_version:0}
@@ -17,6 +17,7 @@ function adminMock({role='admin',exists=false,enrollFail=false}={}) {
     const path=new URL(url).pathname, body=options.body?JSON.parse(options.body):null
     calls.push({url,path,method:options.method||'GET',body})
     if(path==='/auth/v1/user')return Response.json({id:'staff-fixture'})
+    if(path==='/rest/v1/rpc/security_management_access_allowed')return Response.json(true)
     if(path==='/rest/v1/users')return Response.json([{role,status:'active'}])
     if(path==='/rest/v1/tenant_web_accounts')return Response.json(exists?[account]:[])
     if(path==='/rest/v1/tenants')return Response.json([{id:tenantId,full_name:'Khách kiểm thử',email:account.email,is_active:true}])
@@ -31,7 +32,7 @@ function adminMock({role='admin',exists=false,enrollFail=false}={}) {
 }
 test('missing authentication and non-admin callers cannot mutate tenant accounts',async()=>{
   const none=adminMock();assert.equal((await none.handler(request({action:'create',tenantId},null))).status,401);assert.equal(none.calls.length,0)
-  const staff=adminMock({role:'user'});assert.equal((await staff.handler(request({action:'create',tenantId}))).status,403);assert.equal(staff.calls.length,2)
+  const staff=adminMock({role:'user'});assert.equal((await staff.handler(request({action:'create',tenantId}))).status,403);assert.equal(staff.calls.length,3)
 })
 test('provisioning uses server tenant email, trusted role and returned Auth id',async()=>{
   const fixture=adminMock()
@@ -70,21 +71,24 @@ test('lock/unlock/revoke use atomic version revocation and reset revokes after c
     if(action==='reset_password')assert.ok(fixture.calls.findIndex(c=>c.method==='PUT')<index)
   }
 })
-function portalMock({status='pending',active=true,version=0,sessionVersion=0,saveFail=false}={}) {
+function portalMock({status='pending',active=true,version=0,sessionVersion=0,saveFail=false,assetsFail=false,noContract=false}={}) {
   const calls=[]
+  let assets=[{id:'asset-1',room_id:'room-fixture',name:'Điều hòa',quantity:1,type:'equipment',status:'ok',issue_note:'Private staff note',repairman_phone:'private'}, {id:'foreign-asset',room_id:'room-other',name:'Other tenant asset',quantity:1,status:'ok'}]
   const fetcher=async(url,options={})=>{
     const u=new URL(url),path=u.pathname,body=options.body?JSON.parse(options.body):null;calls.push({path,search:u.search,body})
     if(path==='/auth/v1/token')return Response.json({access_token:'fixture-access',refresh_token:'fixture-refresh',expires_in:3600,user})
     if(path==='/auth/v1/user')return Response.json(user)
     if(path==='/rest/v1/tenant_web_accounts')return Response.json([{...account,status,session_version:version}])
     if(path==='/rest/v1/tenants')return Response.json([{id:tenantId,full_name:'Khách kiểm thử',is_active:active}])
-    if(path==='/rest/v1/contracts')return Response.json([{id:'contract-fixture',room_id:'room-fixture',move_in_date:'2026-10-01',base_rent:3000000}])
-    if(path==='/rest/v1/rooms')return Response.json([{name:'101',floor:1,area:22}])
+    if(path==='/rest/v1/contracts')return Response.json(noContract?[]:[{id:'contract-fixture',room_id:'room-fixture',move_in_date:'2026-10-01',base_rent:3000000,electric_init:0,water_init:80,invoice_day:5}])
+    if(path==='/rest/v1/rooms')return Response.json([{name:'101',floor:1,area:22,service_zone_id:'zone-fixture'}])
+    if(path==='/rest/v1/room_assets')return assetsFail?Response.json({message:'unavailable'},{status:503}):Response.json(assets.filter(asset=>u.searchParams.get('room_id')===`eq.${asset.room_id}`))
+    if(path==='/rest/v1/service_zones')return Response.json([{electric_price:3500,water_price:18000,internet_price:100000,cleaning_price:30000}])
     if(path==='/rest/v1/rpc/webmobile_save_tenant_session')return Response.json(null,{status:saveFail?409:200})
     if(path==='/rest/v1/webmobile_auth_sessions')return Response.json([{id:userId,user_id:userId,account_version:sessionVersion,access_token:'fixture-access',token_expires_at:new Date(Date.now()+3600000).toISOString()}])
     throw new Error('Unexpected fixture route '+path)
   }
-  return {calls,auth:authService(env,async()=>true,fetcher)}
+  return {calls,auth:authService(env,async()=>true,fetcher),addAsset:asset=>assets.push(asset)}
 }
 test('real tenant login reads only its active contract, saves restricted session, never uses demo bindings',async()=>{
   const fixture=portalMock(),signed=await fixture.auth.login({email:account.email,password:'Fixture-password'},'a'.repeat(64))
@@ -101,11 +105,31 @@ test('locked/inactive tenant and concurrently revoked login cannot create a vali
   const fixture=portalMock({version:1,sessionVersion:0})
   await assert.rejects(fixture.auth.session(userId),cause=>cause.status===401)
 })
-test('real identities cannot access OCR/demo invoices, before storage/provider calls',async()=>{
+
+test('tenant inventory is scoped to current contract and excludes internal asset fields',async()=>{
+ const fixture=portalMock()
+ const profile=await fixture.auth.session(userId)
+ assert.equal(profile.assets.length,1);assert.equal(profile.assets[0].name,'Điều hòa')
+ assert.ok(!JSON.stringify(profile).includes('Other tenant asset'));assert.ok(!JSON.stringify(profile).includes('Private staff note'));assert.ok(!JSON.stringify(profile).includes('repairman_phone'))
+ assert.equal(profile.electricInitial,0);assert.equal(profile.waterInitial,80);assert.equal(profile.services.waterPrice,18000)
+ assert.ok(fixture.calls.find(c=>c.path==='/rest/v1/room_assets').search.includes('room_id=eq.room-fixture&select=id,name,quantity,type,status'))
+ fixture.addAsset({id:'asset-new',room_id:'room-fixture',name:'Tủ quần áo',quantity:2,status:'repairing'})
+ const updated=await fixture.auth.session(userId)
+ assert.equal(updated.assets.length,2);assert.equal(updated.assets[1].quantity,2)
+})
+
+test('inventory failure does not claim an empty room or prevent login; no active contract fetches no assets',async()=>{
+ const failed=portalMock({assetsFail:true}),signed=await failed.auth.login({email:account.email,password:'Fixture-password'},'a'.repeat(64))
+ assert.equal(signed.profile.assets,null)
+ const vacant=portalMock({noContract:true}),profile=await vacant.auth.session(userId)
+ assert.deepEqual(profile.assets,[]);assert.equal(profile.electricInitial,null);assert.equal(profile.services,null)
+ assert.ok(!vacant.calls.some(c=>c.path==='/rest/v1/room_assets'||c.path==='/rest/v1/service_zones'))
+})
+test('real identities cannot access demo storage or another contract before backend/provider calls',async()=>{
   const shouldNotRun=()=>{throw new Error('Accessed demo storage')}
   const handler=cloudHandler({...env,WEBMOBILE_GATEWAY_SECRET:'fixture',WEBMOBILE_AUTH_REQUIRED:'true'},shouldNotRun,shouldNotRun,{session:async()=>({mode:'tenant',userId,contractId:'contract-fixture'})})
   for(const endpoint of ['meter-ocr','demo-payments']) {
-    const r=new Request('https://fixture.invalid',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json','x-webmobile-endpoint':endpoint,'x-webmobile-session':userId,'x-webmobile-ip':'a'.repeat(64)},body:JSON.stringify({contractId:'contract-fixture'})})
+    const r=new Request('https://fixture.invalid',{method:'POST',headers:{Authorization:'Bearer fixture','Content-Type':'application/json','x-webmobile-endpoint':endpoint,'x-webmobile-session':userId,'x-webmobile-ip':'a'.repeat(64)},body:JSON.stringify({contractId:'another-contract',meter:'electric'})})
     assert.equal((await handler(r)).status,403)
   }
 })

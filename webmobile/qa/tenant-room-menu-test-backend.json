@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-08T06:29:09.794Z",
+  "project": "gsianbstkmyutnhromwc",
+  "function": "contract-test-auth",
+  "before": {
+    "rooms": 95,
+    "tenants": 95,
+    "accounts": 19,
+    "authUsers": 20,
+    "contracts": 103
+  },
+  "after": {
+    "rooms": 95,
+    "tenants": 95,
+    "accounts": 19,
+    "authUsers": 20,
+    "contracts": 103
+  },
+  "schemaChanged": false,
+  "emailsSent": false
+}

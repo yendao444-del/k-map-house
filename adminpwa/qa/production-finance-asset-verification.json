@@ -1,0 +1,15 @@
+{
+  "verifiedAt": "2026-10-10T02:30:24Z",
+  "target": "https://app.phongtroankhang.com/",
+  "entry": "/assets/index-Y3wtIzzo.js",
+  "financeChunk": "/assets/BusinessReport-DEcxIyLJ.js",
+  "entryStatus": 200,
+  "financeChunkStatus": 200,
+  "mobileViewportMeta": true,
+  "walletLoadingCopyPresent": true,
+  "walletFailureCopyPresent": true,
+  "freshBalanceValidationLocalRegressionPassed": true,
+  "authenticatedProductionWalletLoadingVerified": true,
+  "authenticatedProductionWalletReadyVerified": true,
+  "notes": "Public entry verified again. Authenticated existing-account mobile QA confirmed loading-to-ready wallets, income/expense toggle and cancel on the same entry. No financial mutation was submitted; write guards were inspected/tested locally, not executed in production."
+}

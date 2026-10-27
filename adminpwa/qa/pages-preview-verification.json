@@ -1,0 +1,25 @@
+{
+  "verifiedAt": "2026-10-08T11:33:47.775Z",
+  "project": "ankhanghome-admin-pwa",
+  "target": "https://ankhanghome-admin-pwa.pages.dev",
+  "evidence": [
+    {
+      "url": "https://ankhanghome-admin-pwa.pages.dev",
+      "status": 200,
+      "entry": "/assets/index-3L3k7CFH.js",
+      "assetStatus": 200,
+      "contentType": "application/javascript"
+    }
+  ],
+  "manifestStatus": 200,
+  "serviceWorkerStatus": 200,
+  "securityHeaders": {
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://qr.sepay.vn https://histdatafeed.vps.com.vn https://www.vang.today https://api.vang.today https://fmarket.vn https://api.sepay.vn https://my.sepay.vn https://pay.phongtroankhang.com https://phongtroankhang.com; frame-src 'self' blob:; worker-src 'self' blob:; media-src 'self' blob: data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+  },
+  "customDomainAttached": true,
+  "pagesDomainStatus": "active",
+  "requiredDnsRecord": "app CNAME ankhanghome-admin-pwa.pages.dev",
+  "dnsNote": "Custom domain is active; preview assets and production attachment are both verified."
+}

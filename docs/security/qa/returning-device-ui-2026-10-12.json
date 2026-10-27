@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-12T02:15:02.179Z",
+  "checks": [
+    {
+      "width": 390,
+      "returningAccountSkipsRecoverySetup": true,
+      "afterEmailLoginCompletes": true,
+      "noRecoveryCodeRotation": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "width": 320,
+      "returningAccountSkipsRecoverySetup": true,
+      "afterEmailLoginCompletes": true,
+      "noRecoveryCodeRotation": true,
+      "noHorizontalOverflow": true
+    },
+    {
+      "firstSetupStillRequiresSavedCodes": true,
+      "noAuthorizationBeforeAcknowledgement": true
+    },
+    {
+      "statusFailureDoesNotPretendRecoveryPending": true,
+      "retryWorks": true
+    }
+  ],
+  "scope": "Development UI fixtures only; no real messages, recovery codes or user data."
+}

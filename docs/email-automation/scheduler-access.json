@@ -1,0 +1,46 @@
+{
+  "at": "2026-10-10T06:28:44.680Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "passed": true,
+  "access": {
+    "authenticated_vault": false,
+    "anon_vault": false,
+    "authenticated_queue": true,
+    "anon_queue": true,
+    "authenticated_cron": true,
+    "anon_cron": true
+  },
+  "apiBoundary": [
+    {
+      "schema": "net",
+      "table": "http_request_queue",
+      "status": 406,
+      "code": "PGRST106"
+    },
+    {
+      "schema": "net",
+      "table": "_http_response",
+      "status": 406,
+      "code": "PGRST106"
+    },
+    {
+      "schema": "cron",
+      "table": "job",
+      "status": 406,
+      "code": "PGRST106"
+    },
+    {
+      "schema": "cron",
+      "table": "job_run_details",
+      "status": 406,
+      "code": "PGRST106"
+    },
+    {
+      "schema": "vault",
+      "table": "decrypted_secrets",
+      "status": 406,
+      "code": "PGRST106"
+    }
+  ],
+  "note": "Supabase extension tables retain owner-managed PUBLIC grants; net, cron and vault are not exposed by PostgREST. This verifies the application API boundary, not removal of platform-owned SQL grants."
+}

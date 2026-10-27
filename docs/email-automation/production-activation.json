@@ -1,0 +1,40 @@
+{
+  "at": "2026-10-08T06:33:11.047Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "before": {
+    "rooms": 25,
+    "invoices": 203,
+    "payments": 36,
+    "contracts": 49
+  },
+  "result": {
+    "ok": true,
+    "queued": 0,
+    "sepay": {
+      "enabled": true,
+      "processed": 0
+    },
+    "delivery": {
+      "configured": true,
+      "sent": 0,
+      "failed": 0,
+      "skipped": 0,
+      "claimed": 0
+    }
+  },
+  "http": 200,
+  "status": {
+    "sent": 0,
+    "failed": 0,
+    "pollAt": "2026-10-08T06:33:08.868+00:00",
+    "enabled": true,
+    "pending": 0,
+    "workerAt": "2026-10-08T06:33:09.858+00:00",
+    "pollError": null,
+    "cronActive": true,
+    "dailyLimit": 90,
+    "repeatDays": 7,
+    "reminderHour": 8,
+    "sepayEnabled": true
+  }
+}

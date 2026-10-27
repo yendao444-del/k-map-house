@@ -1,0 +1,5262 @@
+import React, { Component, Suspense, lazy, useState, useEffect, useMemo, useCallback, type ErrorInfo, type ReactNode } from 'react'
+import { MfaChallengeRequired, SecurityStepUpRequired, securityState, isProfileSecurityFlowPending } from './lib/mfa'
+import { getManagementSessionExpiry, isManagementSessionExpired } from './lib/auth-storage'
+import {
+  Home,
+  FileText,
+  Settings as SettingsIcon,
+  Bell,
+  Building2,
+  BarChart3,
+  WalletCards
+} from 'lucide-react'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import {
+  getRooms,
+  getTenants,
+  getContracts,
+  getCashTransactions,
+  getAllRoomAssets,
+  getRoom,
+  updateRoom,
+  createRoom,
+  deleteRoom,
+  getServiceZones,
+  createServiceZone,
+  updateServiceZone,
+  deleteServiceZone,
+  getInvoices,
+  getActiveContracts,
+  getRoomMoveInReceiptRefs,
+  getAssetSnapshotsByRoomIds,
+  getAppSettings,
+  getSepayTokenStatus,
+  getEmailDeliveryAvailability,
+  fetchSepayTransactions,
+  getCurrentSessionUser,
+  getCollectedDepositAmount,
+  isDepositOnlyInvoice,
+  signOutUser,
+  updateAppSettings,
+  type Room,
+  type ServiceZone,
+  type Invoice,
+  type AppUser
+} from './lib/db'
+import { announcePaymentAmount } from './lib/sound'
+import { AccountMenu, type ProfileSection } from './components/AccountMenu'
+import { EditableCell } from './components/EditableCell'
+import { LogoLoading } from './components/LogoLoading'
+import { ContractLeaveDialog } from './components/ContractLeaveDialog'
+
+import { LoginScreen } from './components/LoginScreen'
+import { setupRealtime } from './lib/realtime'
+import {
+  createInvoiceTransferIndex,
+  findInvoiceTransferMatches,
+  normalizeTransferText
+} from './lib/invoiceTransfer'
+import { getRoomListSummary } from './lib/room-list-summary'
+import { findDebtToConfirm, isOutstandingInvoice } from './lib/invoiceDebt'
+import { useSepayEmailNotifications } from './lib/use-sepay-email-notifications'
+import type { ContractDraft } from './lib/contract-draft'
+import logoNavbar from './assets/an_khang_home_logo.png'
+import { isPasswordRecoveryRedirect } from './lib/supabase'
+import { markAfterPaint, markStartup } from './lib/startup-perf'
+import { useMobile } from './lib/use-mobile'
+import { MobileRooms } from './components/MobileRooms'
+import { MobileNavigation } from './components/MobileNavigation'
+import { isRoomExpired, matchesRoomFilter } from './lib/mobile-room-filter'
+import { MobileRoomActions, type RoomAction } from './components/MobileRoomActions'
+
+const InvoiceModal = lazy(() =>
+  import('./components/InvoiceModal').then((module) => ({ default: module.InvoiceModal }))
+)
+const DebtClosingModal = lazy(() =>
+  import('./components/DebtClosingModal').then((module) => ({ default: module.DebtClosingModal }))
+)
+const RoomDetailsModal = lazy(() =>
+  import('./components/RoomDetailsModal').then((module) => ({ default: module.RoomDetailsModal }))
+)
+const PaymentModal = lazy(() =>
+  import('./components/PaymentModal').then((module) => ({ default: module.PaymentModal }))
+)
+const NewContractModal = lazy(() => import('./components/NewContractModal'))
+const NewContractPage = lazy(() => import('./components/NewContractPage'))
+const EndContractNoticeModal = lazy(() =>
+  import('./components/EndContractNoticeModal').then((module) => ({
+    default: module.EndContractNoticeModal
+  }))
+)
+const TerminateContractModal = lazy(() =>
+  import('./components/TerminateContractModal').then((module) => ({
+    default: module.TerminateContractModal
+  }))
+)
+const CancelContractModal = lazy(() =>
+  import('./components/CancelContractModal').then((module) => ({
+    default: module.CancelContractModal
+  }))
+)
+const ChangeRoomModal = lazy(() =>
+  import('./components/ChangeRoomModal').then((module) => ({ default: module.ChangeRoomModal }))
+)
+const TourOverlay = lazy(() =>
+  import('./components/TourOverlay').then((module) => ({ default: module.TourOverlay }))
+)
+const ProfileModal = lazy(() =>
+  import('./components/ProfileModal').then((module) => ({ default: module.ProfileModal }))
+)
+const TenantsTab = lazy(() =>
+  import('./components/TenantsTab').then((module) => ({ default: module.TenantsTab }))
+)
+const InvoicesTab = lazy(() =>
+  import('./components/InvoicesTab').then((module) => ({ default: module.InvoicesTab }))
+)
+const AssetsTab = lazy(() =>
+  import('./components/AssetsTab').then((module) => ({ default: module.AssetsTab }))
+)
+const ContractsTab = lazy(() =>
+  import('./components/ContractsTab').then((module) => ({ default: module.ContractsTab }))
+)
+const SettingsTab = lazy(() =>
+  import('./components/SettingsTab').then((module) => ({ default: module.SettingsTab }))
+)
+const BusinessReport = lazy(() =>
+  import('./components/BusinessReport').then((module) => ({ default: module.BusinessReport }))
+)
+const WalletTab = lazy(() =>
+  import('./components/WalletTab').then((module) => ({ default: module.WalletTab }))
+)
+const InvestmentsTab = lazy(() =>
+  import('./components/InvestmentsTab').then((module) => ({ default: module.InvestmentsTab }))
+)
+
+// Warm module code without mounting components or running their side effects.
+// Module data readiness is measured separately from successful imports.
+const backgroundChunkPreloaders = [
+  () => import('./components/InvoiceModal'),
+  () => import('./components/DebtClosingModal'),
+  () => import('./components/RoomDetailsModal'),
+  () => import('./components/PaymentModal'),
+  () => import('./components/NewContractModal'),
+  () => import('./components/NewContractPage'),
+  () => import('./components/EndContractNoticeModal'),
+  () => import('./components/TerminateContractModal'),
+  () => import('./components/CancelContractModal'),
+  () => import('./components/ChangeRoomModal'),
+  () => import('./components/TourOverlay'),
+  () => import('./components/ProfileModal'),
+  () => import('./components/TenantsTab'),
+  () => import('./components/InvoicesTab'),
+  () => import('./components/AssetsTab'),
+  () => import('./components/ContractsTab'),
+  () => import('./components/SettingsTab'),
+  () => import('./components/BusinessReport'),
+  () => import('./components/WalletTab'),
+  () => import('./components/InvestmentsTab')
+]
+const TabLoading = () => <LogoLoading className="flex-1 bg-gray-50" />
+
+class FeatureErrorBoundary extends Component<
+  { label: string; children: ReactNode },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null }
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    console.error(`[Renderer] ${this.props.label} module error:`, error, info.componentStack)
+  }
+
+  render(): ReactNode {
+    if (!this.state.error) return this.props.children
+
+    return (
+      <div className="m-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900">
+        <h2 className="font-bold">Không thể tải mục {this.props.label}</h2>
+        <p className="mt-2 text-sm">Mục này gặp lỗi. Có thể tải lại riêng mục này để tiếp tục làm việc.</p>
+        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">{this.state.error.message}</pre>
+        <button
+          type="button"
+          onClick={() => this.setState({ error: null })}
+          className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white"
+        >
+          Tải lại mục {this.props.label}
+        </button>
+      </div>
+    )
+  }
+}
+
+function usePageVisible(): boolean {
+  const [isVisible, setIsVisible] = useState(
+    () => typeof document === 'undefined' || document.visibilityState === 'visible'
+  )
+
+  useEffect(() => {
+    const handleVisibilityChange = () => setIsVisible(document.visibilityState === 'visible')
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
+
+  return isVisible
+}
+
+const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+const hasInvoiceBalance = (
+  invoice: Pick<Invoice, 'payment_status' | 'total_amount' | 'paid_amount'>
+): boolean => {
+  if (invoice.payment_status !== 'unpaid' && invoice.payment_status !== 'partial') return false
+
+  const total = Number(invoice.total_amount || 0)
+  const paid = Number(invoice.paid_amount || 0)
+  if (!Number.isFinite(total) || !Number.isFinite(paid) || total === 0) return false
+
+  // Positive invoices need more money; negative invoices still need a refund.
+  return total > 0 ? paid < total : paid > total
+}
+
+type EndingDeadlineState = 'unknown' | 'upcoming' | 'due_today' | 'overdue'
+
+const getEndingDeadline = (expectedEndDate?: string | null, now = new Date()): {
+  state: EndingDeadlineState
+  daysUntil: number | null
+} => {
+  if (!expectedEndDate) return { state: 'unknown', daysUntil: null }
+
+  const dateOnly = expectedEndDate.slice(0, 10)
+  const deadline = new Date(`${dateOnly}T00:00:00`)
+  if (Number.isNaN(deadline.getTime())) return { state: 'unknown', daysUntil: null }
+
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const daysUntil = Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  return {
+    state: daysUntil < 0 ? 'overdue' : daysUntil === 0 ? 'due_today' : 'upcoming',
+    daysUntil
+  }
+}
+const HANDOVER_IDS = ['__check_cleared', '__check_cleaned', '__check_keys']
+const getHandoverSnapshotKey = (snap: { room_asset_id: string; note?: string }) =>
+  snap.note || snap.room_asset_id
+type AppTab =
+  | 'rooms'
+  | 'invoices'
+  | 'assets'
+  | 'contracts'
+  | 'tenants'
+  | 'finance'
+  | 'reports'
+  | 'settings'
+type PendingAssetReceive = { roomId: string; roomName: string }
+type ServiceTooltipState = {
+  name: string
+  electric: number
+  water: number
+  internet: number
+  cleaning: number
+  fixedTotal: number
+  tooltipBg: string
+  arrowColor: string
+  left: number
+  top: number
+  above: boolean
+}
+type SettingsSection = 'general' | 'zones' | 'users' | 'account' | 'updates'
+type UpdateBannerInfo = {
+  latestVersion?: string
+  downloadUrl?: string | null
+  status?: string
+  message?: string
+  progress?: number
+}
+type SepayBackgroundTransaction = {
+  id: string
+  amount_in: string
+  transaction_content: string
+  transaction_date?: string
+  reference_number?: string
+}
+type SepayBackgroundFetchResult = {
+  ok: boolean
+  data?: {
+    status?: number
+    transactions?: SepayBackgroundTransaction[]
+  }
+}
+type SepayBackgroundMatch = {
+  invoice: Invoice
+  roomName: string
+  tenantName: string
+  amount: number
+  remaining: number
+  transactionId: string
+  referenceNumber: string
+  transactionDate?: string
+  matchType: 'exact' | 'partial' | 'over'
+}
+const normalizeRoomName = (name: string) =>
+  name.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi-VN')
+
+const withTimeout = <T,>(promise: Promise<T>, ms: number, message: string): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), ms)
+    })
+  ])
+
+export const formatRoomName = (raw: string) => {
+  const trimmed = raw.trim()
+  // Strip mọi prefix "phong/phòng" dư thừa (kể cả thiếu dấu)
+  const suffix = trimmed.replace(/^(ph[oò]ng\s+)+/i, '').trim()
+  if (/^\d+$/.test(suffix)) return 'Phòng ' + suffix
+  if (/^\d+$/.test(trimmed)) return 'Phòng ' + trimmed
+  return trimmed
+}
+
+const AddRoomModal = ({
+  onClose,
+  onOpenContract
+}: {
+  onClose: () => void
+  onOpenContract: (payload: { room: Room; moveInDate: string }) => void
+}) => {
+  const queryClient = useQueryClient()
+  const { data: serviceZones = [] } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones
+  })
+  const [submitError, setSubmitError] = useState('')
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: { roomData: Partial<Room>; moveInDate?: string }) => {
+      const room = await createRoom(payload.roomData)
+      return { room, moveInDate: payload.moveInDate || '' }
+    },
+    onSuccess: ({ room, moveInDate }) => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      if (moveInDate) {
+        onOpenContract({ room, moveInDate })
+      } else {
+        onClose()
+      }
+    },
+    onError: (error) => {
+      setSubmitError(error instanceof Error ? error.message : 'Không thể tạo phòng mới.')
+    }
+  })
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const moveInDate = new Date().toISOString().split('T')[0]
+    const roomData: Partial<Room> = {
+      name: ((fd.get('name') as string) || '').trim(),
+      status: 'vacant',
+      base_rent: parseInt((fd.get('base_rent') as string).replace(/\D/g, ''), 10) || 0,
+      service_zone_id: (fd.get('service_zone_id') as string) || 'zone-1',
+      floor: 1,
+      invoice_day: parseInt(fd.get('invoice_day') as string) || 5,
+      default_deposit: parseInt((fd.get('default_deposit') as string).replace(/\D/g, ''), 10) || 0
+    }
+
+    setSubmitError('')
+    createMutation.mutate({ roomData, moveInDate })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-green-100 text-primary flex items-center justify-center text-lg">
+              <i className="fa-solid fa-door-open"></i>
+            </div>
+            <h2 className="text-lg font-bold text-gray-800">Thêm Phòng Nhanh</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-8 h-8 rounded-full flex items-center justify-center transition"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+        <form id="add-room-form" onSubmit={handleSubmit} className="flex flex-col">
+          <div className="p-6 space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Thông tin cơ bản
+              </label>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Số phòng <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="name"
+                    required
+                    type="text"
+                    placeholder="VD: 101, 201..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition font-bold text-gray-800"
+                    autoFocus
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    Chỉ cần nhập số, hệ thống sẽ hiển thị dạng “Phòng 101”.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Giá cho thuê <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    name="base_rent"
+                    required
+                    type="text"
+                    defaultValue="3,500,000"
+                    className="w-full border border-gray-200 rounded-lg pl-3 pr-10 py-2.5 text-sm font-bold text-primary focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+                  />
+                  <span className="absolute right-3 top-3 text-[10px] font-bold text-gray-400">
+                    VNĐ
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Bảng giá vùng
+                </label>
+                <select
+                  name="service_zone_id"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white cursor-pointer font-medium"
+                >
+                  {serviceZones.map((zone) => (
+                    <option key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Tiền cọc mặc định
+              </label>
+              <div className="relative">
+                <input
+                  name="default_deposit"
+                  type="text"
+                  defaultValue="3,500,000"
+                  className="w-full border border-gray-200 rounded-lg pl-3 pr-10 py-2.5 text-sm font-bold text-orange-600 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+                />
+                <span className="absolute right-3 top-3 text-[10px] font-bold text-gray-400">
+                  VNĐ
+                </span>
+              </div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 space-y-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-amber-700">
+                  Luồng tiếp theo
+                </div>
+                <p className="mt-1 text-[12px] text-amber-900">
+                  Sau khi tạo phòng, hệ thống sẽ mở ngay bước <b>Hợp đồng mới</b>. Ở bước đó bạn sẽ
+                  phải: chọn khách từ mục <b>Khách thuê</b>, nhập chỉ số <b>điện / nước</b>, và
+                  thiết lập <b>tài sản</b> trước khi lưu hợp đồng.
+                </p>
+              </div>
+            </div>
+            {submitError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {submitError}
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Ngày lập hóa đơn
+              </label>
+              <div className="relative">
+                <input
+                  name="invoice_day"
+                  type="number"
+                  min="1"
+                  max="28"
+                  defaultValue="5"
+                  className="w-full border border-gray-200 rounded-lg pl-3 pr-16 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition text-gray-800 font-medium"
+                />
+                <span className="absolute right-3 top-2.5 text-[10px] font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                  Hàng tháng
+                </span>
+              </div>
+            </div>
+            <div className="bg-blue-50/80 rounded-xl p-3 border border-blue-100/50 flex items-start gap-3">
+              <i className="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+              <p className="text-[11px] text-blue-800 italic leading-relaxed">
+                Phòng sẽ được tạo trước, sau đó mở ngay bước <b>Lập hợp đồng</b> với ngày bắt đầu
+                mặc định là hôm nay.
+              </p>
+            </div>
+          </div>
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={createMutation.isPending}
+              className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary-dark disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg shadow-primary/20 transition flex items-center gap-2"
+            >
+              <i className="fa-solid fa-check"></i>{' '}
+              {createMutation.isPending ? 'Đang tạo...' : 'Tạo phòng ngay'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const EditRoomModal = ({ room, onClose }: { room: Room; onClose: () => void }) => {
+  const queryClient = useQueryClient()
+  const { data: serviceZones = [] } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones
+  })
+  const [submitError, setSubmitError] = useState('')
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Room> }) =>
+      updateRoom(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      onClose()
+    },
+    onError: (error) => {
+      setSubmitError(error instanceof Error ? error.message : 'Không thể lưu thay đổi phòng.')
+    }
+  })
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    setSubmitError('')
+    updateMutation.mutate({
+      id: room.id,
+      updates: {
+        name: ((fd.get('name') as string) || '').trim(),
+        service_zone_id: (fd.get('service_zone_id') as string) || 'zone-1',
+        default_deposit:
+          parseInt((fd.get('default_deposit') as string).replace(/\D/g, ''), 10) || 0,
+        invoice_day: parseInt(fd.get('invoice_day') as string, 10) || 5
+      }
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+              <i className="fa-solid fa-pen-to-square"></i>
+            </div>
+            <h2 className="text-lg font-bold text-gray-800">Sửa Thông Tin Phòng</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-8 h-8 rounded-full flex items-center justify-center transition"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <form id="edit-room-form" onSubmit={handleSubmit} className="flex flex-col">
+          <div className="p-6 space-y-5">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Thông tin cơ bản
+              </label>
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">
+                    Tên phòng <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    name="name"
+                    defaultValue={room.name}
+                    required
+                    type="text"
+                    placeholder="VD: 101, 201..."
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition font-bold text-gray-800"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Giá cho thuê <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    readOnly
+                    type="text"
+                    value={formatVND(room.base_rent)}
+                    className="w-full border border-gray-200 rounded-lg pl-3 pr-10 py-2.5 text-sm font-bold text-gray-500 bg-gray-50 cursor-not-allowed outline-none"
+                  />
+                  <span className="absolute right-3 top-3 text-[10px] font-bold text-gray-400">
+                    VNĐ
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Bảng giá vùng
+                </label>
+                <select
+                  name="service_zone_id"
+                  defaultValue={room.service_zone_id || 'zone-1'}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white cursor-pointer font-medium"
+                >
+                  {serviceZones.map((zone) => (
+                    <option key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Tiền cọc mặc định
+                </label>
+                <div className="relative">
+                  <input
+                    name="default_deposit"
+                    type="text"
+                    defaultValue={formatVND(room.default_deposit || 0)}
+                    className="w-full border border-gray-200 rounded-lg pl-3 pr-10 py-2.5 text-sm font-bold text-orange-600 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition"
+                  />
+                  <span className="absolute right-3 top-3 text-[10px] font-bold text-gray-400">
+                    VNĐ
+                  </span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Ngày lập hóa đơn
+                </label>
+                <input
+                  name="invoice_day"
+                  type="number"
+                  min="1"
+                  max="28"
+                  defaultValue={room.invoice_day || 5}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition text-gray-800 font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="bg-blue-50/80 rounded-xl p-3 border border-blue-100/50 flex items-start gap-3">
+              <i className="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+              <p className="text-[11px] text-blue-800 italic leading-relaxed">
+                Chỉnh sửa các thiết lập cơ bản của phòng. Các thông tin khác có thể xem trong chi
+                tiết phòng.
+              </p>
+            </div>
+            {submitError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {submitError}
+              </div>
+            )}
+          </div>
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={updateMutation.isPending}
+              className="px-6 py-2.5 rounded-lg text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed shadow-lg shadow-blue-600/20 transition flex items-center gap-2"
+            >
+              <i className="fa-solid fa-check"></i>{' '}
+              {updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const ServiceZoneModal = ({ onClose }: { onClose: () => void }) => {
+  const queryClient = useQueryClient()
+  const { data: serviceZones = [] } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones
+  })
+  const { data: rooms = [] } = useQuery({ queryKey: ['rooms'], queryFn: getRooms })
+
+  // State cho editing
+  const [editingZone, setEditingZone] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<Partial<ServiceZone>>({})
+  const [isAdding, setIsAdding] = useState(false)
+  const [newZoneForm, setNewZoneForm] = useState<Partial<ServiceZone>>({
+    name: '',
+    electric_price: 3500,
+    water_price: 20000,
+    internet_price: 100000,
+    cleaning_price: 20000
+  })
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
+  // Mutations
+  const createZoneMutation = useMutation({
+    mutationFn: createServiceZone,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
+      setIsAdding(false)
+      setNewZoneForm({
+        name: '',
+        electric_price: 3500,
+        water_price: 20000,
+        internet_price: 100000,
+        cleaning_price: 20000
+      })
+    }
+  })
+
+  const updateZoneMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<ServiceZone> }) =>
+      updateServiceZone(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
+      setEditingZone(null)
+    }
+  })
+
+  const deleteZoneMutation = useMutation({
+    mutationFn: deleteServiceZone,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['serviceZones'] })
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      setDeleteConfirmId(null)
+    }
+  })
+
+  const startEdit = (zone: ServiceZone) => {
+    setEditingZone(zone.id)
+    setEditForm({
+      name: zone.name,
+      electric_price: zone.electric_price,
+      water_price: zone.water_price,
+      internet_price: zone.internet_price,
+      cleaning_price: zone.cleaning_price
+    })
+  }
+
+  const saveEdit = () => {
+    if (editingZone) {
+      updateZoneMutation.mutate({ id: editingZone, updates: editForm })
+    }
+  }
+
+  const cancelEdit = () => {
+    setEditingZone(null)
+    setEditForm({})
+  }
+
+  const countRoomsInZone = (zoneId: string) =>
+    rooms.filter((r) => r.service_zone_id === zoneId).length
+
+  const formatPrice = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
+
+  return (
+    <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+              <i className="fa-solid fa-tags"></i>
+            </div>
+            <h2 className="text-lg font-bold text-gray-800">Quản Lý Vùng Bảng Giá</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-8 h-8 rounded-full flex items-center justify-center transition"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        <div className="p-6 bg-gray-50/30 overflow-y-auto max-h-[70vh]">
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-gray-600 max-w-lg">
+              Thay vì nhập giá cho từng phòng, bạn chỉ cần xếp phòng vào Vùng tương ứng. Khi giá
+              thay đổi, bạn chỉ cần sửa giá ở Vùng.
+            </p>
+            <button
+              onClick={() => setIsAdding(true)}
+              disabled={isAdding}
+              className="px-4 py-2 bg-primary text-white rounded-lg shadow text-sm font-medium hover:bg-primary-dark transition flex items-center gap-2 disabled:opacity-50"
+            >
+              <i className="fa-solid fa-plus"></i> Thêm Vùng
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-100/80 text-gray-600 text-xs uppercase font-semibold">
+                <tr>
+                  <th className="px-4 py-3">Tên Vùng Giá</th>
+                  <th className="px-4 py-3">
+                    <i className="fa-solid fa-bolt text-yellow-500 mr-1"></i> Điện (đ/kWh)
+                  </th>
+                  <th className="px-4 py-3">
+                    <i className="fa-solid fa-droplet text-blue-500 mr-1"></i> Nước (đ/m³)
+                  </th>
+                  <th className="px-4 py-3">
+                    <i className="fa-solid fa-wifi text-green-500 mr-1"></i> Nét (đ/phòng)
+                  </th>
+                  <th className="px-4 py-3">
+                    <i className="fa-solid fa-broom text-gray-400 mr-1"></i> Rác (đ/phòng)
+                  </th>
+                  <th className="px-4 py-3 text-center">Số phòng</th>
+                  <th className="px-4 py-3 text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {/* Row thêm vùng mới */}
+                {isAdding && (
+                  <tr className="bg-green-50/50 animate-[fadeIn_0.15s_ease-out]">
+                    <td className="px-4 py-2">
+                      <input
+                        type="text"
+                        value={newZoneForm.name}
+                        onChange={(e) => setNewZoneForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="VD: Vùng C"
+                        className="w-full border border-green-300 rounded px-2 py-1.5 text-sm font-semibold focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                        autoFocus
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        value={newZoneForm.electric_price}
+                        onChange={(e) =>
+                          setNewZoneForm((f) => ({ ...f, electric_price: Number(e.target.value) }))
+                        }
+                        className="w-full border border-green-300 rounded px-2 py-1.5 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        value={newZoneForm.water_price}
+                        onChange={(e) =>
+                          setNewZoneForm((f) => ({ ...f, water_price: Number(e.target.value) }))
+                        }
+                        className="w-full border border-green-300 rounded px-2 py-1.5 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        value={newZoneForm.internet_price}
+                        onChange={(e) =>
+                          setNewZoneForm((f) => ({ ...f, internet_price: Number(e.target.value) }))
+                        }
+                        className="w-full border border-green-300 rounded px-2 py-1.5 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        value={newZoneForm.cleaning_price}
+                        onChange={(e) =>
+                          setNewZoneForm((f) => ({ ...f, cleaning_price: Number(e.target.value) }))
+                        }
+                        className="w-full border border-green-300 rounded px-2 py-1.5 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-center text-gray-400">—</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => {
+                          if (newZoneForm.name?.trim())
+                            createZoneMutation.mutate(newZoneForm as Partial<ServiceZone>)
+                        }}
+                        disabled={!newZoneForm.name?.trim() || createZoneMutation.isPending}
+                        className="text-white bg-primary hover:bg-primary-dark px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50 mr-1"
+                      >
+                        <i className="fa-solid fa-check mr-1"></i>Lưu
+                      </button>
+                      <button
+                        onClick={() => setIsAdding(false)}
+                        className="text-gray-500 hover:bg-gray-100 px-2 py-1.5 rounded text-xs transition"
+                      >
+                        <i className="fa-solid fa-xmark"></i>
+                      </button>
+                    </td>
+                  </tr>
+                )}
+
+                {/* Danh sách zones */}
+                {serviceZones.map((zone) => {
+                  const isEditing = editingZone === zone.id
+                  const isDeleting = deleteConfirmId === zone.id
+                  const roomCount = countRoomsInZone(zone.id)
+
+                  if (isDeleting) {
+                    return (
+                      <tr key={zone.id} className="bg-red-50 animate-[fadeIn_0.1s_ease-out]">
+                        <td colSpan={7} className="px-4 py-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <i className="fa-solid fa-triangle-exclamation text-red-500"></i>
+                              <span className="text-sm">
+                                Xóa vùng <b>"{zone.name}"</b>?
+                                {roomCount > 0 && (
+                                  <span className="text-red-600 ml-1">
+                                    ({roomCount} phòng sẽ chuyển về Vùng Mặc Định)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => deleteZoneMutation.mutate(zone.id)}
+                                disabled={deleteZoneMutation.isPending}
+                                className="px-3 py-1.5 bg-red-500 text-white rounded text-xs font-bold hover:bg-red-600 transition disabled:opacity-50"
+                              >
+                                {deleteZoneMutation.isPending ? 'Đang xóa...' : 'Xác nhận xóa'}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded text-xs hover:bg-gray-200 transition"
+                              >
+                                Hủy
+                              </button>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
+                  return (
+                    <tr
+                      key={zone.id}
+                      className={`hover:bg-gray-50 transition ${isEditing ? 'bg-blue-50/40' : ''}`}
+                    >
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={editForm.name || ''}
+                            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                            className="w-full border border-blue-300 rounded px-2 py-1 text-sm font-semibold focus:ring-2 focus:ring-primary/20 outline-none"
+                            autoFocus
+                          />
+                        ) : (
+                          <span className="font-semibold text-gray-800">{zone.name}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editForm.electric_price}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, electric_price: Number(e.target.value) }))
+                            }
+                            className="w-full border border-blue-300 rounded px-2 py-1 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        ) : (
+                          <span className="tabular-nums">{formatPrice(zone.electric_price)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editForm.water_price}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, water_price: Number(e.target.value) }))
+                            }
+                            className="w-full border border-blue-300 rounded px-2 py-1 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        ) : (
+                          <span className="tabular-nums">{formatPrice(zone.water_price)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editForm.internet_price}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, internet_price: Number(e.target.value) }))
+                            }
+                            className="w-full border border-blue-300 rounded px-2 py-1 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        ) : (
+                          <span className="tabular-nums">{formatPrice(zone.internet_price)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            value={editForm.cleaning_price}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, cleaning_price: Number(e.target.value) }))
+                            }
+                            className="w-full border border-blue-300 rounded px-2 py-1 text-sm tabular-nums focus:ring-2 focus:ring-primary/20 outline-none"
+                          />
+                        ) : (
+                          <span className="tabular-nums">{formatPrice(zone.cleaning_price)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${roomCount > 0 ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'}`}
+                        >
+                          {roomCount}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {isEditing ? (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={saveEdit}
+                              disabled={updateZoneMutation.isPending}
+                              className="text-white bg-primary hover:bg-primary-dark px-3 py-1.5 rounded text-xs font-bold transition disabled:opacity-50"
+                            >
+                              <i className="fa-solid fa-check mr-1"></i>Lưu
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              className="text-gray-500 hover:bg-gray-100 px-2 py-1.5 rounded text-xs transition"
+                            >
+                              <i className="fa-solid fa-xmark"></i>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => startEdit(zone)}
+                              className="text-blue-500 hover:bg-blue-50 p-1.5 rounded transition"
+                              title="Sửa vùng"
+                            >
+                              <i className="fa-solid fa-pen text-xs"></i>
+                            </button>
+                            {zone.id !== 'zone-1' && (
+                              <button
+                                onClick={() => setDeleteConfirmId(zone.id)}
+                                className="text-red-400 hover:bg-red-50 p-1.5 rounded transition"
+                                title="Xóa vùng"
+                              >
+                                <i className="fa-solid fa-trash text-xs"></i>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {serviceZones.length === 0 && (
+            <div className="text-center py-12 text-gray-400">
+              <i className="fa-solid fa-tags text-4xl mb-3 block"></i>
+              <p className="text-sm">Chưa có vùng giá nào. Bấm "Thêm Vùng" để bắt đầu.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const RoomServiceZonePickerModal = ({
+  room,
+  onClose,
+  invoiceBlocked = false,
+  onAssigned
+}: {
+  room: Room
+  onClose: () => void
+  invoiceBlocked?: boolean
+  onAssigned?: (room: Room) => void
+}) => {
+  const queryClient = useQueryClient()
+  const { data: serviceZones = [] } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones
+  })
+  const [selectedZoneId, setSelectedZoneId] = useState(room.service_zone_id || '')
+
+  const assignMutation = useMutation({
+    mutationFn: (service_zone_id: string) => updateRoom(room.id, { service_zone_id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      if (onAssigned) {
+        onAssigned({ ...room, service_zone_id: selectedZoneId })
+      }
+      onClose()
+    }
+  })
+
+  return (
+    <div
+      className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[70]"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-lg">
+              <i className="fa-solid fa-tags"></i>
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-800">Cài đặt dịch vụ</h2>
+              <p className="text-xs text-gray-500">{room.name}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 w-8 h-8 rounded-full flex items-center justify-center transition"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+
+        {/* Banner cảnh báo khi bị chặn từ invoice flow */}
+        {invoiceBlocked && (
+          <div className="mx-4 mt-4 rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 flex gap-3 text-sm text-orange-800">
+            <i className="fa-solid fa-triangle-exclamation text-orange-500 mt-0.5 shrink-0"></i>
+            <div>
+              <div className="font-bold mb-0.5">Chưa thiết lập phí dịch vụ!</div>
+              <div className="text-xs text-orange-700">
+                Bạn cần chọn <b>vùng bảng giá</b> cho phòng này trước khi lập hóa đơn. Sau khi chọn
+                xong, hóa đơn sẽ tự động mở.
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+              Chọn vùng bảng giá
+            </label>
+            <select
+              value={selectedZoneId}
+              onChange={(e) => setSelectedZoneId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition bg-white cursor-pointer font-medium"
+            >
+              <option value="" disabled>
+                Chọn vùng áp dụng
+              </option>
+              {serviceZones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {serviceZones.find((zone) => zone.id === selectedZoneId) && (
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-gray-700 space-y-1.5">
+              <div className="font-bold text-gray-800">
+                {serviceZones.find((zone) => zone.id === selectedZoneId)?.name}
+              </div>
+              <div>
+                Điện:{' '}
+                <b>
+                  {formatVND(
+                    serviceZones.find((zone) => zone.id === selectedZoneId)?.electric_price || 0
+                  )}
+                </b>{' '}
+                đ/kWh
+              </div>
+              <div>
+                Nước:{' '}
+                <b>
+                  {formatVND(
+                    serviceZones.find((zone) => zone.id === selectedZoneId)?.water_price || 0
+                  )}
+                </b>{' '}
+                đ/m³
+              </div>
+              <div>
+                Internet:{' '}
+                <b>
+                  {formatVND(
+                    serviceZones.find((zone) => zone.id === selectedZoneId)?.internet_price || 0
+                  )}
+                </b>{' '}
+                đ/phòng
+              </div>
+              <div>
+                Rác:{' '}
+                <b>
+                  {formatVND(
+                    serviceZones.find((zone) => zone.id === selectedZoneId)?.cleaning_price || 0
+                  )}
+                </b>{' '}
+                đ/phòng
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-200 transition"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => assignMutation.mutate(selectedZoneId)}
+            disabled={!selectedZoneId || assignMutation.isPending}
+            className="px-5 py-2.5 rounded-lg text-sm font-bold text-white bg-primary hover:bg-primary-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
+          >
+            {assignMutation.isPending ? (
+              <>
+                <i className="fa-solid fa-spinner animate-spin"></i> Đang lưu...
+              </>
+            ) : invoiceBlocked ? (
+              <>
+                <i className="fa-solid fa-file-invoice-dollar"></i> Lưu & Lập hóa đơn
+              </>
+            ) : (
+              'Áp dụng'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ConfirmDeleteModal = ({
+  room,
+  onConfirm,
+  onCancel,
+  isDeleting
+}: {
+  room: Room
+  onConfirm: () => void
+  onCancel: () => void
+  isDeleting: boolean
+}) => {
+  return (
+    <div
+      className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.15s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 text-center">
+          <div className="w-16 h-16 rounded-full bg-red-100 text-red-500 flex items-center justify-center text-3xl mx-auto mb-4">
+            <i className="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <h3 className="text-lg font-bold text-gray-800 mb-2">Xác nhận xóa phòng</h3>
+          <p className="text-sm text-gray-500 mb-1">Bạn có chắc chắn muốn xóa</p>
+          <p className="text-base font-bold text-gray-800 mb-1">“{room.name}”?</p>
+          <p className="text-xs text-red-400 mt-2">
+            <i className="fa-solid fa-circle-info mr-1"></i>Thao tác này chỉ xóa phòng khỏi danh
+            sách. Hóa đơn, khách thuê, tài sản và dữ liệu liên quan vẫn được giữ lại.
+          </p>
+        </div>
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-red-500 hover:bg-red-600 disabled:bg-red-300 shadow-md shadow-red-200 transition flex items-center justify-center gap-2"
+          >
+            <i className="fa-solid fa-trash-can"></i> {isDeleting ? 'Đang xóa...' : 'Xóa phòng'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ConfirmDeleteWithHistoryModal = ({
+  room,
+  onConfirm,
+  onCancel,
+  isDeleting = false
+}: {
+  room: Room
+  onConfirm: () => void
+  onCancel: () => void
+  isDeleting?: boolean
+}) => {
+  return (
+    <div
+      className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[70]"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header stripe */}
+        <div className="h-1.5 w-full bg-gradient-to-r from-amber-400 via-orange-400 to-red-400" />
+
+        <div className="p-6">
+          {/* Icon + Title */}
+          <div className="flex items-start gap-4 mb-5">
+            <div className="shrink-0 w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl shadow-sm border border-amber-200">
+              <i className="fa-solid fa-clock-rotate-left" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-gray-900 leading-tight mb-1">
+                Phòng này còn dữ liệu lịch sử
+              </h3>
+              <p className="text-[13px] text-gray-500">
+                Phòng <span className="font-semibold text-gray-700">{room.name}</span> còn hóa đơn,
+                hợp đồng hoặc biên lai liên quan.
+              </p>
+            </div>
+          </div>
+
+          {/* Info box */}
+          <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 mb-5 flex gap-3">
+            <i className="fa-solid fa-circle-info text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-[12.5px] text-amber-800 leading-relaxed">
+              Toàn bộ dữ liệu liên quan{' '}
+              <span className="font-semibold">(hóa đơn, hợp đồng, biên lai, tài sản, xe)</span> của
+              phòng này sẽ bị xóa vĩnh viễn và không thể khôi phục.
+            </p>
+          </div>
+
+          {/* Question */}
+          <p className="text-sm font-medium text-gray-700 mb-5 text-center">
+            Bạn có chắc chắn muốn tiếp tục xóa phòng này không?
+          </p>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 transition-all active:scale-95"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 disabled:opacity-60 shadow-md shadow-orange-200 transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              <i className={isDeleting ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-trash-can'} />
+              {isDeleting ? 'Đang xóa...' : 'Xác nhận xóa'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const App: React.FC = () => {
+  const isMobile = useMobile()
+  const queryClient = useQueryClient()
+  const isPageVisible = usePageVisible()
+  const wasPageVisible = React.useRef(isPageVisible)
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null)
+  const [pendingSecurity, setPendingSecurity] = useState<string | null>(null)
+  const [pendingMfa, setPendingMfa] = useState<{ factorId: string; challengeId: string } | null>(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [passwordRecovery, setPasswordRecovery] = useState(isPasswordRecoveryRedirect)
+  const [authValidationError, setAuthValidationError] = useState('')
+  const canLoadData = authReady && Boolean(currentUser) && !authValidationError
+
+  useEffect(() => {
+    if (currentUser) window.dispatchEvent(new Event('pwa-management-ready'))
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    if (!currentUser) return undefined
+    let disposed = false
+    let checking = false
+    const expire = () => {
+      if (disposed) return
+      // Expiry must hide private screens even while a network check is pending.
+      disposed = true
+      setPendingMfa(null)
+      setPendingSecurity(null)
+      setAuthValidationError('')
+      setCurrentUser(null)
+      setAuthReady(true)
+      void queryClient.cancelQueries().finally(() => queryClient.clear())
+      void signOutUser().catch(() => undefined)
+    }
+    const validate = async (allowHidden = false) => {
+      if ((!allowHidden && document.hidden) || checking || isProfileSecurityFlowPending()) return
+      checking = true
+      setAuthReady(false)
+      setAuthValidationError('')
+      try {
+        const user = await getCurrentSessionUser()
+        if (!disposed) { if (!user) queryClient.clear(); setCurrentUser(user); setAuthReady(true) }
+      } catch (error) {
+        if (!disposed) {
+          if (error instanceof MfaChallengeRequired) {
+            setPendingMfa({ factorId: error.factorId, challengeId: error.challengeId })
+            setCurrentUser(null)
+            queryClient.clear()
+          } else if (error instanceof SecurityStepUpRequired) {
+            setPendingSecurity(error.state); setCurrentUser(null); queryClient.clear()
+          } else setAuthValidationError(error instanceof Error ? error.message : 'Không kiểm tra được quyền truy cập.')
+          setAuthReady(true)
+        }
+      } finally { checking = false }
+    }
+    // The backend denies access immediately; this also removes an already-open
+    // business screen when the mandatory policy or session changes.
+    const timer = window.setInterval(async () => {
+      if (isManagementSessionExpired()) { expire(); return }
+      if (document.hidden || checking || disposed || isProfileSecurityFlowPending()) return
+      checking = true
+      let needsValidation = false
+      try {
+        const state = await securityState()
+        needsValidation = !['ready', 'optional'].includes(String(state.state))
+      } catch { needsValidation = true }
+      finally { checking = false }
+      if (!disposed && needsValidation) void validate()
+    }, 15_000)
+    const deadline = getManagementSessionExpiry()
+    const deadlineTimer = deadline === null ? 0 : window.setTimeout(expire, Math.max(0, deadline - Date.now()))
+    const foreground = () => { if (isManagementSessionExpired()) expire(); else if (!document.hidden) void validate() }
+    const retry = () => { void validate() }
+    document.addEventListener('visibilitychange', foreground)
+    window.addEventListener('online', retry)
+    window.addEventListener('pwa-retry-auth', retry)
+    return () => { disposed = true; window.clearInterval(timer); window.clearTimeout(deadlineTimer); document.removeEventListener('visibilitychange', foreground); window.removeEventListener('online', retry); window.removeEventListener('pwa-retry-auth', retry) }
+  }, [currentUser?.id])
+
+  useEffect(() => {
+    let disposed = false
+    let timer = 0
+    const idle = (callback: () => void) => {
+      // A zero-delay task yields the first React commit before loading optional
+      // chunks. It avoids waiting for idle, but does not guarantee paint order;
+      // login paint and module code timings must be checked separately.
+      timer = window.setTimeout(callback, 0)
+      return () => window.clearTimeout(timer)
+    }
+    // Start immediately after the first screen commit, then fetch feature chunks together.
+    // The work is still outside the active-screen path, while one wave avoids
+    // adding an artificial 400ms gap to the all-module readiness benchmark.
+    const cancel = idle(() => {
+      if (disposed) return
+      void Promise.allSettled(backgroundChunkPreloaders.map((load) => load())).then((results) => {
+        if (disposed) return
+        markStartup(results.every((result) => result.status === 'fulfilled')
+          ? 'module-code-ready' : 'module-code-error')
+      })
+    })
+    return () => {
+      disposed = true
+      cancel()
+    }
+  }, [])
+
+  const {
+    data: rooms = [],
+    isLoading,
+    isSuccess: roomsSuccess,
+    isError: roomsLoadFailed,
+    error: roomsLoadError,
+    refetch: refetchRooms
+  } = useQuery({
+    queryKey: ['rooms'],
+    queryFn: getRooms,
+    enabled: canLoadData,
+    refetchOnWindowFocus: false,
+    refetchInterval: isPageVisible ? 60_000 : false,
+    refetchIntervalInBackground: false
+  })
+  const { data: serviceZones = [], isSuccess: serviceZonesSuccess } = useQuery({
+    queryKey: ['serviceZones'],
+    queryFn: getServiceZones,
+    enabled: canLoadData
+  })
+  const {
+    data: invoices = [],
+    isLoading: invoicesLoading,
+    isSuccess: invoicesSuccess,
+    isError: invoicesLoadFailed,
+    error: invoicesLoadError,
+    refetch: refetchInvoices
+  } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: getInvoices,
+    enabled: canLoadData,
+    refetchOnWindowFocus: false,
+    // Realtime invalidation handles normal changes. Visibility refresh below
+    // remains the recovery path when a background event was missed, avoiding a
+    // full invoice history download every minute while the app is open.
+    refetchInterval: false,
+    refetchIntervalInBackground: false
+  })
+
+  useEffect(() => {
+    const becameVisible = isPageVisible && !wasPageVisible.current
+    wasPageVisible.current = isPageVisible
+    if (!becameVisible) return
+
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['rooms'], refetchType: 'active' }),
+      queryClient.invalidateQueries({ queryKey: ['invoices'], refetchType: 'active' }),
+      queryClient.invalidateQueries({
+        queryKey: ['sepayBackgroundTransactions'],
+        refetchType: 'active'
+      })
+    ])
+  }, [isPageVisible, queryClient])
+
+  const {
+    data: contracts = [],
+    isFetched: isActiveContractsFetched,
+    isSuccess: contractsSuccess,
+    isLoading: contractsLoading
+  } = useQuery({
+    queryKey: ['activeContracts'],
+    queryFn: getActiveContracts,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: isPageVisible ? 15000 : false,
+    enabled: canLoadData
+  })
+  const { data: moveInReceipts = [], isSuccess: receiptsSuccess } = useQuery({
+    queryKey: ['moveInReceipts'],
+    queryFn: getRoomMoveInReceiptRefs,
+    enabled: canLoadData
+  })
+  const { data: appSettings = {}, isSuccess: settingsSuccess } = useQuery({
+    queryKey: ['appSettings'],
+    queryFn: getAppSettings,
+    enabled: canLoadData
+  })
+  const roomIds = useMemo(() => rooms.map((room) => room.id), [rooms])
+  const roomIdsKey = useMemo(() => roomIds.slice().sort().join('|'), [roomIds])
+  const activeContractStartedAtByRoomId = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const contract of contracts) {
+      if (contract.status !== 'active') continue
+      const current = map.get(contract.room_id)
+      if (!current || new Date(contract.created_at).getTime() > new Date(current).getTime()) {
+        map.set(contract.room_id, contract.created_at || contract.move_in_date)
+      }
+    }
+    return map
+  }, [contracts])
+  const activeContractStartKey = useMemo(
+    () =>
+      Array.from(activeContractStartedAtByRoomId.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([roomId, startedAt]) => `${roomId}:${startedAt}`)
+        .join('|'),
+    [activeContractStartedAtByRoomId]
+  )
+  const { data: roomAssetWorkflow = {}, isSuccess: workflowSuccess } = useQuery<
+    Record<string, { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }>
+  >({
+    queryKey: ['asset_snapshots', 'room_workflow', roomIdsKey, activeContractStartKey],
+    enabled: canLoadData && rooms.length > 0,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const snapshots = await getAssetSnapshotsByRoomIds(roomIds, [
+        'move_in',
+        'move_out',
+        'handover'
+      ])
+      const roomWorkflow: Record<
+        string,
+        { hasMoveIn: boolean; hasMoveOut: boolean; hasHandover: boolean }
+      > = {}
+
+      for (const roomId of roomIds) {
+        roomWorkflow[roomId] = { hasMoveIn: false, hasMoveOut: false, hasHandover: false }
+      }
+
+      const handoverByRoom = new Map<
+        string,
+        Array<{ room_asset_id: string; note?: string; condition: string; deduction?: number }>
+      >()
+      for (const snap of snapshots) {
+        const roomState = roomWorkflow[snap.room_id]
+        if (!roomState) continue
+        const contractStartedAt = activeContractStartedAtByRoomId.get(snap.room_id)
+        if (
+          contractStartedAt &&
+          (snap.type === 'move_out' || snap.type === 'handover') &&
+          snap.recorded_at < contractStartedAt
+        ) {
+          continue
+        }
+        if (snap.type === 'move_in') roomState.hasMoveIn = true
+        if (snap.type === 'move_out') roomState.hasMoveOut = true
+        if (snap.type === 'handover') {
+          const list = handoverByRoom.get(snap.room_id) || []
+          list.push(snap)
+          handoverByRoom.set(snap.room_id, list)
+        }
+      }
+
+      for (const [roomId, handover] of handoverByRoom.entries()) {
+        roomWorkflow[roomId].hasHandover =
+          handover.length > 0 &&
+          HANDOVER_IDS.every((id) =>
+            handover.some(
+              (snap) =>
+                getHandoverSnapshotKey(snap) === id &&
+                (snap.condition === 'ok' ||
+                  (snap.condition === 'not_done' && (snap.deduction || 0) > 0))
+            )
+          )
+      }
+
+      return roomWorkflow
+    }
+  })
+
+  const primaryDataReady = canLoadData && roomsSuccess && invoicesSuccess &&
+    contractsSuccess && serviceZonesSuccess && receiptsSuccess && settingsSuccess &&
+    (rooms.length === 0 || workflowSuccess)
+  useEffect(() => {
+    if (!authReady) return
+    return markAfterPaint(currentUser ? 'authenticated-painted' : 'login-painted')
+  }, [authReady, currentUser])
+  useEffect(() => {
+    if (!primaryDataReady) return
+    return markAfterPaint('rooms-data-painted')
+  }, [primaryDataReady])
+  useEffect(() => {
+    if (!primaryDataReady) return
+    // Read-only warming uses exactly the cache keys used by these tabs.
+    // QueryClient deduplicates a prefetch if a tab opens at the same time.
+    void Promise.all([
+      queryClient.prefetchQuery({ queryKey: ['tenants'], queryFn: getTenants }),
+      queryClient.prefetchQuery({ queryKey: ['contracts'], queryFn: getContracts }),
+      queryClient.prefetchQuery({ queryKey: ['cashTransactions'], queryFn: getCashTransactions }),
+      queryClient.prefetchQuery({ queryKey: ['allRoomAssets'], queryFn: getAllRoomAssets })
+    ]).then(() => {
+      const keys = ['tenants', 'contracts', 'cashTransactions', 'allRoomAssets']
+      markStartup(keys.every((key) => queryClient.getQueryState([key])?.status === 'success')
+        ? 'shared-data-prefetched' : 'shared-data-prefetch-error')
+    })
+  }, [primaryDataReady, queryClient])
+
+  const [activeTab, setActiveTab] = useState<AppTab>('rooms')
+  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsSection>('general')
+  const [reportSubTab, setReportSubTab] = useState<
+    'overview' | 'pnl' | 'deposit' | 'cashflow' | 'utility' | 'debt'
+  >('overview')
+  const [financeSubTab, setFinanceSubTab] = useState<
+    'wallet' | 'investments' | 'debt'
+  >('wallet')
+  const isInvestmentView = Boolean(
+    currentUser && activeTab === 'finance' && financeSubTab === 'investments'
+  )
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
+  const [detailRoom, setDetailRoom] = useState<Room | null>(null)
+  const [mobileActionRoom, setMobileActionRoom] = useState<Room | null>(null)
+  const [detailRoomInitialTab, setDetailRoomInitialTab] = useState<
+    'info' | 'assets' | 'vehicles' | 'history'
+  >('info')
+  const [assetModuleInitialRoomId, setAssetModuleInitialRoomId] = useState<string | null>(null)
+  const [assetModuleGuideMode, setAssetModuleGuideMode] = useState<'move_in' | 'move_out' | null>(
+    null
+  )
+  const [assetReceivePending, setAssetReceivePending] = useState<PendingAssetReceive | null>(null)
+  const assetReceivePendingRef = React.useRef<PendingAssetReceive | null>(null)
+  const [assetLeavePrompt, setAssetLeavePrompt] = useState<{
+    pending: PendingAssetReceive
+    targetTab: AppTab
+  } | null>(null)
+  const [isAddRoomOpen, setIsAddRoomOpen] = useState(false)
+  const [isServiceZoneOpen, setIsServiceZoneOpen] = useState(false)
+  const [serviceZoneRoom, setServiceZoneRoom] = useState<Room | null>(null)
+
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  const [menuPlacement, setMenuPlacement] = useState<'top' | 'bottom'>('bottom')
+  const [menuAnchor, setMenuAnchor] = useState<{
+    top: number
+    right: number
+    bottom: number
+  } | null>(null)
+  const [serviceTooltip, setServiceTooltip] = useState<ServiceTooltipState | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filters, setFilters] = useState({
+    occupied: false,
+    vacant: false,
+    ending: false,
+    expiring: false
+  })
+  // --- REALTIME SYNC ---
+  useEffect(() => {
+    if (!currentUser) return undefined
+    const cleanup = setupRealtime(queryClient)
+    return () => cleanup()
+  }, [currentUser, queryClient])
+
+  const [editRoom, setEditRoom] = useState<Room | null>(null)
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
+  const [debtClosing, setDebtClosing] = useState<{ invoice: Invoice; room: Room } | null>(null)
+  const [invoiceGuardNotice, setInvoiceGuardNotice] = useState<{
+    message: string
+    invoice: Invoice
+  } | null>(null)
+  const [assetGuardNotice, setAssetGuardNotice] = useState<{
+    room: Room
+    type: 'move_in' | 'move_out'
+  } | null>(null)
+  const [newContractRoom, setNewContractRoom] = useState<Room | null>(null)
+  const [migrationContractRoom, setMigrationContractRoom] = useState<Room | null>(null)
+  const [newContractSeed, setNewContractSeed] = useState<{
+    tenantId?: string
+    moveInDate?: string
+    draft?: ContractDraft
+  } | null>(null)
+  const contractPageDirtyRef = React.useRef(false)
+  const [contractLeaveTarget, setContractLeaveTarget] = useState<AppTab | null>(null)
+  const [endNoticeRoom, setEndNoticeRoom] = useState<Room | null>(null)
+  const [terminateRoom, setTerminateRoom] = useState<Room | null>(null)
+  const [cancelContractRoom, setCancelContractRoom] = useState<Room | null>(null)
+  const [changeTargetRoom, setChangeTargetRoom] = useState<Room | null>(null)
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [sepaySyncOpenSignal, setSepaySyncOpenSignal] = useState(0)
+  const sepayKnownTransactionKeysRef = React.useRef<Set<string> | null>(null)
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
+  const [profileSection, setProfileSection] = useState<ProfileSection>('profile')
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isReportMenuOpen, setIsReportMenuOpen] = useState(false)
+  const [isFinanceMenuOpen, setIsFinanceMenuOpen] = useState(false)
+  const [isRentalMenuOpen, setIsRentalMenuOpen] = useState(false)
+  const [financeMenuPosition, setFinanceMenuPosition] = useState({ top: 56, left: 0 })
+  const [reportMenuPosition, setReportMenuPosition] = useState({ top: 56, left: 0 })
+  const [rentalMenuPosition, setRentalMenuPosition] = useState({ top: 56, left: 0 })
+  const notificationMenuRef = React.useRef<HTMLDivElement | null>(null)
+  const accountMenuRef = React.useRef<HTMLDivElement | null>(null)
+  const reportDropdownRef = React.useRef<HTMLDivElement | null>(null)
+  const financeMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const financeMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reportMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const reportMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const rentalMenuButtonRef = React.useRef<HTMLButtonElement | null>(null)
+  const rentalMenuCloseTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+      if (financeMenuCloseTimerRef.current) clearTimeout(financeMenuCloseTimerRef.current)
+      if (rentalMenuCloseTimerRef.current) clearTimeout(rentalMenuCloseTimerRef.current)
+    },
+    []
+  )
+
+  const handleAssetReceivePendingChange = React.useCallback(
+    (pending: PendingAssetReceive | null) => {
+      assetReceivePendingRef.current = pending
+      setAssetReceivePending(pending)
+    },
+    []
+  )
+
+  const completeActiveTab = (tab: AppTab) => {
+    if (newContractRoom) {
+      setNewContractRoom(null)
+      setNewContractSeed(null)
+      contractPageDirtyRef.current = false
+    }
+    const pendingAssetReceive = assetReceivePendingRef.current || assetReceivePending
+    if (activeTab === 'assets' && tab !== 'assets' && pendingAssetReceive) {
+      setAssetLeavePrompt({ pending: pendingAssetReceive, targetTab: tab })
+      return
+    }
+
+    setActiveTab(tab)
+  }
+
+  const requestActiveTab = (tab: AppTab) => {
+    if (newContractRoom && contractPageDirtyRef.current) {
+      setContractLeaveTarget(tab)
+      return
+    }
+    completeActiveTab(tab)
+  }
+
+  const openPendingAssetReceive = () => {
+    if (!assetLeavePrompt) return
+    window.dispatchEvent(
+      new CustomEvent('asset-open-move-in', { detail: assetLeavePrompt.pending.roomId })
+    )
+    setAssetLeavePrompt(null)
+  }
+
+  const continuePendingAssetLeave = () => {
+    if (!assetLeavePrompt) return
+    const targetTab = assetLeavePrompt.targetTab
+    handleAssetReceivePendingChange(null)
+    setAssetLeavePrompt(null)
+    setActiveTab(targetTab)
+  }
+
+  const [pendingRoomUpdates, setPendingRoomUpdates] = useState<Record<string, Partial<Room>>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveToast, setSaveToast] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [updateBanner, setUpdateBanner] = useState<UpdateBannerInfo | null>(null)
+  const [updateResultKey, setUpdateResultKey] = useState('')
+  const handleSePaySyncSignalHandled = useCallback(() => {
+    setSepaySyncOpenSignal(0)
+  }, [])
+
+  useEffect(() => {
+    if (window.api?.perf.benchmarkMode) {
+      // Isolated startup measurement must never restore a live session.
+      setAuthReady(true)
+      return undefined
+    }
+    if (passwordRecovery) {
+      setCurrentUser(null)
+      setAuthReady(true)
+      return undefined
+    }
+
+    let mounted = true
+    withTimeout(getCurrentSessionUser(), 6000, 'Không thể kết nối Supabase để kiểm tra đăng nhập.')
+      .then((sessionUser) => {
+        if (!mounted) return
+        if (sessionUser) {
+          setCurrentUser(sessionUser)
+        }
+        setAuthReady(true)
+      })
+      .catch((err) => {
+        console.error('[Auth] getCurrentSessionUser failed:', err)
+        if (mounted) {
+          if (err instanceof MfaChallengeRequired) setPendingMfa({ factorId: err.factorId, challengeId: err.challengeId })
+          if (err instanceof SecurityStepUpRequired) setPendingSecurity(err.state)
+          setAuthReady(true)
+        }
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [passwordRecovery])
+
+  useEffect(() => {
+    if (!window.api?.update) return undefined
+
+    void window.api.update.getResult().then((result) => {
+      if (result && (result.status === 'success' || result.status === 'error')) {
+        const key = `${result.status}:${result.targetVersion}:${result.at}`
+        setUpdateResultKey(key)
+        if (localStorage.getItem('acknowledged-update-result') !== key) {
+          setUpdateBanner({ status: result.status, message: result.message, latestVersion: result.targetVersion })
+        }
+      }
+    }).catch(() => {})
+
+    const removeStatus = window.api.update.onStatus((event) => {
+      if ((event as any)?.silent || (event as any)?.data?.silent) return
+      if (['checking', 'available', 'idle'].includes(event.status)) {
+        return
+      }
+      setUpdateBanner((current) => {
+        const eventData = (event.data || {}) as Partial<UpdateBannerInfo> & {
+          currentVersion?: string
+        }
+        return {
+          latestVersion:
+            eventData.latestVersion || current?.latestVersion || eventData.currentVersion,
+          downloadUrl: eventData.downloadUrl || current?.downloadUrl || null,
+          status: event.status,
+          message: event.message,
+          progress: current?.progress || 0
+        }
+      })
+    })
+
+    const removeProgress = window.api.update.onProgress((event) => {
+      setUpdateBanner((current) => (current ? { ...current, progress: event.percent } : current))
+    })
+
+    return () => {
+      removeStatus()
+      removeProgress()
+    }
+  }, [])
+
+  const markNotificationReadMutation = useMutation({
+    mutationFn: (notificationReadIds: string[]) =>
+      updateAppSettings({ notification_read_ids: notificationReadIds }),
+    onMutate: async (notificationReadIds) => {
+      await queryClient.cancelQueries({ queryKey: ['appSettings'] })
+      const previous = queryClient.getQueryData(['appSettings'])
+      queryClient.setQueryData(['appSettings'], (current: any) => ({
+        ...(current || {}),
+        notification_read_ids: notificationReadIds
+      }))
+      return { previous }
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['appSettings'], context.previous)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['appSettings'] })
+    }
+  })
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!notificationMenuRef.current?.contains(event.target as Node)) {
+        setIsNotificationOpen(false)
+      }
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [])
+
+  const handleLogout = async () => {
+    await signOutUser()
+    queryClient.clear()
+    setCurrentUser(null)
+    setIsAccountMenuOpen(false)
+    setActiveTab('rooms')
+  }
+
+  const handleQueueChange = (id: string, updates: Partial<Room>) => {
+    setSaveError('')
+    setPendingRoomUpdates((prev) => {
+      const originalRoom = rooms.find((room) => room.id === id)
+      if (!originalRoom) return prev
+
+      const nextRoomUpdates = { ...(prev[id] || {}), ...updates }
+      const cleanedUpdates = Object.fromEntries(
+        Object.entries(nextRoomUpdates).filter(([key, value]) => {
+          const originalValue = originalRoom[key as keyof Room]
+          return value !== originalValue
+        })
+      ) as Partial<Room>
+
+      if (Object.keys(cleanedUpdates).length === 0) {
+        const { [id]: _removed, ...rest } = prev
+        return rest
+      }
+
+      return {
+        ...prev,
+        [id]: cleanedUpdates
+      }
+    })
+  }
+
+  const handleSaveAll = async () => {
+    setIsSaving(true)
+    setSaveError('')
+    try {
+      const nextRooms = rooms.map((room) => ({ ...room, ...(pendingRoomUpdates[room.id] || {}) }))
+      const seenRoomNames = new Set<string>()
+      for (const room of nextRooms) {
+        const normalizedName = normalizeRoomName(room.name || '')
+        if (!normalizedName) throw new Error('Tên phòng không được để trống.')
+        if (seenRoomNames.has(normalizedName)) {
+          throw new Error('Tên phòng này đã tồn tại. Vui lòng nhập tên khác.')
+        }
+        seenRoomNames.add(normalizedName)
+      }
+      const promises = Object.entries(pendingRoomUpdates).map(([id, updates]) =>
+        updateRoom(id, updates)
+      )
+      await Promise.all(promises)
+      setPendingRoomUpdates({})
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      setSaveToast(true)
+      setTimeout(() => setSaveToast(false), 2500)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Không thể lưu thay đổi phòng.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteRoom,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      queryClient.invalidateQueries({ queryKey: ['tenants'] })
+      queryClient.invalidateQueries({ queryKey: ['contracts'] })
+      setMenuOpenId(null)
+    },
+    onError: (error: Error) => {
+      alert(error.message || 'Không thể xóa phòng vì cơ chế bảo vệ dữ liệu đang bật.')
+    }
+  })
+
+  const [roomToDelete, setRoomToDelete] = useState<Room | null>(null)
+  const [roomToDeleteWithHistory, setRoomToDeleteWithHistory] = useState<Room | null>(null)
+
+  const openInvoiceFlow = (room: Room) => {
+    // Guard 1: phòng phải có vùng dịch vụ hợp lệ trước khi lập hóa đơn
+    const hasZone = room.service_zone_id && serviceZones.some((z) => z.id === room.service_zone_id)
+    if (!hasZone) {
+      setServiceZoneRoom({ ...room, _invoiceBlockedReason: 'no_zone' } as any)
+      return
+    }
+
+    const activeContract = activeContractByRoomId.get(room.id)
+    const workflow = roomAssetWorkflow[room.id]
+
+    if (activeContract && room.status === 'occupied' && !workflow?.hasMoveIn) {
+      setAssetGuardNotice({ room, type: 'move_in' })
+      return
+    }
+
+    if (room.status === 'ending' && (!workflow?.hasMoveOut || !workflow?.hasHandover)) {
+      setAssetGuardNotice({ room, type: 'move_out' })
+      return
+    }
+
+    const currentTenantId = activeContract?.tenant_id
+    const contractStartedAt = activeContract?.created_at || activeContract?.move_in_date
+    const today = new Date()
+    const debtToConfirm = findDebtToConfirm(
+      invoicesByRoomId.get(room.id) || [],
+      currentTenantId,
+      contractStartedAt,
+      today.getMonth() + 1,
+      today.getFullYear()
+    )
+    if (debtToConfirm && room.status === 'occupied') {
+      setDebtClosing({ invoice: debtToConfirm, room })
+      return
+    }
+    const blockingInvoices = (invoicesByRoomId.get(room.id) || [])
+      .filter(
+        (i) =>
+          isOutstandingInvoice(i) &&
+          !i.debt_confirmed_at &&
+          (!currentTenantId || i.tenant_id === currentTenantId) &&
+          (!contractStartedAt || i.created_at >= contractStartedAt)
+      )
+      .sort((a, b) => {
+        if (!!a.is_first_month !== !!b.is_first_month) return a.is_first_month ? -1 : 1
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
+
+    if (blockingInvoices.length > 0) {
+      // Mở thẳng PaymentModal cho hóa đơn bị chặn
+      setPaymentInvoice(blockingInvoices[0])
+      return
+    }
+
+    setSelectedRoom(room)
+  }
+
+  const confirmDelete = () => {
+    if (roomToDelete) {
+      deleteMutation.mutate(roomToDelete.id, {
+        onSuccess: () => setRoomToDelete(null)
+      })
+    }
+  }
+
+  const handleMobileRoomAction = async (action: RoomAction) => {
+    const room = mobileActionRoom
+    if (!room) return
+    const summary = roomListSummaries.get(room.id)
+    setMobileActionRoom(null)
+    setDetailRoom(null)
+    if (action === 'contract') { setNewContractSeed(null); setNewContractRoom(room); requestActiveTab('contracts') }
+    else if (action === 'edit') setEditRoom(room)
+    else if (action === 'service') setServiceZoneRoom(room)
+    else if (action === 'assets') { setAssetModuleInitialRoomId(room.id); requestActiveTab('assets') }
+    else if (action === 'finance') openInvoiceFlow(room)
+    else if (action === 'change') setChangeTargetRoom(room)
+    else if (action === 'end-notice') setEndNoticeRoom(room)
+    else if (action === 'terminate') setTerminateRoom(room)
+    else if (action === 'cancel-contract' && summary?.canCancel) setCancelContractRoom(room)
+    else if (action === 'delete') { if (summary?.canDeleteRoom) setRoomToDelete(room); else setRoomToDeleteWithHistory(room) }
+    else if (action === 'cancel-end-notice' || action === 'vacate') {
+      if (action === 'vacate' && !window.confirm('Xác nhận đánh dấu khách đã chuyển đi? Chỉ dùng cho phòng không có hợp đồng; không xóa lịch sử hóa đơn.')) return
+      try {
+        await updateRoom(room.id, (action === 'cancel-end-notice' ? { status: 'occupied', expected_end_date: null } : { status: 'vacant', tenant_name: null, tenant_phone: null, tenant_email: null, tenant_id_card: null, move_in_date: null, contract_expiration: null }) as unknown as Partial<Room>)
+        await queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      } catch (error) { window.alert(error instanceof Error ? error.message : 'Không thể cập nhật phòng. Vui lòng thử lại.') }
+    }
+  }
+
+  // Đếm số lượng theo trạng thái
+  const activeContractByRoomId = useMemo(() => {
+    const map = new Map<string, (typeof contracts)[number]>()
+    for (const contract of contracts) {
+      if (contract.status !== 'active') continue
+      const current = map.get(contract.room_id)
+      if (
+        !current ||
+        new Date(contract.created_at).getTime() > new Date(current.created_at).getTime()
+      ) {
+        map.set(contract.room_id, contract)
+      }
+    }
+    return map
+  }, [contracts])
+
+  const invoicesByRoomId = useMemo(() => {
+    const map = new Map<string, Invoice[]>()
+    for (const invoice of invoices) {
+      const list = map.get(invoice.room_id)
+      if (list) list.push(invoice)
+      else map.set(invoice.room_id, [invoice])
+    }
+    return map
+  }, [invoices])
+
+  const moveInReceiptsByRoomId = useMemo(() => {
+    const map = new Map<string, typeof moveInReceipts>()
+    for (const receipt of moveInReceipts) {
+      const list = map.get(receipt.room_id)
+      if (list) list.push(receipt)
+      else map.set(receipt.room_id, [receipt])
+    }
+    return map
+  }, [moveInReceipts])
+
+  const roomListSummaries = useMemo(() => {
+    const summaries = new Map<string, ReturnType<typeof getRoomListSummary>>()
+    for (const room of rooms) {
+      summaries.set(
+        room.id,
+        getRoomListSummary(
+          invoicesByRoomId.get(room.id) || [],
+          activeContractByRoomId.get(room.id),
+          moveInReceiptsByRoomId.get(room.id)?.length || 0
+        )
+      )
+    }
+    return summaries
+  }, [rooms, invoicesByRoomId, activeContractByRoomId, moveInReceiptsByRoomId])
+
+  const roomById = useMemo(() => {
+    const map = new Map<string, Room>()
+    for (const room of rooms) {
+      map.set(room.id, room)
+    }
+    return map
+  }, [rooms])
+
+  const { data: sepayTokenStatus } = useQuery({
+    queryKey: ['sepayTokenStatus'],
+    queryFn: getSepayTokenStatus,
+    enabled: canLoadData && currentUser?.role === 'admin',
+    staleTime: 60_000
+  })
+
+  const { data: emailDeliveryAvailability } = useQuery({
+    queryKey: ['gmail-availability'], queryFn: getEmailDeliveryAvailability,
+    enabled: canLoadData && currentUser?.role === 'admin', staleTime: 10_000, refetchInterval: isPageVisible ? 30_000 : false
+  })
+
+  const sepayPendingInvoices = useMemo(
+    () =>
+      invoices.filter(
+        (invoice) =>
+          invoice.payment_status !== 'cancelled' &&
+          invoice.payment_status !== 'merged' &&
+          hasInvoiceBalance(invoice)
+      ),
+    [invoices]
+  )
+
+  const sepayInvoicesByTransferSuffix = useMemo(
+    () => createInvoiceTransferIndex(sepayPendingInvoices, (id) => roomById.get(id)?.name),
+    [roomById, sepayPendingInvoices]
+  )
+
+  const { data: sepayBackgroundTransactions = [], isSuccess: isSepayBackgroundSuccess } = useQuery<
+    SepayBackgroundTransaction[]
+  >({
+    queryKey: ['sepayBackgroundTransactions', Boolean(sepayTokenStatus?.configured)],
+    enabled: Boolean(currentUser && sepayTokenStatus?.configured && isPageVisible),
+    refetchInterval: isPageVisible ? 60_000 : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    queryFn: async () => {
+      const res = (await fetchSepayTransactions()) as SepayBackgroundFetchResult
+      if (!res.ok || Number(res.data?.status) !== 200) {
+        throw new Error('Không lấy được giao dịch mới từ SePay.')
+      }
+      return res.data?.transactions || []
+    }
+  })
+
+  useSepayEmailNotifications({
+    enabled: canLoadData && currentUser?.role === 'admin' && !window.api?.perf.benchmarkMode,
+    userId: currentUser?.id,
+    invoices,
+    rooms,
+    transactions: sepayBackgroundTransactions,
+    transactionsReady: isSepayBackgroundSuccess
+  })
+
+  const sepayBackgroundMatches = useMemo<SepayBackgroundMatch[]>(() => {
+    const matches: SepayBackgroundMatch[] = []
+
+    for (const tx of sepayBackgroundTransactions) {
+      const normalizedContent = normalizeTransferText(tx.transaction_content || '')
+      const amount = Number(tx.amount_in)
+      if (!Number.isFinite(amount) || amount <= 0) continue
+
+      const matchedInvoices = findInvoiceTransferMatches(
+        sepayInvoicesByTransferSuffix,
+        normalizedContent
+      )
+      const uniqueInvoiceIds = new Set(matchedInvoices.map((invoice) => invoice.id))
+      if (uniqueInvoiceIds.size !== 1) continue
+
+      const invoice = matchedInvoices[0]
+      const remaining = Math.max(0, (invoice.total_amount || 0) - (invoice.paid_amount || 0))
+      const transactionKeys = [tx.reference_number, tx.id]
+        .map((value) => normalizeTransferText(value || ''))
+        .filter(Boolean)
+      const wasRecorded = (invoice.payment_records || []).some((record) => {
+        const recordValues = [record.external_ref, record.external_id, record.note]
+          .map((value) => normalizeTransferText(value || ''))
+          .filter(Boolean)
+        return transactionKeys.some((key) =>
+          recordValues.some((value) => value === key || value.includes(key))
+        )
+      })
+      if (wasRecorded) continue
+
+      const room = roomById.get(invoice.room_id)
+      matches.push({
+        invoice,
+        roomName: room?.name || 'Phòng ?',
+        tenantName: room?.tenant_name || '',
+        amount,
+        remaining,
+        transactionId: tx.id,
+        referenceNumber: tx.reference_number || '',
+        transactionDate: tx.transaction_date,
+        matchType:
+          Math.abs(amount - remaining) < 1 ? 'exact' : amount < remaining ? 'partial' : 'over'
+      })
+    }
+
+    return matches
+  }, [roomById, sepayBackgroundTransactions, sepayInvoicesByTransferSuffix])
+
+  useEffect(() => {
+    if (!isSepayBackgroundSuccess) return
+
+    const incomingTransactions = sepayBackgroundTransactions.filter((tx) => {
+      const amount = Number(tx.amount_in)
+      return (
+        Number.isFinite(amount) &&
+        amount > 0 &&
+        Boolean((tx.reference_number || tx.id || '').trim())
+      )
+    })
+    const currentKeys = new Set(
+      incomingTransactions.map((tx) => (tx.reference_number || tx.id || '').trim())
+    )
+
+    // Lần lấy dữ liệu đầu tiên chỉ ghi nhớ lịch sử hiện tại, không đọc lại tiền cũ.
+    if (sepayKnownTransactionKeysRef.current === null) {
+      sepayKnownTransactionKeysRef.current = currentKeys
+      return
+    }
+
+    const newTransactions = incomingTransactions
+      .filter((tx) => {
+        const key = (tx.reference_number || tx.id || '').trim()
+        return !sepayKnownTransactionKeysRef.current?.has(key)
+      })
+      .sort(
+        (left, right) =>
+          (Date.parse(left.transaction_date || '') || 0) -
+          (Date.parse(right.transaction_date || '') || 0)
+      )
+
+    for (const transaction of newTransactions) {
+      sepayKnownTransactionKeysRef.current.add(
+        (transaction.reference_number || transaction.id || '').trim()
+      )
+    }
+
+    if (newTransactions.length > 0) {
+      void (async () => {
+        for (const transaction of newTransactions) {
+          await announcePaymentAmount(Number(transaction.amount_in))
+        }
+      })()
+    }
+  }, [isSepayBackgroundSuccess, sepayBackgroundTransactions])
+  useEffect(() => {
+    // Bank auto-reconciliation belongs to the authenticated server webhook /
+    // scheduled worker. Unknown/unavailable status must NEVER enable a browser
+    // fallback that asserts its own bank amount. Refresh the server ledger only.
+    if (!isSepayBackgroundSuccess) return
+    void queryClient.invalidateQueries({ queryKey: ['invoices'] })
+  }, [queryClient, isSepayBackgroundSuccess, sepayBackgroundTransactions])
+
+  const serviceZoneById = useMemo(() => {
+    const map = new Map<string, ServiceZone>()
+    for (const zone of serviceZones) {
+      map.set(zone.id, zone)
+    }
+    return map
+  }, [serviceZones])
+
+  const counts = useMemo(
+    () => ({
+      occupied: rooms.filter((r) => r.status === 'occupied').length,
+      vacant: rooms.filter((r) => r.status === 'vacant').length,
+      ending: rooms.filter((r) => r.status === 'ending').length,
+      expiring: rooms.filter(room => isRoomExpired(room, activeContractByRoomId.get(room.id))).length
+    }),
+    [rooms, activeContractByRoomId]
+  )
+
+  const attentionRoomIds = useMemo(() => {
+    const today = new Date()
+    const ids = new Set<string>()
+
+    for (const room of rooms) {
+      if (room.status === 'ending') {
+        ids.add(room.id)
+        continue
+      }
+      if (room.status === 'vacant') continue
+
+      const activeContract = activeContractByRoomId.get(room.id)
+      const roomInvoices = invoicesByRoomId.get(room.id) || []
+      if (
+        roomInvoices.some(
+          (invoice) =>
+            invoice.payment_status !== 'merged' &&
+            (!activeContract?.tenant_id || invoice.tenant_id === activeContract.tenant_id) &&
+            hasInvoiceBalance(invoice)
+        )
+      ) {
+        ids.add(room.id)
+        continue
+      }
+
+      if (
+        room.status === 'occupied' &&
+        today.getDate() >= (room.invoice_day || 5) &&
+        !roomInvoices.some(
+          (invoice) => invoice.month === today.getMonth() + 1 && invoice.year === today.getFullYear()
+        )
+      ) {
+        ids.add(room.id)
+      }
+    }
+
+    return ids
+  }, [rooms, activeContractByRoomId, invoicesByRoomId])
+
+  // Keep the current filters and room order, with rooms needing action first.
+  const normalizedSearchQuery = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
+
+  const filteredRoomResult = useMemo(
+    () => {
+      const result = rooms
+        .filter((room) => {
+          return matchesRoomFilter(room, filters, normalizedSearchQuery, isRoomExpired(room, activeContractByRoomId.get(room.id)))
+        })
+        .sort(
+          (a, b) => Number(attentionRoomIds.has(b.id)) - Number(attentionRoomIds.has(a.id))
+        )
+
+      return {
+        rooms: result,
+        attentionCount: result.reduce(
+          (count, room) => count + (attentionRoomIds.has(room.id) ? 1 : 0),
+          0
+        )
+      }
+    },
+    [rooms, filters, normalizedSearchQuery, attentionRoomIds, activeContractByRoomId]
+  )
+  const filteredRooms = filteredRoomResult.rooms
+  const filteredAttentionCount = filteredRoomResult.attentionCount
+
+  const isAllRoomFilter =
+    !filters.occupied && !filters.vacant && !filters.ending && !filters.expiring
+
+  const toggleFilter = (key: keyof typeof filters) => {
+    setFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const resetRoomFilters = () => {
+    setFilters({
+      occupied: false,
+      vacant: false,
+      ending: false,
+      expiring: false
+    })
+  }
+
+  const toggleRoomMenu = (event: React.MouseEvent<HTMLButtonElement>, roomId: string) => {
+    if (menuOpenId === roomId) {
+      setMenuOpenId(null)
+      setMenuAnchor(null)
+      return
+    }
+
+    const buttonRect = event.currentTarget.getBoundingClientRect()
+    const estimatedMenuHeight = 480
+    const viewportPadding = 16
+    const shouldOpenUp =
+      window.innerHeight - buttonRect.bottom < estimatedMenuHeight + viewportPadding
+
+    setMenuPlacement(shouldOpenUp ? 'top' : 'bottom')
+    setMenuAnchor({
+      top: buttonRect.bottom,
+      bottom: window.innerHeight - buttonRect.top,
+      right: window.innerWidth - buttonRect.right
+    })
+    setMenuOpenId(roomId)
+  }
+
+  const currentMonth = new Date().getMonth() + 1
+  const currentYear = new Date().getFullYear()
+  const currentDay = new Date().getDate()
+  let dueRoomsCount = 0
+  const roomWarnings: Record<string, 'due' | 'unpaid' | null> = {}
+
+  rooms.forEach((room) => {
+    if (room.status === 'occupied') {
+      // Due Date Check: Has the regular billing day passed without an invoice for THIS month?
+      const invoiceDay = room.invoice_day || 5
+      const isDueDate = currentDay >= invoiceDay
+      const currentInvoice = (invoicesByRoomId.get(room.id) || []).find(
+        (i) => i.month === currentMonth && i.year === currentYear
+      )
+
+      // Kiểm tra tháng này đã có phiếu tháng đầu của khách HIỆN TẠI chưa
+      if (!currentInvoice && isDueDate) {
+        dueRoomsCount++
+        roomWarnings[room.id] = 'due'
+      } else {
+        roomWarnings[room.id] = null
+      }
+    }
+  })
+
+  const dueNotificationItems = rooms
+    .filter((room) => roomWarnings[room.id] === 'due')
+    .map((room) => ({
+      id: `due-${room.id}-${currentMonth}-${currentYear}`,
+      icon: 'fa-file-circle-plus',
+      iconClass: 'text-amber-500',
+      title: `${room.name} chưa lập hóa đơn`,
+      description: `Đã qua ngày ${room.invoice_day || 5} của tháng ${currentMonth}/${currentYear}.`,
+      actionLabel: 'Lập hóa đơn',
+      onClick: () => {
+        setIsNotificationOpen(false)
+        requestActiveTab('rooms')
+        openInvoiceFlow(room)
+      }
+    }))
+
+  const endingNotificationItems = rooms
+    .filter((room) => room.status === 'ending')
+    .sort((a, b) => {
+      const aTime = a.expected_end_date
+        ? new Date(a.expected_end_date).getTime()
+        : Number.MAX_SAFE_INTEGER
+      const bTime = b.expected_end_date
+        ? new Date(b.expected_end_date).getTime()
+        : Number.MAX_SAFE_INTEGER
+      return aTime - bTime
+    })
+    .map((room) => {
+      const deadline = getEndingDeadline(room.expected_end_date)
+      const daysLeft = deadline.daysUntil
+
+      return {
+        id: `ending-${room.id}-${room.expected_end_date || 'unknown'}`,
+        icon: 'fa-person-walking-luggage',
+        iconClass: deadline.state === 'overdue' ? 'text-red-500' : 'text-orange-500',
+        title:
+          deadline.state === 'overdue'
+            ? `${room.name} quá hạn trả phòng`
+            : deadline.state === 'due_today'
+              ? `${room.name} đến hạn trả phòng`
+              : `${room.name} sắp chuyển phòng`,
+        description: room.expected_end_date
+          ? deadline.state === 'upcoming'
+            ? `Dự kiến trả phòng ngày ${room.expected_end_date} (còn ${daysLeft} ngày).`
+            : deadline.state === 'due_today'
+              ? `Hôm nay là ngày dự kiến trả phòng ${room.expected_end_date}. Cần bắt đầu đối chiếu trả phòng.`
+              : `Đã quá ngày dự kiến trả phòng ${room.expected_end_date} ${Math.abs(daysLeft || 0)} ngày.`
+          : 'Phòng đang ở trạng thái sắp chuyển, chưa có ngày dự kiến cụ thể.',
+        actionLabel: 'Xem phòng',
+        onClick: () => {
+          setIsNotificationOpen(false)
+          requestActiveTab('rooms')
+          setFilters((prev) => ({
+            ...prev,
+            occupied: false,
+            vacant: false,
+            ending: true,
+            expiring: false
+          }))
+          setSearchQuery(room.name)
+        }
+      }
+    })
+
+  const unpaidNotificationItems = invoices
+    .filter(
+      (invoice) =>
+        new Date().getDate() >= 15 &&
+        (invoice.payment_status === 'unpaid' || invoice.payment_status === 'partial')
+    )
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5)
+    .map((invoice) => {
+      const room = roomById.get(invoice.room_id)
+      const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+      return {
+        id: `invoice-${invoice.id}`,
+        icon: invoice.payment_status === 'partial' ? 'fa-money-bill-wave' : 'fa-receipt',
+        iconClass: invoice.payment_status === 'partial' ? 'text-sky-500' : 'text-rose-500',
+        title: `${room?.name || 'Phòng không xác định'} còn nợ ${formatVND(remaining)}đ`,
+        description: invoice.is_first_month
+          ? 'Phiếu tháng đầu đang chờ thanh toán.'
+          : `Hóa đơn tháng ${invoice.month}/${invoice.year} chưa hoàn tất.`,
+        actionLabel: 'Mở thanh toán',
+        onClick: () => {
+          setIsNotificationOpen(false)
+          setPaymentInvoice(invoice)
+        }
+      }
+    })
+
+  const sepayNotificationItems = sepayBackgroundMatches.slice(0, 9).map((match) => {
+    const difference = Math.abs(match.amount - match.remaining)
+    const isExact = match.matchType === 'exact'
+    const mismatchLabel = match.matchType === 'partial' ? 'chuyển thiếu' : 'chuyển thừa'
+
+    return {
+      id: `sepay-${match.transactionId}-${match.invoice.id}`,
+      icon: isExact ? 'fa-building-columns' : 'fa-triangle-exclamation',
+      iconClass: isExact ? 'text-emerald-500' : 'text-amber-500',
+      title: isExact
+        ? `${match.roomName} có tiền SePay khớp ${formatVND(match.amount)}đ`
+        : `${match.roomName} ${mismatchLabel} ${formatVND(difference)}đ`,
+      description: isExact
+        ? `${match.tenantName ? `${match.tenantName} · ` : ''}Đúng mã chuyển khoản và đúng số tiền còn thu.`
+        : `${match.tenantName ? `${match.tenantName} · ` : ''}SePay nhận ${formatVND(match.amount)}đ, hóa đơn còn thu ${formatVND(match.remaining)}đ. Cần đối soát thủ công.`,
+      actionLabel: 'Mở đối soát SePay',
+      onClick: () => {
+        setIsNotificationOpen(false)
+        requestActiveTab('invoices')
+        setSepaySyncOpenSignal((value) => value + 1)
+      }
+    }
+  })
+
+  const readNotificationIds = new Set(appSettings.notification_read_ids || [])
+  const notificationItems = [
+    ...sepayNotificationItems,
+    ...endingNotificationItems,
+    ...dueNotificationItems,
+    ...unpaidNotificationItems
+  ].filter((item) => !readNotificationIds.has(item.id))
+  const notificationBadgeLabel = notificationItems.length > 9 ? '9+' : `${notificationItems.length}`
+
+  const handleNotificationAction = (notificationId: string, action: () => void) => {
+    const nextIds = Array.from(
+      new Set([...(appSettings.notification_read_ids || []), notificationId])
+    )
+    markNotificationReadMutation.mutate(nextIds)
+    action()
+  }
+
+  useEffect(() => {
+    void window.api?.windowTheme?.setInvestmentTitleBar(isInvestmentView)
+  }, [isInvestmentView])
+
+  if (!authReady)
+    return <LogoLoading message="Đang khởi động dữ liệu..." className="min-h-screen bg-gray-50" />
+
+  if (authValidationError) return <div className="flex h-dvh items-center justify-center bg-emerald-50 p-6"><section className="max-w-md rounded-2xl bg-white p-6 shadow-sm" role="alert"><h1 className="text-lg font-bold">Cần kiểm tra lại phiên đăng nhập</h1><p className="my-4 text-sm text-slate-600">{authValidationError}</p><button className="rounded-lg bg-primary px-5 py-3 font-bold text-white" type="button" onClick={() => window.dispatchEvent(new Event('pwa-retry-auth'))}>Thử lại</button><button className="ml-3 px-3 py-3 text-slate-600" type="button" onClick={() => { void handleLogout() }}>Đăng xuất</button></section></div>
+
+  if (!currentUser) {
+    return (
+      <LoginScreen
+        initialSecurityState={pendingSecurity}
+        initialMfaChallenge={pendingMfa}
+        onLogin={(user) => { setPendingMfa(null); setPendingSecurity(null); setCurrentUser(user) }}
+        recoveryMode={passwordRecovery}
+        onRecoveryComplete={() => setPasswordRecovery(false)}
+      />
+    )
+  }
+
+  const accountDisplayName =
+    currentUser.full_name || (currentUser.role === 'admin' ? 'Admin' : currentUser.username)
+  const headerNavItems = [
+    { id: 'rooms' as const, icon: Home, label: 'Phòng' },
+    { id: 'invoices' as const, icon: FileText, label: 'Hóa đơn' }
+  ]
+
+  return (
+    <Suspense fallback={<TabLoading />}>
+      <div className="pwa-app text-sm text-gray-800 antialiased h-screen flex flex-col overflow-hidden bg-gray-100">
+        {import.meta.env.VITE_CONTRACT_TEST === '1' && <div className="shrink-0 bg-amber-100 px-4 py-1 text-center text-xs font-semibold text-amber-900">MÔI TRƯỜNG TEST · Phòng 999 · Dữ liệu riêng, không kết nối SePay thật</div>}
+        {invoiceGuardNotice &&
+          (() => {
+            const inv = invoiceGuardNotice.invoice
+            const remaining = Math.max(0, inv.total_amount - inv.paid_amount)
+            const room = roomById.get(inv.room_id)
+            return (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+                <div className="w-full max-w-md rounded-2xl border border-red-100 bg-white shadow-2xl">
+                  {/* Header */}
+                  <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+                      <i className="fa-solid fa-triangle-exclamation text-lg"></i>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold text-gray-900">
+                        Hóa đơn này chưa được thanh toán
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-gray-600">
+                        {invoiceGuardNotice.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Invoice Detail Card */}
+                  <div className="px-5 py-4 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 divide-y divide-slate-100 overflow-hidden">
+                      {/* Row: Loại hóa đơn */}
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs text-slate-500 font-medium">Loại hóa đơn</span>
+                        <span className="text-xs font-bold text-slate-800">
+                          {inv.is_first_month
+                            ? '⚡ Tháng đầu (nhận phòng)'
+                            : inv.is_settlement
+                              ? '🔚 Tất toán hợp đồng'
+                              : `📅 Hàng tháng – Tháng ${inv.month}/${inv.year}`}
+                        </span>
+                      </div>
+
+                      {/* Row: Phòng */}
+                      {room && (
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-slate-500 font-medium">Phòng</span>
+                          <span className="text-xs font-bold text-slate-800">{room.name}</span>
+                        </div>
+                      )}
+
+                      {/* Row: Tổng tiền */}
+                      <div className="flex items-center justify-between px-4 py-2.5">
+                        <span className="text-xs text-slate-500 font-medium">Tổng hóa đơn</span>
+                        <span className="text-sm font-bold text-slate-900">
+                          {inv.total_amount.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+
+                      {/* Row: Đã trả */}
+                      {inv.paid_amount > 0 && (
+                        <div className="flex items-center justify-between px-4 py-2.5">
+                          <span className="text-xs text-slate-500 font-medium">Đã thanh toán</span>
+                          <span className="text-xs font-bold text-emerald-600">
+                            {inv.paid_amount.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Row: Còn thiếu */}
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-red-50">
+                        <span className="text-xs text-red-600 font-bold">Còn thiếu</span>
+                        <span className="text-base font-black text-red-600">
+                          {remaining.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      <i className="fa-solid fa-circle-info mr-2 text-amber-500"></i>
+                      Thanh toán hóa đơn này trước để tiếp tục lập hóa đơn mới.
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setInvoiceGuardNotice(null)}
+                      className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                    >
+                      Thoát ra
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentInvoice(invoiceGuardNotice.invoice)
+                        setInvoiceGuardNotice(null)
+                      }}
+                      className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 flex items-center justify-center gap-2"
+                    >
+                      <i className="fa-solid fa-money-bill-wave"></i> Thanh toán ngay
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        {assetGuardNotice && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
+              <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <i className="fa-solid fa-clipboard-check text-lg"></i>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-gray-900">
+                    {assetGuardNotice.type === 'move_in'
+                      ? 'Cần chốt nhận phòng'
+                      : 'Cần đối chiếu trả phòng'}
+                  </h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    {assetGuardNotice.type === 'move_in'
+                      ? `Phòng ${assetGuardNotice.room.name} đã có hợp đồng mới. Cần vào tab Tài sản để chốt nhận phòng trước khi lập hoặc thu hóa đơn.`
+                      : `Phòng ${assetGuardNotice.room.name} đang báo trả phòng. Cần hoàn tất Đối chiếu trả phòng trong tab Tài sản trước khi thu hóa đơn.`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setAssetGuardNotice(null)}
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                >
+                  Để sau
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const noticeType = assetGuardNotice.type
+                    setAssetModuleInitialRoomId(assetGuardNotice.room.id)
+                    setAssetModuleGuideMode(noticeType)
+                    requestActiveTab('assets')
+                    setAssetGuardNotice(null)
+                  }}
+                  className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-couch"></i> Đi tới Tài sản
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {contractLeaveTarget && (
+          <ContractLeaveDialog
+            onCancel={() => setContractLeaveTarget(null)}
+            onLeave={() => {
+              completeActiveTab(contractLeaveTarget)
+              setContractLeaveTarget(null)
+            }}
+          />
+        )}
+        {assetLeavePrompt && (
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-2xl border border-amber-100 bg-white shadow-2xl">
+              <div className="flex items-start gap-3 border-b border-gray-100 px-5 py-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                  <i className="fa-solid fa-clipboard-check text-lg"></i>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base font-bold text-gray-900">Chưa chốt nhận tài sản</h3>
+                  <p className="mt-1 text-sm leading-6 text-gray-600">
+                    Phòng {assetLeavePrompt.pending.roomName} đã được thêm tài sản nhưng chưa chốt
+                    nhận phòng. Cần chốt nhận để lưu tình trạng ban đầu và khóa danh sách thiết bị
+                    trước khi xử lý nghiệp vụ khác.
+                  </p>
+                </div>
+              </div>
+              <div className="bg-amber-50 px-5 py-3 text-[12px] font-semibold leading-5 text-amber-700">
+                Nếu bỏ qua bước này, lúc trả phòng sẽ không có mốc đối chiếu chính xác.
+              </div>
+              <div className="flex gap-3 border-t border-gray-100 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={continuePendingAssetLeave}
+                  className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+                >
+                  Vẫn chuyển tab
+                </button>
+                <button
+                  type="button"
+                  onClick={openPendingAssetReceive}
+                  className="flex-1 rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-amber-700 flex items-center justify-center gap-2"
+                >
+                  <i className="fa-solid fa-clipboard-check"></i> Chốt nhận ngay
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {isAddRoomOpen && (
+          <AddRoomModal
+            onClose={() => setIsAddRoomOpen(false)}
+            onOpenContract={({ room, moveInDate }) => {
+              setIsAddRoomOpen(false)
+              setNewContractRoom(room)
+              setNewContractSeed({ moveInDate })
+              setActiveTab('contracts')
+            }}
+          />
+        )}
+        {editRoom && <EditRoomModal room={editRoom} onClose={() => setEditRoom(null)} />}
+        {isServiceZoneOpen && <ServiceZoneModal onClose={() => setIsServiceZoneOpen(false)} />}
+        {serviceZoneRoom && (
+          <RoomServiceZonePickerModal
+            room={serviceZoneRoom}
+            onClose={() => setServiceZoneRoom(null)}
+          />
+        )}
+
+        {paymentInvoice && (
+          <PaymentModal
+            invoice={paymentInvoice}
+            room={roomById.get(paymentInvoice.room_id)}
+            onClose={() => setPaymentInvoice(null)}
+          />
+        )}
+        {debtClosing && (
+          <DebtClosingModal
+            invoice={debtClosing.invoice}
+            room={debtClosing.room}
+            onClose={() => setDebtClosing(null)}
+            onPay={() => {
+              setPaymentInvoice(debtClosing.invoice)
+              setDebtClosing(null)
+            }}
+            onConfirmed={async () => {
+              const roomId = debtClosing.room.id
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+                queryClient.invalidateQueries({ queryKey: ['invoices', roomId] }),
+                queryClient.invalidateQueries({ queryKey: ['rooms'] }),
+                queryClient.invalidateQueries({ queryKey: ['room', roomId] })
+              ])
+              const freshRoom = await getRoom(roomId)
+              setDebtClosing(null)
+              if (freshRoom) setSelectedRoom(freshRoom)
+            }}
+          />
+        )}
+        {roomToDelete && (
+          <ConfirmDeleteModal
+            room={roomToDelete}
+            onConfirm={confirmDelete}
+            onCancel={() => setRoomToDelete(null)}
+            isDeleting={deleteMutation.isPending}
+          />
+        )}
+        {roomToDeleteWithHistory && (
+          <ConfirmDeleteWithHistoryModal
+            room={roomToDeleteWithHistory}
+            onConfirm={() => {
+              deleteMutation.mutate(roomToDeleteWithHistory.id, {
+                onSuccess: () => setRoomToDeleteWithHistory(null)
+              })
+            }}
+            onCancel={() => setRoomToDeleteWithHistory(null)}
+            isDeleting={deleteMutation.isPending}
+          />
+        )}
+        {/* Header Menu */}
+        <header
+          className={`pwa-app-header app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#e5eee8] bg-white px-4 font-sans text-[#15231d] shadow-sm ${isInvestmentView ? 'investment-titlebar' : ''}`}
+        >
+          <div className="app-no-drag flex min-w-0 items-center space-x-4">
+            <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
+              <div className="investment-titlebar-logo flex h-9 w-9 items-center justify-center rounded-lg border border-[#e5eee8] bg-white p-1 shadow-sm transition-transform group-hover:scale-105">
+                <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
+              </div>
+              <div className="flex flex-col leading-none">
+                <span className="investment-titlebar-brand text-sm font-bold tracking-tight text-[#15231d]">AN KHANG HOME</span>
+                <span className="investment-titlebar-subtitle text-[9px] font-medium uppercase tracking-wider text-[#718079]">
+                  Quản lý phòng trọ
+                </span>
+              </div>
+            </div>
+
+            <nav className="pwa-desktop-nav ml-4 flex h-14 min-w-0 overflow-x-auto scrollbar-hide">
+              {headerNavItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activeTab === item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      requestActiveTab(item.id)
+                    }}
+                    className={`my-2 flex h-10 shrink-0 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
+                      isActive
+                        ? 'brand-nav-active text-white'
+                        : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
+                    }`}
+                  >
+                    <Icon size={18} />
+                    <span>{item.label}</span>
+                  </button>
+                )
+              })}
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
+                  if (rentalMenuCloseTimerRef.current)
+                    clearTimeout(rentalMenuCloseTimerRef.current)
+                  const rect = rentalMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setRentalMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsRentalMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  rentalMenuCloseTimerRef.current = setTimeout(
+                    () => setIsRentalMenuOpen(false),
+                    180
+                  )
+                }}
+              >
+                <button
+                  type="button"
+                  ref={rentalMenuButtonRef}
+                  onClick={() => {
+                    const rect = rentalMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) setRentalMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    setIsRentalMenuOpen(true)
+                    setIsFinanceMenuOpen(false)
+                    setIsReportMenuOpen(false)
+                  }}
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
+                    ['contracts', 'assets', 'tenants'].includes(activeTab)
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
+                  }`}
+                  aria-expanded={isRentalMenuOpen}
+                >
+                  <Building2 size={18} />
+                  <span>Quản lý cho thuê</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
+                </button>
+                {isRentalMenuOpen && (
+                  <div
+                    onMouseEnter={() => {
+                      if (rentalMenuCloseTimerRef.current)
+                        clearTimeout(rentalMenuCloseTimerRef.current)
+                    }}
+                    onMouseLeave={() => setIsRentalMenuOpen(false)}
+                    className="investment-titlebar-menu fixed z-[120] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    style={{ top: rentalMenuPosition.top, left: rentalMenuPosition.left }}
+                  >
+                    {[
+                      { id: 'contracts' as const, icon: 'fa-file-signature', label: 'Hợp đồng' },
+                      { id: 'assets' as const, icon: 'fa-box-open', label: 'Tài sản' },
+                      { id: 'tenants' as const, icon: 'fa-users', label: 'Khách thuê' }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          requestActiveTab(item.id)
+                          setIsRentalMenuOpen(false)
+                        }}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                          activeTab === item.id
+                            ? 'bg-primary/10 text-primary font-bold'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <i className={`fa-solid ${item.icon} w-4 text-center`} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
+                  if (financeMenuCloseTimerRef.current)
+                    clearTimeout(financeMenuCloseTimerRef.current)
+                  const rect = financeMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsFinanceMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  financeMenuCloseTimerRef.current = setTimeout(
+                    () => setIsFinanceMenuOpen(false),
+                    180
+                  )
+                }}
+              >
+                <button
+                  type="button"
+                  ref={financeMenuButtonRef}
+                  onClick={() => {
+                    const rect = financeMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) {
+                      setFinanceMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    }
+                    setIsFinanceMenuOpen(true)
+                    setIsRentalMenuOpen(false)
+                    setIsReportMenuOpen(false)
+                  }}
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
+                    activeTab === 'finance'
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
+                  }`}
+                  aria-expanded={isFinanceMenuOpen}
+                >
+                  <WalletCards size={18} />
+                  <span>Tài chính</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
+                </button>
+                {isFinanceMenuOpen && (
+                  <div
+                    onMouseEnter={() => {
+                      if (financeMenuCloseTimerRef.current)
+                        clearTimeout(financeMenuCloseTimerRef.current)
+                    }}
+                    onMouseLeave={() => setIsFinanceMenuOpen(false)}
+                    className="investment-titlebar-menu fixed z-[120] min-w-[210px] rounded-2xl border border-slate-100 bg-white p-2 shadow-xl"
+                    style={{ top: financeMenuPosition.top, left: financeMenuPosition.left }}
+                  >
+                    {[
+                      { id: 'wallet' as const, icon: 'fa-wallet', label: 'Ví' },
+                      { id: 'investments' as const, icon: 'fa-arrow-trend-up', label: 'Đầu tư' },
+                      { id: 'debt' as const, icon: 'fa-coins', label: 'Công nợ' },
+                      { id: 'cashflow' as const, icon: 'fa-receipt', label: 'Giao dịch' }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (item.id === 'cashflow') {
+                            setReportSubTab(item.id)
+                            requestActiveTab('reports')
+                          } else if (item.id === 'debt') {
+                            setFinanceSubTab('debt')
+                            requestActiveTab('finance')
+                          } else {
+                            setFinanceSubTab(item.id)
+                            requestActiveTab('finance')
+                          }
+                          setIsFinanceMenuOpen(false)
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-slate-600 transition hover:bg-slate-50"
+                      >
+                        <i className={`fa-solid ${item.icon} w-4 text-center`} />
+                        <span>{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div
+                className="relative shrink-0"
+                onMouseEnter={() => {
+                  if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+                  const rect = reportMenuButtonRef.current?.getBoundingClientRect()
+                  if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                  setIsReportMenuOpen(true)
+                }}
+                onMouseLeave={() => {
+                  reportMenuCloseTimerRef.current = setTimeout(
+                    () => setIsReportMenuOpen(false),
+                    180
+                  )
+                }}
+              >
+                <button
+                  type="button"
+                  ref={reportMenuButtonRef}
+                  onClick={() => {
+                    setIsFinanceMenuOpen(false)
+                    setIsRentalMenuOpen(false)
+                    const rect = reportMenuButtonRef.current?.getBoundingClientRect()
+                    if (rect) setReportMenuPosition({ top: rect.bottom + 4, left: rect.left })
+                    setIsReportMenuOpen(true)
+                  }}
+                  className={`my-2 flex h-10 cursor-pointer items-center space-x-2 rounded-lg px-4 text-sm font-medium transition-all ${
+                    activeTab === 'reports'
+                      ? 'brand-nav-active text-white'
+                      : 'text-[#334155] hover:bg-[#edf9f1] hover:text-[#047857]'
+                  }`}
+                  aria-expanded={isReportMenuOpen}
+                >
+                  <BarChart3 size={18} />
+                  <span>Báo cáo</span>
+                  <i className="fa-solid fa-chevron-down ml-0.5 text-[9px] opacity-60" />
+                </button>
+              </div>
+            </nav>
+          </div>
+
+          {isMobile && activeTab === 'rooms' && <button type="button" className="pwa-add-room" onClick={() => setIsAddRoomOpen(true)}><span aria-hidden="true"><i className="fa-solid fa-plus" /></span>Thêm phòng</button>}
+          <div className={`app-no-drag flex shrink-0 items-center space-x-4 ${isMobile && activeTab === 'rooms' ? 'pwa-room-header-actions' : ''}`}>
+            <div className="relative" ref={notificationMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsNotificationOpen((prev) => !prev)}
+                className="investment-titlebar-action relative flex h-10 w-10 items-center justify-center rounded-xl text-[#334155] transition-all duration-200 hover:bg-[#edf9f1] hover:text-[#047857]"
+                title="Thông báo"
+              >
+                <Bell size={20} />
+                {notificationItems.length > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-[3px] text-[9px] font-bold text-white">
+                    {notificationBadgeLabel}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div
+                  className={`absolute right-0 top-[calc(100%+8px)] z-50 w-80 overflow-hidden rounded-2xl border border-slate-100 bg-white py-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)] ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
+                >
+                  <div className="flex items-center justify-between px-4 pb-2 pt-1">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-800">
+                        Thông báo
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {notificationItems.length > 0
+                          ? `Có ${notificationItems.length} mục cần xử lý`
+                          : 'Hiện không có thông báo mới'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {notificationItems.length > 0 ? (
+                    <div className="max-h-80 overflow-y-auto px-2">
+                      {notificationItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => handleNotificationAction(item.id, item.onClick)}
+                          className="flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-slate-50"
+                        >
+                          <div
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 ${item.iconClass}`}
+                          >
+                            <i className={`fa-solid ${item.icon} text-sm`}></i>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[12px] font-bold text-slate-800">{item.title}</div>
+                            <div className="mt-1 text-[11px] leading-5 text-slate-500">
+                              {item.description}
+                            </div>
+                            <div className="mt-2 text-[11px] font-bold text-primary">
+                              {item.actionLabel}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-4 py-6 text-center text-[12px] text-slate-500">
+                      Mọi thứ đang ổn. Chưa có việc nào cần xử lý ngay.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setSettingsInitialTab('general')
+                requestActiveTab('settings')
+              }}
+              className="investment-titlebar-action flex h-9 w-9 items-center justify-center rounded-lg text-[#334155] transition-colors hover:bg-[#edf9f1] hover:text-[#047857]"
+              title="Cài đặt hệ thống"
+            >
+              <SettingsIcon size={18} />
+            </button>
+
+            <div className="relative" ref={accountMenuRef}>
+              <button
+                type="button"
+                aria-expanded={isAccountMenuOpen}
+                aria-controls="account-menu"
+                aria-label="Mở tài khoản của bạn"
+                onClick={() => setIsAccountMenuOpen((prev) => !prev)}
+                className="investment-titlebar-avatar relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border-2 border-[#e5eee8] bg-white shadow-sm transition-all hover:scale-105 active:scale-95"
+                title={accountDisplayName}
+              >
+                <img
+                  src={
+                    currentUser.avatar_url ||
+                    (currentUser.role === 'admin'
+                      ? 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=b6e3f4,c0aede&radius=0'
+                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(accountDisplayName)}&background=00ffcc&color=00151a&bold=true`)
+                  }
+                  alt="Avatar"
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/20 to-transparent"></div>
+              </button>
+
+              {isAccountMenuOpen && (
+                <AccountMenu
+                  currentUser={currentUser}
+                  onClose={() => setIsAccountMenuOpen(false)}
+                  onOpen={(section) => {
+                    setProfileSection(section)
+                    setIsAccountMenuOpen(false)
+                    setIsProfileOpen(true)
+                  }}
+                  onManage={() => {
+                    setIsAccountMenuOpen(false)
+                    setSettingsInitialTab(currentUser.role === 'admin' ? 'users' : 'account')
+                    requestActiveTab('settings')
+                  }}
+                  onLogout={handleLogout}
+                />
+              )}
+            </div>
+          </div>
+        </header>
+
+        {isProfileOpen && currentUser && (
+          <ProfileModal
+            initialSection={profileSection}
+            currentUser={currentUser}
+            onClose={() => setIsProfileOpen(false)}
+            onUpdate={(updated) => setCurrentUser(updated)}
+          />
+        )}
+
+        {isReportMenuOpen && (
+          <div
+            ref={reportDropdownRef}
+            onMouseEnter={() => {
+              if (reportMenuCloseTimerRef.current) clearTimeout(reportMenuCloseTimerRef.current)
+            }}
+            onMouseLeave={() => setIsReportMenuOpen(false)}
+            className={`fixed z-[70] min-w-[220px] rounded-2xl border border-slate-100 bg-white p-2 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)] ${isInvestmentView ? 'investment-titlebar-menu-active' : ''}`}
+            style={{ top: reportMenuPosition.top, left: reportMenuPosition.left }}
+          >
+            {[
+              { id: 'overview' as const, icon: 'fa-chart-pie', label: 'Tổng quan' },
+              { id: 'pnl' as const, icon: 'fa-table-list', label: 'Kết quả kinh doanh' },
+              { id: 'deposit' as const, icon: 'fa-vault', label: 'Quản lý cọc' },
+              { id: 'utility' as const, icon: 'fa-right-left', label: 'Điện / Nước' }
+            ].map((item) => {
+              const isActive = activeTab === 'reports' && reportSubTab === item.id
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setReportSubTab(item.id)
+                    requestActiveTab('reports')
+                    setIsReportMenuOpen(false)
+                  }}
+                  className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition ${
+                    isActive
+                      ? 'bg-primary/10 text-primary font-bold'
+                      : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <i className={`fa-solid ${item.icon} w-4 text-center`}></i>
+                  <span>{item.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* MAIN SCROLLABLE CONTENT */}
+        <div
+          key={activeTab}
+          className={`pwa-main-content min-h-0 flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out] ${isMobile ? 'pwa-mobile-main' : ''}`}
+        >
+          {newContractRoom ? (
+            <Suspense fallback={<TabLoading />}>
+              <NewContractPage
+                room={newContractRoom}
+                zone={serviceZones.find((z) => z.id === newContractRoom.service_zone_id)}
+                lastInvoice={
+              invoices
+                .filter((i) => i.room_id === newContractRoom.id)
+                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
+            }
+                initialTenantId={newContractSeed?.tenantId}
+                initialMoveInDate={newContractSeed?.moveInDate}
+                initialDraft={newContractSeed?.draft}
+                onDirtyChange={(dirty) => {
+                  contractPageDirtyRef.current = dirty
+                }}
+                onClose={() => {
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+            }}
+                onNavigateToTenants={() => {
+                  setNewContractRoom(null)
+                  setNewContractSeed(null)
+                  setActiveTab('tenants')
+                }}
+                onNavigateToAssets={() => {
+              const targetRoom = newContractRoom
+              setNewContractRoom(null)
+              setNewContractSeed(null)
+              setAssetModuleInitialRoomId(targetRoom.id)
+              setAssetModuleGuideMode('move_in')
+              setActiveTab('assets')
+            }}
+              />
+            </Suspense>
+          ) : activeTab === 'rooms' && isMobile ? (
+            <MobileRooms
+              rooms={rooms} filteredRooms={filteredRooms} invoicesByRoom={invoicesByRoomId} contractsByRoom={activeContractByRoomId}
+              filters={filters} search={searchQuery} loading={isLoading || invoicesLoading || contractsLoading}
+              error={roomsLoadFailed || invoicesLoadFailed ? String((roomsLoadError || invoicesLoadError) instanceof Error ? (roomsLoadError || invoicesLoadError)?.message : 'Không thể kết nối máy chủ.') : ''}
+              onSearch={setSearchQuery} onFilter={toggleFilter} onAll={resetRoomFilters}
+              onRetry={() => { void refetchRooms(); void refetchInvoices() }}
+              onOpen={room => { setDetailRoomInitialTab('info'); setDetailRoom(room) }}
+              onFinance={(room, invoice) => { if (invoice) setPaymentInvoice(invoice); else { setDetailRoomInitialTab('info'); setDetailRoom(room) } }}
+              onAdd={() => setIsAddRoomOpen(true)}
+            />
+          ) : activeTab === 'rooms' ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {dueRoomsCount > 0 && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-[fadeIn_0.3s_ease-out]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center text-red-500">
+                      <i className="fa-solid fa-bell animate-[swing_0.5s_ease-out]"></i>
+                    </div>
+                    <div>
+                      <strong className="font-bold">Đến kỳ lập hóa đơn!</strong>
+                      <span className="block text-xs mt-0.5 opacity-90">
+                        Có {dueRoomsCount} phòng cần lập hóa đơn của tháng {currentMonth}/
+                        {currentYear}.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* SUMMARY WIDGETS (Removed per user request) */}
+
+              {/* MAIN TABLE WHITE BOX */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 flex flex-col overflow-hidden">
+                {/* Table Header Area */}
+                <div className="p-5 border-b border-gray-100/60 flex items-center justify-between bg-gradient-to-r from-white to-gray-50/50">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 text-primary flex items-center justify-center text-2xl shadow-sm border border-primary/10">
+                      <i className="fa-solid fa-house"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">Danh sách phòng</h2>
+                      <p className="text-sm text-gray-500">
+                        Hệ thống đang quản lý{' '}
+                        <span className="font-bold text-gray-700">{rooms.length}</span> phòng tại{' '}
+                        <span className="font-bold text-primary">AN KHANG HOME</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsAddRoomOpen(true)}
+                      className="room-primary-faceted px-5 h-11 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary-dark shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95"
+                    >
+                      <i className="fa-solid fa-plus text-xs"></i>
+                      <span>Thêm phòng</span>
+                    </button>
+                    <button className="px-5 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 text-sm font-bold hover:bg-gray-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+                      <i className="fa-solid fa-file-excel text-green-600"></i>
+                      <span>Xuất Excel</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Area */}
+                <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1 -mb-1">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm text-gray-500">
+                      <i className="fa-solid fa-filter text-xs"></i>
+                      <span className="text-xs font-bold font-heading">{rooms.length}</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={resetRoomFilters}
+                      className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        isAllRoomFilter
+                          ? 'room-primary-faceted bg-primary text-white shadow-md shadow-primary/20'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-primary/30 hover:text-primary'
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+
+                    {[
+                      {
+                        id: 'occupied' as const,
+                        label: 'Đang ở',
+                        count: counts.occupied,
+                        color: 'primary'
+                      },
+                      {
+                        id: 'vacant' as const,
+                        label: 'Đang trống',
+                        count: counts.vacant,
+                        color: 'gray'
+                      },
+                      {
+                        id: 'ending' as const,
+                        label: 'Sắp chuyển',
+                        count: counts.ending,
+                        color: 'amber'
+                      },
+                      {
+                        id: 'expiring' as const,
+                        label: 'Hết hạn',
+                        count: counts.expiring,
+                        color: 'blue'
+                      }
+                    ].map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => toggleFilter(f.id)}
+                        className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-bold transition-all border whitespace-nowrap ${
+                          filters[f.id]
+                            ? `bg-${f.color}-50 border-${f.id === 'occupied' ? 'primary' : f.color + '-500'}/30 text-${f.id === 'occupied' ? 'primary' : f.color + '-600'}`
+                            : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        <div
+                          className={`w-1.5 h-1.5 rounded-full bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'}`}
+                        ></div>
+                        <span>{f.label}</span>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md text-[10px] ${filters[f.id] ? `bg-${f.id === 'occupied' ? 'primary' : f.color + '-500'} text-white` : 'bg-gray-100 text-gray-400'}`}
+                        >
+                          {f.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="relative w-full max-w-[300px]">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-gray-400">
+                      <i className="fa-solid fa-magnifying-glass text-xs"></i>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm số phòng..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-gray-200/80 text-gray-900 text-sm rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary block pl-10 p-2.5 transition-all outline-none placeholder:text-gray-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Table content */}
+                <div className="overflow-x-auto overflow-y-hidden min-h-[500px]">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="text-[10px] text-gray-500 bg-gray-50/50 uppercase tracking-wider font-bold border-b border-gray-100">
+                      <tr>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-0 text-gray-400"
+                        >
+                          <i className="fa-solid fa-bars-staggered"></i>
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 border-r border-gray-100 bg-gray-50/30 z-20 sticky left-10"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <i className="fa-solid fa-door-open text-primary/60"></i>
+                            <span>Tên phòng</span>
+                          </div>
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-tag mr-1 text-green-500/70"></i> Giá thuê
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-bolt mr-1 text-yellow-500/70"></i> Phí DV
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-shield-halved mr-1 text-blue-400/70"></i> Tiền
+                          cọc
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-triangle-exclamation mr-1 text-red-400/70"></i>{' '}
+                          Tổng nợ
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-users mr-1 text-teal-500/70"></i> KH thuê
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 border-r border-gray-100">
+                          <i className="fa-solid fa-calendar-check mr-1 text-orange-400/70"></i>{' '}
+                          Ngày vào
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 text-center border-r border-gray-100"
+                        >
+                          Tình trạng
+                        </th>
+                        <th
+                          rowSpan={2}
+                          className="px-3 py-2.5 text-center border-r border-gray-100"
+                        >
+                          Tài chính
+                        </th>
+                        <th rowSpan={2} className="px-3 py-2.5 w-8"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {isLoading || invoicesLoading || contractsLoading ? (
+                        <tr>
+                          <td colSpan={12} className="text-center py-10 text-gray-400">
+                            <LogoLoading
+                              message="Đang tải dữ liệu phòng và hóa đơn..."
+                              className="min-h-[45vh]"
+                            />
+                          </td>
+                        </tr>
+                      ) : roomsLoadFailed ? (
+                        <tr>
+                          <td colSpan={12} className="px-6 py-12 text-center">
+                            <i className="fa-solid fa-triangle-exclamation mb-3 block text-2xl text-amber-500" />
+                            <p className="font-semibold text-gray-700">
+                              Không tải được danh sách phòng
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {roomsLoadError instanceof Error
+                                ? roomsLoadError.message
+                                : 'Kiểm tra kết nối và thử lại.'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void refetchRooms()}
+                              className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark"
+                            >
+                              Thử lại
+                            </button>
+                          </td>
+                        </tr>
+                      ) : invoicesLoadFailed ? (
+                        <tr>
+                          <td colSpan={12} className="px-6 py-12 text-center">
+                            <p className="font-semibold text-red-700">Không tải được hóa đơn</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {invoicesLoadError instanceof Error
+                                ? invoicesLoadError.message
+                                : 'Kiểm tra kết nối và thử lại.'}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void refetchInvoices()}
+                              className="mt-4 rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary-dark"
+                            >
+                              Thử lại
+                            </button>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredRooms.map((origRoom, roomIndex) => {
+                          const room = { ...origRoom, ...(pendingRoomUpdates[origRoom.id] || {}) }
+                          const isAttention = attentionRoomIds.has(room.id)
+                          const showAttentionHeader =
+                            isAttention && roomIndex === 0 && filteredAttentionCount > 0
+                          const showRemainingHeader =
+                            !isAttention &&
+                            roomIndex === filteredAttentionCount &&
+                            filteredAttentionCount > 0
+                          const zone = serviceZoneById.get(room.service_zone_id || '') || {
+                            name: 'Chưa có',
+                            electric_price: 0,
+                            water_price: 0,
+                            internet_price: 0,
+                            cleaning_price: 0
+                          }
+                          const activeContract = activeContractByRoomId.get(room.id)
+                          const roomInvoices = invoicesByRoomId.get(room.id) || []
+                          const currentDate = new Date()
+                          const currentMonth = currentDate.getMonth() + 1
+                          const currentYear = currentDate.getFullYear()
+                          const currentOutstandingInvoice =
+                            roomInvoices
+                              .filter(
+                                (invoice) =>
+                                  invoice.month === currentMonth &&
+                                  invoice.year === currentYear &&
+                                  isOutstandingInvoice(invoice) &&
+                                  !invoice.debt_confirmed_at &&
+                                  invoice.payment_status !== 'cancelled' &&
+                                  invoice.payment_status !== 'merged' &&
+                                  (!activeContract?.tenant_id ||
+                                    invoice.tenant_id === activeContract.tenant_id)
+                              )
+                              .sort(
+                                (left, right) =>
+                                  new Date(right.created_at).getTime() -
+                                  new Date(left.created_at).getTime()
+                              )[0] || null
+                          const debtToConfirm = findDebtToConfirm(
+                            roomInvoices,
+                            activeContract?.tenant_id,
+                            activeContract?.created_at || activeContract?.move_in_date,
+                            currentMonth,
+                            currentYear
+                          )
+                          const {
+                            endingOutstandingInvoice,
+                            unpaidFirstMonthForCurrentTenant,
+                            canCancel,
+                            canDeleteRoom,
+                            hasStartedBilling
+                          } = roomListSummaries.get(room.id)!
+
+                          const menuItemClass =
+                            'w-full min-w-0 rounded-md px-3 py-2 text-left text-sm flex items-start gap-2 transition whitespace-normal leading-5'
+                          const roomActionMenu = (
+                            <div
+                              className="fixed w-[32rem] max-w-[calc(100vw-2rem)] max-h-[min(70vh,28rem)] overflow-y-auto whitespace-normal bg-white rounded-lg shadow-xl border border-gray-200 p-2 z-[9999] animate-[fadeIn_0.15s_ease-out]"
+                              style={
+                                menuAnchor
+                                  ? menuPlacement === 'top'
+                                    ? { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
+                                    : { top: menuAnchor.top + 4, right: menuAnchor.right }
+                                  : {}
+                              }
+                            >
+                              <div className="grid grid-cols-2 gap-2 overflow-hidden">
+                                {room.status === 'vacant' ? (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setNewContractSeed(null)
+                                        setNewContractRoom(room)
+                                        setActiveTab('contracts')
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-green-50 text-green-700 font-bold`}
+                                    >
+                                      <i className="fa-solid fa-file-signature w-4 text-green-600"></i>{' '}
+                                      Lập hợp đồng
+                                    </button>
+
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setEditRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-blue-50 text-blue-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-pen-to-square w-4 text-blue-500"></i>{' '}
+                                      Sửa phòng
+                                    </button>
+
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setServiceZoneRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                      dịch vụ
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        requestActiveTab('assets')
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-list-check w-4 text-gray-500"></i>{' '}
+                                      Thiết lập tài sản
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMenuOpenId(null)
+                                        if (!canDeleteRoom) {
+                                          setRoomToDeleteWithHistory(room)
+                                        } else {
+                                          setRoomToDelete(room)
+                                        }
+                                      }}
+                                      className={`${menuItemClass} ${canDeleteRoom ? 'hover:bg-red-50 text-red-700' : 'hover:bg-orange-50 text-orange-700'} font-medium`}
+                                    >
+                                      <i
+                                        className={`fa-solid fa-trash-can w-4 ${canDeleteRoom ? 'text-red-500' : 'text-orange-500'}`}
+                                      ></i>
+                                      Xóa phòng{!canDeleteRoom && ' ⚠'}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {/* === MENU PHÒNG ĐANG CÓ KHÁCH === */}
+                                    {(currentOutstandingInvoice ||
+                                      unpaidFirstMonthForCurrentTenant ||
+                                      (room.status === 'ending' && endingOutstandingInvoice)) && (
+                                      <div className="col-span-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 flex gap-2 text-xs text-amber-800 min-w-0 overflow-hidden">
+                                        <i className="fa-solid fa-triangle-exclamation text-amber-500 mt-0.5 shrink-0"></i>
+                                        <span className="min-w-0 break-words">
+                                          {room.status === 'ending' && endingOutstandingInvoice ? (
+                                            <>
+                                              <strong>Phòng này còn hóa đơn chưa thu.</strong> Cần
+                                              thu xong trước khi xác nhận trả phòng.
+                                            </>
+                                          ) : (
+                                            <>
+                                              <strong>Hóa đơn tháng {currentMonth} chưa thu.</strong>{' '}
+                                              Cần thu tiền trước khi lập kỳ tiếp theo.
+                                              {canCancel && ' Hoặc hủy hợp đồng nếu nhập nhầm.'}
+                                            </>
+                                          )}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {/* Nhóm 1: Tài chính & Quản lý */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (room.status === 'ending' && endingOutstandingInvoice) {
+                                          setPaymentInvoice(endingOutstandingInvoice)
+                                        } else if (currentOutstandingInvoice) {
+                                          setPaymentInvoice(currentOutstandingInvoice)
+                                        } else {
+                                          openInvoiceFlow(room)
+                                        }
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-blue-50 text-blue-600 font-bold`}
+                                    >
+                                      <i className="fa-solid fa-file-invoice-dollar w-4"></i>
+                                      {room.status === 'ending' && endingOutstandingInvoice
+                                        ? ' Thu tiền hóa đơn còn nợ'
+                                        : currentOutstandingInvoice
+                                          ? ' Thu tiền hóa đơn còn nợ'
+                                        : debtToConfirm
+                                          ? ` Chốt nợ tháng ${debtToConfirm.month}`
+                                        : unpaidFirstMonthForCurrentTenant
+                                          ? ' Thu tiền hóa đơn'
+                                          : ' Lập hóa đơn'}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setDetailRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-teal-50 text-teal-600 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-sliders w-4"></i> Quản lý phòng
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setServiceZoneRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-gear w-4 text-gray-500"></i> Cài đặt
+                                      dịch vụ
+                                    </button>
+                                    {/* Nhóm 2: Di chuyển & Tài sản */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setChangeTargetRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-right-left w-4 text-gray-500"></i>{' '}
+                                      Chuyển đổi phòng
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        requestActiveTab('assets')
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-gray-50 text-gray-700 font-medium`}
+                                    >
+                                      <i className="fa-solid fa-table-list w-4 text-gray-500"></i>{' '}
+                                      Thiết lập tài sản
+                                    </button>
+                                    {/* Nhóm 3: Kết thúc HĐ */}
+                                    {room.status === 'ending' ? (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          updateRoom(room.id, {
+                                            status: 'occupied',
+                                            expected_end_date: undefined
+                                          } as any).then(() => {
+                                            queryClient.invalidateQueries({ queryKey: ['rooms'] })
+                                          })
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      >
+                                        <i className="fa-solid fa-rotate-left w-4 text-orange-500"></i>{' '}
+                                        Hủy báo trả phòng
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setEndNoticeRoom(room)
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-orange-50 text-orange-600 font-medium`}
+                                      >
+                                        <i className="fa-solid fa-bell w-4 text-orange-500"></i> Báo
+                                        trả phòng
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setTerminateRoom(room)
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-500 font-bold`}
+                                    >
+                                      <i className="fa-solid fa-door-closed w-4 text-red-400"></i>{' '}
+                                      {room.status === 'ending' &&
+                                      (getEndingDeadline(room.expected_end_date).state === 'due_today' ||
+                                        getEndingDeadline(room.expected_end_date).state === 'overdue')
+                                        ? 'Bắt đầu trả phòng'
+                                        : 'Trả phòng'}
+                                    </button>
+                                    {/* Nhóm 4: Nguy hiểm */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (canCancel) {
+                                          setCancelContractRoom(room)
+                                          setMenuOpenId(null)
+                                        }
+                                      }}
+                                      disabled={!canCancel}
+                                      title={
+                                        !canCancel
+                                          ? 'Không thể hủy khi đã có thanh toán. Dùng "Trả phòng" để tất toán.'
+                                          : undefined
+                                      }
+                                      className={`${menuItemClass} ${canCancel ? 'hover:bg-red-50 text-red-500' : 'opacity-40 cursor-not-allowed text-red-400'} font-semibold`}
+                                    >
+                                      <i className="fa-solid fa-ban w-4"></i> Hủy hợp đồng
+                                    </button>
+                                    {/* Fallback: phòng occupied nhưng không có hợp đồng formal */}
+                                    {isActiveContractsFetched &&
+                                      !activeContract &&
+                                      room.status === 'occupied' && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setMenuOpenId(null)
+                                            if (
+                                              window.confirm(
+                                                'Xác nhận đánh dấu phòng này về trạng thái trống?\n\nThao tác này sẽ xóa thông tin khách thuê và đưa phòng về trạng thái "Đang trống".'
+                                              )
+                                            ) {
+                                              updateRoom(room.id, {
+                                                status: 'vacant',
+                                                tenant_name: undefined,
+                                                tenant_phone: undefined,
+                                                tenant_email: undefined,
+                                                tenant_id_card: undefined,
+                                                move_in_date: undefined,
+                                                contract_expiration: undefined
+                                              } as any).then(() => {
+                                                queryClient.invalidateQueries({
+                                                  queryKey: ['rooms']
+                                                })
+                                              })
+                                            }
+                                          }}
+                                          className={`${menuItemClass} hover:bg-amber-50 text-amber-700 font-semibold col-span-2 border border-amber-200 rounded-lg mt-1`}
+                                        >
+                                          <i className="fa-solid fa-person-walking-arrow-right w-4 text-amber-600"></i>{' '}
+                                          Đánh dấu đã chuyển đi (không có HĐ)
+                                        </button>
+                                      )}
+                                    {canDeleteRoom && (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setRoomToDelete(room)
+                                          setMenuOpenId(null)
+                                        }}
+                                        className={`${menuItemClass} hover:bg-red-50 text-red-700 font-medium col-span-2`}
+                                      >
+                                        <i className="fa-solid fa-trash-can w-4 text-red-500"></i>{' '}
+                                        Xóa phòng
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setMenuOpenId(null)
+                                      }}
+                                      className={`${menuItemClass} hover:bg-red-50 text-red-400 font-medium col-span-2 text-center justify-center mt-2`}
+                                    >
+                                      <i className="fa-solid fa-circle-xmark w-4 text-red-400 mx-0 mt-0.5"></i>{' '}
+                                      Đóng menu
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )
+                          const tenantTooltipName =
+                            activeContract?.tenant_name || room.tenant_name || 'Chưa có khách thuê'
+                          const tenantTooltipPhone =
+                            activeContract?.tenant_phone || room.tenant_phone || '—'
+                          const showRoomTooltipAbove = roomIndex >= filteredRooms.length - 3
+
+                          return (
+                            <React.Fragment key={room.id}>
+                              {showAttentionHeader && (
+                                <tr className="bg-red-50 border-y border-red-100 text-red-700">
+                                  <td colSpan={12} className="px-4 py-2.5">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-2 font-bold">
+                                        <i className="fa-solid fa-triangle-exclamation text-red-500" />
+                                        <span>Cần chú ý ({filteredAttentionCount} phòng)</span>
+                                      </div>
+                                      <span className="text-xs font-medium text-red-500">
+                                        Các phòng có công nợ hoặc cần theo dõi đặc biệt
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              {showRemainingHeader && (
+                                <tr className="bg-emerald-50 border-y border-emerald-100 text-emerald-800">
+                                  <td colSpan={12} className="px-4 py-2.5">
+                                    <div className="flex items-center justify-between gap-4">
+                                      <div className="flex items-center gap-2 font-bold">
+                                        <i className="fa-solid fa-circle-check text-emerald-500" />
+                                        <span>
+                                          Các phòng còn lại ({filteredRooms.length - filteredAttentionCount}{' '}
+                                          phòng)
+                                        </span>
+                                      </div>
+                                      <span className="text-xs font-medium text-emerald-700">
+                                        Hoạt động ổn định
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className="bg-white border-b border-gray-100 hover:bg-gray-50 transition cursor-default group relative">
+                                <td className="px-3 py-2 text-center text-gray-400">
+                                <i className="fa-solid fa-bars"></i>
+                              </td>
+                                <td className="px-3 py-2 font-bold flex items-center gap-2 text-gray-800">
+                                <div
+                                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white shrink-0 shadow-sm transition-transform hover:scale-110 duration-300 ${room.status === 'vacant' ? 'bg-orange-500' : room.status === 'occupied' ? 'bg-gradient-to-tr from-emerald-500 to-green-400 shadow-emerald-200' : room.status === 'ending' ? 'bg-gradient-to-tr from-yellow-500 to-orange-500' : 'bg-yellow-500'}`}
+                                >
+                                  <i className="fa-solid fa-door-open"></i>
+                                </div>
+                                <div className="relative group/room-tooltip min-w-0 cursor-help">
+                                  <span className="block truncate py-1">{room.name}</span>
+                                  <div
+                                    className={`absolute left-0 w-56 rounded-lg bg-emerald-800 p-3 text-xs text-white shadow-xl opacity-0 invisible group-hover/room-tooltip:opacity-100 group-hover/room-tooltip:visible transition-all z-50 ${
+                                      showRoomTooltipAbove ? 'bottom-full mb-2' : 'top-full mt-2'
+                                    }`}
+                                  >
+                                    <div className="font-bold text-sm mb-2 pb-1.5 border-b border-white/20 text-center">
+                                      {room.name}
+                                    </div>
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <span className="shrink-0">
+                                          <i className="fa-solid fa-user text-green-300 w-4"></i>{' '}
+                                          Người thuê:
+                                        </span>
+                                        <span className="font-semibold text-right whitespace-normal">
+                                          {tenantTooltipName}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="shrink-0">
+                                          <i className="fa-solid fa-phone text-blue-300 w-4"></i>{' '}
+                                          SĐT:
+                                        </span>
+                                        <span className="font-semibold tabular-nums">
+                                          {tenantTooltipPhone}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div
+                                      className={`absolute left-6 border-4 border-transparent ${
+                                        showRoomTooltipAbove
+                                          ? 'top-full border-t-emerald-800'
+                                          : 'bottom-full border-b-emerald-800'
+                                      }`}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </td>
+                                <td className="px-3 py-2">
+                                <div className="px-2 py-1 font-bold text-gray-800 tabular-nums">
+                                  {formatVND(room.base_rent)} đ
+                                </div>
+                                {room.status === 'occupied' &&
+                                  (() => {
+                                    if (!activeContract) return null
+                                    const paidRentInvoices = (
+                                      invoicesByRoomId.get(room.id) || []
+                                    ).filter((i) => i.paid_amount > 0)
+
+                                    return (
+                                      <div className="text-[10px] mt-0.5 flex flex-col items-start leading-tight">
+                                        {paidRentInvoices.length === 0 && (
+                                          <span className="text-red-500 font-medium whitespace-nowrap">
+                                            Chưa thu lần nào
+                                          </span>
+                                        )}
+                                      </div>
+                                    )
+                                  })()}
+                              </td>
+                                <td className="px-3 py-2">
+                                {(() => {
+                                  // Bảng màu cho mỗi vùng
+                                  const zoneColors = [
+                                    {
+                                      bg: 'bg-emerald-100',
+                                      text: 'text-emerald-700',
+                                      border: 'border-emerald-200',
+                                      dot: 'bg-emerald-500',
+                                      tooltipBg: 'bg-emerald-800',
+                                      tooltipColor: '#065f46'
+                                    },
+                                    {
+                                      bg: 'bg-violet-100',
+                                      text: 'text-violet-700',
+                                      border: 'border-violet-200',
+                                      dot: 'bg-violet-500',
+                                      tooltipBg: 'bg-violet-800',
+                                      tooltipColor: '#5b21b6'
+                                    },
+                                    {
+                                      bg: 'bg-amber-100',
+                                      text: 'text-amber-700',
+                                      border: 'border-amber-200',
+                                      dot: 'bg-amber-500',
+                                      tooltipBg: 'bg-amber-800',
+                                      tooltipColor: '#92400e'
+                                    },
+                                    {
+                                      bg: 'bg-sky-100',
+                                      text: 'text-sky-700',
+                                      border: 'border-sky-200',
+                                      dot: 'bg-sky-500',
+                                      tooltipBg: 'bg-sky-800',
+                                      tooltipColor: '#075985'
+                                    },
+                                    {
+                                      bg: 'bg-rose-100',
+                                      text: 'text-rose-700',
+                                      border: 'border-rose-200',
+                                      dot: 'bg-rose-500',
+                                      tooltipBg: 'bg-rose-800',
+                                      tooltipColor: '#9f1239'
+                                    },
+                                    {
+                                      bg: 'bg-teal-100',
+                                      text: 'text-teal-700',
+                                      border: 'border-teal-200',
+                                      dot: 'bg-teal-500',
+                                      tooltipBg: 'bg-teal-800',
+                                      tooltipColor: '#115e59'
+                                    }
+                                  ]
+                                  const zoneIndex = serviceZones.findIndex(
+                                    (z) => z.id === (zone as any)?.id
+                                  )
+                                  const color =
+                                    zoneColors[zoneIndex >= 0 ? zoneIndex % zoneColors.length : 0]
+                                  const fixedTotal =
+                                    (zone.internet_price || 0) + (zone.cleaning_price || 0)
+
+                                  return (
+                                    <div
+                                      className="relative group/tooltip inline-block cursor-help"
+                                      onMouseEnter={(event) => {
+                                        const rect = event.currentTarget.getBoundingClientRect()
+                                        const tooltipWidth = 208
+                                        const tooltipHeight = 180
+                                        const left = Math.min(
+                                          Math.max(8, rect.left + rect.width / 2 - tooltipWidth / 2),
+                                          window.innerWidth - tooltipWidth - 8
+                                        )
+                                        const above = rect.bottom + tooltipHeight + 12 > window.innerHeight
+                                        setServiceTooltip({
+                                          name: zone.name,
+                                          electric: zone.electric_price || 0,
+                                          water: zone.water_price || 0,
+                                          internet: zone.internet_price || 0,
+                                          cleaning: zone.cleaning_price || 0,
+                                          fixedTotal,
+                                          tooltipBg: color.tooltipBg,
+                                          arrowColor: color.tooltipColor,
+                                          left,
+                                          top: above ? Math.max(8, rect.top - 8) : rect.bottom + 8,
+                                          above
+                                        })
+                                      }}
+                                      onMouseLeave={() => setServiceTooltip(null)}
+                                    >
+                                      <div
+                                        className={`${color.bg} ${color.text} font-bold text-xs px-2.5 py-1.5 rounded-md border ${color.border} flex items-center gap-2`}
+                                      >
+                                        <span
+                                          className={`w-2 h-2 rounded-full ${color.dot} shrink-0`}
+                                        ></span>
+                                        <span className="tabular-nums">
+                                          {formatVND(fixedTotal)} đ
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )
+                                })()}
+                              </td>
+
+                                <td className="px-3 py-2">
+                                {(() => {
+                                  // Chỉ tính tiền cọc khi phòng đang có người ở
+                                  if (room.status === 'vacant') {
+                                    return <span className="text-gray-300 text-xs">—</span>
+                                  }
+                                  const currentTenantInvoices = (
+                                    invoicesByRoomId.get(room.id) || []
+                                  ).filter(
+                                    (i) =>
+                                      i.payment_status !== 'cancelled' &&
+                                      (!activeContract?.tenant_id ||
+                                        i.tenant_id === activeContract.tenant_id)
+                                  )
+                                  if (activeContract) {
+                                    const agreedDeposit =
+                                      activeContract.deposit_amount || room.default_deposit || 0
+                                    const collectedDeposit = getCollectedDepositAmount(
+                                      activeContract,
+                                      currentTenantInvoices
+                                    )
+                                    const missingDeposit = Math.max(
+                                      0,
+                                      agreedDeposit - collectedDeposit
+                                    )
+                                    const isDepositComplete =
+                                      agreedDeposit > 0 && missingDeposit <= 0
+
+                                    if (agreedDeposit === 0) {
+                                      return (
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-slate-50 text-slate-400 border border-slate-200/60 select-none">
+                                          Không cọc
+                                        </span>
+                                      )
+                                    }
+
+                                    // Badge color & display amount configuration based on state
+                                    let valueDisplayAmount = 0
+                                    let badgeClass = ''
+                                    let badgeText = ''
+                                    let badgeIcon = ''
+
+                                    if (isDepositComplete) {
+                                      valueDisplayAmount = agreedDeposit
+                                      badgeClass =
+                                        'bg-emerald-50 text-emerald-600 border border-emerald-200/50'
+                                      badgeText = 'Đã thu đủ'
+                                      badgeIcon = 'fa-circle-check'
+                                    } else if (collectedDeposit > 0) {
+                                      valueDisplayAmount = collectedDeposit
+                                      badgeClass =
+                                        'bg-amber-50 text-amber-600 border border-amber-200/50'
+                                      badgeText = 'Thu thiếu'
+                                      badgeIcon = 'fa-triangle-exclamation'
+                                    } else {
+                                      valueDisplayAmount = 0
+                                      badgeClass = 'bg-red-50 text-red-500 border border-red-200/50'
+                                      badgeText = 'Chưa thu cọc'
+                                      badgeIcon = 'fa-circle-exclamation'
+                                    }
+
+                                    return (
+                                      <div className="relative group/tooltip inline-block cursor-help select-none">
+                                        <div>
+                                          <div className="font-bold text-slate-800 tabular-nums">
+                                            {formatVND(valueDisplayAmount)} đ
+                                          </div>
+                                          <span
+                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-extrabold mt-1 uppercase tracking-wide border ${badgeClass}`}
+                                          >
+                                            <i className={`fa-solid ${badgeIcon} text-[10px]`}></i>
+                                            {badgeText}
+                                          </span>
+                                        </div>
+
+                                        {/* Tooltip Details on Hover */}
+                                        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-48 bg-slate-900/95 text-white rounded-lg shadow-xl p-3 text-xs opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50">
+                                          <div className="font-bold text-slate-300 mb-1.5 pb-1 border-b border-white/10 text-[10px] uppercase tracking-wider text-center">
+                                            Chi tiết tiền cọc
+                                          </div>
+                                          <div className="space-y-1.5 font-medium">
+                                            <div className="flex justify-between gap-4">
+                                              <span className="text-slate-400">Đã thu:</span>
+                                              <span className="font-bold tabular-nums text-emerald-400">
+                                                {formatVND(collectedDeposit)} đ
+                                              </span>
+                                            </div>
+                                            <div className="flex justify-between gap-4">
+                                              <span className="text-slate-400">Cần cọc:</span>
+                                              <span className="font-bold tabular-nums">
+                                                {formatVND(agreedDeposit)} đ
+                                              </span>
+                                            </div>
+                                            {!isDepositComplete && (
+                                              <div className="flex justify-between gap-4 pt-1.5 border-t border-white/5 text-amber-400 font-bold">
+                                                <span>Còn thiếu:</span>
+                                                <span className="tabular-nums">
+                                                  {formatVND(missingDeposit)} đ
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                          {/* Tooltip Arrow pointing up */}
+                                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900/95"></div>
+                                        </div>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <EditableCell
+                                      value={room.default_deposit || 0}
+                                      displayValue={`${formatVND(room.default_deposit || 0)} đ`}
+                                      type="number"
+                                      className="font-bold text-gray-800"
+                                      onSave={(v) =>
+                                        handleQueueChange(room.id, { default_deposit: Number(v) })
+                                      }
+                                    />
+                                  )
+                                })()}
+                              </td>
+                                <td className="px-3 py-2 font-semibold">
+                                  {(() => {
+                                    // Nợ thuộc về tenant, không thuộc phòng.
+                                    // Phòng trống → không hiển thị nợ cũ.
+                                    if (room.status === 'vacant') {
+                                    return <span className="text-gray-300 text-xs">—</span>
+                                  }
+                                    const outstandingInvoices = (invoicesByRoomId.get(room.id) || [])
+                                    .filter(
+                                      (i) =>
+                                        i.payment_status !== 'paid' &&
+                                        i.payment_status !== 'cancelled' &&
+                                        i.payment_status !== 'merged' &&
+                                        hasInvoiceBalance(i) &&
+                                        (!activeContract?.tenant_id ||
+                                          i.tenant_id === activeContract.tenant_id)
+                                    )
+                                    const debt = outstandingInvoices.reduce(
+                                    (sum, i) => sum + Math.max(0, i.total_amount - i.paid_amount),
+                                    0
+                                  )
+                                    const debtTooltip = outstandingInvoices
+                                    .filter((invoice) => invoice.total_amount > invoice.paid_amount)
+                                    .sort((a, b) => a.year - b.year || a.month - b.month)
+                                    .map((invoice) => {
+                                      const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                                      const status = invoice.payment_status === 'partial' ? 'Còn thiếu' : 'Chưa thu'
+                                      const purpose = isDepositOnlyInvoice(invoice)
+                                        ? 'tiền cọc '
+                                        : invoice.is_settlement || invoice.billing_reason === 'contract_end'
+                                          ? 'hóa đơn tất toán '
+                                          : ''
+                                      return `${status} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`
+                                    })
+                                    .join('\n')
+                                    const debtMonths = new Map<
+                                      string,
+                                      {
+                                        month: number
+                                        year: number
+                                        amount: number
+                                        details: string[]
+                                      }
+                                    >()
+                                    const monthChipColors = [
+                                    'from-sky-500 to-blue-600 shadow-sky-200/80 ring-sky-300/70',
+                                    'from-violet-500 to-purple-600 shadow-violet-200/80 ring-violet-300/70',
+                                    'from-fuchsia-500 to-pink-600 shadow-fuchsia-200/80 ring-fuchsia-300/70',
+                                    'from-pink-500 to-rose-600 shadow-pink-200/80 ring-pink-300/70',
+                                    'from-rose-500 to-red-600 shadow-rose-200/80 ring-rose-300/70',
+                                    'from-orange-500 to-amber-600 shadow-orange-200/80 ring-orange-300/70',
+                                    'from-amber-500 to-yellow-600 shadow-amber-200/80 ring-amber-300/70',
+                                    'from-lime-500 to-green-600 shadow-lime-200/80 ring-lime-300/70',
+                                    'from-emerald-500 to-green-600 shadow-emerald-200/80 ring-emerald-300/70',
+                                    'from-teal-500 to-cyan-600 shadow-teal-200/80 ring-teal-300/70',
+                                    'from-cyan-500 to-sky-600 shadow-cyan-200/80 ring-cyan-300/70',
+                                    'from-indigo-500 to-blue-700 shadow-indigo-200/80 ring-indigo-300/70'
+                                  ]
+                                    for (const invoice of outstandingInvoices) {
+                                    const remaining = Math.max(0, invoice.total_amount - invoice.paid_amount)
+                                    if (remaining <= 0) continue
+                                    const key = `${invoice.year}-${invoice.month}`
+                                    const period = debtMonths.get(key) || { month: invoice.month, year: invoice.year, amount: 0, details: [] }
+                                    period.amount += remaining
+                                    const purpose = isDepositOnlyInvoice(invoice) ? 'tiền cọc ' : invoice.is_settlement || invoice.billing_reason === 'contract_end' ? 'hóa đơn tất toán ' : ''
+                                    period.details.push(`${invoice.payment_status === 'partial' ? 'Còn thiếu' : 'Chưa thu'} ${purpose}tháng ${String(invoice.month).padStart(2, '0')}/${invoice.year}: ${formatVND(remaining)} đ`)
+                                    debtMonths.set(key, period)
+                                  }
+                                    return debt > 0 ? (
+                                    <span className="inline-flex flex-col items-end gap-0.5">
+                                      <span className="flex max-w-[120px] flex-wrap items-center justify-end gap-1" aria-label={debtTooltip.replace(/\n/g, '. ')}>
+                                        {Array.from(debtMonths.values()).sort((a, b) => a.year - b.year || a.month - b.month).map((period) => (
+                                            <span
+                                              key={`${period.year}-${period.month}`}
+                                              title={period.details.join('\n')}
+                                              aria-label={`Tháng ${period.month}/${period.year}`}
+                                              className={`inline-flex h-[18px] min-w-[23px] cursor-help items-center justify-center rounded-md bg-gradient-to-br px-1.5 text-[10px] font-black leading-none tracking-tight text-white shadow-sm ring-1 ring-inset transition-transform hover:-translate-y-px hover:shadow-md ${monthChipColors[(period.month - 1) % monthChipColors.length]}`}
+                                            >
+                                              {period.month}{period.year !== new Date().getFullYear() ? `/${String(period.year).slice(-2)}` : ''}
+                                            </span>
+                                        ))}
+                                      </span>
+                                      <span
+                                        className="cursor-help text-red-500 underline decoration-dotted underline-offset-2"
+                                        title={`${debtTooltip}\nTổng còn phải thu: ${formatVND(debt)} đ`}
+                                      >
+                                        {formatVND(debt)} đ
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400">0 đ</span>
+                                  )
+                                  })()}
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">
+                                <EditableCell
+                                  value={room.max_occupants || 2}
+                                  type="select"
+                                  options={[
+                                    { value: '0', label: '0 người' },
+                                    { value: '1', label: '1 người' },
+                                    { value: '2', label: '2 người' },
+                                    { value: '3', label: '3 người' },
+                                    { value: '4', label: '4 người' },
+                                    { value: '5', label: '5 người' },
+                                    { value: '6', label: '6 người' }
+                                  ]}
+                                  displayValue={`${room.max_occupants || 2} người`}
+                                  onSave={(v) =>
+                                    handleQueueChange(room.id, { max_occupants: Number(v) })
+                                  }
+                                />
+                              </td>
+                                <td className="px-3 py-2 text-gray-600 text-sm">
+                                {(() => {
+                                  if (room.status === 'vacant') {
+                                    return (
+                                      <span className="text-gray-400 italic text-xs">Chưa có</span>
+                                    )
+                                  }
+                                  // Ngày vào ở = lấy từ hợp đồng, chỉ hiện khi đã lập HĐ đầu tiên
+                                  const moveInDate =
+                                    activeContract?.move_in_date || room.move_in_date
+
+                                  if (hasStartedBilling && moveInDate) {
+                                    return (
+                                      <span className="font-medium">
+                                        {new Date(moveInDate).toLocaleDateString('vi-VN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric'
+                                        })}
+                                      </span>
+                                    )
+                                  }
+                                  return (
+                                    <span className="text-gray-400 italic text-xs">
+                                      Chưa bắt đầu
+                                    </span>
+                                  )
+                                })()}
+                              </td>
+                                <td
+                                className="px-3 py-2 text-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div>
+                                  <span
+                                    title="Trang thai duoc cap nhat theo luong nghiep vu, khong cho sua tay tai danh sach."
+                                    className={`inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide ${
+                                      room.status === 'vacant'
+                                        ? 'bg-gradient-to-r from-slate-400 to-gray-500 text-white shadow-sm shadow-gray-400/40'
+                                        : room.status === 'occupied' && hasStartedBilling
+                                          ? 'room-primary-faceted bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40'
+                                          : room.status === 'occupied' && !hasStartedBilling
+                                            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-sm shadow-blue-400/40'
+                                            : room.status === 'ending'
+                                              ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm shadow-orange-400/40'
+                                              : 'bg-gradient-to-r from-gray-500 to-slate-600 text-white shadow-sm shadow-slate-400/40'
+                                    }`}
+                                  >
+                                    {room.status === 'vacant' && (
+                                      <i className="fa-solid fa-door-open text-[9px]"></i>
+                                    )}
+                                    {room.status === 'occupied' && hasStartedBilling && (
+                                      <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
+                                        <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-60"></span>
+                                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white"></span>
+                                      </span>
+                                    )}
+                                    {room.status === 'occupied' && !hasStartedBilling && (
+                                      <i className="fa-solid fa-file-signature text-[9px]"></i>
+                                    )}
+                                    {room.status === 'ending' && (
+                                      <i className="fa-solid fa-right-from-bracket text-[9px]"></i>
+                                    )}
+                                    {room.status === 'maintenance' && (
+                                      <i className="fa-solid fa-screwdriver-wrench text-[9px]"></i>
+                                    )}
+                                    {room.status === 'vacant'
+                                      ? 'Đang trống'
+                                      : room.status === 'occupied' && hasStartedBilling
+                                        ? 'Đang ở'
+                                        : room.status === 'occupied' && !hasStartedBilling
+                                          ? activeContract ? 'Chờ bàn giao' : 'Chờ lập HĐ'
+                                          : room.status === 'ending'
+                                            ? (() => {
+                                                const deadline = getEndingDeadline(room.expected_end_date)
+                                                return deadline.state === 'overdue'
+                                                  ? 'Quá hạn trả phòng'
+                                                  : deadline.state === 'due_today'
+                                                    ? 'Đến hạn trả phòng'
+                                                    : 'Sắp chuyển phòng'
+                                              })()
+                                            : 'Bảo trì'}
+                                  </span>
+                                  {room.status === 'ending' &&
+                                    room.expected_end_date &&
+                                    (() => {
+                                      const deadline = getEndingDeadline(room.expected_end_date)
+                                      const daysLeft = deadline.daysUntil || 0
+                                      const dateStr = new Date(
+                                        room.expected_end_date
+                                      ).toLocaleDateString('vi-VN', {
+                                        day: '2-digit',
+                                        month: '2-digit'
+                                      })
+                                      return (
+                                        <div
+                                          className={`text-[10px] font-semibold mt-0.5 ${deadline.state === 'upcoming' ? 'text-orange-500' : 'text-red-500'}`}
+                                        >
+                                          {deadline.state === 'upcoming'
+                                            ? `Còn ${daysLeft} ngày (${dateStr})`
+                                            : deadline.state === 'due_today'
+                                              ? `Đến hạn hôm nay (${dateStr})`
+                                              : `Quá hạn ${Math.abs(daysLeft)} ngày (${dateStr})`}
+                                        </div>
+                                      )
+                                    })()}
+                                </div>
+                              </td>
+                                {(() => {
+                                  const today = new Date()
+                                  const currentMonth = today.getMonth() + 1
+                                  const currentYear = today.getFullYear()
+                                  const hasActiveContract = activeContract
+                                  const contractStartedAt =
+                                  hasActiveContract?.created_at || hasActiveContract?.move_in_date
+                                  const roomInvoicesAll = invoicesByRoomId.get(room.id) || []
+                                  const roomMonthInvoices = roomInvoicesAll
+                                  .filter(
+                                    (i) =>
+                                      i.month === currentMonth &&
+                                      i.year === currentYear &&
+                                      i.payment_status !== 'cancelled' &&
+                                      i.payment_status !== 'merged' &&
+                                      !i.is_settlement &&
+                                      !isDepositOnlyInvoice(i) &&
+                                      (!hasActiveContract?.tenant_id ||
+                                        i.tenant_id === hasActiveContract.tenant_id) &&
+                                      (!contractStartedAt || i.created_at >= contractStartedAt)
+                                  )
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.created_at).getTime() -
+                                      new Date(a.created_at).getTime()
+                                  )
+
+                                  const currentTenantInvoices = roomInvoicesAll
+                                  .filter(
+                                    (i) =>
+                                      i.payment_status !== 'cancelled' &&
+                                      i.payment_status !== 'merged' &&
+                                      (!hasActiveContract?.tenant_id ||
+                                        i.tenant_id === hasActiveContract.tenant_id) &&
+                                      (!contractStartedAt || i.created_at >= contractStartedAt)
+                                  )
+                                  .sort(
+                                    (a, b) =>
+                                      new Date(b.created_at).getTime() -
+                                      new Date(a.created_at).getTime()
+                                  )
+
+                                  const unpaidFirstMonthInvoice = currentTenantInvoices.find(
+                                  (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
+                                )
+
+                                  const roomInvoice =
+                                  unpaidFirstMonthInvoice ||
+                                  roomMonthInvoices.find(
+                                    (i) => i.is_first_month && hasInvoiceBalance(i) && !i.debt_confirmed_at
+                                  ) ||
+                                  roomMonthInvoices.find((i) => hasInvoiceBalance(i) && !i.debt_confirmed_at) ||
+                                  roomMonthInvoices.find((i) => i.payment_status === 'paid') ||
+                                  null
+
+                                  // Tính ngày đầu tháng sau
+                                  const nextMonthFirst = new Date(currentYear, currentMonth, 1)
+                                  const daysUntilNext = Math.ceil(
+                                  (nextMonthFirst.getTime() - today.getTime()) /
+                                    (1000 * 60 * 60 * 24)
+                                )
+
+                                  // A contract is new only before its first real billing cycle.
+                                  // Older/imported contracts may have their first invoice stored as
+                                  // `monthly` rather than `is_first_month`, so use the shared room
+                                  // summary instead of relying on that flag alone.
+                                  const hasStartedBilling =
+                                  roomListSummaries.get(room.id)?.hasStartedBilling === true
+                                  const isNewContract =
+                                  !!hasActiveContract &&
+                                  !hasActiveContract.is_migration &&
+                                  !hasStartedBilling
+                                  const hasReceivedAssets = !!roomAssetWorkflow[room.id]?.hasMoveIn
+                                  const hasDepositCollected =
+                                  hasActiveContract?.deposit_pre_collected === true ||
+                                  currentTenantInvoices.some(
+                                    (i) =>
+                                      (isDepositOnlyInvoice(i) ||
+                                        (i.is_first_month && (i.deposit_amount || 0) > 0)) &&
+                                      i.paid_amount > 0
+                                  )
+
+                                  const btnNewContract = (
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedRoom(room)
+                                      }}
+                                      className="bg-gradient-to-r from-red-500 to-rose-500 hover:from-red-600 hover:to-rose-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                    >
+                                      <i className="fa-solid fa-triangle-exclamation mr-1"></i>
+                                      Cần lập HĐ đầu
+                                    </button>
+                                  </td>
+                                )
+
+                                  const btnReceiveRoom = (
+                                  <td className="px-4 py-3 text-center">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setAssetModuleInitialRoomId(room.id)
+                                        setAssetModuleGuideMode('move_in')
+                                        requestActiveTab('assets')
+                                      }}
+                                      className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                    >
+                                      <i className="fa-solid fa-clipboard-check mr-1"></i>
+                                      Cần nhận phòng
+                                    </button>
+                                  </td>
+                                )
+
+                                  if (room.status === 'occupied' && debtToConfirm) {
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                        className="room-primary-faceted bg-gradient-to-r from-amber-500 to-orange-600 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm"
+                                      >
+                                        Chốt nợ tháng {debtToConfirm.month}
+                                      </button>
+                                    </td>
+                                  )
+                                }
+
+                                  if (!roomInvoice || room.status === 'vacant') {
+                                    if (!room.move_in_date || room.status === 'vacant') {
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="text-gray-400 text-[10px] italic">—</span>
+                                      </td>
+                                    )
+                                  }
+                                    // Phòng đang báo kết thúc → không hiện nút lập hóa đơn, chờ xác nhận trả phòng
+                                    if (room.status === 'ending') {
+                                    const deadline = getEndingDeadline(room.expected_end_date)
+                                    if (deadline.state === 'due_today' || deadline.state === 'overdue') {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setTerminateRoom(room)
+                                            }}
+                                            className="bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white shadow-sm shadow-red-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-door-closed mr-1"></i>
+                                            {deadline.state === 'overdue'
+                                              ? 'Bắt đầu trả phòng (quá hạn)'
+                                              : 'Bắt đầu trả phòng'}
+                                          </button>
+                                        </td>
+                                      )
+                                    }
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <span className="text-gray-400 text-[10px] italic bg-gray-100 px-2 py-1 rounded">
+                                          <i className="fa-solid fa-clock mr-1"></i>Chờ trả phòng
+                                        </span>
+                                      </td>
+                                    )
+                                  }
+                                    if (
+                                    hasActiveContract &&
+                                    room.status === 'occupied' &&
+                                    !hasReceivedAssets
+                                  )
+                                    return btnReceiveRoom
+                                    if (isNewContract) {
+                                    if (hasDepositCollected) {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setSelectedRoom(room)
+                                            }}
+                                            className="room-primary-faceted bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white shadow-sm shadow-teal-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide"
+                                          >
+                                            <div>
+                                              <i className="fa-solid fa-lock mr-1"></i>Đã thu cọc
+                                            </div>
+                                            <div className="mt-0.5 font-normal opacity-90">
+                                              Chưa lập HĐ đầu tiên
+                                            </div>
+                                          </button>
+                                        </td>
+                                      )
+                                    }
+                                    return btnNewContract
+                                  }
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                          className="room-invoice-faceted bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                        >
+                                          Có thể lập HĐ ngay
+                                        </button>
+                                      </td>
+                                    )
+                                  }
+
+                                  if (
+                                  hasActiveContract &&
+                                  room.status === 'occupied' &&
+                                  !hasReceivedAssets
+                                ) {
+                                  return btnReceiveRoom
+                                }
+
+                                  if (hasInvoiceBalance(roomInvoice)) {
+                                    if (room.status === 'ending') {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                            e.stopPropagation()
+                                            setPaymentInvoice(roomInvoice)
+                                          }}
+                                            className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                            Thu hóa đơn còn nợ
+                                          </button>
+                                        </td>
+                                      )
+                                    }
+                                    // Invoice tháng đầu tiên đã tạo nhưng chưa thu tiền
+                                    if (roomInvoice.is_first_month) {
+                                      return (
+                                        <td className="px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                            className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                          >
+                                            <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                          {roomInvoice.payment_status === 'partial'
+                                            ? 'Tháng đầu còn nợ'
+                                            : 'Chưa thu tiền tháng đầu'}
+                                        </button>
+                                        </td>
+                                      )
+                                    }
+                                    return (
+                                      <td className="px-4 py-3 text-center">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setPaymentInvoice(roomInvoice)
+                                          }}
+                                          className="room-unpaid-faceted bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-sm shadow-orange-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                        >
+                                          <i className="fa-solid fa-hand-holding-dollar mr-1"></i>
+                                        {roomInvoice.payment_status === 'partial'
+                                          ? `Còn nợ tháng ${roomInvoice.month}`
+                                          : `Chưa thu tháng ${roomInvoice.month}`}
+                                      </button>
+                                      </td>
+                                    )
+                                  }
+
+                                  if (room.status === 'ending') {
+                                  const deadline = getEndingDeadline(room.expected_end_date)
+                                  return (
+                                    <td className="px-4 py-3 text-center">
+                                      {deadline.state === 'due_today' || deadline.state === 'overdue' ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setTerminateRoom(room)
+                                          }}
+                                          className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full uppercase"
+                                        >
+                                          Bắt đầu trả phòng
+                                        </button>
+                                      ) : (
+                                        <span className="text-gray-500 text-[10px]">Đã thu · Chờ trả phòng</span>
+                                      )}
+                                    </td>
+                                  )
+                                }
+
+                                  // Đã thu (đủ hoặc thiếu)
+                                  return (
+                                  <td className="px-4 py-3 text-center">
+                                    {daysUntilNext > 0 ? (
+                                      <span className="room-primary-faceted inline-flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-full uppercase font-bold tracking-wide bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm shadow-emerald-400/40">
+                                        <i className="fa-solid fa-check-double text-[9px]"></i>
+                                        Đã thu
+                                        <span className="bg-white text-emerald-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold shadow-sm">
+                                          Còn {daysUntilNext}d
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          openInvoiceFlow(room)
+                                        }}
+                                        className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-sm shadow-blue-400/40 text-[10px] px-2.5 py-1.5 rounded-md font-bold block w-full transition tracking-wide uppercase"
+                                      >
+                                        Có thể lập HĐ mới
+                                      </button>
+                                    )}
+                                  </td>
+                                )
+                                })()}
+                                <td className="px-4 py-3 text-center">
+                                <div className="relative inline-block">
+                                  {menuOpenId === room.id && (
+                                    <div
+                                      className="fixed inset-0 z-40"
+                                      onClick={() => setMenuOpenId(null)}
+                                    />
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleRoomMenu(e, room.id)
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg border border-gray-300 bg-white hover:bg-gray-100 text-xs font-medium text-gray-600 shadow-sm relative z-10 flex items-center gap-1.5 transition"
+                                  >
+                                    Xem thêm <i className="fa-solid fa-chevron-down text-[9px]"></i>
+                                  </button>
+                                  {menuOpenId === room.id && roomActionMenu}
+                                </div>
+                              </td>
+                              </tr>
+                            </React.Fragment>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Removed Table Footer to save space as requested */}
+              </div>
+            </div>
+          ) : activeTab === 'invoices' ? (
+            <Suspense fallback={<TabLoading />}>
+              <InvoicesTab
+                currentUser={currentUser}
+                openSePaySyncSignal={sepaySyncOpenSignal}
+                onSePaySyncSignalHandled={handleSePaySyncSignalHandled}
+              />
+            </Suspense>
+          ) : activeTab === 'assets' ? (
+            <FeatureErrorBoundary label="Tài sản">
+              <Suspense fallback={<TabLoading />}>
+                <AssetsTab
+                  initialRoomId={assetModuleInitialRoomId}
+                  onReceivePendingChange={handleAssetReceivePendingChange}
+                  guideMode={assetModuleGuideMode}
+                  guideRoomId={assetModuleInitialRoomId}
+                  onGuideHandled={() => setAssetModuleGuideMode(null)}
+                />
+              </Suspense>
+            </FeatureErrorBoundary>
+          ) : activeTab === 'contracts' ? (
+            <Suspense fallback={<TabLoading />}>
+              <ContractsTab
+                onCreateContract={(room, draft) => {
+                  setNewContractSeed(draft ? { draft } : null)
+                  setNewContractRoom(room)
+                }}
+              />
+            </Suspense>
+          ) : activeTab === 'finance' ? (
+            <Suspense fallback={<TabLoading />}>
+              {financeSubTab === 'debt' ? (
+                <BusinessReport
+                  currentUser={currentUser}
+                  initialTab="debt"
+                  onNavigateToInvoices={() => requestActiveTab('invoices')}
+                />
+              ) : financeSubTab === 'wallet' ? (
+                <WalletTab
+                  onRecordTransaction={() => {
+                    setReportSubTab('cashflow')
+                    requestActiveTab('reports')
+                  }}
+                  onReconcile={() => {
+                    setReportSubTab('cashflow')
+                    requestActiveTab('reports')
+                  }}
+                  onSyncSepay={() => {
+                    setSepaySyncOpenSignal((value) => value + 1)
+                    requestActiveTab('invoices')
+                  }}
+                  onOpenInvestments={() => setFinanceSubTab('investments')}
+                />
+              ) : (
+                <Suspense fallback={<TabLoading />}>
+                  <InvestmentsTab userRole={currentUser.role} />
+                </Suspense>
+              )}
+            </Suspense>
+          ) : activeTab === 'reports' ? (
+            <Suspense fallback={<TabLoading />}>
+              <BusinessReport
+                currentUser={currentUser}
+                initialTab={reportSubTab}
+                onNavigateToInvoices={() => requestActiveTab('invoices')}
+              />
+            </Suspense>
+          ) : activeTab === 'tenants' ? (
+            <Suspense fallback={<TabLoading />}>
+              <TenantsTab />
+            </Suspense>
+          ) : activeTab === 'settings' ? (
+            <FeatureErrorBoundary label="Cài đặt">
+              <Suspense fallback={<TabLoading />}>
+                <SettingsTab currentUser={currentUser} initialTab={settingsInitialTab} />
+              </Suspense>
+            </FeatureErrorBoundary>
+          ) : null}
+        </div>
+
+        {isMobile && <MobileNavigation activeTab={activeTab} onNavigate={({ tab, finance, report }) => {
+          if (finance) setFinanceSubTab(finance)
+          if (report) setReportSubTab(report)
+          requestActiveTab(tab)
+        }} />}
+        {updateBanner && updateBanner.status !== 'idle' && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-950/85 p-6 text-white backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white p-7 text-slate-900 shadow-2xl">
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                  <i
+                    className={`fa-solid ${updateBanner.status === 'error' ? 'fa-triangle-exclamation' : updateBanner.status === 'restarting' ? 'fa-rotate-right fa-spin' : updateBanner.status === 'checking' ? 'fa-magnifying-glass fa-pulse' : 'fa-cloud-arrow-down'} text-xl`}
+                  ></i>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-base font-black text-slate-900">
+                    {updateBanner.status === 'error'
+                      ? 'Cập nhật thất bại'
+                      : updateBanner.status === 'success'
+                        ? 'Cập nhật thành công'
+                      : updateBanner.status === 'checking'
+                        ? 'Đang kiểm tra cập nhật'
+                        : updateBanner.status === 'restarting'
+                          ? 'Đang khởi động lại'
+                          : 'Đang tự động cập nhật' +
+                            (updateBanner.latestVersion ? ' v' + updateBanner.latestVersion : '')}
+                  </div>
+                  <div className="mt-2 text-sm leading-6 text-slate-600">
+                    {updateBanner.message ||
+                      'Vui lòng đợi. Ứng dụng sẽ tự tải, cài đặt và khởi động lại khi sẵn sàng.'}
+                  </div>
+                  {!['error', 'success'].includes(updateBanner.status || '') && (
+                    <div className="mt-5">
+                      <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <span>Tiến trình</span>
+                        <span>{updateBanner.progress || 0}%</span>
+                      </div>
+                      <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all"
+                          style={{ width: String(updateBanner.progress || 0) + '%' }}
+                        ></div>
+                      </div>
+                    </div>
+                  )}
+                  {updateBanner.status === 'error' && (
+                    <p className="mt-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold leading-5 text-red-700">
+                      Mở Cài đặt → Cập nhật để thử lại thủ công. Ứng dụng sẽ không tự lặp lại bản lỗi này.
+                    </p>
+                  )}
+                  {['error', 'success'].includes(updateBanner.status || '') && (
+                    <button type="button" onClick={() => { if (updateResultKey) localStorage.setItem('acknowledged-update-result', updateResultKey); setUpdateBanner(null) }} className="mt-4 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white">
+                      Đã hiểu
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {selectedRoom && (
+          <InvoiceModal
+            room={selectedRoom}
+            tenant={null} // Sau này fetch tenant
+            onClose={() => setSelectedRoom(null)}
+          />
+        )}
+        {serviceZoneRoom && (
+          <RoomServiceZonePickerModal
+            room={serviceZoneRoom}
+            invoiceBlocked={(serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone'}
+            onAssigned={(updatedRoom) => {
+              // Sau khi setup zone xong → tự mở InvoiceModal
+              if ((serviceZoneRoom as any)._invoiceBlockedReason === 'no_zone') {
+                setSelectedRoom(updatedRoom)
+              }
+            }}
+            onClose={() => setServiceZoneRoom(null)}
+          />
+        )}
+        {detailRoom && (
+          <RoomDetailsModal
+            room={detailRoom}
+            onActions={isMobile ? () => setMobileActionRoom(detailRoom) : undefined}
+            zone={serviceZones.find((z) => z.id === detailRoom.service_zone_id) || null}
+            zones={serviceZones}
+            initialTab={detailRoomInitialTab}
+            currentUser={currentUser}
+            invoiceActionLabel={(() => {
+              const summary = roomListSummaries.get(detailRoom.id)
+              if (summary?.endingOutstandingInvoice) return 'Thu tiền hóa đơn còn nợ'
+              if (summary?.unpaidFirstMonthForCurrentTenant) return 'Thu tiền hóa đơn'
+              return 'Lập hóa đơn'
+            })()}
+            onClose={() => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+            }}
+            onOpenInvoice={(r) => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+              openInvoiceFlow(r)
+            }}
+            onOpenFirstInvoice={(r) => {
+              setDetailRoom(null)
+              setDetailRoomInitialTab('info')
+              openInvoiceFlow(r)
+            }}
+          />
+        )}
+        {isMobile && mobileActionRoom && <MobileRoomActions
+          room={mobileActionRoom} hasContract={activeContractByRoomId.has(mobileActionRoom.id)}
+          canCancel={roomListSummaries.get(mobileActionRoom.id)?.canCancel || false}
+          canDelete={roomListSummaries.get(mobileActionRoom.id)?.canDeleteRoom || false}
+          financeLabel={roomListSummaries.get(mobileActionRoom.id)?.endingOutstandingInvoice ? 'Thu tiền hóa đơn còn nợ' : 'Lập hóa đơn / chốt nợ'}
+          onAction={action => { void handleMobileRoomAction(action) }} onClose={() => setMobileActionRoom(null)}
+        />}
+        {migrationContractRoom && (
+          <NewContractModal
+            room={migrationContractRoom}
+            zone={serviceZones.find((z) => z.id === migrationContractRoom.service_zone_id)}
+            onClose={() => setMigrationContractRoom(null)}
+            lastInvoice={
+              invoices
+                .filter((i) => i.room_id === migrationContractRoom.id)
+                .sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0]
+            }
+            initialIsMigration={true}
+          />
+        )}
+        {endNoticeRoom && (
+          <EndContractNoticeModal room={endNoticeRoom} onClose={() => setEndNoticeRoom(null)} />
+        )}
+        {terminateRoom && (
+          <FeatureErrorBoundary label="Trả phòng">
+            <Suspense fallback={<TabLoading />}>
+            <TerminateContractModal
+              room={terminateRoom}
+              onClose={() => setTerminateRoom(null)}
+              onNavigateToAssets={(room) => {
+                setTerminateRoom(null)
+                setAssetModuleInitialRoomId(room.id)
+                setAssetModuleGuideMode('move_out')
+                requestActiveTab('assets')
+              }}
+            />
+            </Suspense>
+          </FeatureErrorBoundary>
+        )}
+        {cancelContractRoom && (
+          <CancelContractModal
+            room={cancelContractRoom}
+            onClose={() => setCancelContractRoom(null)}
+          />
+        )}
+        {Object.keys(pendingRoomUpdates).length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-[#e7f1f7] border-t border-blue-100 py-3 px-6 flex items-center justify-center gap-6 z-50 shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)] animate-[slideUp_0.2s_ease-out]">
+            <div className="text-[15px] font-bold text-gray-800 flex items-center">
+              {saveError ? (
+                <span className="text-red-600">{saveError}</span>
+              ) : (
+                <>
+                  Bạn có
+                  <span className="bg-emerald-600 text-white w-7 h-7 mx-2 rounded-full inline-flex items-center justify-center text-sm shadow-sm">
+                    {Object.keys(pendingRoomUpdates).length}
+                  </span>
+                  mục thay đổi bạn có muốn lưu ?
+                </>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPendingRoomUpdates({})}
+                disabled={isSaving}
+                className="bg-[#da3b46] hover:bg-[#c82f39] disabled:opacity-50 text-white px-4 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm"
+              >
+                <i className="fa-solid fa-xmark text-lg leading-none"></i> Xóa tất cả thay đổi
+              </button>
+              <button
+                onClick={handleSaveAll}
+                disabled={isSaving}
+                className="bg-[#5cba47] hover:bg-[#4ba837] disabled:opacity-70 text-white px-5 py-2 rounded text-[13px] font-semibold transition flex items-center gap-2 shadow-sm min-w-[130px] justify-center"
+              >
+                {isSaving ? (
+                  <>
+                    <i className="fa-solid fa-spinner animate-spin text-lg leading-none"></i> Đang
+                    lưu...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-regular fa-floppy-disk text-lg leading-none"></i> Lưu thay đổi
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Toast thành công */}
+        {saveToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 bg-gray-900 text-white px-5 py-3 rounded-xl shadow-2xl animate-[fadeIn_0.2s_ease-out] min-w-[280px]">
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+              <i className="fa-solid fa-check text-white text-sm"></i>
+            </div>
+            <div>
+              <div className="font-bold text-sm">Đã lưu thành công!</div>
+              <div className="text-gray-400 text-xs">Toàn bộ thay đổi đã được cập nhật.</div>
+            </div>
+          </div>
+        )}
+
+        {changeTargetRoom && (
+          <ChangeRoomModal
+            room={changeTargetRoom}
+            onClose={() => setChangeTargetRoom(null)}
+            onNavigateToAssets={(room) => {
+              setChangeTargetRoom(null)
+              setAssetModuleInitialRoomId(room.id)
+              setAssetModuleGuideMode('move_out')
+              requestActiveTab('assets')
+            }}
+          />
+        )}
+
+        {serviceTooltip && (
+          <div
+            role="tooltip"
+            className={`fixed z-[120] w-52 rounded-lg ${serviceTooltip.tooltipBg} p-3 text-xs text-white shadow-xl pointer-events-none`}
+            style={{
+              left: serviceTooltip.left,
+              top: serviceTooltip.top,
+              transform: serviceTooltip.above ? 'translateY(-100%)' : undefined
+            }}
+          >
+            <div className="mb-2 border-b border-white/20 pb-1.5 text-center text-sm font-bold">
+              {serviceTooltip.name}
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-bolt w-4 text-yellow-400" /> Điện:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.electric)} đ/kWh</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-droplet w-4 text-blue-300" /> Nước:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.water)} đ/m³</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-wifi w-4 text-green-300" /> Nét:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.internet)} đ/ph</span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span><i className="fa-solid fa-broom w-4 text-gray-300" /> Rác:</span>
+                <span className="font-semibold tabular-nums">{formatVND(serviceTooltip.cleaning)} đ/ph</span>
+              </div>
+            </div>
+            <div className="mt-2 flex justify-between border-t border-white/20 pt-1.5 text-sm font-bold">
+              <span>Cố định:</span>
+              <span className="tabular-nums">{formatVND(serviceTooltip.fixedTotal)} đ/th</span>
+            </div>
+            <div
+              className={`absolute left-1/2 -translate-x-1/2 border-4 border-transparent ${serviceTooltip.above ? 'top-full' : 'bottom-full'}`}
+              style={serviceTooltip.above
+                ? { borderTopColor: serviceTooltip.arrowColor }
+                : { borderBottomColor: serviceTooltip.arrowColor }}
+            />
+          </div>
+        )}
+
+        <TourOverlay />
+      </div>
+    </Suspense>
+  )
+}
+
+export default App
+
+

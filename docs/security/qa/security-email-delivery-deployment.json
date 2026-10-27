@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-11T07:18:20.758Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "deployed": [
+    {
+      "slug": "admin-pwa-auth",
+      "version": 8,
+      "status": "ACTIVE"
+    },
+    {
+      "slug": "resend-security-webhook",
+      "version": 2,
+      "status": "ACTIVE"
+    }
+  ],
+  "securitySender": "baomat@phongtroankhang.com",
+  "notificationSenderUnchanged": true,
+  "emailSentByDeployment": false
+}

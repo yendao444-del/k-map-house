@@ -1,8 +1,13 @@
+import { changeOwnPasswordWithConfirmation } from './mfa'
 import { supabase, safeQuery } from './supabase'
+import { adminBridgeError } from './admin-bridge-error'
+import { managementLogin, managementRecovery } from './management-auth-client'
 import { normalizeEmailNotificationPreferences, type EmailNotificationPreferences } from './email-notification-preferences'
 import { fetchAllPages } from './paged-query'
 import { assertTenantEmail, normalizeTenantEmail } from './tenant-email'
 import { getInvoicePaymentFlow } from './invoice-payment-flow'
+import { requireSessionMfa, verifyTotpChallenge, securityState, authorizeSecuritySession, SecurityStepUpRequired } from './mfa'
+import { clearManagementSessionExpiry, isManagementSessionExpired, recordManagementSessionExpiry } from './auth-storage'
 import { assertSingleWalletExpense, resolveWalletMethod, summarizeWalletEntries, type WalletMethod, type WalletCheckpoint, type WalletAccountingBasis } from './wallet-accounting'
 
 // =========================================================
@@ -27,6 +32,8 @@ export interface AppUser {
   password_hash?: string
   role: UserRole
   status: UserStatus
+  authenticator_verified?: boolean
+  email_verified?: boolean
   last_login_at?: string
   created_at: string
 }
@@ -370,6 +377,38 @@ const ROOM_LIST_SELECT = [
   'garbage_price'
 ].join(',')
 
+const USER_PROFILE_SELECT = [
+  'id', 'username', 'email', 'phone', 'notification_email',
+  'email_notifications_enabled', 'email_notification_preferences',
+  'full_name', 'avatar_url', 'role', 'status', 'last_login_at', 'created_at'
+].join(',')
+
+const ROOM_IMAGE_BUCKET = 'room-images'
+const roomImagePath = (value: string): string | null => {
+  try {
+    const url = new URL(value)
+    const marker = `/object/public/${ROOM_IMAGE_BUCKET}/`
+    const signedMarker = `/object/sign/${ROOM_IMAGE_BUCKET}/`
+    const index = url.pathname.indexOf(marker)
+    const signedIndex = url.pathname.indexOf(signedMarker)
+    const start = index >= 0 ? index + marker.length : signedIndex >= 0 ? signedIndex + signedMarker.length : -1
+    return start >= 0 ? decodeURIComponent(url.pathname.slice(start)) : null
+  } catch {
+    return value.includes('/') && !value.startsWith('http') ? value : null
+  }
+}
+
+const normalizeRoomImagePaths = (urls?: string[]): string[] | undefined =>
+  urls?.map(roomImagePath).filter((path): path is string => Boolean(path))
+
+const signRoomImages = async (urls?: string[]): Promise<string[] | undefined> => {
+  const paths = normalizeRoomImagePaths(urls)
+  if (!paths?.length) return paths
+  const { data, error } = await supabase.storage.from(ROOM_IMAGE_BUCKET).createSignedUrls(paths, 3600)
+  if (error) throw new Error(error.message)
+  return (data || []).map((item, index) => item.signedUrl || paths[index]).filter(Boolean)
+}
+
 const ASSET_SNAPSHOT_LIST_SELECT =
   'id,room_id,contract_id,tenant_id,room_asset_id,type,condition,deduction,note,recorded_at'
 
@@ -700,6 +739,8 @@ const buildAppUser = (
     password_hash: typeof row?.password_hash === 'string' ? row.password_hash : undefined,
     role: resolveUserRole(row?.role),
     status: resolveUserStatus(row?.status),
+    authenticator_verified: typeof row?.authenticator_verified === 'boolean' ? row.authenticator_verified : undefined,
+    email_verified: typeof row?.email_verified === 'boolean' ? row.email_verified : undefined,
     last_login_at:
       (typeof row?.last_login_at === 'string' && row.last_login_at) ||
       (typeof authUser?.last_sign_in_at === 'string' && authUser.last_sign_in_at) ||
@@ -757,7 +798,9 @@ export const getRooms = async (): Promise<Room[]> => {
       supabase.from('rooms').select(ROOM_LIST_SELECT).order('name', { ascending: true })
     )
   } catch (error) {
-    // Keep older Supabase schemas usable while the list projection is deployed.
+    if (!/column .+ does not exist|could not find .+ column/i.test(error instanceof Error ? error.message : String(error))) throw error
+    // Older production schemas do not have optional per-room price columns.
+    // The full row remains compatible; service-zone prices are resolved by the UI.
     console.warn('Không tải được projection danh sách phòng, thử truy vấn tương thích:', error)
     data = await safeQuery(() =>
       supabase.from('rooms').select('*').order('name', { ascending: true })
@@ -774,6 +817,7 @@ export const getRooms = async (): Promise<Room[]> => {
 export const getRoom = async (id: string): Promise<Room> => {
   const data = await safeQuery(() => supabase.from('rooms').select('*').eq('id', id).single())
   const room = data as any as Room
+  room.image_urls = await signRoomImages(room.image_urls)
   if (room.status === 'vacant' && room.expected_end_date && room.tenant_name) {
     return { ...room, status: 'ending' }
   }
@@ -799,16 +843,20 @@ export const createRoom = async (roomData: Partial<Room>): Promise<Room> => {
 
   const newRoom = {
     ...roomData,
+    ...(roomData.image_urls ? { image_urls: normalizeRoomImagePaths(roomData.image_urls) } : {}),
     id: createEntityId('room'),
     name: roomName,
     status: 'vacant',
     created_at: new Date().toISOString()
   }
   const result = await safeQuery(() => supabase.from('rooms').insert(newRoom).select().single())
-  return result as any as Room
+  const createdRoom = result as unknown as Room
+  if (createdRoom?.image_urls) createdRoom.image_urls = await signRoomImages(createdRoom.image_urls)
+  return createdRoom
 }
 
 export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Room> => {
+  if (updates.image_urls) updates = { ...updates, image_urls: normalizeRoomImagePaths(updates.image_urls) }
   if (typeof updates.name === 'string') {
     updates.name = formatRoomName(updates.name)
     if (!updates.name) throw new Error('Tên phòng không được để trống.')
@@ -833,7 +881,9 @@ export const updateRoom = async (id: string, updates: Partial<Room>): Promise<Ro
   const result = await safeQuery(() =>
     supabase.from('rooms').update(updates).eq('id', id).select().single()
   )
-  return result as any as Room
+  const updatedRoom = result as unknown as Room
+  if (updatedRoom?.image_urls) updatedRoom.image_urls = await signRoomImages(updatedRoom.image_urls)
+  return updatedRoom
 }
 
 const insertMeterReadingAdjustmentLog = async (
@@ -2671,9 +2721,33 @@ export const deleteMoveInReceipt = async (id: string): Promise<void> => {
 // SETTINGS & USERS
 // =========================================================
 async function requireWalletGuards(): Promise<void> {
-  const { data, error } = await supabase.rpc('wallet_guard_version')
-  if (error || ![1, 2].includes(data)) {
-    throw new Error('Database chưa cập nhật bảo vệ số dư ví. Cần áp dụng migration đối soát ví trước khi ghi giao dịch.')
+  // This stable RPC only reads a version. POST would incorrectly require a
+  // recent security step-up; actual financial writes still enforce it.
+  let result
+  try {
+    result = await supabase.rpc('wallet_guard_version', undefined, { get: true })
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : 'Không thể kiểm tra bảo vệ số dư ví. Vui lòng thử lại.'
+    throw new Error(normalizeRemoteErrorMessage(message))
+  }
+  const { data, error, status } = result
+  if (error) {
+    if (/Management MFA\/session verification required/i.test(error.message)) {
+      throw new Error('Phiên bảo mật cần xác nhận lại. Vui lòng đăng nhập lại rồi thực hiện giao dịch; giao dịch chưa được ghi nhận.')
+    }
+    if (status === 401 || ['PGRST301', 'PGRST302', 'PGRST303'].includes(error.code) || /JWT expired|invalid JWT|invalid token/i.test(error.message)) {
+      throw new Error('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại; giao dịch chưa được ghi nhận.')
+    }
+    if (error.code === '42501' || status === 403) {
+      throw new Error('Tài khoản hoặc phiên hiện tại không có quyền kiểm tra bảo vệ số dư ví. Vui lòng đăng nhập lại hoặc liên hệ quản trị viên; giao dịch chưa được ghi nhận.')
+    }
+    if (['PGRST202', '42883'].includes(error.code)) {
+      throw new Error('Database chưa cập nhật bảo vệ số dư ví. Cần áp dụng migration đối soát ví trước khi ghi giao dịch.')
+    }
+    throw new Error(normalizeRemoteErrorMessage(error.message || 'Không thể kiểm tra bảo vệ số dư ví. Vui lòng thử lại.'))
+  }
+  if (![1, 2].includes(data)) {
+    throw new Error('Phiên bản bảo vệ số dư ví chưa tương thích. Vui lòng cập nhật ứng dụng hoặc liên hệ quản trị viên; giao dịch chưa được ghi nhận.')
   }
 }
 
@@ -2814,9 +2888,14 @@ export const updateAppSettings = async (updates: Partial<AppSettings>): Promise<
 
 export const getUsers = async (): Promise<AppUser[]> => {
   const data = await safeQuery(() =>
-    supabase.from('users').select('*').order('created_at', { ascending: false })
+    supabase.rpc('management_user_directory', undefined, { get: true }).order('created_at', { ascending: false })
   )
-  return (data || []).map((row) => buildAppUser(row as Record<string, unknown>))
+  return ((data || []) as unknown as Record<string, unknown>[]).map((row) => buildAppUser(row))
+}
+
+export const getNotificationRecipients = async (): Promise<AppUser[]> => {
+  const data = await safeQuery(() => supabase.rpc('notification_recipients'))
+  return ((data || []) as unknown as Record<string, unknown>[]).map((row) => buildAppUser(row))
 }
 
 export const createUser = async (data: Partial<AppUser>): Promise<AppUser> => {
@@ -2826,7 +2905,7 @@ export const createUser = async (data: Partial<AppUser>): Promise<AppUser> => {
     status: 'active',
     created_at: new Date().toISOString()
   }
-  const result = await safeQuery(() => supabase.from('users').insert(newUser).select().single())
+  const result = await safeQuery(() => supabase.from('users').insert(newUser).select(USER_PROFILE_SELECT).single())
   return buildAppUser((result || {}) as Record<string, unknown>)
 }
 
@@ -2837,6 +2916,7 @@ export const createUserViaAdmin = async (data: {
   username?: string
   role?: UserRole
 }): Promise<AppUser> => {
+  if (data.password.length < 12) throw new Error('Mật khẩu quản trị phải có ít nhất 12 ký tự.')
   const res = await invokeAdminBridge('admin_create', {
     data: {
       email: data.email.trim(),
@@ -2854,7 +2934,7 @@ export const createUserViaAdmin = async (data: {
     await supabase.from('users').update({ role: 'admin' }).eq('id', userId)
   }
 
-  const { data: profile } = await supabase.from('users').select('*').eq('id', userId).maybeSingle()
+  const { data: profile } = await supabase.from('users').select(USER_PROFILE_SELECT).eq('id', userId).maybeSingle()
 
   return buildAppUser(
     (profile || {
@@ -2865,13 +2945,13 @@ export const createUserViaAdmin = async (data: {
       role: data.role || 'user',
       status: 'active',
       created_at: new Date().toISOString()
-    }) as Record<string, unknown>
+    }) as unknown as Record<string, unknown>
   )
 }
 
 export const updateUser = async (id: string, updates: Partial<AppUser>): Promise<AppUser> => {
   const result = await safeQuery(() =>
-    supabase.from('users').update(updates).eq('id', id).select().single()
+    supabase.from('users').update(updates).eq('id', id).select(USER_PROFILE_SELECT).single()
   )
   return buildAppUser((result || {}) as Record<string, unknown>)
 }
@@ -2899,10 +2979,10 @@ export const updateUserProfile = async (
   return updateUser(userId, { full_name, phone, notification_email, email_notifications_enabled: data.email_notifications_enabled, email_notification_preferences: normalizeEmailNotificationPreferences(data.email_notification_preferences) })
 }
 
-export type EmailDeliveryStatus = 'queued' | 'sending' | 'sent' | 'failed' | 'skipped'
+export type EmailDeliveryStatus = 'blocked' | 'queued' | 'sending' | 'sent' | 'failed' | 'skipped'
 export interface EmailNotificationDelivery {
   id: string
-  recipient_user_id: string
+  recipient_user_id?: string | null
   recipient_email: string
   recipient_name: string
   event_type: string
@@ -2916,18 +2996,17 @@ export interface EmailNotificationDelivery {
   sent_at?: string | null
 }
 
-export const getEmailDeliveryAvailability = async (): Promise<{available:boolean;authenticated:boolean;server?:boolean}> => {
+export const getEmailDeliveryAvailability = async (): Promise<{available:boolean;authenticated:boolean;server?:boolean;sepayEnabled?:boolean}> => {
   const {data,error}=await supabase.rpc('email_server_status')
-  if(!error&&data?.enabled)return {available:true,authenticated:true,server:true}
+  if(!error&&data?.enabled)return {available:true,authenticated:true,server:true,sepayEnabled:data.sepayEnabled===true}
   if(error && !['PGRST202','42883'].includes(String(error.code||''))) return {available:false,authenticated:false}
   const gmail=typeof window!=='undefined'?window.api?.gmail:undefined
   return gmail?gmail.getAvailability().then(value=>({...value,authenticated:value.authenticated===true})).catch(()=>({available:false,authenticated:false})):{available:false,authenticated:false}
 }
 
 export const getEmailNotificationDeliveries = async (recipientUserId?: string): Promise<EmailNotificationDelivery[]> => {
-  let query = supabase.from('email_notification_deliveries').select('*').order('created_at', { ascending: false }).limit(100)
-  if (recipientUserId) query = query.eq('recipient_user_id', recipientUserId)
-  return (await safeQuery(() => query)) as EmailNotificationDelivery[]
+  void recipientUserId // The server returns the combined, admin-authorized delivery history.
+  return (await safeQuery(() => supabase.rpc('email_delivery_history', { p_limit: 100 }))) as EmailNotificationDelivery[]
 }
 
 export const sendEmailNotification = async (payload: {
@@ -2991,13 +3070,13 @@ export const sendEmailNotification = async (payload: {
   return { ok: false, error: 'Gửi Gmail chỉ được bật trên máy dev đã kết nối Gmail.' }
 }
 export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
+  if (newPassword.length < 12) throw new Error('Mật khẩu quản trị phải có ít nhất 12 ký tự.')
   const result = await invokeAdminBridge('admin_reset_password', { userId, password: newPassword })
   if (!result?.ok) throw new Error(result?.error || 'Khong the doi mat khau')
 }
 
-export const changeOwnPassword = async (newPassword: string): Promise<void> => {
-  const { error } = await supabase.auth.updateUser({ password: newPassword })
-  if (error) throw new Error(error.message)
+export const changeOwnPassword = async (newPassword: string, currentPassword: string): Promise<void> => {
+  await changeOwnPasswordWithConfirmation(newPassword, currentPassword)
 }
 
 export const deleteUser = async (id: string): Promise<void> => {
@@ -3006,6 +3085,18 @@ export const deleteUser = async (id: string): Promise<void> => {
 }
 
 export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
+  const isManagementSecurityGuardError = (error: unknown): boolean => {
+    const value = error as { code?: unknown; message?: unknown } | null
+    const code = String(value?.code || '')
+    const message = String(value?.message || error || '')
+    return /management\s+mfa\/session\s+verification\s+required/i.test(message) && (!code || code === '42501')
+  }
+  // The database guard is authoritative; this prevents a visible stale UI at
+  // the same deadline when the app is already open.
+  if (isManagementSessionExpired()) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
   let {
     data: { session },
     error: sessionError
@@ -3030,6 +3121,9 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   if (expiresAt > 0 && expiresAt <= Date.now() + 60_000) {
     const refreshed = await supabase.auth.refreshSession()
     if (refreshed.error || !refreshed.data.session) {
+      if (refreshed.error && (!navigator.onLine || /network|fetch|timeout/i.test(refreshed.error.message))) {
+        throw new Error('Không thể kiểm tra phiên đăng nhập. Kiểm tra mạng và thử lại.')
+      }
       await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
       return null
     }
@@ -3037,6 +3131,19 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   }
 
   const user = session.user
+
+  // A failed network check blocks access without deleting a valid saved login.
+  const security = await securityState()
+  if (security.state === 'expired') {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
+  if (security.state !== 'recovery' && security.state !== 'enroll') await requireSessionMfa(security)
+  if (!['optional', 'authorize', 'ready'].includes(String(security.state))) {
+    throw new SecurityStepUpRequired(String(security.state))
+  }
+  if (security.state !== 'ready') await authorizeSecuritySession()
+  recordManagementSessionExpiry(security.expires_at)
 
   const { data: profile, error: profileError } = await supabase
     .from('users')
@@ -3046,7 +3153,19 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profileError) throw new Error(normalizeRemoteErrorMessage(profileError.message))
+  if (profileError) {
+    // The database guard is expected when a restored Electron session has not
+    // yet completed its security step. Surface the typed flow so the UI can
+    // open Authenticator/email verification instead of exposing the raw RPC
+    // error to the user.
+    if (isManagementSecurityGuardError(profileError)) throw new SecurityStepUpRequired('authorize')
+    throw new Error(normalizeRemoteErrorMessage(profileError.message))
+  }
+
+  if (isManagementSessionExpired()) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+    return null
+  }
 
   const appUser = buildAppUser((profile || { id: user.id }) as Record<string, unknown>, user)
   if (appUser.status !== 'active') {
@@ -3057,38 +3176,26 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   return appUser
 }
 
-const resolveLoginEmail = async (login: string): Promise<string> => {
-  const normalizedLogin = login.trim()
-  if (normalizedLogin.includes('@')) return normalizedLogin
-
-  const { data, error } = await supabase.rpc('resolve_login_email', {
-    login_name: normalizedLogin.toLowerCase()
-  })
-  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
-
-  const resolvedEmail = typeof data === 'string' ? data.trim() : ''
-  if (!resolvedEmail) {
-    throw new Error('Tai khoan khong ton tai hoac da bi vo hieu hoa.')
-  }
-
-  return resolvedEmail
-}
-
 export const signInUser = async (login: string, password: string): Promise<AppUser> => {
   const normalizedLogin = login.trim()
   if (!normalizedLogin || !password) {
     throw new Error('Vui lòng nhập email/username và mật khẩu.')
   }
 
-  const loginEmail = await resolveLoginEmail(normalizedLogin)
-  const { error } = await supabase.auth.signInWithPassword({
-    email: loginEmail,
-    password
-  })
+  clearManagementSessionExpiry()
+  const tokens = await managementLogin(normalizedLogin, password)
+  const { error } = await supabase.auth.setSession(tokens)
   if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 
   const user = await getCurrentSessionUser()
   if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi đăng nhập.')
+  return user
+}
+
+export const completeMfaLogin = async (factorId: string, challengeId: string, code: string): Promise<AppUser> => {
+  await verifyTotpChallenge(factorId, challengeId, code)
+  const user = await getCurrentSessionUser()
+  if (!user) throw new Error('Không thể tải thông tin tài khoản sau khi xác minh MFA.')
   return user
 }
 
@@ -3098,28 +3205,12 @@ export const requestPasswordReset = async (email: string): Promise<void> => {
     throw new Error('Vui lòng nhập địa chỉ email hợp lệ.')
   }
 
-  const { data: registeredEmail, error: lookupError } = await supabase.rpc('resolve_login_email', {
-    login_name: normalizedEmail
-  })
-  if (lookupError) throw new Error(normalizeRemoteErrorMessage(lookupError.message))
-  if (
-    typeof registeredEmail !== 'string' ||
-    registeredEmail.trim().toLowerCase() !== normalizedEmail
-  ) {
-    throw new Error('Email này không thuộc tài khoản đang hoạt động trong hệ thống.')
-  }
-
-  const recoveryUrl = new URL(window.location.href)
-  recoveryUrl.hash = ''
-  recoveryUrl.searchParams.set('password-recovery', '1')
-  const redirectTo = recoveryUrl.toString()
-  const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo })
-  if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
+  await managementRecovery(normalizedEmail)
 }
 
 export const resetPasswordFromRecoveryLink = async (newPassword: string): Promise<void> => {
-  if (newPassword.length < 8) {
-    throw new Error('Mật khẩu mới phải có ít nhất 8 ký tự.')
+  if (newPassword.length < 12) {
+    throw new Error('Mật khẩu mới phải có ít nhất 12 ký tự.')
   }
 
   const {
@@ -3176,11 +3267,7 @@ export const invokeAdminBridge = async (
     }
   )
   if (error) {
-    const message = String(error.message || '')
-    if (/failed to send (a )?request|edge function|function not found|404/i.test(message)) {
-      return { ok: false, error: 'Máy chủ gửi email chưa được triển khai. Hãy deploy Edge Function send-email-notification trên Supabase rồi thử lại.' }
-    }
-    return { ok: false, error: message || 'Không kết nối được máy chủ gửi email.' }
+    return { ok: false, error: await adminBridgeError(error) }
   }
   return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ.' }
 }
@@ -3189,8 +3276,20 @@ export const getSepayTokenStatus = (): Promise<AdminBridgeResponse> =>
   invokeAdminBridge('sepay_status')
 export const setSepayToken = (token: string): Promise<AdminBridgeResponse> =>
   invokeAdminBridge('sepay_set', { token })
-export const fetchSepayTransactions = (): Promise<AdminBridgeResponse> =>
-  invokeAdminBridge('sepay_fetch')
+export const fetchSepayTransactions = async (): Promise<AdminBridgeResponse> => {
+  if (import.meta.env.VITE_CONTRACT_TEST === '1') return { ok: false, error: 'SePay thật không được bật trong môi trường TEST.' }
+  const { data, error } = await supabase.functions.invoke<AdminBridgeResponse>('admin-pwa-sepay', { body: { action: 'list' }, headers: { Authorization: `Bearer ${await getCurrentAccessToken()}` } })
+  if (error) return { ok: false, error: await adminBridgeError(error) }
+  return data || { ok: false, error: 'Phản hồi không hợp lệ từ máy chủ SePay.' }
+}
+
+export async function reconcileVerifiedSepay(transactionId: string, invoiceId?: string, mode: 'reconcile' | 'suggested-reconcile' = 'reconcile'): Promise<{ invoice?: Invoice; receiptId?: string; duplicate?: boolean }> {
+  const action = invoiceId ? mode : 'bank-receipt'
+  const { data, error } = await supabase.functions.invoke('admin-pwa-sepay', { body: { action, transactionId, ...(invoiceId ? { invoiceId } : {}) }, headers: { Authorization: `Bearer ${await getCurrentAccessToken()}` } })
+  if (error || !data?.ok) throw new Error(data?.error || 'Chưa xác minh được đối soát tại máy chủ.')
+  if (invoiceId ? !data.data?.invoice : !data.data?.receiptId) throw new Error('Chưa xác định kết quả đối soát; hãy tải lại dữ liệu.')
+  return data.data
+}
 
 // =========================================================
 // COMPATIBILITY (LEGACY)
@@ -3228,14 +3327,16 @@ export const uploadRoomImage = async (roomId: string, file: File): Promise<strin
   const compressed = await compressImage(file)
   const path = `${roomId}/${Date.now()}.jpg`
   const { error } = await supabase.storage
-    .from('room-images')
+    .from(ROOM_IMAGE_BUCKET)
     .upload(path, compressed, { contentType: 'image/jpeg' })
   if (error) throw new Error(error.message)
-  return supabase.storage.from('room-images').getPublicUrl(path).data.publicUrl
+  const { data: signed, error: signError } = await supabase.storage.from(ROOM_IMAGE_BUCKET).createSignedUrl(path, 3600)
+  if (signError || !signed?.signedUrl) throw new Error(signError?.message || 'Không tạo được đường dẫn ảnh tạm thời')
+  return signed.signedUrl
 }
 
 export const deleteRoomImage = async (url: string): Promise<void> => {
-  const path = url.split('/room-images/')[1]
+  const path = roomImagePath(url)
   if (!path) return
-  await supabase.storage.from('room-images').remove([path])
+  await supabase.storage.from(ROOM_IMAGE_BUCKET).remove([path])
 }

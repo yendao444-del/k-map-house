@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-09T08:26:40.263Z",
+  "passed": true,
+  "origin": "https://pay.phongtroankhang.com",
+  "entry": "/assets/index-7SGkOU1q.js",
+  "sha256": "bfc2701466354b9a5aa98655d7b1d95c4635dcf64683b0cde184fa7345c67be4",
+  "cameraAllowed": true,
+  "qrAllowed": true,
+  "images": [
+    "electric",
+    "water"
+  ],
+  "denied": [
+    {
+      "endpoint": "tenant-payments",
+      "status": 401
+    },
+    {
+      "endpoint": "meter-ocr",
+      "status": 401
+    }
+  ],
+  "recipient": {
+    "bank": "BIDV",
+    "ownerVerified": true,
+    "virtualAccount": true
+  },
+  "testSchemasClean": true,
+  "productionBusinessWrites": false
+}

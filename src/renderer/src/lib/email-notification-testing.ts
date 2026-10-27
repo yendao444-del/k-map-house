@@ -107,14 +107,16 @@ export function createNotificationTestCase(
     month: now.getMonth() + 1,
     year: now.getFullYear(),
     due_date: date,
-    electric_old: 0,
-    electric_new: 0,
-    electric_usage: 0,
+    electric_old: 1200,
+    electric_new: 1300,
+    electric_usage: 100,
     electric_cost: 250000,
-    water_old: 0,
-    water_new: 0,
-    water_usage: 0,
+    electric_price_snapshot: 2500,
+    water_old: 98,
+    water_new: 103,
+    water_usage: 5,
     water_cost: 100000,
+    water_price_snapshot: 20000,
     room_cost: 2500000,
     wifi_cost: 100000,
     garbage_cost: 50000,
@@ -356,6 +358,9 @@ export function createNotificationTestCase(
   if (type !== 'sepay_matched')
     result.mail.html = buildNotificationEmailLayout({
       title,
+      template: type === 'sepay_unmatched' && !['recorded', 'awaiting'].includes(scenarioId)
+        ? scenarioId === 'partial' ? '05-chuyen-thieu' : scenarioId === 'over' ? '06-chuyen-du' : scenarioId === 'ambiguous' ? '07-khop-nhieu-hoa-don' : '04-giao-dich-chua-khop'
+        : type === 'rent_overdue' && scenarioId === 'old_debt' ? '12-nhac-no-cu' : undefined,
       tone,
       statusLabel,
       date: new Intl.DateTimeFormat('vi-VN').format(now),

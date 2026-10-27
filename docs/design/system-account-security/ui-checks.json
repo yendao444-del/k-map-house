@@ -1,0 +1,45 @@
+{
+  "testedAt": "2026-10-12T03:31:49.891Z",
+  "checks": [
+    {
+      "width": 1920,
+      "separateSecurityStates": true,
+      "search": true,
+      "refresh": true,
+      "noDocumentOverflow": true,
+      "mobileDetail": false
+    },
+    {
+      "width": 1440,
+      "separateSecurityStates": true,
+      "search": true,
+      "refresh": true,
+      "noDocumentOverflow": true,
+      "mobileDetail": false
+    },
+    {
+      "width": 390,
+      "separateSecurityStates": true,
+      "search": true,
+      "refresh": true,
+      "noDocumentOverflow": true,
+      "mobileDetail": true
+    },
+    {
+      "width": 320,
+      "separateSecurityStates": true,
+      "search": true,
+      "refresh": true,
+      "noDocumentOverflow": true,
+      "mobileDetail": true
+    },
+    {
+      "unknownFlagsDisplayedAsUnknown": true
+    },
+    {
+      "failedLoadDoesNotReportZeroAccounts": true,
+      "refreshRecoversFromReadFailure": true
+    }
+  ],
+  "scope": "Actual SettingsTab with a synthetic RPC fixture; no real accounts or remote mutations."
+}

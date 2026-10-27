@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-13T08:09:22.404Z",
+  "migrationApplied": true,
+  "function": "admin-pwa-auth",
+  "priorVersion": 16,
+  "version": 17,
+  "anonymousStatus": 403,
+  "settingsUnchanged": true,
+  "customerDataChanged": false,
+  "emailsSent": false,
+  "policy": "Email fallback requires previously OTP-verified current email, completed recovery acknowledgement, verified TOTP enrollment, same live session/IP/browser. Authenticator rotation and recovery-code regeneration still require TOTP."
+}

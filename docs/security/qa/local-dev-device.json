@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-20T12:26:38.463Z",
+  "fixturesRolledBack": true,
+  "rolesAndSettingsUnchanged": true,
+  "tests": [
+    {
+      "dev_device_invariants": "passed",
+      "email_password_remember_rotation_regressions": "passed"
+    }
+  ],
+  "productionApplied": true,
+  "functionVersion": 18,
+  "device": {
+    "id": "0e6ed4ec-e955-4c41-9b97-79bc40906de2",
+    "expiresAt": "2026-11-19 12:26:39.160387+00",
+    "encryptedWith": "Windows DPAPI CurrentUser",
+    "firstLoginBindsIpAndAgent": true
+  }
+}

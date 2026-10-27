@@ -1,0 +1,9 @@
+{
+  "verifiedAt": "2026-10-12T02:16:32.417Z",
+  "origin": "https://app.phongtroankhang.com",
+  "entry": "/assets/index-D9SgbcX1.js",
+  "homeStatus": 200,
+  "assetMatchesLocal": true,
+  "scope": "Returning-device recovery acknowledgement UI fix; no migrations, Auth/role changes, or existing recovery code mutations.",
+  "electron": "Source synchronized; build passed; installer not published"
+}

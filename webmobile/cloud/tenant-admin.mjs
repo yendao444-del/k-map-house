@@ -23,6 +23,8 @@ export function tenantAdminHandler(env,fetcher=fetch) {
       if(!token)throw fail('Bạn cần đăng nhập Electron.',401)
       const caller=await api('/auth/v1/user',{},token)
       if(!caller.response.ok||!caller.data?.id)throw fail('Phiên Electron đã hết hạn.',401)
+      const security=await api('/rest/v1/rpc/security_management_access_allowed',{...post({p_sensitive:true}),headers:{apikey:env.SUPABASE_ANON_KEY,'Accept-Profile':'public','Content-Profile':'public'}},token)
+      if(!security.response.ok||security.data!==true)throw fail('Cần hoàn tất xác minh 2FA trước khi quản lý tài khoản khách thuê.',403)
       const permission=await api(`/rest/v1/users?id=eq.${caller.data.id}&select=role,status`)
       if(!permission.response.ok||permission.data?.[0]?.role!=='admin'||permission.data[0].status!=='active')throw fail('Chỉ quản trị viên được quản lý tài khoản website.',403)
       if(!request.headers.get('content-type')?.startsWith('application/json'))throw fail('Yêu cầu không hợp lệ.',415)

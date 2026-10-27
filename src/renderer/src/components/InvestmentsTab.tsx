@@ -30,7 +30,10 @@ import {
   YAxis
 } from 'recharts'
 import {
+  importLocalInvestmentStore,
+  isInvestmentStoreEmpty,
   readInvestmentStore,
+  readLocalInvestmentStore,
   writeInvestmentStore,
   type InvestmentCategory,
   type InvestmentHolding,
@@ -39,20 +42,24 @@ import {
   type InvestmentTransactionType
 } from '../lib/investment-store'
 import { GoldTracker } from './investment-trackers/GoldTracker'
+import type { MyHanhGoldPrices } from '../../../shared/my-hanh-gold'
+import { valueGoldHolding } from '../lib/gold-valuation'
 import { StockTracker, VN_STOCK_SUGGESTIONS } from './investment-trackers/StockTracker'
 import { BOND_SUGGESTIONS } from '../lib/bondApi'
 import { BondTracker } from './investment-trackers/BondTracker'
 import { SavingsTracker } from './investment-trackers/SavingsTracker'
 import { GoldTradeModal } from './investment-trackers/GoldTradeModal'
-import { GoldHoldings } from './investment-trackers/GoldHoldings'
-import { GoldTransactionHistory } from './investment-trackers/GoldTransactionHistory'
+import { GoldPortfolioPanel, type GoldPortfolioTab } from './investment-trackers/GoldPortfolioPanel'
 import './investment-trackers/original-trackers.css'
 import './investment-trackers/investment-dark.css'
+import './investment-trackers/gold-workspace.css'
 import { transactionsForCategory } from '../lib/investment-history'
 import { readSavings, savingsInterest, savingsMaturity } from '../lib/savings'
 import { fetchSecurityQuote } from '../lib/security-quote'
-import { createCashTransaction, deleteCashTransaction, getWalletBalanceSummary, type WalletBalanceSummary } from '../lib/db'
-import { commitInvestmentWallet, investmentBalance, investmentWalletImpact, validateFunding, type FundingMethod } from '../lib/investment-funding'
+import { getWalletBalanceSummary, type WalletBalanceSummary } from '../lib/db'
+import { planInvestmentTopUp, prepareInvestmentPurchase, InvestmentFundingCancelled } from '../lib/investment-auto-funding'
+import { usePasswordConfirmation } from './PasswordConfirmationDialog'
+import { investmentBalance, investmentWalletImpact, validateFunding, type FundingMethod } from '../lib/investment-funding'
 import { readCachedWalletBalanceSummary } from '../lib/wallet-summary-query'
 
 type Screen = 'overview' | InvestmentCategory | 'transactions'
@@ -249,9 +256,14 @@ function TransactionModal({
     const timer = window.setInterval(() => setWalletTime(new Date()), 1000)
     return () => window.clearInterval(timer)
   }, [isWalletTransaction, transaction])
+  const purchaseShortfall = type === 'buy' ? Math.max(0, effectiveAmount - walletSummary.totalBalance) : 0
   let fundingError = ''
   if ((!holding || forceTransaction) && !transaction && (type === 'buy' || type === 'withdraw') && effectiveAmount > 0) {
-    try { validateFunding(walletSummary, [{ paymentMethod, amount: -effectiveAmount }]) }
+    try {
+      const shortfall = Math.max(0, effectiveAmount - walletSummary.totalBalance)
+      if (type === 'buy' && shortfall > 0) planInvestmentTopUp(shortfall, operatingWalletSummary, paymentMethod)
+      else validateFunding(walletSummary, [{ paymentMethod, amount: -effectiveAmount }])
+    }
     catch (cause) { fundingError = cause instanceof Error ? cause.message : '' }
   }
   const transactionTypes = scopedCategory === 'cash'
@@ -302,7 +314,7 @@ function TransactionModal({
       paymentMethod
     })
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể lưu giao dịch.')
+      if (!(cause instanceof InvestmentFundingCancelled)) setError(cause instanceof Error ? cause.message : 'Không thể lưu giao dịch.')
     } finally { setSaving(false) }
   }
   return (
@@ -483,11 +495,12 @@ function TransactionModal({
             <div className="mt-5 border-t pt-4">
               <p className="text-xs opacity-70">{type === 'sell' ? 'Tổng tiền bán' : 'Tổng thanh toán'}</p>
               <p className="mt-1 text-2xl font-black tabular-nums">{effectiveAmount > 0 ? money(effectiveAmount) : 'Chưa có giá'}</p>
-              <p className="mt-1 text-xs opacity-70">Số dư ví đã chọn sau giao dịch: {money((paymentMethod === 'transfer' ? walletSummary.bankBalance : walletSummary.cashBalance) + (type === 'sell' ? effectiveAmount : -effectiveAmount))}</p>
+              <p className="mt-1 text-xs opacity-70">Số dư Ví đầu tư sau giao dịch: {money(Math.max(0, walletSummary.totalBalance + (type === 'sell' ? effectiveAmount : -effectiveAmount)))}</p>
             </div>
             <p className="mt-5 text-xs opacity-70">Ngày ghi nhận: {formatDate(date)}</p>
             {error && <p role="alert" className="mt-3 text-xs font-bold text-rose-400">{error}</p>}
             {fundingError && <p role="alert" className="mt-3 text-xs font-bold text-rose-400">{fundingError}</p>}
+            {purchaseShortfall > 0 && !fundingError && <p role="status" className="mt-3 text-xs font-bold">Ví đầu tư thiếu {money(purchaseShortfall)}. Khi lưu, bạn sẽ được hỏi xác nhận chuyển phần thiếu từ Ví phòng trọ.</p>}
             <div className="security-trade-actions mt-6 flex gap-2">
               <button type="button" onClick={onClose} className="h-11 rounded-xl border px-4 text-sm font-bold">Hủy</button>
               <button type="submit" disabled={saving || Boolean(fundingError) || quoteLoading || effectiveAmount <= 0} className="h-11 flex-1 rounded-xl px-4 text-sm font-black disabled:opacity-50">{saving ? 'Đang lưu...' : type === 'sell' ? 'Xác nhận bán' : 'Xác nhận mua'}</button>
@@ -598,6 +611,7 @@ function TransactionModal({
           <p className="mt-2">{isWalletTransaction && type === 'deposit' ? 'Khả dụng ví vận hành' : 'Khả dụng ví đầu tư'}: {money(isWalletTransaction && type === 'deposit' ? operatingWalletSummary.availableBalance : walletSummary.availableBalance)}.{!isWalletTransaction && (type === 'sell' ? ' Tiền bán sẽ được cộng vào ví đầu tư.' : ' Tiền mua sẽ được trừ từ ví đầu tư.')}</p>
           {error && <p role="alert" className="mt-2 font-bold text-rose-600">{error}</p>}
           {fundingError && <p role="alert" className="mt-2 font-bold text-rose-600">{fundingError}</p>}
+          {purchaseShortfall > 0 && !fundingError && <p role="status" className="mt-2 font-bold text-amber-700">Ví đầu tư thiếu {money(purchaseShortfall)}. Khi lưu, bạn sẽ được hỏi xác nhận chuyển phần thiếu từ Ví phòng trọ.</p>}
         </div>}
         {!isSecurity && <div className="flex justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
           <button
@@ -646,6 +660,7 @@ function SecurityHoldingsPanel({
 
 export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElement {
   const queryClient = useQueryClient()
+  const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
   const savingTransaction = useRef(false)
   const [transactionError, setTransactionError] = useState('')
   const [store, setStore] = useState<InvestmentStore>({
@@ -660,6 +675,8 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
   const pendingLoad = useRef<Promise<void> | null>(null)
   const loadMounted = useRef(false)
   const [source, setSource] = useState<string>()
+  const [localImport, setLocalImport] = useState<InvestmentStore | null>(null)
+  const [importing, setImporting] = useState(false)
   const [modal, setModal] = useState<{
     holding?: InvestmentHolding
     transaction?: InvestmentTransaction
@@ -673,10 +690,12 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
   const [wealthGoal, setWealthGoal] = useState(2000000000)
   const [selectedAssetSymbol, setSelectedAssetSymbol] = useState<string>()
   const [goldTradeMode, setGoldTradeMode] = useState<'buy' | 'sell' | null>(null)
-  const [goldTradeSymbol, setGoldTradeSymbol] = useState<string | undefined>()
+  const [goldPortfolioTab, setGoldPortfolioTab] = useState<GoldPortfolioTab>('holdings')
+  const [goldPrices, setGoldPrices] = useState<MyHanhGoldPrices | null>(null)
   const [goldTradeNotice, setGoldTradeNotice] = useState<string | null>(null)
   useEffect(() => {
     setGoldTradeNotice(null)
+    if (screen === 'gold') setGoldPortfolioTab('holdings')
   }, [screen])
   useEffect(() => {
     if (!goldTradeNotice) return
@@ -714,6 +733,10 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
         if (!loadMounted.current) return
         setStore(result.data)
         setSource(result.importedFrom)
+        // Offer the legacy Windows portfolio only while the shared cloud one
+        // is still empty; afterwards the cloud is the single source of truth.
+        const local = isInvestmentStoreEmpty(result.data) ? await readLocalInvestmentStore().catch(() => null) : null
+        if (loadMounted.current) setLocalImport(local && !isInvestmentStoreEmpty(local) ? local : null)
         setWalletSummary(nextWalletSummary)
       } catch (cause) {
         if (loadMounted.current) setLoadError(cause instanceof Error ? cause.message : 'Không tải được danh mục đầu tư.')
@@ -744,10 +767,17 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     const stored = Number(window.localStorage.getItem('dbyfinance-wealth-goal'))
     if (Number.isFinite(stored) && stored > 0) setWealthGoal(stored)
   }, [])
+  const goldValuations = useMemo(() => Object.fromEntries(store.holdings
+    .filter(item => item.category === 'gold')
+    .map(item => [item.symbol, valueGoldHolding(item, goldPrices)])), [store.holdings, goldPrices])
   const holdings = useMemo(() => {
     const nonCashHoldings = store.holdings.filter(
       (item) => item.valueVnd > 0 && item.symbol.toUpperCase() !== 'CASH'
-    )
+    ).map(item => {
+      const mark = goldValuations[item.symbol]
+      return mark?.valueVnd !== null && mark?.valueVnd !== undefined
+        ? { ...item, valueVnd: mark.valueVnd, pnlPercent: mark.pnlPercent ?? 0 } : item
+    })
     if (nonCashHoldings.length === 0 && walletSummary.availableBalance <= 0) return []
     const walletHolding: InvestmentHolding = {
       symbol: 'CASH',
@@ -760,11 +790,13 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
       targetPercent: store.categoryTargets?.cash ?? 0,
       pnlPercent: 0
     }
-    return [
+    const portfolio = [
       ...nonCashHoldings,
-      walletHolding
+      ...(walletSummary.availableBalance > 0 ? [walletHolding] : [])
     ]
-  }, [store.categoryTargets, store.holdings, walletSummary.availableBalance])
+    const totalValue = portfolio.reduce((sum, item) => sum + item.valueVnd, 0)
+    return portfolio.map(item => ({ ...item, allocationPercent: totalValue > 0 ? item.valueVnd / totalValue * 100 : 0 }))
+  }, [store.categoryTargets, store.holdings, walletSummary.availableBalance, goldValuations])
   const transactions = useMemo(
     () =>
       [...store.transactions].sort((a, b) =>
@@ -787,7 +819,10 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     return transactionsForCategory(transactions, store.holdings, screen)
   }, [screen, transactions, store.holdings, walletSummary.entries])
   const total = holdings.reduce((sum, item) => sum + item.valueVnd, 0)
-  const gain = holdings.reduce((sum, item) => sum + (item.valueVnd * item.pnlPercent) / 100, 0)
+  const gain = holdings.reduce((sum, item) => {
+    const denominator = 1 + item.pnlPercent / 100
+    return sum + (denominator > 0 ? item.valueVnd - item.valueVnd / denominator : 0)
+  }, 0)
   const goalPercent = Math.min(100, Math.max(0, Math.round((total / wealthGoal) * 100)))
   const investedCapital = transactions.reduce((sum, tx) => {
     if (tx.transactionType === 'import-existing' || tx.transactionType === 'buy') return sum + (tx.capitalAmountVnd ?? tx.amountVnd)
@@ -842,6 +877,25 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     if (loading || loadError) throw new Error('Danh mục chưa tải thành công. Hãy bấm Thử lại trước khi ghi dữ liệu.')
     await writeInvestmentStore(next)
     setStore(next)
+  }
+  const importLocalPortfolio = async () => {
+    if (!localImport || importing || loading || savingTransaction.current) return
+    if (!window.confirm(`Đưa ${localImport.holdings.length} tài sản và ${localImport.transactions.length} giao dịch trên máy này lên danh mục chung (Electron + PWA)? Không thu/chi tiền lần nữa vì Ví đã ghi khi giao dịch.`)) return
+    setTransactionError('')
+    setImporting(true)
+    savingTransaction.current = true
+    try {
+      await requirePassword('Đưa danh mục lên cloud')
+      const snapshot = await importLocalInvestmentStore({ ...localImport, pwaVersion: store.pwaVersion })
+      setStore(snapshot.data)
+      setLocalImport(null)
+      setSource('máy tính này')
+    } catch (error) {
+      setTransactionError(error instanceof Error ? error.message : 'Không đưa được danh mục lên cloud. Hãy kiểm tra quyền quản trị.')
+    } finally {
+      setImporting(false)
+      savingTransaction.current = false
+    }
   }
   const openTargets = () => {
     const next: Record<string, number> = {}
@@ -982,33 +1036,16 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
   }
   const commitWalletChange = async (previous: InvestmentTransaction | undefined, next: InvestmentTransaction | undefined, nextStore: InvestmentStore) => {
     if (loading || loadError) throw new Error('Danh mục chưa tải thành công. Hãy bấm Thử lại trước khi ghi giao dịch.')
-    await commitInvestmentWallet({
-      actorRole: userRole,
-      previous,
-      next,
-      nextStore,
-      readCurrent: async () => {
-        const latest = await readInvestmentStore()
-        if (JSON.stringify(latest.data) !== JSON.stringify(store)) {
-          throw new Error('Danh mục đã thay đổi ở cửa sổ khác. Hãy bấm Làm mới trước khi tiếp tục.')
-        }
-        return latest.data
-      },
-      readOperating: getWalletBalanceSummary,
-      createPosting: async (posting) => {
-        const row = await createCashTransaction({
-          type: posting.amount < 0 ? 'expense' : 'income',
-          category: 'investment_transfer',
-          transaction_date: new Date().toISOString(),
-          amount: Math.abs(posting.amount),
-          payment_method: posting.paymentMethod,
-          note: `[Đầu tư] ${!next && previous ? `Hoàn tác ${txLabel[previous.transactionType]} ${previous.assetSymbol}` : posting.amount < 0 ? 'Chuyển vốn sang Ví đầu tư' : 'Chuyển vốn về Ví vận hành'} · ${next?.id || previous?.id}`
-        })
-        return row.id
-      },
-      removePosting: deleteCashTransaction,
-      persist
-    })
+    if (previous && previous.fundingSource !== 'investment-wallet' && (userRole !== 'admin' || next)) throw new Error('Giao dịch cũ thuộc Ví vận hành: chỉ admin được hoàn tác sau đối soát.')
+    // Opening/restarting Electron does not refresh the server's write approval.
+    // Complete the existing password step-up before any posting or persistence;
+    // cancellation must leave both wallets and the portfolio untouched.
+    await requirePassword('Ghi giao dịch đầu tư')
+    // The shared cloud commit derives operating-wallet movements in one server
+    // transaction; never post receipts client-side, or the other app can't see them.
+    // Funding still validates and rechecks the exact shortfall before posting.
+    const prepared = await prepareInvestmentPurchase({ next, nextStore, readOperating: getWalletBalanceSummary, confirm: () => true })
+    await persist(prepared.store)
     void queryClient.invalidateQueries({ queryKey: ['cashTransactions'] })
     try { setWalletSummary(await getWalletBalanceSummary()) } catch {
       setTransactionError('Đã lưu giao dịch. Chưa tải lại được số dư Ví; hãy bấm Làm mới.')
@@ -1105,7 +1142,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
     </div>
   )
   return (
-    <div className="investment-dark flex min-h-0 flex-1 overflow-hidden bg-[#0b111b]">
+    <div className={`investment-dark flex min-h-0 flex-1 overflow-hidden bg-[#0b111b]${screen === 'gold' ? ' investment-gold-screen' : ''}`}>
       <aside className="hidden w-[220px] shrink-0 border-r border-[#20364f] bg-[#0b1727] p-3 text-white xl:block">
         <div className="mb-5 px-3 pt-3">
           <p className="text-[10px] font-black uppercase tracking-[.22em] text-emerald-200/70">
@@ -1133,7 +1170,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
         {transactionError && <p role="alert" className="mb-4 rounded-xl border border-rose-400 p-3 text-sm text-rose-400">{transactionError}</p>}
         {store.transactions.some(tx => tx.transactionType === 'buy' && !tx.walletPosting) && <p role="status" className="mb-4 rounded-xl border border-amber-500/40 p-3 text-sm text-amber-400">Có giao dịch mua cũ chưa trừ tiền Ví. Hãy kiểm tra tại Giao dịch và sửa để ghi nhận nguồn tiền, hoặc xóa nếu nhập nhầm. Số tài sản này chưa được đối soát với Ví.</p>}
         <div className="mx-auto max-w-[1480px] space-y-3.5">
-          <header className="flex flex-wrap items-center justify-between gap-3">
+          <header className={`flex flex-wrap items-center justify-between gap-3${screen === 'gold' ? ' gold-page-heading' : ''}`}>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[.2em] text-[#00ab60]">
                 Tài chính · Đầu tư
@@ -1146,9 +1183,21 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
                     : categoryMeta[screen].label}
               </h1>
               <p className="mt-1 text-sm text-slate-500">
-                Theo dõi giá trị, hiệu suất và tỷ trọng danh mục trên cùng một màn hình.
+                {screen === 'gold' ? 'Theo dõi giá trị và hiệu suất danh mục.' : 'Theo dõi giá trị, hiệu suất và tỷ trọng danh mục trên cùng một màn hình.'}
               </p>
             </div>
+            {screen === 'gold' && <div className="gold-page-actions">
+              <button type="button" className="gold-action-buy" onClick={() => setGoldTradeMode('buy')}>Mua vàng</button>
+              <button type="button" className="gold-action-sell" onClick={() => setGoldTradeMode('sell')}>Bán vàng</button>
+              <button type="button" onClick={() => {
+                setGoldPortfolioTab('history')
+                window.requestAnimationFrame(() => {
+                  const panel = document.getElementById('investment-category-history')
+                  panel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                  panel?.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true })
+                })
+              }}>Lịch sử giao dịch ({categoryTransactions.length})</button>
+            </div>}
             {screen === 'stocks' && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
@@ -1218,7 +1267,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
               </div>
             )}
           </header>
-          <div className="flex gap-2 overflow-x-auto pb-1 xl:hidden">
+          <div className="investment-category-tabs flex gap-2 overflow-x-auto pb-1 xl:hidden">
             {nav.map((item) => (
               <button
                 key={item.id}
@@ -1229,10 +1278,13 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
               </button>
             ))}
           </div>
+          {userRole === 'admin' && localImport && isInvestmentStoreEmpty(store) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#26364a] p-3 text-sm text-[#9cafc5]">
+            <p>Máy này còn {localImport.transactions.length} giao dịch chưa có trong danh mục chung với PWA. Đưa lên một lần; Ví vận hành không bị trừ lại.</p>
+            <button type="button" onClick={() => void importLocalPortfolio()} disabled={loading || importing} className="min-h-11 shrink-0 rounded-lg border border-[#21d38a] px-3 text-xs font-bold text-[#21d38a] disabled:opacity-50">{importing ? 'Đang đưa lên...' : 'Đưa lên danh mục chung'}</button>
+          </div>}
           {source && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-800">
-              Đã nhập danh mục hiện có từ DBY Finance. Dữ liệu mới được lưu riêng trong An Khang
-              Home.
+              Đã đưa danh mục từ {source} lên cloud. Electron và PWA giờ dùng chung một danh mục.
             </div>
           )}
           {loading ? (
@@ -1529,7 +1581,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
               )}
               {screen !== 'overview' && screen !== 'transactions' && (
                 <>
-                   {screen === 'gold' && <div className="investment-tracker-copy"><div className="mb-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={() => setGoldTradeMode('buy')} className="rounded-xl bg-[#00ab60] px-4 py-2 text-xs font-black text-white">Mua vàng</button><button type="button" onClick={() => setGoldTradeMode('sell')} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-black text-rose-700">Bán vàng</button><button type="button" onClick={() => document.getElementById('investment-category-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-600">Lịch sử giao dịch ({categoryTransactions.length})</button></div><GoldTracker /></div>}
+                   {screen === 'gold' && <div className="investment-tracker-copy"><GoldTracker onPricesChange={setGoldPrices} /></div>}
                    {screen === 'stocks' && <div className="investment-tracker-copy"><StockTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
                    {screen === 'bonds' && <div className="investment-tracker-copy"><BondTracker holdings={visibleHoldings} selectedSymbol={selectedAssetSymbol} onSelectSymbol={setSelectedAssetSymbol} transactions={categoryTransactions} /></div>}
                    {screen === 'savings' && <div className="investment-tracker-copy"><SavingsTracker holdings={savingsTrackerHoldings} transactions={savingsTrackerTransactions} onOpenModal={openTrade} onRefresh={load} onDeleteTransaction={(id) => { const tx = store.transactions.find((item) => item.id === id); if (tx) void deleteTransaction(tx) }} /></div>}
@@ -1568,13 +1620,11 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
               )}
               {screen === 'stocks' && <SecurityHoldingsPanel rows={visibleHoldings} title="Cổ phiếu & Quỹ" accent="#21d38a" onBuy={() => setModal({ initialType: 'buy', forceTransaction: true })} onSell={(holding) => setModal({ holding, initialType: 'sell', forceTransaction: true })} />}
               {screen === 'bonds' && <SecurityHoldingsPanel rows={visibleHoldings} title="Trái phiếu" accent="#60a5fa" onBuy={() => setModal({ initialType: 'buy', forceTransaction: true })} onSell={(holding) => setModal({ holding, initialType: 'sell', forceTransaction: true })} />}
-              {screen === 'gold' && <GoldHoldings rows={visibleHoldings} onAdd={() => { setGoldTradeSymbol(undefined); setGoldTradeMode('buy') }} onTrade={(holding, initialType) => {
-                if (['VNHAN', 'PQHN24NTT', 'BT9999NTT'].includes(holding.symbol)) {
-                  setGoldTradeSymbol(holding.symbol)
+              {screen === 'gold' && <GoldPortfolioPanel tab={goldPortfolioTab} onTabChange={setGoldPortfolioTab} rows={visibleHoldings} valuations={goldValuations} transactions={categoryTransactions} holdings={store.holdings} onAdd={() => setGoldTradeMode('buy')} onTrade={(holding, initialType) => {
+                if (holding.symbol.toUpperCase() === 'MH9999') {
                   setGoldTradeMode(initialType)
                 } else setModal({ holding, initialType, forceTransaction: true })
-              }} />}
-              {screen === 'gold' && <GoldTransactionHistory rows={categoryTransactions} holdings={store.holdings} onEdit={(transaction) => setModal({ transaction, holding: store.holdings.find((holding) => holding.symbol === transaction.assetSymbol) })} onDelete={(transaction) => void deleteTransaction(transaction)} />}
+              }} onEdit={(transaction) => setModal({ transaction, holding: store.holdings.find((holding) => holding.symbol === transaction.assetSymbol) })} onDelete={(transaction) => void deleteTransaction(transaction)} />}
               {screen === 'transactions' && (
                 <section id="investment-category-history" className="scroll-mt-4 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
                   <div className="border-b border-slate-100 px-5 py-4">
@@ -1640,6 +1690,7 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
           )}
         </div>
       </main>
+      {passwordConfirmation}
       {modal && (
         <TransactionModal
           holding={modal.holding}
@@ -1657,16 +1708,15 @@ export function InvestmentsTab({ userRole }: { userRole?: string }): ReactElemen
       {goldTradeMode && (
         <GoldTradeModal
           mode={goldTradeMode}
-          initialSymbol={goldTradeSymbol}
           holdings={store.holdings}
           walletSummary={walletSummary}
-          onClose={() => { setGoldTradeMode(null); setGoldTradeSymbol(undefined) }}
+          operatingWalletSummary={operatingSummary}
+          onClose={() => setGoldTradeMode(null)}
           onSave={async (input) => {
             await saveTransaction(input)
             setGoldTradeMode(null)
-            setGoldTradeSymbol(undefined)
+            setGoldPortfolioTab('holdings')
             setGoldTradeNotice(`Đã ghi nhận ${input.type === 'buy' ? 'mua' : 'bán'} ${input.quantity} chỉ ${input.name} · ${money(input.amount)}.`)
-            window.requestAnimationFrame(() => document.getElementById('investment-category-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
           }}
         />
       )}

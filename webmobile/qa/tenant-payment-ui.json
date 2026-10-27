@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-08T09:21:00.553Z",
+  "syntheticOnly": true,
+  "electricThenWaterConfirmed": true,
+  "invoiceOpenedAutomatically": true,
+  "paidVerified": true,
+  "capture320": {
+    "buttons": [
+      {
+        "bottom": 492,
+        "text": "Chụp ảnh điện",
+        "top": 440
+      },
+      {
+        "bottom": 556,
+        "text": "Chọn ảnh có sẵn",
+        "top": 508
+      }
+    ],
+    "content": 320,
+    "width": 320
+  },
+  "invoice320": {
+    "content": 320,
+    "width": 320
+  },
+  "invoice390": {
+    "content": 390,
+    "qrWidth": 200,
+    "width": 390
+  }
+}

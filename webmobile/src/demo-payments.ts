@@ -1,3 +1,4 @@
+import { requestJson } from './request-json.mjs'
 export type InvoiceFields = {
   invoice_number: string; invoice_date: string; due_date: string; billing_period_start: string; billing_period_end: string
   billing_reason: string; is_first_month: boolean; room_id: string; tenant_id: string; contract_id: string
@@ -26,8 +27,7 @@ export type DemoScenario = 'exact' | 'partial' | 'over' | 'wrong-code' | 'duplic
 export class DemoPaymentError extends Error { constructor(message: string, public status: number) { super(message) } }
 
 async function request(data: object, signal?: AbortSignal) {
-  const response = await fetch('/api/demo-payments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000) })
-  const result = await response.json().catch(() => null)
+  const {response,data:result} = await requestJson('/api/demo-payments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal },8000)
   if (response.status === 401) window.dispatchEvent(new Event('webmobile:unauthorized'))
   if (!response.ok || !result?.ok) throw new DemoPaymentError(result?.reason || 'Backend demo chưa phản hồi. Hãy thử lại sau.', response.status)
   if (result.invoice && (!result.invoice.demo || !['pending', 'review', 'paid'].includes(result.invoice.status) || !Number.isSafeInteger(result.invoice.total) || result.invoice.total < 0 || !result.invoice.details?.invoice_number || result.invoice.details.total_amount !== result.invoice.total || !String(result.invoice.qr).startsWith('data:image/png;base64,'))) throw new Error('Hóa đơn demo chưa hợp lệ.')

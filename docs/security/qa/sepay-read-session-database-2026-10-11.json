@@ -1,0 +1,9 @@
+{
+  "checkedAt": "2026-10-11T07:21:13.536Z",
+  "verification": [
+    {
+      "verification": "GET guard permits authorized AAL2 reads after five minutes; sensitive writes, POST recency, AAL1 and unbound sessions remain denied"
+    }
+  ],
+  "mode": "Read-only transaction; no session/token/customer/payment mutation"
+}

@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict'
+import { writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+const require=createRequire(import.meta.url)
+const {chromium}=require('C:/Users/Admin/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright')
+const browser=await chromium.launch({headless:true,executablePath:'C:/Users/Admin/AppData/Local/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-win64/chrome-headless-shell.exe'})
+const checks=[]
+try{
+ for(const [width,height] of [[1440,900],[390,844],[320,568]]){
+  const page=await browser.newPage({viewport:{width,height}}),errors=[];page.on('pageerror',e=>errors.push(e.message))
+  await page.goto('http://127.0.0.1:4178/qa/password-confirmation/index.html')
+  await page.getByRole('button',{name:'Ghi nhận SePay',exact:true}).click()
+  const dialog=page.getByRole('dialog');await dialog.waitFor()
+  assert.equal(await page.locator('#sensitive-current-password').evaluate(el=>el===document.activeElement),true)
+  await page.locator('#sensitive-current-password').fill('incorrect')
+  await page.getByRole('button',{name:'Xác nhận và tiếp tục',exact:true}).click()
+  await page.getByRole('alert').filter({hasText:'Mật khẩu hiện tại không đúng.'}).waitFor()
+  assert.equal(await page.locator('#sensitive-current-password').inputValue(),'')
+  await page.locator('#sensitive-current-password').fill('demo-correct-password')
+  await page.screenshot({path:`docs/security/qa/password-confirmation-${width}.png`,fullPage:true})
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  const box=await dialog.boundingBox();assert.ok(box.x>=0&&box.y>=0&&box.y+box.height<=height)
+  await page.getByRole('button',{name:'Xác nhận và tiếp tục',exact:true}).click()
+  await page.getByRole('status').filter({hasText:'Đã xác nhận'}).waitFor()
+  await page.getByRole('button',{name:'Ghi nhận SePay',exact:true}).click();await page.getByRole('button',{name:'Hủy',exact:true}).click();await page.getByRole('status').filter({hasText:'Đã hủy'}).waitFor()
+  assert.equal(errors.length,0,errors.join(';'));checks.push({width,height,passwordMasked:true,wrongPasswordDenied:true,fieldsCleared:true,correctPasswordAccepted:true,cancelWorks:true,noOverflow:true})
+  await page.close()
+ }
+ const page=await browser.newPage({viewport:{width:1440,height:900}})
+ await page.goto('http://127.0.0.1:4178/qa/password-confirmation/index.html?view=users')
+ await page.getByTitle('Thao tác tài khoản',{exact:true}).first().click()
+ await page.getByRole('button',{name:'Đổi mật khẩu',exact:true}).last().click()
+ await page.locator('#admin-current-password').waitFor()
+ await page.screenshot({path:'docs/security/qa/admin-password-confirmation-1440.png',fullPage:true})
+ checks.push({adminResetModalHasCurrentPassword:true})
+ await page.goto('http://127.0.0.1:4178/qa/password-confirmation/index.html?view=profile')
+ await page.getByRole('tab',{name:'Đổi mật khẩu',exact:true}).click()
+ await page.locator('#profile-current-password').fill('demo-correct-password')
+ await page.locator('#profile-new-password').fill('new-demo-password')
+ await page.locator('#profile-confirm-password').fill('new-demo-password')
+ await page.screenshot({path:'docs/security/qa/own-password-confirmation-1440.png',fullPage:true})
+ await page.getByRole('button',{name:'Xác nhận và đổi mật khẩu',exact:true}).click()
+ await page.getByRole('status').filter({hasText:'Đổi mật khẩu thành công.'}).waitFor()
+ assert.equal(await page.locator('#profile-current-password').inputValue(),'')
+ assert.equal(await page.locator('[autocomplete="one-time-code"]').count(),0)
+ checks.push({ownPasswordChangeWithoutOtp:true,passwordFieldsCleared:true})
+}finally{await browser.close()}
+await writeFile('docs/security/qa/password-confirmation-ui-2026-10-11.json',JSON.stringify({at:new Date().toISOString(),checks,scope:'Local UI with stubbed requests; no real account or payment writes.'},null,2)+'\n');console.log(JSON.stringify(checks,null,2))

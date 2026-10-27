@@ -1,0 +1,13 @@
+{
+  "id": "13-den-han-tra-phong",
+  "name": "Phòng đến hạn trả",
+  "model": "cx/gpt-5.5-image",
+  "prompt": "Create ONE production-quality Vietnamese transactional email visual, not a website. 1024x1536 portrait; entire email visible, white outer margin, natural centered 600px layout, no browser chrome. AUTHORITATIVE REFERENCE: attached image is the exact user-approved AN KHANG HOME email crop. Preserve its real white logo plaque with navy/green AK + AN KHANG HOME wordmark, emerald illustrated apartment-building banner, large white headline at left, illustration at right, curved pale mint lower edge, left-aligned body, thin fact dividers, signature. Match the reference closely; do not invent a different brand. EXACT TEMPLATE: Phòng đến hạn trả; audience Tài khoản hệ thống; banner headline exactly 'ĐẾN HẠN TRẢ PHÒNG'. Semantic palette: violet; original logo colors remain navy/green. Banner illustration: cream apartment doorway, keys on document and moving box with calendar. Use a refined flat editorial illustration, not 3D. Date anchor 09/10/2026 Vietnam UTC+7; all supplied facts are synthetic and exact. BODY: Xin chào Chủ nhà, Phòng 221 đã đến ngày dự kiến trả phòng. Emphasize 'Hạn trả phòng' as 09/10/2026. Facts: Phòng: Phòng 221; Người thuê: Nguyễn Minh Anh; Trạng thái: Chờ kiểm tra bàn giao.  Closing: Vui lòng kiểm tra kế hoạch bàn giao và các khoản cần quyết toán. No button and no external link; the message must be complete in the email. Close with 'Trân trọng,' and 'Đội ngũ An Khang Home'. Add tiny footer 'Dữ liệu minh họa · 09/10/2026'.  AVOID: Gmail/browser UI, tabs, device frame, other brands, SPX, QR, passwords, fake phone/contact details, clutter, cards inside cards, multiple CTAs, repeated headings, tiny unreadable text, clipped footer, misspelled Vietnamese, unsupported success stamp, invented amounts, people, photorealistic luxury real estate, code or HTML annotations.",
+  "promptHash": "4bb8ae8e20db48fc0b755dacaaa89ec92ada87f9e575b0c98a37bfaf06d667b4",
+  "reference": "G:\\PHONG TRO\\app\\webmobile\\Mau thong bao\\_nguon\\anh-mau-email-hop-dong.png",
+  "source": "C:/Users/Admin/AppData/Local/Temp/codex-clipboard-c87e65da-42e8-49bd-8fb2-bdedd61e50ef.png",
+  "width": 1024,
+  "height": 1536,
+  "sha256": "ef33bea0e21622f7eff07ce0c9b2829e572125aa71bab49fa2311a1282912ccd",
+  "at": "2026-10-09T08:29:59.418Z"
+}

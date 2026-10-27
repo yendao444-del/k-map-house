@@ -1,0 +1,64 @@
+{
+  "at": "2026-10-09T06:53:27.425Z",
+  "project": "wtrycmiojsiliyjxsewz",
+  "change": {
+    "account": "zicky.iluv@gmail.com",
+    "oldNotificationEmail": "zicky.iluv@gmail.com",
+    "newNotificationEmail": "phongtroankhang.com@gmail.com"
+  },
+  "preferences": {
+    "rent_overdue": false,
+    "sepay_matched": true,
+    "sepay_unmatched": true,
+    "rent_long_unpaid": false,
+    "contract_expiring": false,
+    "invoices_services": false,
+    "room_checkout_due": false
+  },
+  "automation": {
+    "enabled": true,
+    "sepay_enabled": true,
+    "last_worker_at": "2026-10-09 06:52:01.919+00",
+    "last_poll_at": "2026-10-09 06:52:00.955+00",
+    "last_poll_error": null
+  },
+  "pendingServerDeliveries": 0,
+  "recentPaymentDeliveries": [
+    {
+      "room_name": "Phòng 221",
+      "recipient_email": "zicky.iluv@gmail.com",
+      "status": "sent",
+      "created_at": "2026-10-09 06:30:01.614702+00",
+      "sent_at": "2026-10-09 06:30:02.582108+00"
+    },
+    {
+      "room_name": "Phòng 251",
+      "recipient_email": "zicky.iluv@gmail.com",
+      "status": "sent",
+      "created_at": "2026-10-09 01:32:01.482409+00",
+      "sent_at": "2026-10-09 01:32:02.417003+00"
+    },
+    {
+      "room_name": "Phòng 231",
+      "recipient_email": "zicky.iluv@gmail.com",
+      "status": "failed",
+      "created_at": "2026-10-07 03:47:39.272037+00",
+      "sent_at": null
+    },
+    {
+      "room_name": "Phòng 222",
+      "recipient_email": "zicky.iluv@gmail.com",
+      "status": "failed",
+      "created_at": "2026-10-07 03:46:36.662221+00",
+      "sent_at": null
+    },
+    {
+      "room_name": "Phòng 331",
+      "recipient_email": "zicky.iluv@gmail.com",
+      "status": "sent",
+      "created_at": "2026-10-06 12:55:51.421042+00",
+      "sent_at": "2026-10-06 12:56:55.634+00"
+    }
+  ],
+  "note": "Existing sent deliveries remain addressed to their original recipient. New server-queued notifications resolve the account notification_email at enqueue time and recheck it before delivery."
+}

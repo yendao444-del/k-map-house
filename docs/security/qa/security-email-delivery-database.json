@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-11T07:17:59.271Z",
+  "passed": true,
+  "scope": "Transaction-local fixtures, all rolled back; no email sent or real account changed.",
+  "result": [
+    {
+      "verification": "Security mail delivery: race, replay, ordering and isolation passed; rolled back"
+    }
+  ]
+}

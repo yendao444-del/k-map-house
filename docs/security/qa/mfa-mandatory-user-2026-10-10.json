@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-10T05:51:47.807Z",
+  "role": "user",
+  "checks": [
+    "Deployed gateway directs an unenrolled account to setup; REST reads, writes and business RPC denied; enrollment readiness stays available",
+    "Password-only unenrolled account cannot authorize or access business data",
+    "AAL2 alone cannot bypass email step-up",
+    "Direct REST and SECURITY DEFINER RPC deny a fresh AAL1 session",
+    "Email + TOTP + acknowledged recovery bundle authorizes business access",
+    "Auth rejects a wrong current password at AAL2",
+    "Trusted browser still needs TOTP and skips email only with matching server-issued device token",
+    "Device revocation invalidates attached business sessions",
+    "Single-use recovery only permits re-enrollment; new verified factor and saved codes restore access",
+    "Sign-out-all revokes business access"
+  ],
+  "customerDataChanged": false,
+  "evidenceScope": "Deployed gateway login/status plus local gateway handler with real production Auth/DB and real HTTP REST read/write/RPC hook; email provider intercepted only for disposable mailbox. Live provider delivery is separately verified.",
+  "secretsLogged": false
+}

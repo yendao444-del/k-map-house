@@ -20,7 +20,7 @@ if (!test) {
 const query = sql => (test ? testManagement : management)(env,'/database/query',{query:sql})
 const counts = async () => (await query(`select jsonb_build_object('tenants',(select count(*) from ${schema}.tenants),'rooms',(select count(*) from ${schema}.rooms),'contracts',(select count(*) from ${schema}.contracts),'drafts',(select count(*) from ${schema}.contract_drafts),'confirmations',(select count(*) from ${schema}.contract_confirmations),'accounts',(select count(*) from ${schema}.tenant_web_accounts),'authUsers',(select count(*) from auth.users)) counts`))[0].counts
 const before=await counts()
-for (const file of ['20261008220000_tenant_system_email_separation.sql','20261008223000_contract_account_visibility.sql','20261008224000_contract_wrong_email_cancellation.sql','20261008233000_tenant_auth_provisioning.sql']) {
+for (const file of ['20261008220000_tenant_system_email_separation.sql','20261008223000_contract_account_visibility.sql','20261008224000_contract_wrong_email_cancellation.sql','20261008233000_tenant_auth_provisioning.sql', '20261008235000_contract_test_without_notice.sql']) {
  let sql=await readFile(path.join(root,'../supabase/migrations',file),'utf8')
  if (test) sql=sql.replaceAll('public.',`${schema}.`).replaceAll('search_path=public',`search_path=${schema}`)
  await query(sql)

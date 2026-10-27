@@ -1,0 +1,11 @@
+{
+  "checkedAt": "2026-10-10T04:05:08.248Z",
+  "checks": [
+    "src/renderer/src: reproduced duplicate friendly name; real SDK all includes unverified while totp is empty; shipped retry replaced stale factor and returned a real QR and gateway challenge",
+    "adminpwa/src/renderer/src: reproduced duplicate friendly name; real SDK all includes unverified while totp is empty; shipped retry replaced stale factor and returned a real QR and gateway challenge"
+  ],
+  "disposableRemoved": true,
+  "customerDataChanged": false,
+  "secretsLogged": false,
+  "scope": "Real renderer functions, installed Supabase SDKs, production Auth and deployed Edge challenge; only disposable account."
+}

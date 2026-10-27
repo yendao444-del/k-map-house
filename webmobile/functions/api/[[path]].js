@@ -1,8 +1,15 @@
 // Same-origin gateway. Provider keys and the Supabase service key stay on backend.
 export async function onRequest({ request, env, params }) {
   const path = Array.isArray(params.path) ? params.path.join('/') : params.path
-  const json = (status, body) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } })
-  if (!['health', 'meter-ocr', 'demo-payments', 'auth'].includes(path)) return json(404, { ok: false, reason: 'Không tìm thấy API.' })
+  const securityHeaders = {
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+  }
+  const json = (status, body) => Response.json(body, { status, headers: { ...securityHeaders, 'Cache-Control': 'no-store' } })
+  if (!['health', 'meter-ocr', 'demo-payments', 'tenant-payments', 'auth'].includes(path)) return json(404, { ok: false, reason: 'Không tìm thấy API.' })
   if (request.method !== (path === 'health' ? 'GET' : 'POST')) return json(405, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
   const origin = request.headers.get('origin')
   if (origin && origin !== new URL(request.url).origin) return json(403, { ok: false, reason: 'Không cho phép truy cập.' })
@@ -16,7 +23,9 @@ export async function onRequest({ request, env, params }) {
   try {
     let body
     if (request.method === 'POST') {
-      if (!request.headers.get('content-type')?.startsWith('application/json')) return json(415, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
+      const contentType = request.headers.get('content-type') || ''
+      const binaryMeterUpload = path === 'meter-ocr' && contentType.startsWith('multipart/form-data;')
+      if (!binaryMeterUpload && !contentType.startsWith('application/json')) return json(415, { ok: false, reason: 'Yêu cầu không hợp lệ.' })
       const limit = path === 'meter-ocr' ? 4_100_000 : 8192
       const reader = request.body?.getReader(), chunks = []; let size = 0
       if (reader) while (true) {
@@ -27,8 +36,18 @@ export async function onRequest({ request, env, params }) {
       body = new Uint8Array(size); let offset = 0
       for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength }
     }
-    const result = await fetch(env.WEBMOBILE_EDGE_URL, { method: request.method, headers: { Authorization: `Bearer ${env.WEBMOBILE_GATEWAY_SECRET}`, 'Content-Type': 'application/json', 'x-webmobile-endpoint': path, 'x-webmobile-session': session, 'x-webmobile-ip': ip, 'x-webmobile-auth-session': authSession }, body, signal: AbortSignal.timeout(25000) })
-    const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Set-Cookie': `__Host-webmobile-demo=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400` })
+    const result = await fetch(env.WEBMOBILE_EDGE_URL, { method: request.method, headers: { Authorization: `Bearer ${env.WEBMOBILE_GATEWAY_SECRET}`, ...(request.method === 'POST' ? { 'Content-Type': request.headers.get('content-type') || 'application/json' } : {}), 'x-webmobile-endpoint': path, 'x-webmobile-session': session, 'x-webmobile-ip': ip, 'x-webmobile-auth-session': authSession }, body, signal: AbortSignal.timeout(25000) })
+    const headers = new Headers({ ...securityHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Set-Cookie': `__Host-webmobile-demo=${session}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=86400` })
+    if (path === 'health') {
+      const data = await result.json()
+      // Health is public. Do not expose provider, tenant data or payment flags.
+      headers.delete('Set-Cookie')
+      return new Response(JSON.stringify({
+        ok: result.ok && data.ok === true,
+        backend: result.ok && data.backend === 'online' ? 'online' : 'unavailable',
+        ocrConfigured: data.ocrConfigured === true
+      }), { status: result.status, headers })
+    }
     if (path === 'auth') {
       const data = await result.json()
       const action = JSON.parse(new TextDecoder().decode(body)).action

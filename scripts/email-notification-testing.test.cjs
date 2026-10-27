@@ -28,8 +28,8 @@ test('every type and scenario has labelled sample mail and simulation never touc
       const c = make(type, scenario.id)
       assert.match(c.mail.subject, /^\[KIỂM THỬ\]/)
       assert.match(c.mail.html, /Dữ liệu giả/)
-      assert.match(c.mail.html, /max-width:528px/)
-      assert.match(c.mail.html, /border-top:6px solid/)
+      assert.match(c.mail.html, /max-width:600px/)
+      assert.match(c.mail.html, /<img src="cid:/)
       assert.match(c.mail.html, /font-family:Arial,Helvetica,sans-serif/)
       assert.match(c.mail.html, /aria-label="Thông tin (thanh toán|thông báo)"/)
       assert.match(c.mail.html, /&lt;Receiver&gt;/)
@@ -127,16 +127,16 @@ test('template-only types never report a working real notification flow', () => 
 
 test('semantic colors distinguish review, debt, information and reminders without false success', () => {
   for (const [type, scenario, color] of [
-    ['sepay_matched', 'partial', '#00765a'],
-    ['sepay_unmatched', 'partial', '#c81e25'],
-    ['sepay_unmatched', 'awaiting', '#1d4ed8'],
-    ['sepay_unmatched', 'recorded', '#00765a'],
-    ['rent_overdue', 'old_debt', '#b45309'],
-    ['rent_overdue', 'paid', '#00765a'],
-    ['rent_long_unpaid', 'sample', '#b45309'],
-    ['invoices_services', 'sample', '#1d4ed8'],
-    ['contract_expiring', 'sample', '#6d28d9']
-  ]) assert.ok(make(type, scenario).mail.html.includes('border-top:6px solid ' + color), `${type}/${scenario}`)
+    ['sepay_matched', 'partial', '08-da-ghi-nhan-mot-phan'],
+    ['sepay_unmatched', 'partial', '05-chuyen-thieu'],
+    ['sepay_unmatched', 'awaiting', '09-hoa-don-va-dich-vu'],
+    ['sepay_unmatched', 'recorded', '02-thanh-toan-thanh-cong'],
+    ['rent_overdue', 'old_debt', '12-nhac-no-cu'],
+    ['rent_overdue', 'paid', '02-thanh-toan-thanh-cong'],
+    ['rent_long_unpaid', 'sample', '11-lau-chua-thanh-toan'],
+    ['invoices_services', 'sample', '09-hoa-don-va-dich-vu'],
+    ['contract_expiring', 'sample', '14-hop-dong-sap-het-han']
+  ]) assert.ok(make(type, scenario).mail.html.includes('cid:' + color + '@ankhanghome'), `${type}/${scenario}`)
   assert.doesNotMatch(make('sepay_unmatched', 'awaiting').mail.html, /Giao dịch chưa khớp|CẦN ĐỐI SOÁT/)
   assert.doesNotMatch(make('sepay_unmatched', 'recorded').mail.html, /Giao dịch chưa khớp|CẦN ĐỐI SOÁT/)
 })

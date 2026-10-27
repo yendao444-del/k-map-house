@@ -1,4 +1,5 @@
 import type { AppUser, Invoice } from './db'
+import type { InvoiceEmailLine } from '../../../shared/notification-email-layout'
 import {
   findInvoiceTransferMatches,
   normalizeTransferText,
@@ -22,9 +23,12 @@ export type SepayEmailEvent = {
   content?: string
   remaining?: number
   recipientName?: string
-  invoiceLines?: Array<{ label: string; amount: number }>
+  invoiceLines?: InvoiceEmailLine[]
   invoiceTotal?: number
   paidAmount?: number
+  audience?: 'tenant' | 'landlord'
+  reviewStatus?: 'unmatched' | 'partial' | 'over' | 'ambiguous'
+  expectedAmount?: number
 }
 
 export const sepayEmailKey = (event: SepayEmailEvent, userId: string): string =>
@@ -91,13 +95,17 @@ export function evaluateSepayNotificationTransaction(
       type: 'sepay_unmatched',
       transactionKey: tx.reference_number || tx.id,
       amount,
-      content: tx.transaction_content
+      content: tx.transaction_content,
+      reviewStatus: status,
+      expectedAmount: matches.length === 1 ? Math.max(0, matches[0].total_amount - matches[0].paid_amount) : undefined
     }
   }
 }
 
 export function buildSepayEmail(event: SepayEmailEvent): { subject: string; html: string } {
   if (event.type === 'sepay_matched') return buildPaymentSuccessEmail(event)
+  const state = event.reviewStatus || 'unmatched'
+  const title = state === 'partial' ? 'Chuyển thiếu cần đối soát' : state === 'over' ? 'Chuyển dư cần đối soát' : state === 'ambiguous' ? 'Khớp nhiều hóa đơn' : 'Giao dịch chưa khớp'
   const rows: Array<[string, string]> = [
     ['Mã giao dịch', event.transactionKey],
     ['Trạng thái', 'Cần đối soát'],
@@ -106,16 +114,24 @@ export function buildSepayEmail(event: SepayEmailEvent): { subject: string; html
   if (event.roomName) rows.push(['Phòng', event.roomName])
   if (event.month && event.year) rows.push(['Hóa đơn tham chiếu', event.month + '/' + event.year])
   if (event.content) rows.push(['Nội dung chuyển khoản', event.content])
+  if (event.expectedAmount !== undefined && ['partial', 'over'].includes(state)) {
+    rows.push(['Cần thanh toán', new Intl.NumberFormat('vi-VN').format(event.expectedAmount) + ' đ'], ['Đã chuyển', new Intl.NumberFormat('vi-VN').format(event.amount) + ' đ'])
+  }
   return {
     subject:
       '[AN KHANG HOME] Giao dịch SePay cần đối soát' +
       (event.roomName ? ' · ' + event.roomName : ''),
     html: buildNotificationEmailLayout({
-      title: 'Giao dịch chưa khớp',
+      title,
+      template: state === 'partial' ? '05-chuyen-thieu' : state === 'over' ? '06-chuyen-du' : state === 'ambiguous' ? '07-khop-nhieu-hoa-don' : '04-giao-dich-chua-khop',
       tone: 'danger',
       recipientName: event.recipientName,
-      introduction: 'Hệ thống nhận được giao dịch nhưng chưa khớp với hóa đơn phòng.',
+      introduction: state === 'partial' ? 'Giao dịch có đúng mã hóa đơn nhưng số tiền chuyển còn thiếu. Chưa tự động ghi nhận thanh toán.'
+        : state === 'over' ? 'Số tiền chuyển lớn hơn số tiền cần thanh toán. Vui lòng đối soát phần dư trước khi ghi nhận.'
+        : state === 'ambiguous' ? 'Nội dung giao dịch có nhiều mã hóa đơn. Hệ thống chưa xác định được hóa đơn nhận tiền.'
+        : 'Hệ thống nhận được giao dịch nhưng chưa khớp với hóa đơn phòng.',
       highlight: new Intl.NumberFormat('vi-VN').format(event.amount) + ' đ',
+      highlightLabel: 'Số tiền nhận được',
       rows,
       remaining: event.remaining,
       conclusion:
