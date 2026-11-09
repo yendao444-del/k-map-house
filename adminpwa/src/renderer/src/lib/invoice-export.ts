@@ -1,6 +1,7 @@
 import type { Invoice, Room, Tenant, AppSettings } from './db'
 import { isDepositOnlyInvoice } from './invoice-kind'
 import { buildInvoiceTransferDescription } from './invoiceTransfer'
+import { tryVietQrSvgDataUrl } from '../../../shared/vietqr'
 
 const formatVND = (v: number) => new Intl.NumberFormat('vi-VN').format(v)
 const INVOICE_EXPORT_MARKER = '[INVOICE_EXPORTED]'
@@ -246,6 +247,10 @@ export const buildInvoiceDetailExportHtml = (
     remaining > 0 && settings.account_no && settings.bank_id
       ? buildInvoiceTransferDescription(invoice, room?.name)
       : ''
+  // Encoded locally from the exact printed amount and content; no remote image.
+  const qrSrc = transferDes
+    ? tryVietQrSvgDataUrl({ bankId: settings.bank_id || '', accountNo: settings.account_no || '', amount: remaining, description: transferDes })
+    : null
 
   return `<!doctype html>
 <html>
@@ -457,7 +462,7 @@ export const buildInvoiceDetailExportHtml = (
           transferDes
             ? `
           <div class="qr">
-            <div class="qr-box"><img src="https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id || '')}&acc=${encodeURIComponent(settings.account_no || '')}&amount=${encodeURIComponent(String(remaining))}&des=${encodeURIComponent(transferDes)}" alt="VietQR" /></div>
+            <div class="qr-box">${qrSrc ? `<img src="${qrSrc}" alt="VietQR" />` : '<div style="padding:12px;font-size:11px;font-weight:700;color:#b91c1c;text-align:center">Chưa tạo được QR. Chuyển khoản theo thông tin bên cạnh.</div>'}</div>
             <div class="qr-info">
               <div class="qr-title">Quét mã để thanh toán</div>
               <div class="qr-grid">

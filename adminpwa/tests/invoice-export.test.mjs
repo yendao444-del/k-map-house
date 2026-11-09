@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 async function load(name) {
-  const { outputFiles } = await build({ entryPoints: [fileURLToPath(new URL(`../src/renderer/src/lib/${name}.ts`, import.meta.url))], bundle: true, write: false, platform: 'node', format: 'esm' })
+  const { outputFiles } = await build({ entryPoints: [fileURLToPath(new URL(`../src/renderer/src/lib/${name}.ts`, import.meta.url))], bundle: true, write: false, platform: 'browser', format: 'esm' })
   return import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`)
 }
 const selection = await load('invoice-export-selection')
@@ -59,4 +59,25 @@ test('detail and list use the same standalone invoice template', async () => {
   const code = await readFile(new URL('../src/renderer/src/components/InvoiceDetailModal.tsx', import.meta.url), 'utf8')
   assert.match(code, /buildInvoiceDetailExportHtml/)
   assert.doesNotMatch(code, /content\.innerHTML/)
+})
+const vietqr = await (async () => {
+  const { outputFiles } = await build({ entryPoints: [fileURLToPath(new URL('../src/shared/vietqr.ts', import.meta.url))], bundle: true, write: false, platform: 'browser', format: 'esm' })
+  return import(`data:text/javascript;base64,${Buffer.from(outputFiles[0].text).toString('base64')}`)
+})()
+test('QR is generated locally from exactly the printed amount and transfer content', () => {
+  const settings = { property_address: 'Test', bank_id: 'BIDV', account_no: '96247Q3PE9', account_name: 'X' }
+  const html = renderer.buildInvoiceDetailExportHtml(invoice, { name: 'Phòng 331', base_rent: 2900000 }, { full_name: 'A', phone: '' }, settings, 'data:image/png;base64,AA', 'data:image/png;base64,AA')
+  assert.doesNotMatch(html, /qr\.sepay\.vn/)
+  const printed = html.match(/Nội dung: <span class="bold">([^<]+)</)[1]
+  const src = html.match(/<img src="(data:image\/svg\+xml;base64,[^"]+)" alt="VietQR"/)[1]
+  assert.equal(src, vietqr.vietQrSvgDataUrl({ bankId: 'BIDV', accountNo: '96247Q3PE9', amount: 3420000, description: printed }))
+})
+test('unsupported bank shows a warning instead of any QR', () => {
+  const html = renderer.buildInvoiceDetailExportHtml(invoice, { name: 'Phòng 331', base_rent: 2900000 }, { full_name: 'A', phone: '' }, { bank_id: 'UNKNOWN', account_no: '96247Q3PE9' }, 'data:image/png;base64,AA', 'data:image/png;base64,AA')
+  assert.doesNotMatch(html, /alt="VietQR"/)
+  assert.match(html, /Chưa tạo được QR/)
+})
+test('image export keys inlined images by full URL so each invoice keeps its own QR', async () => {
+  const source = await readFile(new URL('../src/renderer/src/platform/export-image.ts', import.meta.url), 'utf8')
+  assert.match(source, /includeQueryParams: true/)
 })

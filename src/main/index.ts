@@ -300,6 +300,8 @@ async function waitForWebContentsReady(
   const ready = webContents.executeJavaScript(`
     (async () => {
       if (document.fonts?.ready) await document.fonts.ready
+      // Never capture an invoice before its QR/logo images have decoded.
+      await Promise.all(Array.from(document.images).map((image) => image.decode().catch(() => undefined)))
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     })()
   `)
@@ -307,7 +309,7 @@ async function waitForWebContentsReady(
 }
 
 function secureExportHtml(html: string): string {
-  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src data: blob: file: https://qr.sepay.vn; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'"
+  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src data: blob: file:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'"
   if (!/<head(?:\s[^>]*)?>/i.test(html)) throw new Error('Nội dung tài liệu thiếu phần head.')
   return html.replace(/<head(?:\s[^>]*)?>/i, (head) =>
     `${head}<meta http-equiv="Content-Security-Policy" content="${csp}">`

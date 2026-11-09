@@ -25,8 +25,11 @@ export async function invoiceImage(payload: { html: string; fileName: string }):
     // dimensions, independent of the phone viewport and surrounding page.
     const width = Math.ceil(target.getBoundingClientRect().width)
     const height = Math.ceil(target.getBoundingClientRect().height)
+    // html-to-image caches inlined images by URL WITHOUT the query string by
+    // default, so every qr.sepay.vn/img?amount=…&des=… QR shared one key and
+    // later invoices reused the first invoice's QR (wrong amount and content).
     const blob = await toBlob(target, {
-      width, height, pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true,
+      width, height, pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, includeQueryParams: true,
       style: { margin: '0', transform: 'none' }
     })
     if (!blob) throw new Error('Không thể tạo ảnh hóa đơn.')

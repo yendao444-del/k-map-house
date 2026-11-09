@@ -1,15 +1,17 @@
 type Config = { supabaseUrl: string; anonKey: string; serviceKey: string; gatewaySecret: string; resendApiKey?: string; mailFrom?: string }
 const loginError = 'Tên đăng nhập hoặc mật khẩu không đúng, hoặc tài khoản không được phép truy cập.'
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
-const securityActions = new Set(['status','password_status','password_confirm','password_change','totp_challenge','totp_verify','totp_replace_begin','totp_replace_register','totp_replace_cancel','totp_retire','email_send','email_verify','recovery_issue','recovery_ack','recovery_consume','recovery_reset','authorize','revoke_session','device_create','device_revoke','overview'])
+const securityActions = new Set(['status','password_status','password_confirm','password_change','totp_challenge','totp_verify','totp_replace_begin','totp_replace_register','totp_replace_cancel','totp_retire','email_send','email_verify','recovery_issue','recovery_ack','recovery_consume','recovery_reset','authorize','revoke_session','device_create','device_revoke','overview','beneficiary_start','beneficiary_confirm'])
 const fields: Record<string, string[]> = {
   status: [], password_status: [], password_confirm: ['password'], password_change: ['password','new_password'], totp_challenge: ['factor_id'],
   totp_verify: ['factor_id','challenge_id','code'], totp_retire: ['old_factor_id','new_factor_id'], email_send: ['purpose'],
   totp_replace_begin: ['factor_id'], totp_replace_register: ['factor_id'], totp_replace_cancel: [],
   email_verify: ['purpose','challenge_id','code'], recovery_issue: [], recovery_ack: ['batch_id'],
   recovery_consume: ['code'], recovery_reset: [], authorize: [], revoke_session: ['all'],
-  device_create: ['label'], device_revoke: ['device_id'], overview: []
+  device_create: ['label'], device_revoke: ['device_id'], overview: [],
+  beneficiary_start: ['factor_id','code','bank_id','account_no','account_name'], beneficiary_confirm: ['challenge_id','code']
 }
+const beneficiaryBanks = new Set(['VCB','MBBANK','TCB','ACB','BIDV','VPB','TPB','AGRIBANK','SHB','OCB','MSB','VIB','HDB','SCB','SACOMBANK','EXIMBANK'])
 
 async function boundedBody(request: Request): Promise<string> {
   const reader = request.body?.getReader()
@@ -236,6 +238,67 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
         ? (await call('/rest/v1/rpc/security_email_login_verify', { p_user: subject, p_session: sessionId, p_ip: ip, p_agent: agentHash, p_challenge: data.challenge_id, p_code_hash: codeHash })).data
         : await rpc('email_verify', { purpose: data.purpose, challenge_id: data.challenge_id, code_hash: codeHash })
       return reply(result?.ok === true ? 200 : 401, { ok: result?.ok === true, ...(result?.ok !== true ? { error: 'Mã xác minh không đúng hoặc đã hết hạn.' } : {}) })
+    }
+    // Payment beneficiary: Authenticator code verified HERE (fresh, this
+    // session) AND a one-time code to the admin's own login mailbox. The DB
+    // trigger rejects every other path that changes bank/account/name.
+    if (action === 'beneficiary_start') {
+      const bank = String(data.bank_id || ''), account = String(data.account_no || ''), name = String(data.account_name || '')
+      if (typeof data.factor_id !== 'string' || !uuid.test(data.factor_id) || typeof data.code !== 'string' || !/^\d{6}$/.test(data.code)
+        || !beneficiaryBanks.has(bank) || !/^[A-Za-z0-9]{4,19}$/.test(account) || !/^[A-Z][A-Z ]{0,58}[A-Z]$/.test(name)) return reply(400, { ok: false, error: 'Thông tin tài khoản hoặc mã Authenticator không hợp lệ.' })
+      if (!config.resendApiKey || !config.mailFrom || !verified.data.email || !verified.data.email_confirmed_at) return reply(503, { ok: false, error: 'Email xác minh tài khoản chưa sẵn sàng.' })
+      if (!await rate('totp')) return reply(429, { ok: false, error: 'Bạn thử quá nhiều lần. Vui lòng chờ rồi thử lại.' })
+      const fresh = await call(`/auth/v1/factors/${data.factor_id}/challenge`, {}, config.anonKey, accessToken)
+      if (!fresh.response.ok || typeof fresh.data?.id !== 'string') return reply(503, { ok: false, error: 'Chưa tạo được phiên xác minh. Vui lòng thử lại.' })
+      const totp = await call(`/auth/v1/factors/${data.factor_id}/verify`, { challenge_id: fresh.data.id, code: data.code }, config.anonKey, accessToken)
+      if (!totp.response.ok) { await rpc('mfa_event', { success: false }); return reply(401, { ok: false, error: 'Mã Authenticator không đúng hoặc đã hết hạn.' }) }
+      const totpClaims = decodeJwt(totp.data?.access_token || '')
+      if (totpClaims?.sub !== subject || totpClaims?.session_id !== sessionId || totpClaims?.aal !== 'aal2') throw new Error('invalid-mfa-session')
+      await rpc('mfa_event', { success: true })
+      const session = { access_token: totp.data.access_token, refresh_token: totp.data.refresh_token }
+      if (!await rate('email_send')) return reply(429, { ok: false, session, error: 'Bạn gửi mã quá nhiều lần. Vui lòng chờ.' })
+      const challengeId = crypto.randomUUID()
+      // Six digits from uniform rejection sampling, never Math.random().
+      const random = new Uint32Array(1)
+      do { crypto.getRandomValues(random) } while (random[0] >= 4294000000)
+      const code = String(random[0] % 1000000).padStart(6, '0')
+      const codeHash = await emailCodeHash(challengeId, `beneficiary:${code}`)
+      const created = (await call('/rest/v1/rpc/security_beneficiary_start', { p_user: subject, p_session: sessionId, p_ip: ip, p_agent: agentHash, p_challenge: challengeId, p_code_hash: codeHash, p_bank_id: bank, p_account_no: account, p_account_name: name })).data
+      if (created?.ok !== true) {
+        const reasons: Record<string, string> = { wait: 'Vui lòng chờ một phút trước khi yêu cầu lại.', unchanged: 'Thông tin người thụ hưởng không thay đổi.', role: 'Chỉ quản trị viên được đổi người thụ hưởng.', input: 'Thông tin tài khoản không hợp lệ.' }
+        return reply(created?.reason === 'wait' ? 429 : 403, { ok: false, session, error: reasons[String(created?.reason)] || 'Phiên bảo mật chưa đủ điều kiện đổi người thụ hưởng. Hãy đăng nhập lại.' })
+      }
+      const old = created.old || {}
+      const delivered = await fetcher('https://api.resend.com/emails', {
+        method: 'POST', headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `beneficiary-${challengeId}` },
+        body: JSON.stringify({ from: config.mailFrom, to: [verified.data.email], subject: '[AN KHANG HOME] Xác nhận ĐỔI tài khoản nhận tiền', text: `Mã xác nhận đổi tài khoản nhận tiền: ${code}\n\nTài khoản hiện tại: ${old.bank_id || '-'} · ${old.account_no || '-'} · ${old.account_name || '-'}\nTài khoản MỚI: ${bank} · ${account} · ${name}\n\nMã hết hạn sau 10 phút. Nếu KHÔNG phải bạn yêu cầu, đừng nhập mã; hãy đổi mật khẩu và Authenticator ngay.` }),
+        signal: AbortSignal.timeout(12000)
+      }).catch(() => null)
+      const accepted = delivered?.ok ? await delivered.json().catch(() => null) : null
+      const recorded = uuid.test(String(accepted?.id || '')) ? await call('/rest/v1/rpc/security_beneficiary_delivery', { p_challenge: challengeId, p_user: subject, p_session: sessionId, p_provider: accepted.id }) : null
+      if (!recorded?.response.ok || recorded.data !== true) {
+        await call('/rest/v1/rpc/security_beneficiary_delivery', { p_challenge: challengeId, p_user: subject, p_session: sessionId, p_provider: null })
+        return reply(503, { ok: false, session, error: 'Chưa gửi được email xác nhận. Hãy thử lại sau.' })
+      }
+      const email = String(verified.data.email), at = email.indexOf('@')
+      return reply(200, { ok: true, session, challenge_id: challengeId, expires_in: 600, masked_email: email.slice(0, 1) + '***' + email.slice(at) })
+    }
+    if (action === 'beneficiary_confirm') {
+      if (typeof data.challenge_id !== 'string' || !uuid.test(data.challenge_id) || typeof data.code !== 'string' || !/^\d{6}$/.test(data.code)) return reply(400, { ok: false })
+      if (!await rate('email_verify')) return reply(429, { ok: false, error: 'Bạn thử quá nhiều lần. Vui lòng chờ.' })
+      const codeHash = await emailCodeHash(data.challenge_id, `beneficiary:${data.code}`)
+      const result = (await call('/rest/v1/rpc/security_beneficiary_confirm', { p_user: subject, p_session: sessionId, p_ip: ip, p_agent: agentHash, p_challenge: data.challenge_id, p_code_hash: codeHash })).data
+      if (result?.ok !== true) return reply(401, { ok: false, error: result?.reason === 'stale' ? 'Người thụ hưởng vừa bị thay đổi ở nơi khác. Hãy tải lại và làm lại từ đầu.' : 'Mã email không đúng, đã hết hạn hoặc phiên đã thay đổi.' })
+      // Every active admin is told, so a hijacked admin account cannot change it silently.
+      const admins = Array.isArray(result.admins) ? result.admins.filter((item: unknown) => typeof item === 'string') : []
+      if (admins.length && config.resendApiKey && config.mailFrom) {
+        await fetcher('https://api.resend.com/emails', {
+          method: 'POST', headers: { Authorization: `Bearer ${config.resendApiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `beneficiary-alert-${data.challenge_id}` },
+          body: JSON.stringify({ from: config.mailFrom, to: admins, subject: '[AN KHANG HOME] CẢNH BÁO: Tài khoản nhận tiền đã được đổi', text: `Tài khoản nhận tiền trên mọi hóa đơn/QR vừa được đổi bởi ${verified.data.email}.\n\nCũ: ${result.old?.bank_id || '-'} · ${result.old?.account_no || '-'} · ${result.old?.account_name || '-'}\nMới: ${result.new?.bank_id} · ${result.new?.account_no} · ${result.new?.account_name}\n\nNếu đây không phải thay đổi bạn mong muốn, khóa tài khoản quản trị liên quan ngay.` }),
+          signal: AbortSignal.timeout(12000)
+        }).catch(() => null)
+      }
+      return reply(200, { ok: true, beneficiary: result.new })
     }
     if (action === 'recovery_consume') {
       if (typeof data.code !== 'string' || !/^[A-Fa-f0-9-]{32,35}$/.test(data.code)) return reply(400, { ok: false })

@@ -15,6 +15,9 @@ function harness(options = {}) {
     const body = init.body ? JSON.parse(init.body) : null
     if (url.endsWith('/auth/v1/user')) return Response.json({ id: options.user ?? uid, email: 'auth-identity@example.invalid', email_confirmed_at: '2026-10-09' }, { status: options.authStatus ?? 200 })
     if (url.endsWith('/rpc/security_email_accepted')) return Response.json(options.recordFailed ? false : true)
+    if (url.endsWith('/rpc/security_beneficiary_start')) return Response.json(options.beneficiaryStart ?? { ok: true, old: { bank_id: 'BIDV', account_no: '96247Q3PE9', account_name: 'DO KIM NGAN' } })
+    if (url.endsWith('/rpc/security_beneficiary_delivery')) return Response.json(body.p_provider ? !options.recordFailed : false)
+    if (url.endsWith('/rpc/security_beneficiary_confirm')) return Response.json(options.beneficiaryConfirm ?? { ok: true, admins: ['a@example.invalid', 'b@example.invalid'], old: { account_no: '96247Q3PE9' }, new: { bank_id: 'VCB', account_no: '12345678', account_name: 'NEW OWNER' } })
     if (url.endsWith('/rpc/security_email_login_start')) return Response.json({ ok: options.emailEligible !== false, reason: 'unavailable' })
     if (url.endsWith('/rpc/security_email_login_verify')) return Response.json({ ok: options.emailValid !== false })
     if (url.endsWith('/rpc/security_email_login_status')) return Response.json({ ok: options.emailProof === true })
@@ -182,4 +185,47 @@ test('overview reads use verified login without fresh OTP; AAL1 and unapproved s
   const a=harness();assert.equal((await a.run('overview')).status,403)
   assert.ok(!a.calls.some(c=>c.url.endsWith('/rpc/security_overview_read')))
   assert.equal((await harness({overview:false}).run('overview',{},jwt('aal2'))).status,403)
+})
+
+const beneficiary = { factor_id: factor, code: '123456', bank_id: 'VCB', account_no: '12345678', account_name: 'NEW OWNER' }
+test('beneficiary change verifies Authenticator BEFORE creating the request and mails the code with old and new account', async () => {
+  const h = harness()
+  const response = await h.run('beneficiary_start', beneficiary)
+  assert.equal(response.status, 200)
+  const order = h.calls.map(c => c.url.replace(config.supabaseUrl, ''))
+  assert.ok(order.findIndex(u => u.endsWith('/verify')) < order.findIndex(u => u.endsWith('/rpc/security_beneficiary_start')))
+  const mail = JSON.parse(h.calls.find(c => c.url === 'https://api.resend.com/emails').init.body)
+  assert.deepEqual(mail.to, ['auth-identity@example.invalid'])
+  assert.match(mail.text, /96247Q3PE9/); assert.match(mail.text, /12345678/); assert.match(mail.text, /[0-9]{6}/)
+  const start = JSON.parse(h.calls.find(c => c.url.endsWith('/rpc/security_beneficiary_start')).init.body)
+  assert.doesNotMatch(JSON.stringify(start), new RegExp(mail.text.match(/: (\d{6})/)[1] + '"'))
+  assert.match(start.p_code_hash, /^[a-f0-9]{64}$/)
+})
+test('wrong Authenticator code never creates a beneficiary request or sends mail', async () => {
+  const h = harness({ totp: false })
+  assert.equal((await h.run('beneficiary_start', beneficiary)).status, 401)
+  assert.ok(!h.calls.some(c => c.url.endsWith('/rpc/security_beneficiary_start') || c.url === 'https://api.resend.com/emails'))
+})
+test('beneficiary input outside the bank allow-list or format is rejected before any Auth call', async () => {
+  for (const bad of [{ bank_id: 'EVIL' }, { account_no: '12 34' }, { account_name: 'do kim ngan' }, { code: '12345' }, { factor_id: 'x' }]) {
+    const h = harness()
+    assert.equal((await h.run('beneficiary_start', { ...beneficiary, ...bad })).status, 400)
+    assert.ok(!h.calls.some(c => c.url.includes('/factors/')))
+  }
+})
+test('mail delivery failure closes the request', async () => {
+  const h = harness({ mailFailed: true })
+  assert.equal((await h.run('beneficiary_start', beneficiary)).status, 503)
+  assert.ok(h.calls.some(c => c.url.endsWith('/rpc/security_beneficiary_delivery') && JSON.parse(c.init.body).p_provider === null))
+})
+test('beneficiary confirm hashes the email code, applies only on server approval, and alerts every admin', async () => {
+  const h = harness()
+  assert.equal((await h.run('beneficiary_confirm', { challenge_id: challenge, code: '908172' }, jwt('aal2'))).status, 200)
+  const confirm = JSON.parse(h.calls.find(c => c.url.endsWith('/rpc/security_beneficiary_confirm')).init.body)
+  assert.match(confirm.p_code_hash, /^[a-f0-9]{64}$/); assert.doesNotMatch(JSON.stringify(confirm), /908172/)
+  const alert = JSON.parse(h.calls.find(c => c.url === 'https://api.resend.com/emails').init.body)
+  assert.deepEqual(alert.to, ['a@example.invalid', 'b@example.invalid'])
+  const denied = harness({ beneficiaryConfirm: { ok: false } })
+  assert.equal((await denied.run('beneficiary_confirm', { challenge_id: challenge, code: '908172' }, jwt('aal2'))).status, 401)
+  assert.ok(!denied.calls.some(c => c.url === 'https://api.resend.com/emails'))
 })

@@ -243,3 +243,28 @@ export async function issueRecoveryCodes(): Promise<string[]> {
   return (await issueRecoveryBundle()).codes
 }
 
+
+export type Beneficiary = { bank_id: string; account_no: string; account_name: string }
+
+/** Step 1 of a payment-beneficiary change: fresh Authenticator code, then the
+ * server mails a one-time code (with old and new account) to the login Gmail. */
+export async function startBeneficiaryChange(next: Beneficiary, totpCode: string): Promise<{ challengeId: string; maskedEmail: string }> {
+  const factor = (await listTotpFactors()).find(item => item.status === 'verified')
+  if (!factor) throw new Error('Cần bật Google Authenticator trước khi đổi tài khoản nhận tiền.')
+  const result = await securityCall('beneficiary_start', { factor_id: factor.id, code: totpCode.trim(), ...next })
+  const session = result.session as { access_token?: unknown; refresh_token?: unknown } | undefined
+  if (typeof session?.access_token !== 'string' || typeof session.refresh_token !== 'string' || typeof result.challenge_id !== 'string') {
+    throw new Error('Phiên xác minh không hợp lệ. Vui lòng thử lại.')
+  }
+  const { error } = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
+  if (error) throw new Error('Không thể hoàn tất phiên xác minh. Vui lòng thử lại.')
+  return { challengeId: result.challenge_id, maskedEmail: typeof result.masked_email === 'string' ? result.masked_email : 'email đăng nhập' }
+}
+
+/** Step 2: the Gmail code. Only the server applies the change, never the client. */
+export async function confirmBeneficiaryChange(challengeId: string, emailCode: string): Promise<Beneficiary> {
+  const result = await securityCall('beneficiary_confirm', { challenge_id: challengeId, code: emailCode.trim() })
+  const saved = result.beneficiary as Beneficiary | undefined
+  if (!saved || typeof saved.account_no !== 'string') throw new Error('Máy chủ chưa xác nhận người thụ hưởng mới.')
+  return saved
+}

@@ -55,6 +55,7 @@ import { normalizeEmailNotificationPreferences } from '../lib/email-notification
 import TenantWebAccountsTab from './TenantWebAccountsTab'
 import { confirmSensitivePassword } from '../lib/mfa'
 import { usePasswordConfirmation } from './PasswordConfirmationDialog'
+import { useBeneficiaryChange } from './BeneficiaryChangeDialog'
 
 type SettingsSection = 'general' | 'zones' | 'users' | 'tenant-accounts' | 'account' | 'updates'
 
@@ -111,7 +112,7 @@ export const SettingsTab: React.FC<{ initialTab?: SettingsSection; currentUser: 
       </div>
 
       <div className="relative flex-1 overflow-y-auto bg-white">
-        {activeTab === 'general' && <GeneralSettingsSafe />}
+        {activeTab === 'general' && <GeneralSettingsSafe canEditPayment={currentUser.role === 'admin'} />}
         {activeTab === 'zones' && <ServiceZonesSettings />}
         {activeTab === 'users' && currentUser.role === 'admin' && <UsersSettingsPanel currentUser={currentUser} />}
         {activeTab === 'tenant-accounts' && currentUser.role === 'admin' && <TenantWebAccountsTab />}
@@ -154,24 +155,24 @@ function buildVietQrFallbackUrl(bankId: string, accountNo: string, accountName: 
   return url.toString()
 }
 
-const GeneralSettingsSafe = (): React.JSX.Element => {
+const GeneralSettingsSafe = ({ canEditPayment }: { canEditPayment: boolean }): React.JSX.Element => {
   const { requirePassword, passwordConfirmation } = usePasswordConfirmation()
+  const { requireBeneficiaryChange, beneficiaryDialog } = useBeneficiaryChange()
   const queryClient = useQueryClient()
   const [settings, setSettings] = useState<AppSettings>({})
   const [initialSettings, setInitialSettings] = useState<AppSettings>({})
   const [loading, setLoading] = useState(true)
   const [savingInfo, setSavingInfo] = useState(false)
   const [savingPayment, setSavingPayment] = useState(false)
-  const [savingBalance, setSavingBalance] = useState(false)
   const [savedInfo, setSavedInfo] = useState(false)
   const [savedPayment, setSavedPayment] = useState(false)
-  const [savedBalance, setSavedBalance] = useState(false)
   const [infoError, setInfoError] = useState('')
   const [paymentError, setPaymentError] = useState('')
-  const [balanceError, setBalanceError] = useState('')
   const [showBankDropdown, setShowBankDropdown] = useState(false)
   const [qrPreviewUrl, setQrPreviewUrl] = useState('')
   const [qrPreviewError, setQrPreviewError] = useState('')
+  const [showPaymentSecrets, setShowPaymentSecrets] = useState(false)
+  const [editingPayment, setEditingPayment] = useState(false)
   const propertyNameInputRef = useRef<HTMLInputElement | null>(null)
   const bankDropdownRef = useRef<HTMLDivElement | null>(null)
 
@@ -244,28 +245,6 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     [paymentSettings, initialPaymentSettings]
   )
 
-  const balanceSettings = useMemo(
-    () => ({
-      opening_balance_cash: settings.opening_balance_cash ?? 0,
-      opening_balance_bank: settings.opening_balance_bank ?? 0,
-      opening_balance_date: settings.opening_balance_date ?? '',
-    }),
-    [settings]
-  )
-
-  const initialBalanceSettings = useMemo(
-    () => ({
-      opening_balance_cash: initialSettings.opening_balance_cash ?? 0,
-      opening_balance_bank: initialSettings.opening_balance_bank ?? 0,
-      opening_balance_date: initialSettings.opening_balance_date ?? '',
-    }),
-    [initialSettings]
-  )
-
-  const hasBalanceChanges = useMemo(
-    () => JSON.stringify(balanceSettings) !== JSON.stringify(initialBalanceSettings),
-    [balanceSettings, initialBalanceSettings]
-  )
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -321,6 +300,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   }
 
   const handleSavePayment = async () => {
+    if (!canEditPayment) { setPaymentError('Chỉ admin mới được chỉnh sửa tài khoản nhận tiền.'); return }
     setPaymentError('')
     setQrPreviewError('')
     const bankId = (settings.bank_id || '').trim()
@@ -339,10 +319,21 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
 
     setSavingPayment(true)
     try {
-      await requirePassword('Lưu cấu hình tài khoản nhận tiền và SePay')
-      const savedPaymentSettings = { ...paymentSettings, account_name: accountName }
-      await updateAppSettings(savedPaymentSettings)
+      const savedPaymentSettings = { ...paymentSettings, account_no: accountNo, account_name: accountName }
+      const nextBeneficiary = { bank_id: bankId, account_no: accountNo, account_name: accountName }
+      const currentBeneficiary = {
+        bank_id: (initialSettings.bank_id || '').trim(),
+        account_no: (initialSettings.account_no || '').replace(/\s+/g, ''),
+        account_name: (initialSettings.account_name || '').trim()
+      }
+      // The beneficiary is never written from here: the database rejects it.
+      // Only the server applies it after Authenticator + Gmail verification.
+      if (JSON.stringify(nextBeneficiary) !== JSON.stringify(currentBeneficiary)) {
+        if (!bankId || !accountNo || !accountName) throw new Error('Không được xóa trống tài khoản nhận tiền.')
+        await requireBeneficiaryChange(currentBeneficiary, nextBeneficiary)
+      }
       if (sepayApiToken !== initialSepayApiToken) {
+        await requirePassword('Lưu API Token SePay')
         const tokenResult = await setSepayToken(sepayApiToken.startsWith('••') ? '' : sepayApiToken)
         if (!tokenResult.ok) throw new Error(tokenResult.error || 'Không thể lưu API Token SePay.')
       }
@@ -356,6 +347,8 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
       setInitialSettings((prev) => ({ ...prev, ...savedPaymentSettings, sepay_api_token: maskedToken }))
       setSettings((prev) => ({ ...prev, account_name: accountName, sepay_api_token: maskedToken }))
       setSavedPayment(true)
+      setEditingPayment(false)
+      setShowPaymentSecrets(false)
       setTimeout(() => setSavedPayment(false), 2500)
       if (bankId && accountNo && accountName) {
         setQrPreviewUrl(buildVietQrPreviewUrl(bankId, accountNo, accountName))
@@ -370,20 +363,6 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     }
   }
 
-  const handleSaveBalance = async () => {
-    setBalanceError('')
-    setSavingBalance(true)
-    try {
-      await updateAppSettings(balanceSettings)
-      setInitialSettings((prev) => ({ ...prev, ...balanceSettings }))
-      setSavedBalance(true)
-      setTimeout(() => setSavedBalance(false), 2500)
-    } catch (error) {
-      setBalanceError(error instanceof Error ? error.message : 'Không thể lưu.')
-    } finally {
-      setSavingBalance(false)
-    }
-  }
 
   const infoComplete = Boolean(
     infoSettings.property_name &&
@@ -392,8 +371,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
     infoSettings.property_address
   )
   const paymentComplete = Boolean(settings.bank_id && settings.account_no && settings.account_name)
-  const balanceComplete = Boolean(settings.opening_balance_date)
-  const completedGroups = [infoComplete, paymentComplete, balanceComplete].filter(Boolean).length
+  const completedGroups = [infoComplete, paymentComplete].filter(Boolean).length
 
   if (loading) {
     return (
@@ -406,6 +384,7 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-3 pb-20 md:p-6 md:pb-20">
       {passwordConfirmation}
+      {beneficiaryDialog}
       <header className="flex flex-col gap-4 px-1 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400">
@@ -414,20 +393,19 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
           </div>
           <h1 className="mt-2 text-2xl font-black tracking-[-0.03em] text-slate-900">Cấu hình hệ thống</h1>
           <p className="mt-1 text-xs text-slate-500">
-            Thiết lập thông tin nhà trọ, tài khoản nhận tiền và số dư đầu kỳ để hệ thống hoạt động chính xác.
+            Thiết lập thông tin nhà trọ và tài khoản nhận tiền để hệ thống hoạt động chính xác.
           </p>
         </div>
         <div className="flex items-center gap-3 self-start rounded-full border border-emerald-100 bg-emerald-50 px-3.5 py-2 text-xs font-bold text-emerald-700 lg:self-auto">
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          {completedGroups === 3 ? 'Đã đồng bộ' : `${completedGroups}/3 nhóm đã hoàn thiện`}
+          {completedGroups === 2 ? 'Đã đồng bộ' : `${completedGroups}/2 nhóm đã hoàn thiện`}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-2">
         {[
           { number: 1, label: 'Thông tin nhà trọ', complete: infoComplete, color: 'emerald' },
-          { number: 2, label: 'Tài khoản nhận tiền', complete: paymentComplete, color: 'violet' },
-          { number: 3, label: 'Số dư đầu kỳ', complete: balanceComplete, color: 'blue' }
+          { number: 2, label: 'Tài khoản nhận tiền', complete: paymentComplete, color: 'violet' }
         ].map((step) => (
           <div key={step.number} className="flex items-center gap-3 rounded-xl px-3 py-2.5">
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${step.complete
@@ -490,6 +468,35 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
             <h2 className="text-[15px] font-black text-slate-900">2. Tài khoản nhận tiền</h2>
             <p className="mt-0.5 text-[11px] text-slate-500">Cấu hình VietQR để hiển thị lên hóa đơn gửi khách.</p>
           </div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+          {!canEditPayment && (
+            <span className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-bold text-slate-500" title="Chỉ admin mới được chỉnh sửa tài khoản nhận tiền">
+              <i className="fa-solid fa-lock" /> Chỉ admin được chỉnh sửa
+            </span>
+          )}
+          {canEditPayment && !editingPayment && (
+            <button
+              type="button"
+              onClick={() => { setPaymentError(''); setSavedPayment(false); setShowPaymentSecrets(true); setEditingPayment(true) }}
+              aria-label="Chỉnh sửa tài khoản nhận tiền"
+              title="Chỉnh sửa tài khoản nhận tiền"
+              className="flex items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-violet-300"
+            >
+              <i className="fa-solid fa-pen-to-square" /> Chỉnh sửa
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowPaymentSecrets((value) => !value)}
+            aria-label={showPaymentSecrets ? 'Ẩn thông tin tài khoản nhận tiền' : 'Hiện thông tin tài khoản nhận tiền'}
+            aria-pressed={showPaymentSecrets}
+            title={showPaymentSecrets ? 'Ẩn thông tin tài khoản nhận tiền' : 'Hiện thông tin tài khoản nhận tiền'}
+            className="flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3.5 py-2 text-xs font-bold text-violet-700 shadow-sm transition hover:bg-violet-50 focus:outline-none focus:ring-2 focus:ring-violet-200"
+          >
+            <i className={showPaymentSecrets ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye'} />
+            {showPaymentSecrets ? 'Ẩn thông tin' : 'Hiện thông tin'}
+          </button>
+          </div>
         </div>
         <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_230px]">
           <div className="space-y-4">
@@ -497,14 +504,14 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngân hàng</label>
                 <div className="relative" ref={bankDropdownRef}>
-                  <button type="button" onClick={() => setShowBankDropdown((value) => !value)} className="flex w-full items-center gap-2.5 rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm transition hover:border-violet-300 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-100">
+                  <button type="button" disabled={!canEditPayment || !editingPayment} onClick={() => setShowBankDropdown((value) => !value)} className="flex w-full items-center gap-2.5 rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm transition disabled:cursor-default disabled:bg-slate-50 enabled:hover:border-violet-300 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-100">
                     {settings.bank_id ? (() => {
                       const bank = bankOptions.find((item) => item.id === settings.bank_id)
                       return <><span className="flex h-6 min-w-9 items-center justify-center rounded-md bg-violet-100 px-2 text-[10px] font-black text-violet-700">{settings.bank_id.slice(0, 3)}</span><span className="flex-1 text-slate-800">{bank?.label ?? settings.bank_id}</span></>
                     })() : <span className="flex-1 text-slate-400">Chọn ngân hàng...</span>}
-                    <i className={`fa-solid fa-chevron-down text-[10px] text-slate-400 transition ${showBankDropdown ? 'rotate-180' : ''}`} />
+                    {editingPayment && <i className={`fa-solid fa-chevron-down text-[10px] text-slate-400 transition ${showBankDropdown ? 'rotate-180' : ''}`} />}
                   </button>
-                  {showBankDropdown && (
+                  {showBankDropdown && canEditPayment && editingPayment && (
                     <div className="absolute left-0 top-full z-50 mt-1.5 w-full overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl">
                       <div className="max-h-56 overflow-y-auto py-1">
                         {bankOptions.map((bank) => (
@@ -521,17 +528,17 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Số VA SePay</label>
-                <input type="text" value={settings.account_no || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_no: event.target.value }))} placeholder="VD: 96247Q3PE9" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+                <input type={showPaymentSecrets ? 'text' : 'password'} autoComplete="off" readOnly={!canEditPayment || !editingPayment} value={settings.account_no || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_no: event.target.value }))} placeholder="VD: 96247Q3PE9" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 read-only:cursor-default read-only:bg-slate-50 read-only:text-slate-600 read-only:focus:border-gray-300 read-only:focus:ring-0" />
               </div>
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Chủ tài khoản</label>
-              <input type="text" value={settings.account_name || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value, false) }))} onBlur={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value) }))} placeholder="Nhập đúng tên chủ tài khoản" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm uppercase outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+              <input type={showPaymentSecrets ? 'text' : 'password'} autoComplete="off" readOnly={!canEditPayment || !editingPayment} value={settings.account_name || ''} onChange={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value, false) }))} onBlur={(event) => setSettings((prev) => ({ ...prev, account_name: normalizeAccountHolderName(event.target.value) }))} placeholder="Nhập đúng tên chủ tài khoản" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm uppercase outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 read-only:cursor-default read-only:bg-slate-50 read-only:text-slate-600 read-only:focus:border-gray-300 read-only:focus:ring-0" />
               <p className="text-[11px] text-slate-400">Nhập đúng tên người nhận. Số VA lấy từ trang quản trị SePay, không dùng STK ngân hàng gốc.</p>
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">SePay API Token</label>
-              <input type="password" value={settings.sepay_api_token || ''} onChange={(event) => setSettings((prev) => ({ ...prev, sepay_api_token: event.target.value }))} placeholder="Để trống nếu không muốn thay đổi token" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100" />
+              <input type={showPaymentSecrets ? 'text' : 'password'} autoComplete="new-password" readOnly={!canEditPayment || !editingPayment} value={settings.sepay_api_token || ''} onChange={(event) => setSettings((prev) => ({ ...prev, sepay_api_token: event.target.value }))} placeholder="Để trống nếu không muốn thay đổi token" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100 read-only:cursor-default read-only:bg-slate-50 read-only:text-slate-600 read-only:focus:border-gray-300 read-only:focus:ring-0" />
               <p className="text-[11px] text-slate-400">Dùng để kết nối SePay và đồng bộ hóa đơn tự động.</p>
             </div>
             <div className="flex items-center gap-2.5 rounded-xl border border-violet-100 bg-violet-50 px-4 py-3 text-[11px] font-semibold text-violet-700">
@@ -541,10 +548,12 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
           <aside className="flex min-h-52 flex-col items-center justify-center rounded-2xl border border-violet-100 bg-violet-50/50 p-4 text-center">
             <div className="mb-3 text-xs font-black text-violet-700">Xem trước mã QR thanh toán</div>
             {qrPreviewUrl ? (
+              <div className="relative h-40 w-40">
               <img
                 src={qrPreviewUrl}
                 alt="QR thanh toán"
-                className="h-40 w-40 rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+                aria-hidden={!showPaymentSecrets}
+                className={`h-40 w-40 rounded-xl border border-slate-200 bg-white p-2 shadow-sm transition ${showPaymentSecrets ? '' : 'pointer-events-none select-none blur-md'}`}
                 onLoad={() => setQrPreviewError('')}
                 onError={(event) => {
                   const image = event.currentTarget
@@ -556,6 +565,13 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
                   setQrPreviewError('Không tạo được QR. Vui lòng kiểm tra lại ngân hàng hoặc số tài khoản.')
                 }}
               />
+              {!showPaymentSecrets && (
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/40 text-violet-700">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md"><i className="fa-solid fa-eye-slash" /></span>
+                  <span className="rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-bold shadow-sm">Đang ẩn</span>
+                </div>
+              )}
+              </div>
             ) : (
               <div className="flex h-40 w-40 flex-col items-center justify-center rounded-xl border border-dashed border-violet-200 bg-white text-violet-300">
                 <i className="fa-solid fa-qrcode text-4xl" /><span className="mt-2 text-[10px] font-bold">Chưa đủ thông tin</span>
@@ -569,40 +585,16 @@ const GeneralSettingsSafe = (): React.JSX.Element => {
               {savedPayment && <span className="font-semibold text-emerald-600"><i className="fa-solid fa-circle-check mr-1.5" />Đã lưu thành công</span>}
               {paymentError && !savedPayment && <span className="font-semibold text-red-500"><i className="fa-solid fa-triangle-exclamation mr-1.5" />{paymentError}</span>}
             </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setSettings((prev) => ({ ...prev, ...initialPaymentSettings }))} disabled={!hasPaymentChanges || savingPayment} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
+            {canEditPayment && editingPayment && <div className="flex justify-end gap-2">
+              <button onClick={() => { setSettings((prev) => ({ ...prev, ...initialPaymentSettings })); setPaymentError(''); setShowBankDropdown(false); setShowPaymentSecrets(false); setEditingPayment(false) }} disabled={savingPayment} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
               <button onClick={handleSavePayment} disabled={!hasPaymentChanges || savingPayment} className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-900/10 transition hover:bg-violet-700 disabled:opacity-40">
                 {savingPayment ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Lưu tài khoản
               </button>
-            </div>
+            </div>}
           </div>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-3 border-b border-blue-100 bg-gradient-to-r from-blue-50 to-white px-5 py-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><i className="fa-solid fa-wallet" /></div>
-          <div><h2 className="text-[15px] font-black text-slate-900">3. Số dư đầu kỳ</h2><p className="mt-0.5 text-[11px] text-slate-500">Thiết lập số dư ban đầu để đối soát thu chi chính xác.</p></div>
-        </div>
-        <div className="space-y-4 p-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngày bắt đầu</label><input type="date" value={settings.opening_balance_date || ''} onChange={(event) => setSettings((prev) => ({ ...prev, opening_balance_date: event.target.value }))} className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
-            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Tiền mặt (VNĐ)</label><input type="text" inputMode="numeric" value={settings.opening_balance_cash != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_cash) : ''} onChange={(event) => { const raw = Number(event.target.value.replace(/\D/g, '')); setSettings((prev) => ({ ...prev, opening_balance_cash: isNaN(raw) ? 0 : raw })) }} placeholder="0" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold tabular-nums outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
-            <div className="flex flex-col gap-2"><label className="text-xs font-black uppercase tracking-[0.18em] text-gray-500">Ngân hàng (VNĐ)</label><input type="text" inputMode="numeric" value={settings.opening_balance_bank != null ? new Intl.NumberFormat('vi-VN').format(settings.opening_balance_bank) : ''} onChange={(event) => { const raw = Number(event.target.value.replace(/\D/g, '')); setSettings((prev) => ({ ...prev, opening_balance_bank: isNaN(raw) ? 0 : raw })) }} placeholder="0" className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-bold tabular-nums outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" /></div>
-          </div>
-          <div className="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] font-medium leading-5 text-blue-700"><i className="fa-solid fa-circle-info mt-1" /><span>Nhập số tiền thực tế đang có tại <strong>ngày bắt đầu</strong>. Hệ thống sẽ cộng/trừ các giao dịch phát sinh sau đó để tính tồn quỹ hiện tại.</span></div>
-          <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-h-5 text-xs">
-              {savedBalance && <span className="font-semibold text-emerald-600"><i className="fa-solid fa-circle-check mr-1.5" />Đã lưu thành công</span>}
-              {balanceError && !savedBalance && <span className="font-semibold text-red-500"><i className="fa-solid fa-triangle-exclamation mr-1.5" />{balanceError}</span>}
-            </div>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setSettings((prev) => ({ ...prev, ...initialBalanceSettings }))} disabled={!hasBalanceChanges || savingBalance} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-40">Hủy</button>
-              <button onClick={handleSaveBalance} disabled={!hasBalanceChanges || savingBalance} className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-900/10 transition hover:bg-blue-700 disabled:opacity-40">{savingBalance ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Lưu số dư</button>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

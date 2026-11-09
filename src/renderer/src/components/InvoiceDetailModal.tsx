@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { isDepositOnlyInvoice, type AppSettings, type Invoice, type Room } from '../lib/db';
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
+import { tryVietQrSvgDataUrl } from '../../../shared/vietqr';
 import logoNgang from '../assets/an_khang_home_logo_ngang.png';
 import logoMark from '../assets/an_khang_home_logo.png';
 
@@ -381,6 +382,10 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   };
 
   const transferDescription = buildInvoiceTransferDescription(invoice, room?.name);
+  // Encoded locally from the exact printed amount and content; no remote image.
+  const qrSrc = remaining > 0 && settings.account_no && settings.bank_id
+    ? tryVietQrSvgDataUrl({ bankId: settings.bank_id, accountNo: settings.account_no, amount: remaining, description: transferDescription })
+    : null;
 
   return (
     <div
@@ -536,12 +541,11 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             {remaining > 0 && settings.account_no && settings.bank_id && (
               <div className="relative z-10 mx-7 mb-5 grid grid-cols-[170px_1fr] gap-6 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
                 <div className="flex items-center justify-center rounded border border-slate-200 bg-white p-2">
-                  <img
-                    src={`https://qr.sepay.vn/img?bank=${encodeURIComponent(settings.bank_id)}&acc=${encodeURIComponent(settings.account_no)}&amount=${encodeURIComponent(String(remaining))}&des=${encodeURIComponent(transferDescription)}`}
-                    alt="VietQR"
-                    className="h-[150px] w-[150px] object-contain"
-                    crossOrigin="anonymous"
-                  />
+                  {qrSrc ? (
+                    <img src={qrSrc} alt="VietQR" className="h-[150px] w-[150px] object-contain" />
+                  ) : (
+                    <p className="w-[150px] text-center text-[11px] font-bold text-red-700">Chưa tạo được QR. Chuyển khoản theo thông tin bên cạnh.</p>
+                  )}
                 </div>
                 <div className="text-[12px]">
                   <h4 className="mb-3 border-b border-slate-200 pb-2 text-[15px] font-black uppercase text-[#064a31]">Quét mã để thanh toán</h4>
