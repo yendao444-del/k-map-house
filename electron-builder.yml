@@ -135,4 +135,4 @@ appImage:
 npmRebuild: false
 publish:
   provider: generic
-  url: https://github.com/yendao444-del/k-map-house/releases/latest/download/
+  url: https://github.com/yendao444-del/dby-home-releases/releases/latest/download/

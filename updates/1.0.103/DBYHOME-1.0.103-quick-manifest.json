@@ -1,16 +1,26 @@
 {
   "schema": 1,
-  "type": "standard",
-  "version": "1.0.102",
+  "type": "quick",
+  "version": "1.0.103",
+  "fromVersion": "1.0.102",
+  "files": [
+    "package.json",
+    "out/main/index.js",
+    "out/main/update-handlers-evIUMgTO.js"
+  ],
+  "deletedFiles": [
+    "out/main/update-handlers-CtRbW7uq.js"
+  ],
+  "generatedAt": "2026-11-27T04:25:25.689Z",
   "currentFiles": {
-    "package.json": "ceaa4e29dcafc923718187e98dbb4d634119152955a5da395eff8af6a89f2341",
+    "package.json": "b1471d0f8b39afcb6f189336e222b4ff8651badafbbd5112a1f855489ed02369",
     "out/main/fund-nav-DAEEVgWo.js": "ae24f4b2b79842d03fca205bbc9ebb93ad84e06185e84e973448a6a899339020",
-    "out/main/index.js": "bdbfbaa71fae2fa04ab589b2736860ea15daf5b03bad4cd4ed53789a3dd01d7a",
+    "out/main/index.js": "62d1ff94f77c3894dd48f29cbc6d0711e6d4d64cffc7c4edc56792f03deecc93",
     "out/main/market-crawler-dxxSeeJy.js": "f765fd15749b1924e4502016a0e47d7a4ab07f681f500b7615730a85ece39462",
     "out/main/my-hanh-gold-ckYv-5Jc.js": "51c1048c3a62cbfe37e5aaadf80ab0dd4f86815e0445c78ca3dfffea0223ba45",
     "out/main/telegram-ultraviewer-86oBmkOC.js": "a9a5589723ef47fb55df0cd0f1615eafb0a5c4f753ee34da1e2f909c990d12e8",
     "out/main/tenant-identity-reader-DvZNwTM1.js": "dd21da466153c5ff4bab0e9ca10c91bf6108f70366dfda8648a131ff2c1688b8",
-    "out/main/update-handlers-CtRbW7uq.js": "99a20ecc464d1b7100f37d538339ee57da0813b695ac0df12416a610fe2bc38e",
+    "out/main/update-handlers-evIUMgTO.js": "578681ad9daaa3dc30e2a61eb6c95e2c6d111534298f6710a13d1b250ca99531",
     "out/preload/index.js": "118d57d8c7d72bb01c653eac05d55741a010fe14ed270540d062a22ec2419a8c",
     "out/renderer/assets/ACB-DAd-lTJG.webp": "32e17b384e961630a97a6c7ad1ce90744f4fb512738f354cb99f9b7e4634665e",
     "out/renderer/assets/air-conditioner-Cg0AE1T-.webp": "eb8713f26d14ecf64b6212fa31e041e4df04fbfd922ad19ad3394aa482c5596c",

@@ -41,14 +41,16 @@ set UPDATE_DIR=updates\!NEW_VERSION!
 if "!ENABLE_GITHUB!"=="1" (
   set STEP=Push GitHub
   echo [7/7] Commit va push GitHub...
-  git add -A
+  rem Only code: the source repo may be public; never stage local notes, demos or .claude.
+  git add -u
+  git add src adminpwa/src dby-finance scripts supabase/migrations updates/!NEW_VERSION!
   git commit -m "v!NEW_VERSION! - Quick update"
   if errorlevel 1 goto fail_after_commit
   git push
   if errorlevel 1 goto fail_after_commit
   set STEP=Tao GitHub Release
   echo     Tao release v!NEW_VERSION!...
-  gh release create v!NEW_VERSION! "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick-manifest.json" --title "DBY HOME v!NEW_VERSION! (QUICK)" --notes "Quick delta update. Requires the fromVersion shown in the manifest."
+  gh release create v!NEW_VERSION! --repo yendao444-del/dby-home-releases "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick.zip" "!UPDATE_DIR!\DBYHOME-!NEW_VERSION!-quick-manifest.json" --title "DBY HOME v!NEW_VERSION! (QUICK)" --notes "Quick delta update. Requires the fromVersion shown in the manifest."
   if errorlevel 1 goto fail_after_commit
   echo     GitHub Release da tao thanh cong.
 )
@@ -60,7 +62,7 @@ echo.
 echo [SUCCESS] RELEASE v!NEW_VERSION! HOAN TAT.
 if "!ENABLE_GITHUB!"=="1" (
   echo [SUCCESS] GitHub da nhan commit va release v!NEW_VERSION!.
-  echo [URL] https://github.com/yendao444-del/k-map-house/releases/tag/v!NEW_VERSION!
+  echo [URL] https://github.com/yendao444-del/dby-home-releases/releases/tag/v!NEW_VERSION!
 )
 pause
 exit /b 0

@@ -97,7 +97,9 @@ copy /Y "!INSTALLER!" "!UPDATE_DIR!\" >nul
 
 if "!ENABLE_GITHUB!"=="1" (
     echo [3/4] Git commit + push...
-    git add -A
+    rem Only code: the source repo may be public; never stage local notes, demos or .claude.
+    git add -u
+    git add src adminpwa/src dby-finance scripts supabase/migrations updates/!NEW_VERSION!
     git commit -m "v!NEW_VERSION! - !NOTES!"
     if errorlevel 1 ( echo GIT COMMIT THAT BAI! & goto rollback_fail )
     set VERSION_COMMITTED=1
@@ -105,7 +107,7 @@ if "!ENABLE_GITHUB!"=="1" (
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & goto fail_after_commit )
 
     echo [4/4] Tao GitHub Release...
-    gh release create v!NEW_VERSION! "!INSTALLER!" "!PATCH_ZIP!" --title "DBY HOME v!NEW_VERSION! (PATCH)" --notes "!NOTES! Manual installer included."
+    gh release create v!NEW_VERSION! --repo yendao444-del/dby-home-releases "!INSTALLER!" "!PATCH_ZIP!" --title "DBY HOME v!NEW_VERSION! (PATCH)" --notes "!NOTES! Manual installer included."
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & goto fail_after_commit )
     if exist "!PATCH_ZIP!" del /Q "!PATCH_ZIP!"
 ) else (

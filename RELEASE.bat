@@ -151,7 +151,9 @@ copy /Y "!PORTABLE_ZIP!" "!UPDATE_DIR!\" >nul
 
 if "!ENABLE_GITHUB!"=="1" (
     echo [6/7] Git commit + push...
-    git add -A
+    rem Only code: the source repo may be public; never stage local notes, demos or .claude.
+    git add -u
+    git add src adminpwa/src dby-finance scripts supabase/migrations updates/!NEW_VERSION!
     git commit -m "v!NEW_VERSION! - !NOTES!"
     if errorlevel 1 ( echo GIT COMMIT THAT BAI! & goto rollback_fail )
     set VERSION_COMMITTED=1
@@ -167,7 +169,7 @@ if "!ENABLE_GITHUB!"=="1" (
     if errorlevel 1 ( echo GIT PUSH THAT BAI! & goto fail_after_commit )
 
     echo [7/7] Tao GitHub Release...
-    gh release create v!NEW_VERSION! "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" "!QUICK_ZIP!" "!QUICK_MANIFEST!" "!STANDARD_ZIP!" "!STANDARD_MANIFEST!" --title "DBY HOME v!NEW_VERSION!" --notes "!NOTES!"
+    gh release create v!NEW_VERSION! --repo yendao444-del/dby-home-releases "!INSTALLER!" "!LATEST_YML!" "!INSTALLER_BLOCKMAP!" "!PORTABLE_ZIP!" "!QUICK_ZIP!" "!QUICK_MANIFEST!" "!STANDARD_ZIP!" "!STANDARD_MANIFEST!" --title "DBY HOME v!NEW_VERSION!" --notes "!NOTES!"
     if errorlevel 1 ( echo GITHUB RELEASE THAT BAI! & goto fail_after_commit )
 ) else (
     echo [6/7] Dang o che do local-only: bo qua Git push va GitHub Release.

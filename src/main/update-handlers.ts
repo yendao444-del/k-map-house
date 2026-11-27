@@ -116,7 +116,8 @@ function verifyUpdateAfterRestart(): StoredUpdateResult | null {
   return verified
 }
 const CACHE_DURATION = 5 * 60 * 1000
-const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/k-map-house/releases/latest/download/'
+// Releases live in a public, code-free repo so the source repo can be private.
+const GENERIC_RELEASE_BASE_URL = 'https://github.com/yendao444-del/dby-home-releases/releases/latest/download/'
 
 function readPackageJson(): { homepage?: string; version?: string } {
   try {

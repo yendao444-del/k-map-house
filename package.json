@@ -1,10 +1,10 @@
 {
   "name": "k-map-house",
-  "version": "1.0.102",
+  "version": "1.0.103",
   "description": "Phan mem quan ly phong tro DBY HOME",
   "main": "./out/main/index.js",
   "author": "DBY HOME",
-  "homepage": "https://github.com/yendao444-del/k-map-house",
+  "homepage": "https://github.com/yendao444-del/dby-home-releases",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache src electron.vite.config.ts",
