@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Filter,
   KeyRound,
+  LayoutGrid,
   Layers3,
   LockKeyhole,
   MoreVertical,
@@ -56,6 +57,8 @@ import TenantWebAccountsTab from './TenantWebAccountsTab'
 import { confirmSensitivePassword } from '../lib/mfa'
 import { usePasswordConfirmation } from './PasswordConfirmationDialog'
 import { useBeneficiaryChange } from './BeneficiaryChangeDialog'
+import { AppAccessChips, AppAccessDialog } from './AppAccessDialog'
+import { getUserAppAccess, setUserAppAccess, type AppKey } from '../lib/app-access'
 
 type SettingsSection = 'general' | 'zones' | 'users' | 'tenant-accounts' | 'account' | 'updates'
 
@@ -1148,6 +1151,24 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
   const [selectedUserId, setSelectedUserId] = useState(currentUser.id)
   const [emailUser, setEmailUser] = useState<AppUser | null>(null)
   const [detailUser, setDetailUser] = useState<AppUser | null>(null)
+  const [accessUser, setAccessUser] = useState<AppUser | null>(null)
+  const { requirePassword: requireAccessPassword, passwordConfirmation: accessPasswordConfirmation } = usePasswordConfirmation()
+  const { data: appAccess = {} } = useQuery({ queryKey: ['user-app-access'], queryFn: getUserAppAccess })
+  const accessMutation = useMutation({
+    mutationFn: async ({ userId, apps }: { userId: string; apps: AppKey[] }) => {
+      await requireAccessPassword('Xác nhận mật khẩu để phân quyền ứng dụng')
+      return setUserAppAccess(userId, apps)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-app-access'] })
+      setAccessUser(null)
+    }
+  })
+  const openAccessDialog = (user: AppUser) => {
+    accessMutation.reset()
+    setAccessUser(user)
+    setOpenMenuId(null)
+  }
   const { data: gmailAvailability } = useQuery({
     queryKey: ['gmail-availability-global'],
     queryFn: () => window.api.gmail.getAvailability()
@@ -1485,34 +1506,36 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                       <span className={`rounded-lg px-2 py-1 ${user.role === 'admin' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>{accountRoleLabel(user.role)}</span>
                       <span className={`rounded-full px-2 py-1 ${user.status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-600'}`}>{user.status === 'active' ? 'Đang hoạt động' : 'Đã vô hiệu hóa'}</span>
                     </div>
+                    <AppAccessChips user={user} apps={appAccess[user.id]} />
                     <AccountSecurityStatus user={user} />
                     <p className="text-xs text-slate-400">Đăng nhập: {user.last_login_at ? accountFormatDateTime(user.last_login_at) : 'Chưa đăng nhập'}</p>
                   </button>
                 ))}
               </div>
               <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1040px] table-fixed border-collapse text-left">
+                <table className="w-full min-w-[940px] table-fixed border-collapse text-left">
                   <thead>
                     <tr className="border-b border-slate-200 bg-[#f7f9fa] text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">
                       <th className="w-[24%] px-5 py-3.5">Tài khoản</th>
-                      <th className="w-[12%] px-4 py-3.5">Vai trò</th>
-                      <th className="w-[14%] px-4 py-3.5">Trạng thái</th>
-                      <th className="w-[24%] px-4 py-3.5">Bảo mật</th>
-                      <th className="w-[16%] px-4 py-3.5">Đăng nhập</th>
-                      <th className="w-[10%] px-4 py-3.5 text-right">Thao tác</th>
+                      <th className="w-[12%] px-3 py-3.5">Vai trò</th>
+                      <th className="w-[12%] px-3 py-3.5">Ứng dụng</th>
+                      <th className="w-[12%] px-3 py-3.5">Trạng thái</th>
+                      <th className="w-[19%] px-3 py-3.5">Bảo mật</th>
+                      <th className="w-[11%] px-3 py-3.5">Đăng nhập</th>
+                      <th className="w-[10%] whitespace-nowrap px-3 py-3.5 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {isLoading && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-400">
+                        <td colSpan={7} className="px-6 py-14 text-center text-sm text-slate-400">
                           <LogoLoading message="Đang tải danh sách tài khoản..." className="min-h-[38vh]" />
                         </td>
                       </tr>
                     )}
                     {!isLoading && !usersError && filteredUsers.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="px-6 py-16 text-center">
+                        <td colSpan={7} className="px-6 py-16 text-center">
                           <div className="font-bold text-slate-700">Không có tài khoản phù hợp</div>
                           <div className="mt-2 text-sm text-slate-400">Thử thay đổi từ khóa hoặc bộ lọc trạng thái.</div>
                         </td>
@@ -1571,6 +1594,9 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                             </select>
                           </td>
                           <td className="px-3 py-3.5">
+                            <AppAccessChips user={user} apps={appAccess[user.id]} onEdit={user.role === 'admin' ? undefined : () => openAccessDialog(user)} />
+                          </td>
+                          <td className="px-3 py-3.5">
                             <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-bold ${
                               user.status === 'active'
                                 ? 'bg-emerald-50 text-emerald-700'
@@ -1626,7 +1652,7 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                 <div
                                   className="fixed z-[9999] w-48 overflow-hidden rounded-2xl border border-slate-200 bg-white py-1.5 text-left shadow-xl"
                                   style={
-                                    menuAnchor.top + 220 < window.innerHeight
+                                    menuAnchor.top + 260 < window.innerHeight
                                       ? { top: menuAnchor.top + 4, right: menuAnchor.right }
                                       : { bottom: menuAnchor.bottom + 4, right: menuAnchor.right }
                                   }
@@ -1650,6 +1676,12 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
                                     className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
                                   >
                                     <PencilLine size={15} /> Sửa thông tin
+                                  </button>
+                                  <button
+                                    onClick={() => openAccessDialog(user)}
+                                    className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                                  >
+                                    <LayoutGrid size={15} /> Phân quyền ứng dụng
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1874,6 +1906,17 @@ const UsersSettingsPanel = ({ currentUser }: { currentUser: AppUser }): React.JS
       )}
 
       {/* Modal đổi mật khẩu */}
+      {accessUser && (
+        <AppAccessDialog
+          user={accessUser}
+          apps={appAccess[accessUser.id]}
+          saving={accessMutation.isPending}
+          error={accessMutation.error instanceof Error && accessMutation.error.message !== 'Đã hủy thao tác.' ? accessMutation.error.message : undefined}
+          onClose={() => setAccessUser(null)}
+          onSave={apps => accessMutation.mutate({ userId: accessUser.id, apps })}
+        />
+      )}
+      {accessPasswordConfirmation}
       {passwordUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form

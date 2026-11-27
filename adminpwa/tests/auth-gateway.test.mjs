@@ -13,12 +13,15 @@ const ip='a'.repeat(64)
 const json=(data,status=200)=>Response.json(data,{status})
 const request=(payload,headers={})=>new Request('https://example.supabase.co/functions/v1/admin-pwa-auth',{method:'POST',headers:{Authorization:`Bearer ${config.gatewaySecret}`,'x-management-ip':ip,'Content-Type':'application/json',...headers},body:typeof payload==='string'?payload:JSON.stringify(payload)})
 const input={action:'login',login:'staff',password:'correct-password'}
-function harness({exists=true,passwordOk=true,role='user',status='active',rate=true,rateStatus=200}={}) {
+function harness({exists=true,passwordOk=true,role='user',status='active',rate=true,rateStatus=200,failures=0,riskStatus=200,trusted=true}={}) {
  const calls=[]
  const handler=createManagementAuthHandler(config,async (url,init)=>{
   calls.push({url,init})
   if(url.endsWith('admin_pwa_auth_rate'))return json(rate,rateStatus)
   if(url.endsWith('resolve_login_email'))return json(exists?'private-staff@example.com':null)
+  if(url.endsWith('security_login_attempt'))return json({ok:true,failures},riskStatus)
+  if(url.endsWith('security_trusted_device_login'))return json({ok:trusted})
+  if(url.endsWith('security_dev_device_login'))return json({ok:true})
   if(url.includes('grant_type=password'))return json(passwordOk&&exists?{user:{id},access_token:accessToken,refresh_token:'refresh-secret'}:{error:'bad-password'},passwordOk&&exists?200:400)
   if(url.endsWith('security_service'))return json({ok:true,state:'optional'})
   if(url.includes('/rest/v1/users?'))return json([{id,role,status}])
@@ -43,6 +46,49 @@ test('wrong password and missing username return identical errors without email 
 })
 test('existing active admin/staff retain login and only receive session tokens',async()=>{
  for(const role of ['admin','user']){const {handler,calls}=harness({role});const response=await handler(request(input));assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,session:{access_token:accessToken,refresh_token:'refresh-secret'}});const rateBody=JSON.parse(calls[0].init.body);assert.equal(rateBody.p_ip,ip);assert.match(rateBody.p_login,/^[a-f0-9]{64}$/);assert.notEqual(rateBody.p_login,'staff');assert.ok(calls.some(c=>c.init.body&&JSON.parse(c.init.body).p_action==='register'))}
+})
+
+test('trusted-device checks follow password, role, risk and session registration; raw token is never persisted',async()=>{
+ const h=harness(),device='a'.repeat(64)+'.'+'b'.repeat(64)
+ assert.equal((await h.handler(request({...input,device_token:device},{'x-management-agent':'Chrome/131 Windows/10','x-management-network':'c'.repeat(64)}))).status,200)
+ const paths=h.calls.map(c=>c.url)
+ const trust=paths.findIndex(p=>p.endsWith('security_trusted_device_login'))
+ assert.ok(trust>paths.findIndex(p=>p.endsWith('security_service')))
+ assert.ok(trust>paths.findIndex(p=>p.endsWith('security_login_attempt')))
+ const body=JSON.parse(h.calls[trust].init.body)
+ assert.equal(body.p_network,'c'.repeat(64));assert.match(body.p_token_hash,/^[a-f0-9]{64}$/)
+ assert.ok(!JSON.stringify(body).includes(device))
+})
+
+test('browser updates preserve device family but different browser families do not',async()=>{
+ const hashes=[]
+ for(const agent of ['Chrome/131.0 Windows/10.0','Chrome/132.0 Windows/10.0','Firefox/132.0 Windows/10.0']){
+  const h=harness();await h.handler(request({...input,device_token:'a'.repeat(64)+'.'+'b'.repeat(64)},{'x-management-agent':agent}))
+  hashes.push(JSON.parse(h.calls.find(c=>c.url.endsWith('security_trusted_device_login')).init.body).p_agent_family)
+ }
+ assert.equal(hashes[0],hashes[1]);assert.notEqual(hashes[1],hashes[2])
+})
+
+test('risk service outage revokes the password session and never attempts trusted login',async()=>{
+ const h=harness({riskStatus:503})
+ assert.equal((await h.handler(request({...input,device_token:'a'.repeat(64)+'.'+'b'.repeat(64)}))).status,503)
+ assert.ok(h.calls.some(c=>c.url.includes('/logout')))
+ assert.ok(!h.calls.some(c=>c.url.endsWith('security_service')||c.url.endsWith('security_trusted_device_login')))
+})
+
+test('failed passwords record canonical account risk before returning the generic error',async()=>{
+ const h=harness({passwordOk:false});assert.equal((await h.handler(request(input))).status,401)
+ const body=JSON.parse(h.calls.find(c=>c.url.endsWith('security_login_attempt')).init.body)
+ assert.equal(body.p_success,false);assert.match(body.p_login,/^[a-f0-9]{64}$/)
+ assert.ok(!h.calls.some(c=>c.url.endsWith('security_trusted_device_login')))
+})
+
+test('risk failures cannot fall through to the Electron development exception',async()=>{
+ const h=harness({failures:3,trusted:false})
+ assert.equal((await h.handler(request({...input,device_token:'a'.repeat(64)+'.'+'b'.repeat(64)},{'x-management-agent':'Electron/44.0'}))).status,200)
+ assert.ok(!h.calls.some(c=>c.url.endsWith('security_dev_device_login')))
+ const body=JSON.parse(h.calls.find(c=>c.url.endsWith('security_service')).init.body)
+ assert.equal(body.p_data.login_failures,3)
 })
 test('inactive and tenant profiles cannot receive tokens; rejected sessions are logged out',async()=>{
  for(const options of [{status:'inactive'},{role:'tenant'}]){const {handler,calls}=harness(options);assert.equal((await handler(request(input))).status,401);assert.ok(calls.some(call=>call.url.includes('/auth/v1/logout')))}

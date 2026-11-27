@@ -197,10 +197,42 @@ export async function securityOverview(): Promise<{ devices: Array<Record<string
   }
 }
 
-export async function trustSecurityDevice(label: string): Promise<void> {
-  const result = await securityCall('device_create', { label })
+const deviceStorageKey = 'ankhang-management-device'
+function storedDeviceToken(): string | null {
+  try { const value = window.localStorage.getItem(deviceStorageKey); return value && /^[a-f0-9]{64}\.[a-f0-9]{64}$/.test(value) ? value : null } catch { return null }
+}
+
+/** A readable name for the device list, e.g. "Chrome trên Windows". */
+export function describeThisDevice(): string {
+  const agent = navigator.userAgent
+  const app = /Electron\//.test(agent) ? 'Ứng dụng máy tính' : /Edg\//.test(agent) ? 'Edge' : /OPR\//.test(agent) ? 'Opera' : /Firefox\//.test(agent) ? 'Firefox' : /Chrome\//.test(agent) ? 'Chrome' : /Safari\//.test(agent) ? 'Safari' : 'Trình duyệt'
+  const os = /Android/.test(agent) ? 'Android' : /iPhone|iPad|iPod/.test(agent) ? 'iOS' : /Windows/.test(agent) ? 'Windows' : /Mac OS X/.test(agent) ? 'macOS' : /Linux/.test(agent) ? 'Linux' : ''
+  return os ? `${app} trên ${os}` : app
+}
+
+const rememberedSessions = new Map<string, Promise<string | undefined>>()
+/** Facebook-style: once this session passed Authenticator/email, remember the
+ * device for 30 days. Network changes alone do not require another code. */
+export async function rememberVerifiedDevice(state: Record<string, unknown>, sessionKey: string): Promise<string | undefined> {
+  if (state.second_factor_verified !== true || !['totp', 'email'].includes(String(state.login_method))) return undefined
+  const existing = rememberedSessions.get(sessionKey)
+  if (existing) return existing
+  const pending = trustSecurityDevice(describeThisDevice()).then(expiry => {
+    if (expiry) rememberedSessions.set(expiry + ':' + sessionKey.slice(sessionKey.lastIndexOf(':') + 1), pending)
+    return expiry
+  }).catch(() => { rememberedSessions.delete(sessionKey); return undefined })
+  rememberedSessions.set(sessionKey, pending)
+  return pending
+}
+
+export async function trustSecurityDevice(label: string): Promise<string | undefined> {
+  const previous = storedDeviceToken()
+  const result = await securityCall('device_create', { label, ...(previous ? { device_token: previous } : {}) })
   if (result.ok !== true || typeof result.device_token !== 'string') throw new Error('Chưa ghi nhận được thiết bị tin cậy.')
   window.localStorage.setItem('ankhang-management-device', result.device_token)
+  // Mirror only the device bearer, never the password or an invented MFA proof.
+  await window.api?.trustedDevice?.write(result.device_token)
+  return typeof result.session_expires_at === 'string' ? result.session_expires_at : undefined
 }
 
 export async function revokeSecurityDevice(deviceId: string): Promise<void> {
@@ -212,6 +244,7 @@ export async function revokeSecuritySessions(): Promise<void> {
   const result = await securityCall('revoke_session', { all: true })
   if (result.ok !== true) throw new Error('Không thể thu hồi phiên đăng nhập.')
   window.localStorage.removeItem('ankhang-management-device')
+  await window.api?.trustedDevice?.clear()
   await supabase.auth.signOut({ scope: 'global' })
 }
 
@@ -230,6 +263,7 @@ export async function requireSessionMfa(state?: Record<string, unknown>): Promis
   const factors = await listTotpFactors()
   const verified = factors.find(factor => factor.status === 'verified')
   if (!verified) return
+  if (state?.state === 'totp') throw new MfaChallengeRequired(verified.id, await beginTotpChallenge(verified.id))
   if (await currentAssuranceLevel() === 'aal2') return
   throw new MfaChallengeRequired(verified.id, await beginTotpChallenge(verified.id))
 }

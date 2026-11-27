@@ -1,0 +1,215 @@
+/* Approved compact Gold workspace (direction 2). Never changes other categories. */
+.investment-gold-screen > main { container-type: inline-size; container-name: gold-workspace; }
+.investment-gold-screen .investment-category-tabs { flex-wrap: wrap; overflow: visible; }
+.investment-gold-screen .gold-page-heading { margin-bottom: 12px; align-items: flex-end; }
+.investment-gold-screen .gold-page-heading > div > p:first-child { line-height: 12px; }
+.investment-gold-screen .gold-page-heading h1 { font-size: 26px; line-height: 32px; }
+.investment-gold-screen .gold-page-heading > div > p:last-child { line-height: 20px; }
+.investment-gold-screen .gold-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.investment-gold-screen .gold-page-actions button {
+  min-height: 40px;
+  padding: 9px 18px;
+  border: 1px solid var(--investment-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--investment-text);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .16s, border-color .16s;
+}
+.investment-gold-screen .gold-page-actions button:hover { background: var(--investment-panel-raised); border-color: #4b6077; }
+.investment-gold-screen .gold-page-actions .gold-action-buy { background: var(--investment-accent); color: #05251a; border-color: var(--investment-accent); }
+.investment-gold-screen .gold-page-actions .gold-action-buy:hover { background: #49e7a7; border-color: #49e7a7; }
+.investment-gold-screen .gold-page-actions .gold-action-sell { color: #ff8c99; border-color: #875563; }
+.investment-gold-screen button:focus-visible,
+.investment-gold-screen a:focus-visible,
+.investment-gold-screen [role='tabpanel']:focus-visible { outline: 2px solid var(--investment-accent); outline-offset: 3px; }
+
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-body-grid {
+  display: grid;
+  grid-template-columns: minmax(310px, .58fr) minmax(0, 1fr) !important;
+  gap: 16px !important;
+  align-items: stretch;
+}
+.investment-gold-screen .gold-myhanh-tracker .gold-prices-widget,
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel {
+  min-width: 0;
+  padding: 14px !important;
+  border: 1px solid var(--investment-border);
+  border-radius: 12px !important;
+  background: var(--investment-panel) !important;
+  box-shadow: none !important;
+}
+.investment-gold-screen .gold-myhanh-tracker .gold-prices-widget { gap: 8px; }
+.investment-gold-screen .gold-widget-heading { gap: 12px; }
+.investment-gold-screen .gold-widget-heading h3 { font-size: 18px; font-weight: 700; }
+.investment-gold-screen .gold-widget-heading .refresh-button { width: 36px; height: 36px; border-radius: 8px; }
+.investment-gold-screen .gold-focus-card { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.investment-gold-screen .gold-focus-heading { position: relative; display: block; margin-bottom: 8px; }
+.investment-gold-screen .gold-focus-heading h4 { margin-bottom: 4px; font-size: 14px; font-weight: 700; }
+.investment-gold-screen .gold-focus-heading a,
+.investment-gold-screen .gold-focus-heading p { font-size: 12px; line-height: 1.5; }
+.investment-gold-screen .gold-unit { position: static; margin: 2px 0 0; text-align: left; font-size: 11px; line-height: 16px; }
+.investment-gold-screen .gold-unit small { font-size: 12px; }
+.investment-gold-screen .gold-quote-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border-top: 1px solid var(--investment-border); }
+.investment-gold-screen .gold-quote-tile { padding: 9px 0; border: 0; border-bottom: 1px solid var(--investment-border); border-radius: 0; background: transparent; }
+.investment-gold-screen .gold-quote-tile > span { color: var(--investment-accent); margin-bottom: 4px; font-size: 12px; font-weight: 700; }
+.investment-gold-screen .gold-quote-sell > span { color: #f4b95f; }
+.investment-gold-screen .gold-quote-tile > strong { font-size: clamp(20px, 6cqi, 28px); line-height: 1.2; font-weight: 750; font-variant-numeric: tabular-nums; color: #c5f7df; letter-spacing: -.5px; white-space: normal; }
+.investment-gold-screen .gold-quote-sell > strong { color: #ffe3b2; }
+.investment-gold-screen .gold-quote-tile strong small { display: inline; margin: 0; font-size: 12px; white-space: nowrap; letter-spacing: normal; }
+.investment-gold-screen .gold-quote-tile p { margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 13px; line-height: 1.4; font-weight: 500; color: #aac2dc; }
+.investment-gold-screen .gold-quote-spread { margin-top: 0; padding: 10px 0 0; border: 0; border-radius: 0; font-size: 12px; gap: 6px 12px; }
+.investment-gold-screen .gold-quote-spread strong { font-size: 13px; font-variant-numeric: tabular-nums; }
+.investment-gold-screen .gold-source-message { min-height: 220px; }
+.investment-gold-screen .gold-source-warning { line-height: 1.6; }
+
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel { justify-content: flex-start; gap: 10px; }
+.investment-gold-screen .gold-history-heading { gap: 8px 12px; align-items: center; }
+.investment-gold-screen .gold-history-heading h4 { width: 100%; font-size: 16px; line-height: 1.4; font-weight: 700; }
+.investment-gold-screen .gold-history-heading small { margin-left: auto; font-size: 11px; text-align: right; }
+.investment-gold-screen .gold-history-heading .time-select { display: inline-flex; flex-shrink: 0; padding: 0; border: 1px solid var(--investment-border); border-radius: 8px; overflow: visible; }
+.investment-gold-screen .gold-history-heading .range-button { padding: 8px 16px; font-size: 13px; font-weight: 500; min-height: 38px; border-radius: 7px; }
+.investment-gold-screen .investment-tracker-copy .gold-history-heading .range-button.active { box-shadow: inset 0 0 0 1px var(--investment-accent) !important; }
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel .svg-wrapper { flex: 1 1 170px; height: auto; min-height: 170px !important; }
+.investment-gold-screen .gold-myhanh-tracker .interactive-svg-chart text { font-size: 12px; }
+.investment-gold-screen .gold-myhanh-tracker .chart-tooltip-box { max-width: 210px; }
+.investment-gold-screen .gold-myhanh-tracker .gold-chart-panel .chart-loading-state,
+.investment-gold-screen .gold-myhanh-tracker .gold-chart-panel .chart-empty-state { flex: 1 1 240px; height: auto; min-height: 240px; }
+.investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .chart-legend { padding: 0 !important; border: 0; background: transparent !important; gap: 24px !important; }
+.investment-gold-screen .gold-myhanh-tracker .chart-legend .legend-item { font-size: 14px; line-height: 1.5; }
+.investment-gold-screen .gold-myhanh-tracker .legend-line { width: 10px; height: 10px; border-radius: 50%; }
+.investment-gold-screen .gold-myhanh-tracker .legend-line.buy { background: var(--investment-accent); }
+.investment-gold-screen .gold-history-note { font-size: 11px; line-height: 1.5; text-align: center; color: #9eb7d2; }
+
+.investment-gold-screen .gold-portfolio-panel { margin-top: 12px; border: 1px solid var(--investment-border); border-radius: 12px; padding: 0 14px; background: var(--investment-panel); scroll-margin-top: 16px; container-type: inline-size; container-name: gold-portfolio; }
+.investment-gold-screen .gold-portfolio-tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--investment-border); }
+.investment-gold-screen .gold-portfolio-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 46px; padding: 9px 6px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #adc3db; font-size: 14px; font-weight: 500; cursor: pointer; }
+.investment-gold-screen .gold-portfolio-tabs button[aria-selected='true'] { border-bottom-color: var(--investment-accent); color: var(--investment-text); font-weight: 700; }
+.investment-gold-screen .gold-portfolio-tabs button:first-child > svg { color: #f4b95f; }
+.investment-gold-screen .gold-portfolio-tabs button:hover { color: #fff; background: var(--investment-panel-raised); }
+.investment-gold-screen .gold-tab-count { white-space: nowrap; }
+.investment-gold-screen .gold-portfolio-panel [role='tabpanel'] { padding: 0; }
+.investment-gold-screen .gold-portfolio-panel [role='tabpanel'][hidden] { display: none; }
+.investment-gold-screen .gold-portfolio-panel .gold-holdings-panel,
+.investment-gold-screen .gold-portfolio-panel .gold-embedded-section { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none !important; }
+.investment-gold-screen .gold-portfolio-panel .gold-embedded-section .banner-holdings-head { padding-top: 12px; }
+.investment-gold-screen .gold-portfolio-panel .table-shell { margin: 8px 0 12px; overflow: visible; }
+.investment-gold-screen .gold-holdings-panel table.compact-table,
+.investment-gold-screen .gold-portfolio-panel .transaction-list-table { min-width: 0; table-layout: fixed; width: 100%; }
+.investment-gold-screen .gold-portfolio-panel th,
+.investment-gold-screen .gold-portfolio-panel td,
+.investment-gold-screen .gold-holdings-dialog td { white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
+.investment-gold-screen .gold-portfolio-panel th { font-size: 10px; }
+.investment-gold-screen .gold-portfolio-panel td small { font-size: 10px; }
+.investment-gold-screen .gold-holdings-panel .positive small { color: var(--investment-accent); }
+.investment-gold-screen .gold-holdings-panel .negative small { color: #ff8c99; }
+.investment-gold-screen .gold-valuation-note { font-size: 11px; color: #9eb7d2; line-height: 1.5; }
+.investment-gold-screen .gold-holdings-panel .banner-holdings-head { flex-wrap: wrap; gap: 6px 12px; }
+.investment-gold-screen .gold-holdings-panel .banner-holdings-head button { min-height: 30px; font-size: 11px; }
+.investment-gold-screen .gold-holdings-panel .table-action-column { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.investment-gold-screen .gold-holdings-panel .table-action-btn { min-height: 32px; min-width: 42px; }
+.investment-gold-screen .gold-holdings-panel .asset-cell { min-width: 0; gap: 6px; }
+.investment-gold-screen .gold-holdings-panel .asset-cell > svg { flex-shrink: 0; width: 20px; }
+.investment-gold-screen .gold-tx-id { display: block; font-size: 9px; }
+.investment-gold-screen .gold-holdings-dialog { container-type: inline-size; container-name: gold-portfolio; padding: 16px; }
+.investment-gold-screen .gold-holdings-dialog .table-shell { overflow: visible; }
+.investment-gold-screen .gold-portfolio-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 156px; padding: 24px 16px; text-align: center; }
+.investment-gold-screen .gold-portfolio-empty > svg { margin-bottom: 4px; color: var(--investment-accent); }
+.investment-gold-screen .gold-portfolio-empty strong { color: var(--investment-text); font-size: 16px; font-weight: 650; }
+.investment-gold-screen .gold-portfolio-empty span { color: #9eb7d2; font-size: 14px; line-height: 1.6; }
+
+@media (min-width: 1280px) {
+  .investment-gold-screen > main { padding: 16px 22px 20px; }
+}
+@media (max-width: 1100px) {
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-body-grid { grid-template-columns: minmax(290px, .65fr) minmax(0, 1fr) !important; }
+  .investment-gold-screen .gold-history-heading small { margin-left: 0; text-align: left; }
+  .investment-gold-screen .gold-quote-tile > strong { font-size: clamp(20px, 6cqi, 28px); }
+}
+@media (max-width: 850px) {
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-body-grid { grid-template-columns: minmax(0, 1fr) !important; grid-template-areas: 'quote' 'chart'; }
+  .investment-gold-screen .gold-page-heading { align-items: flex-start; margin-bottom: 16px; }
+  .investment-gold-screen .gold-page-actions { width: 100%; gap: 8px; }
+  .investment-gold-screen .gold-page-actions button { min-height: 40px; padding: 8px 12px; font-size: 12px; }
+  .investment-gold-screen .gold-myhanh-tracker .gold-prices-widget,
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel { padding: 18px !important; }
+  .investment-gold-screen .gold-quote-tile > strong { font-size: clamp(20px, 6cqi, 28px); }
+  .investment-gold-screen .gold-unit { position: static; margin-top: 4px; }
+  .investment-gold-screen .gold-history-heading h4 { font-size: 17px; }
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel .svg-wrapper { flex: 0 0 190px; height: 190px; min-height: 190px !important; }
+  .investment-gold-screen .gold-myhanh-tracker .interactive-svg-chart text { font-size: 11px; }
+  .investment-gold-screen .gold-portfolio-panel { padding: 0 12px; }
+  .investment-gold-screen .gold-portfolio-tabs { gap: 4px; }
+  .investment-gold-screen .gold-portfolio-tabs button { flex: 1; padding: 12px 4px; gap: 6px; font-size: 12px; }
+  .investment-gold-screen .gold-portfolio-tabs button > svg { width: 19px; flex-shrink: 0; }
+}
+@media (max-width: 380px) {
+  .investment-gold-screen .gold-page-actions button:last-child { flex-basis: 100%; }
+  .investment-gold-screen .gold-page-actions .gold-action-buy,
+  .investment-gold-screen .gold-page-actions .gold-action-sell { flex: 1; }
+  .investment-gold-screen .gold-quote-tile > strong { font-size: 20px; }
+  .investment-gold-screen .gold-quote-tile p { font-size: 15px; }
+  .investment-gold-screen .gold-portfolio-tabs button > svg { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .investment-gold-screen .gold-page-actions button { transition: none; }
+}
+
+/* Respond to the actual pane width, not the window behind Electron's menus. */
+@container gold-workspace (max-width: 760px) {
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-body-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: 'quote' 'chart';
+  }
+  .investment-gold-screen .gold-quote-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .investment-gold-screen .gold-quote-tile > strong { font-size: clamp(19px, 5cqi, 28px); white-space: normal; }
+  .investment-gold-screen .gold-quote-tile strong small { font-size: 12px; }
+  .investment-gold-screen .gold-myhanh-tracker .gold-prices-widget,
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel { padding: 12px !important; }
+  .investment-gold-screen .gold-portfolio-tabs { gap: 4px; }
+  .investment-gold-screen .gold-portfolio-tabs button { flex: 1; font-size: 12px; gap: 6px; }
+}
+
+@container gold-portfolio (max-width: 760px) {
+  .investment-gold-screen .gold-holdings-panel .compact-table,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table { display: block; }
+  .investment-gold-screen .gold-holdings-panel .compact-table thead,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table thead { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; }
+  .investment-gold-screen .gold-holdings-panel .compact-table tbody,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table tbody { display: grid; gap: 10px; }
+  .investment-gold-screen .gold-holdings-panel .compact-table tr,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-bottom: 1px solid var(--investment-border); padding: 10px 0; }
+  .investment-gold-screen .gold-holdings-panel .compact-table td,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table td { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; padding: 0; border: 0; text-align: left !important; }
+  .investment-gold-screen .gold-holdings-panel .compact-table td::before,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table td::before { content: attr(data-label); display: block; margin-bottom: 5px; color: #9eb7d2; font-size: 10px; line-height: 1.4; }
+  .investment-gold-screen .gold-holdings-panel .asset-cell { align-items: flex-start; }
+}
+@container gold-portfolio (max-width: 460px) {
+  .investment-gold-screen .gold-holdings-panel .compact-table tr,
+  .investment-gold-screen .gold-portfolio-panel .transaction-list-table tr { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .investment-gold-screen .gold-portfolio-tabs button { min-width: 0; font-size: 11px; }
+  .investment-gold-screen .gold-portfolio-tabs button > svg { width: 16px; }
+}
+
+@media (min-width: 900px) and (max-height: 820px) {
+  .investment-gold-screen > main { padding: 12px 16px 16px; }
+  .investment-gold-screen .gold-page-heading { margin-bottom: 8px; }
+  .investment-gold-screen .gold-page-heading h1 { font-size: 24px; line-height: 28px; }
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel .svg-wrapper { min-height: 145px !important; flex-basis: 145px; }
+  .investment-gold-screen .gold-myhanh-tracker .gold-prices-widget,
+  .investment-gold-screen .investment-tracker-copy .gold-myhanh-tracker .gold-chart-panel { padding: 12px !important; }
+  .investment-gold-screen .gold-portfolio-panel { margin-top: 10px; }
+  .investment-gold-screen .gold-portfolio-tabs button { min-height: 42px; padding-block: 7px; }
+  .investment-gold-screen .gold-portfolio-panel .table-shell { margin: 6px 0 8px; }
+}

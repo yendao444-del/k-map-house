@@ -1,6 +1,6 @@
 {
   "name": "k-map-house",
-  "version": "1.0.101",
+  "version": "1.0.102",
   "description": "Phan mem quan ly phong tro DBY HOME",
   "main": "./out/main/index.js",
   "author": "DBY HOME",
@@ -47,7 +47,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.27",
-    "electron": "^44.4.5",
+    "electron": "^44.11.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.1",

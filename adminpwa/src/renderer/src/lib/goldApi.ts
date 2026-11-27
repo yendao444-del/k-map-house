@@ -1,3 +1,5 @@
+import type { MyHanhGoldPrices } from '../../../shared/my-hanh-gold'
+
 export type GoldPriceDetail = {
   name: string
   buy: number
@@ -15,6 +17,14 @@ export type GoldPricesResponse = {
   time: string
   date: string
   prices: Record<string, GoldPriceDetail>
+  myHanh?: MyHanhGoldPrices
+}
+
+export function suggestedMyHanhPricePerChi(response: MyHanhGoldPrices | null, tradeType: 'buy' | 'sell'): number {
+  if (!response?.success || response.stale) return 0
+  const quote = response.products.find(product => product.code === 'MH9999' && product.metal === 'gold')
+  const price = tradeType === 'buy' ? quote?.sellPerChi : quote?.buyPerChi
+  return typeof price === 'number' && Number.isFinite(price) && price > 0 ? Math.round(price) : 0
 }
 
 export function suggestedGoldPricePerChi(
@@ -23,6 +33,7 @@ export function suggestedGoldPricePerChi(
   tradeType: 'buy' | 'sell'
 ): number {
   if (response?.source !== 'live' || !response.livePriceCodes?.includes(quoteCode)) return 0
+  if (quoteCode === 'MH9999' && (!response.myHanh?.success || response.myHanh.stale)) return 0
 
   const quote = response.prices[quoteCode]
   const listedPricePerLuong = tradeType === 'buy' ? quote?.sell : quote?.buy
@@ -50,197 +61,91 @@ export type GoldHistoryResponse = {
   source?: string
   coverageStart?: string
   coverageEnd?: string
+  note?: string
 }
 
 const BASE_URL = 'https://www.vang.today/api'
 
-// Fallback current prices in case API is offline
-export const FALLBACK_GOLD_PRICES: Record<string, GoldPriceDetail> = {
-  SJ9999: { name: 'Vàng nhẫn SJC', buy: 138600000, sell: 143600000, currency: 'VND', change_buy: -500000, change_sell: -500000 },
-  SJL1L10: { name: 'Vàng SJC 9999', buy: 144500000, sell: 148500000, currency: 'VND', change_buy: -500000, change_sell: -500000 },
-  PQHN24NTT: { name: 'Vàng nhẫn PNJ', buy: 138500000, sell: 143000000, currency: 'VND', change_buy: -400000, change_sell: -400000 },
-  BT9999NTT: { name: 'Bảo Tín 9999', buy: 138600000, sell: 143600000, currency: 'VND', change_buy: -500000, change_sell: -500000 },
-  VKIENG: { name: 'Vàng kiềng', buy: 138600000, sell: 143600000, currency: 'VND', change_buy: -500000, change_sell: -500000 },
-  XAUUSD: { name: 'Vàng thế giới', buy: 4308.7, sell: 0, currency: 'USD' }
-}
-
-function normalizeGoldPrices(prices: Record<string, GoldPriceDetail>): Record<string, GoldPriceDetail> {
-  const merged = { ...FALLBACK_GOLD_PRICES, ...prices }
-  const ringPrice = merged.SJ9999 || merged.PQHN24NTT || merged.BT9999NTT
-
-  if (ringPrice) {
-    merged.VKIENG = {
-      ...ringPrice,
-      name: 'Vàng kiềng'
-    }
-  }
-
-  return merged
-}
-
-const LONG_TERM_SJC_REFERENCE: Array<{ date: string; buy: number; sell: number }> = [
-  { date: '2023-06-01', buy: 66500000, sell: 67100000 },
-  { date: '2023-07-01', buy: 66350000, sell: 66950000 },
-  { date: '2023-08-01', buy: 66700000, sell: 67300000 },
-  { date: '2023-09-01', buy: 67550000, sell: 68250000 },
-  { date: '2023-10-01', buy: 68150000, sell: 68850000 },
-  { date: '2023-11-01', buy: 69900000, sell: 70600000 },
-  { date: '2023-12-01', buy: 72400000, sell: 73600000 },
-  { date: '2024-01-01', buy: 73000000, sell: 76000000 },
-  { date: '2024-02-01', buy: 75700000, sell: 78000000 },
-  { date: '2024-03-01', buy: 77600000, sell: 79600000 },
-  { date: '2024-04-01', buy: 78500000, sell: 81000000 },
-  { date: '2024-05-01', buy: 82400000, sell: 84600000 },
-  { date: '2024-06-01', buy: 81000000, sell: 83000000 },
-  { date: '2024-07-01', buy: 74980000, sell: 76980000 },
-  { date: '2024-08-01', buy: 77800000, sell: 79800000 },
-  { date: '2024-09-01', buy: 79000000, sell: 81000000 },
-  { date: '2024-10-01', buy: 82000000, sell: 84000000 },
-  { date: '2024-11-01', buy: 88000000, sell: 90000000 },
-  { date: '2024-12-01', buy: 83300000, sell: 85800000 },
-  { date: '2025-01-01', buy: 82800000, sell: 85300000 },
-  { date: '2025-04-01', buy: 94700000, sell: 97700000 },
-  { date: '2025-09-07', buy: 118600000, sell: 120600000 },
-]
-
-function toHistoryPoint(type: string, point: { date: string; buy: number; sell: number }): HistoricalPricePoint {
-  const fallbackPrice = FALLBACK_GOLD_PRICES[type] || FALLBACK_GOLD_PRICES.SJ9999
-
-  return {
-    date: point.date,
-    prices: {
-      [type]: {
-        name: fallbackPrice.name,
-        buy: point.buy,
-        sell: point.sell,
-        day_change_buy: 0,
-        day_change_sell: 0
-      }
+export async function fetchMyHanhPrices(): Promise<MyHanhGoldPrices> {
+  try {
+    if (!window.api?.investment?.myHanhGold) throw new Error('Preload chưa hỗ trợ nguồn Mỹ Hạnh.')
+    return await window.api.investment.myHanhGold()
+  } catch {
+    return {
+      success: false, products: [], source: 'Ước tính theo nhẫn PNJ Hà Nội',
+      sourceUrl: 'https://www.vang.today/', unit: 'VND/chi',
+      stale: true, error: 'Chưa lấy được giá Mỹ Hạnh. Vui lòng thử lại hoặc khởi động lại ứng dụng.'
     }
   }
 }
 
-function getCoverage(history: HistoricalPricePoint[]) {
-  if (history.length === 0) return { coverageStart: undefined, coverageEnd: undefined, coverageDays: 0 }
-  const dates = history.map(item => item.date).sort()
-  const start = dates[0]
-  const end = dates[dates.length - 1]
-  const coverageDays = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000) + 1
-
-  return { coverageStart: start, coverageEnd: end, coverageDays }
-}
-
-function withLongTermReference(type: string, days: number, history: HistoricalPricePoint[]): GoldHistoryResponse {
-  const { coverageStart, coverageEnd, coverageDays } = getCoverage(history)
-  if (days <= 365 || coverageDays >= days * 0.75) {
-    return { success: true, days, type, history, source: 'Vang.Today', coverageStart, coverageEnd }
+async function fetchBrandedPrices(): Promise<GoldPricesResponse> {
+  try {
+    const res = await fetch(`${BASE_URL}/prices`, { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    if (!data?.success || !data.prices || typeof data.prices !== 'object') throw new Error('Invalid gold prices')
+    const prices: Record<string, GoldPriceDetail> = {}
+    for (const [code, raw] of Object.entries(data.prices)) {
+      const price = raw as GoldPriceDetail
+      if (typeof price.name !== 'string' || !Number.isFinite(price.buy) || !Number.isFinite(price.sell) ||
+          price.buy <= 0 || price.sell < price.buy || price.currency !== 'VND') continue
+      prices[code] = price
+    }
+    return { ...data, prices, source: 'live', livePriceCodes: Object.keys(prices) }
+  } catch {
+    return { success: false, source: 'fallback', livePriceCodes: [], timestamp: 0, time: '', date: '', prices: {} }
   }
-
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - days)
-  const firstLiveDate = coverageStart || new Date().toISOString().split('T')[0]
-  const liveDates = new Set(history.map(item => item.date))
-  const referenceHistory = LONG_TERM_SJC_REFERENCE
-    .filter(point => point.date >= cutoff.toISOString().split('T')[0] && point.date < firstLiveDate && !liveDates.has(point.date))
-    .map(point => toHistoryPoint(type, point))
-
-  const mergedHistory = [...history, ...referenceHistory].sort((a, b) => b.date.localeCompare(a.date))
-  const mergedCoverage = getCoverage(mergedHistory)
-
-  return {
-    success: true,
-    days,
-    type,
-    history: mergedHistory,
-    source: 'Vang.Today + dữ liệu lịch sử tham chiếu',
-    coverageStart: mergedCoverage.coverageStart,
-    coverageEnd: mergedCoverage.coverageEnd
-  }
-}
-
-// Generates fake history for demo fallback
-function generateFallbackHistory(days: number, type = 'SJ9999'): HistoricalPricePoint[] {
-  const history: HistoricalPricePoint[] = []
-  const today = new Date()
-  const fallbackPrice = FALLBACK_GOLD_PRICES[type] || FALLBACK_GOLD_PRICES.SJ9999
-  const baseBuy = fallbackPrice.buy
-  const baseSell = fallbackPrice.sell
-  
-  for (let i = 0; i < days; i++) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const dateStr = d.toISOString().split('T')[0]
-    
-    // Simulate some price walk
-    const change = (Math.sin(i * 0.1) * 2000000) + (Math.cos(i * 0.05) * 1500000)
-    
-    history.push({
-      date: dateStr,
-      prices: {
-        [type]: {
-          name: fallbackPrice.name,
-          buy: Math.round(baseBuy + change),
-          sell: Math.round(baseSell + change),
-          day_change_buy: 100000 * (Math.sin(i) > 0 ? 1 : -1),
-          day_change_sell: 100000 * (Math.sin(i) > 0 ? 1 : -1)
-        }
-      }
-    })
-  }
-  return history
 }
 
 export async function fetchCurrentGoldPrices(): Promise<GoldPricesResponse> {
-  try {
-    const res = await fetch(`${BASE_URL}/prices`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(10000)
-    })
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`)
-    const data = await res.json()
-    if (data && data.success) {
-      return {
-        ...data,
-        source: 'live',
-        livePriceCodes: Object.keys(data.prices || {}),
-        prices: normalizeGoldPrices(data.prices || {})
-      }
-    }
-    throw new Error('API reported unsuccessful response')
-  } catch (error) {
-    console.warn('Failed to fetch current gold prices, using fallback data:', error)
-    return {
-      success: true,
-      source: 'fallback',
-      livePriceCodes: [],
-      timestamp: Math.floor(Date.now() / 1000),
-      time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toISOString().split('T')[0],
-      prices: normalizeGoldPrices({})
+  const [branded, myHanh] = await Promise.all([fetchBrandedPrices(), fetchMyHanhPrices()])
+  const mh = myHanh.products.find(product => product.code === 'MH9999')
+  const hasMyHanhQuote = myHanh.success && !myHanh.stale && !!mh
+  return {
+    ...branded,
+    success: branded.success || hasMyHanhQuote,
+    source: branded.success || hasMyHanhQuote ? 'live' : 'fallback',
+    myHanh,
+    livePriceCodes: [...(branded.livePriceCodes || []), ...(hasMyHanhQuote ? ['MH9999'] : [])],
+    // Keep this API's legacy per-lượng contract. Only convert at the explicit boundary.
+    prices: {
+      ...branded.prices,
+      ...(hasMyHanhQuote ? { MH9999: { name: mh.name, buy: mh.buyPerChi * 10, sell: mh.sellPerChi * 10, currency: 'VND' } } : {})
     }
   }
 }
 
 export async function fetchGoldHistory(type = 'SJ9999', days = 30): Promise<GoldHistoryResponse> {
+  if (type.startsWith('MH')) {
+    try {
+      const data = await window.api.investment.myHanhGoldHistory()
+      const cutoff = new Date(Date.now() + 7 * 3600000 - (days - 1) * 86400000).toISOString().slice(0, 10)
+      const history = data.points.filter(point => point.code === type && point.date >= cutoff).map(point => ({
+        date: point.date,
+        prices: { [type]: { name: type, buy: point.buyPerChi * 10, sell: point.sellPerChi * 10 } }
+      })).sort((a, b) => b.date.localeCompare(a.date))
+      return { success: data.success, days, type, history, source: 'Ước tính theo nhẫn PNJ Hà Nội',
+        coverageStart: history.at(-1)?.date, coverageEnd: history[0]?.date,
+        note: `${data.providerState === 'available' ? 'Ước tính từ giá nhẫn PNJ Hà Nội, hiệu chỉnh theo giá bán thực tế tại tiệm.' : data.providerState === 'error' ? 'Chưa tải được giá nhẫn PNJ; hiển thị các mốc đã lưu trên máy.' : 'Nguồn chưa có dữ liệu quá khứ; hiển thị các mốc thực tế ghi nhận trên máy.'}${history.length === 1 ? ' Hiện có 1 mốc; đường giá sẽ nối khi có thêm ngày mới.' : ''}${!data.storageAvailable ? ' Không lưu được lịch sử trên máy.' : ''}` }
+    } catch {
+      return { success: false, days, type, history: [], source: 'Ước tính theo nhẫn PNJ Hà Nội', note: 'Chưa tải được lịch sử Mỹ Hạnh. Vui lòng thử lại hoặc khởi động lại ứng dụng.' }
+    }
+  }
   try {
-    const res = await fetch(`${BASE_URL}/prices?type=${type}&days=${days}`)
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`)
+    const res = await fetch(`${BASE_URL}/prices?type=${encodeURIComponent(type)}&days=${days}`, { signal: AbortSignal.timeout(10000) })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
-    if (data && data.success) {
-      return withLongTermReference(type, days, data.history || [])
-    }
-    throw new Error('API reported unsuccessful response')
-  } catch (error) {
-    console.warn(`Failed to fetch history for ${type} over ${days} days, using fallback data:`, error)
-    const fallbackHistory = generateFallbackHistory(days, type)
+    if (!data?.success || !Array.isArray(data.history)) throw new Error('Invalid history')
+    const history: HistoricalPricePoint[] = data.history.filter((item: HistoricalPricePoint) =>
+      /^\d{4}-\d{2}-\d{2}$/.test(item?.date) && Number.isFinite(item?.prices?.[type]?.buy) &&
+      item.prices[type].buy > 0 && Number.isFinite(item.prices[type].sell) && item.prices[type].sell >= item.prices[type].buy
+    ).sort((a: HistoricalPricePoint, b: HistoricalPricePoint) => b.date.localeCompare(a.date))
     return {
-      success: true,
-      days,
-      type,
-      history: fallbackHistory,
-      source: 'Fallback demo',
-      coverageStart: fallbackHistory[fallbackHistory.length - 1]?.date,
-      coverageEnd: fallbackHistory[0]?.date
+      success: true, days, type, history, source: 'Vang.Today',
+      coverageStart: history.at(-1)?.date, coverageEnd: history[0]?.date
     }
+  } catch {
+    return { success: false, days, type, history: [], source: 'Vang.Today' }
   }
 }

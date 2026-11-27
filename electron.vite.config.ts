@@ -12,9 +12,13 @@ export default defineConfig({
   },
   preload: { ...(contractTestMode ? { build: { outDir: '.contract-test-out/preload' } } : {}) },
   renderer: {
+    // Changing the dev port changes localStorage's origin and loses the saved
+    // Auth session/device. Fail visibly instead of silently moving to 5174.
+    server: { host: 'localhost', port: 5173, strictPort: true },
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
+        '@renderer': resolve('src/renderer/src'),
+        '@dby-finance': resolve('dby-finance/src')
       }
     },
     css: {

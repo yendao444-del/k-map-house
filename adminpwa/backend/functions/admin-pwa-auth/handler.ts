@@ -8,9 +8,14 @@ const fields: Record<string, string[]> = {
   totp_replace_begin: ['factor_id'], totp_replace_register: ['factor_id'], totp_replace_cancel: [],
   email_verify: ['purpose','challenge_id','code'], recovery_issue: [], recovery_ack: ['batch_id'],
   recovery_consume: ['code'], recovery_reset: [], authorize: [], revoke_session: ['all'],
-  device_create: ['label'], device_revoke: ['device_id'], overview: [],
+  device_create: ['label','device_token'], device_revoke: ['device_id'], overview: [],
   beneficiary_start: ['factor_id','code','bank_id','account_no','account_name'], beneficiary_confirm: ['challenge_id','code']
 }
+// Browser/app family without versions, so a routine browser update keeps the
+// device trusted while a different browser or OS family is treated as new.
+const agentFamily = (agent: string) => `family:${agent.replace(/\d+(?:[._]\d+)*/g, '#').replace(/\s+/g, ' ').trim().slice(0, 512)}`
+const networkHeader = (request: Request) => { const value = request.headers.get('x-management-network') || ''; return /^[a-f0-9]{64}$/.test(value) ? value : null }
+const deviceTokenPattern = /^[a-f0-9]{64}\.[a-f0-9]{64}$/
 const beneficiaryBanks = new Set(['VCB','MBBANK','TCB','ACB','BIDV','VPB','TPB','AGRIBANK','SHB','OCB','MSB','VIB','HDB','SCB','SACOMBANK','EXIMBANK'])
 
 async function boundedBody(request: Request): Promise<string> {
@@ -86,6 +91,13 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       return proof.response.ok && proof.data?.ok === true
     }
     if (action === 'status') {
+      // Rebind a verified remembered session after a network change. Only the
+      // service can record this; failure falls through to the normal MFA gate.
+      const agent = request.headers.get('x-management-agent') || ''
+      await call('/rest/v1/rpc/security_trusted_session_resume', {
+        p_user: subject, p_session: sessionId, p_ip: ip, p_network: networkHeader(request),
+        p_agent: agentHash, p_agent_family: await sha256(agentFamily(agent))
+      }).catch(() => null)
       if (await devDeviceProof()) return reply(200, await rpc('status'))
       const emailLogin = await call('/rest/v1/rpc/security_email_login_status', { p_user: subject, p_session: sessionId, p_ip: ip, p_agent: agentHash })
       if (emailLogin.response.ok && emailLogin.data?.ok === true) return reply(200, await rpc('status'))
@@ -143,10 +155,8 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       const confirmed = await stepup('confirm')
       if (confirmed.ok !== true) return reply(403, { ok: false, error: 'Phiên bảo mật đã thay đổi. Vui lòng đăng nhập lại.' })
       if (action === 'password_change') {
-        // Keep GoTrue's password policy and preserve this exact AAL2 session.
-        // The admin password endpoint would revoke even the caller's session.
-        // Authorized management sessions live at most six hours, within
-        // GoTrue's 24-hour recent-signin window for nonce-free password changes.
+        // GoTrue may request a fresh signin on older remembered sessions. Keep
+        // its password policy and recent-signin protection authoritative.
         const changed = await call('/auth/v1/user', { password: data.new_password, current_password: data.password }, config.anonKey, accessToken, 'PUT')
         if (!changed.response.ok) return reply(changed.response.status >= 500 ? 503 : 400, { ok: false, error: 'Chưa đổi được mật khẩu. Kiểm tra yêu cầu mật khẩu rồi thử lại.' })
       }
@@ -324,8 +334,15 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(config.gatewaySecret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
       const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${subject}:${nonce}`))
       const token = `${nonce}.${Array.from(new Uint8Array(signature), b => b.toString(16).padStart(2, '0')).join('')}`
-      const created = await rpc('device_create', { token_hash: await sha256(token), label: typeof data.label === 'string' ? data.label : 'Thiết bị của tôi' })
-      return reply(200, { ...created, device_token: created.ok === true ? token : undefined })
+      const agent = request.headers.get('x-management-agent') || ''
+      const previous = typeof data.device_token === 'string' && deviceTokenPattern.test(data.device_token) ? await sha256(data.device_token) : null
+      const remembered = await call('/rest/v1/rpc/security_trusted_device_remember', {
+        p_user: subject, p_session: sessionId, p_ip: ip, p_network: networkHeader(request), p_agent: agentHash,
+        p_agent_family: await sha256(agentFamily(agent)), p_token_hash: await sha256(token), p_previous_hash: previous,
+        p_label: typeof data.label === 'string' ? data.label : 'Thiết bị của tôi'
+      })
+      const created = remembered.response.ok && remembered.data && typeof remembered.data === 'object' ? remembered.data : { ok: false }
+      return reply(created.ok === true ? 200 : 403, created.ok === true ? { ...created, device_token: token } : { ok: false, error: 'Chưa ghi nhận được thiết bị tin cậy.' })
     }
     if (typeof data.device_token === 'string') { data.device_hash = await sha256(data.device_token); delete data.device_token }
     if (typeof data.challenge_id === 'string' && !uuid.test(data.challenge_id)) return reply(400, { ok: false })
@@ -371,10 +388,19 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       const resolved = await call('/rest/v1/rpc/resolve_login_email', { login_name: login })
       if (!resolved.response.ok) return reply(503, { ok: false, error: 'Dịch vụ đăng nhập chưa phản hồi. Hãy thử lại.' })
       const email = typeof resolved.data === 'string' && resolved.data.includes('@') ? resolved.data : '__unknown_management_login__@invalid.example'
+      // Resolve aliases first so username and email share the same risk counter.
+      const accountDigest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`account:${email.toLowerCase()}`))
+      const accountHash = Array.from(new Uint8Array(accountDigest), b => b.toString(16).padStart(2, '0')).join('')
       const signed = await call('/auth/v1/token?grant_type=password', { email, password }, config.anonKey)
       if (signed.response.status === 429) return reply(429, { ok: false, error: 'Bạn thử quá nhiều lần. Vui lòng chờ một phút.' })
       if (signed.response.status >= 500) return reply(503, { ok: false, error: 'Dịch vụ đăng nhập chưa phản hồi. Hãy thử lại.' })
-      if (!signed.response.ok || !uuid.test(signed.data?.user?.id || '')) return reply(401, { ok: false, error: loginError })
+      if (!signed.response.ok || !uuid.test(signed.data?.user?.id || '')) {
+        if (signed.response.status === 400 || signed.response.status === 401) {
+          const failed = await call('/rest/v1/rpc/security_login_attempt', { p_login: accountHash, p_ip: ip, p_success: false })
+          if (!failed.response.ok || failed.data?.ok !== true) return reply(503, { ok: false, error: 'Dịch vụ đăng nhập chưa phản hồi. Hãy thử lại.' })
+        }
+        return reply(401, { ok: false, error: loginError })
+      }
       const userId = signed.data.user.id
       const profile = await call(`/rest/v1/users?id=eq.${userId}&select=id,role,status`)
       const row = Array.isArray(profile.data) && profile.data.length === 1 ? profile.data[0] : null
@@ -386,12 +412,17 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       if (typeof signed.data.access_token !== 'string' || typeof signed.data.refresh_token !== 'string') return reply(503, { ok: false })
       const claims = decodeJwt(signed.data.access_token)
       if (claims?.sub !== userId || typeof claims?.session_id !== 'string' || !uuid.test(claims.session_id)) return reply(503, { ok: false })
+      const risk = await call('/rest/v1/rpc/security_login_attempt', { p_login: accountHash, p_ip: ip, p_success: true })
+      if (!risk.response.ok || risk.data?.ok !== true || !Number.isInteger(risk.data.failures) || risk.data.failures < 0) {
+        await call('/auth/v1/logout?scope=local', {}, config.anonKey, signed.data.access_token).catch(() => undefined)
+        return reply(503, { ok: false, error: 'Chưa kiểm tra được độ an toàn của phiên đăng nhập. Hãy thử lại.' })
+      }
       // Only a successful password request through this rate-limited gateway
       // can register an application session. A public Auth token is insufficient.
       const registered = await call('/rest/v1/rpc/security_service', {
         p_action: 'register', p_user: userId, p_session: claims.session_id, p_ip: ip,
         p_agent: await sha256(request.headers.get('x-management-agent') || ''),
-        p_data: typeof payload.device_token === 'string' ? { device_hash: await sha256(payload.device_token) } : {}
+        p_data: { login_hash: accountHash, login_failures: risk.data.failures, ...(typeof payload.device_token === 'string' ? { device_hash: await sha256(payload.device_token) } : {}) }
       })
       if (!registered.response.ok || registered.data?.ok !== true) {
         await call('/auth/v1/logout?scope=local', {}, config.anonKey, signed.data.access_token).catch(() => undefined)
@@ -399,11 +430,21 @@ export function createManagementAuthHandler(config: Config, fetcher: typeof fetc
       }
       // A device credential alone never logs in: the password, active role and
       // fresh registered Auth session have already been verified above.
-      if (typeof payload.device_token === 'string' && (request.headers.get('x-management-agent') || '').includes('Electron/')) {
-        await call('/rest/v1/rpc/security_dev_device_login', {
-          p_user: userId, p_session: claims.session_id, p_ip: ip,
-          p_agent: await sha256(request.headers.get('x-management-agent') || ''), p_token_hash: await sha256(payload.device_token)
-        })
+      // A remembered device skips MFA unless the server detects failed-login
+      // risk. A network change alone is not enough to ask for another code.
+      if (typeof payload.device_token === 'string') {
+        const agent = request.headers.get('x-management-agent') || ''
+        const tokenHash = await sha256(payload.device_token)
+        const result = await call('/rest/v1/rpc/security_trusted_device_login', {
+          p_user: userId, p_session: claims.session_id, p_ip: ip, p_network: networkHeader(request),
+          p_agent: await sha256(agent), p_agent_family: await sha256(agentFamily(agent)), p_token_hash: tokenHash
+        }).catch(() => null)
+        const trusted = result?.response.ok === true && result.data?.ok === true
+        if (!trusted && risk.data.failures === 0 && agent.includes('Electron/')) {
+          await call('/rest/v1/rpc/security_dev_device_login', {
+            p_user: userId, p_session: claims.session_id, p_ip: ip, p_agent: await sha256(agent), p_token_hash: tokenHash
+          })
+        }
       }
       return reply(200, { ok: true, session: { access_token: signed.data.access_token, refresh_token: signed.data.refresh_token } })
     } catch { return reply(503, { ok: false, error: 'Dịch vụ đăng nhập chưa phản hồi. Hãy thử lại.' }) }

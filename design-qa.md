@@ -1,3 +1,24 @@
+# Phân quyền ứng dụng (A + B) design QA — 27/11/2026
+
+Source visual truth: [generated_demos/app-permissions/a](generated_demos/app-permissions/a/dby_images_20261127_105923_001_586db3.png) (cột "Ứng dụng" + mục menu ⋮) và [generated_demos/app-permissions/b](generated_demos/app-permissions/b/dby_images_20261127_105954_001_d6aa00.png) (hộp thoại "Phân quyền ứng dụng"), người dùng chọn hướng A + B.
+
+Implementation evidence: ảnh chụp của người dùng trên bản đang chạy (hộp thoại với tài khoản Đỗ Kim Ngân, và bảng Tài khoản hệ thống sau khi lưu quyền DBY Finance). Phiên local của Claude bị chặn ở bước 2FA nên không có ảnh chụp tự động.
+
+## Evidence review
+
+- Bảng giữ nguyên bố cục hiện có (Tài khoản, Vai trò, Trạng thái, Bảo mật, Đăng nhập, Thao tác) và thêm cột "Ứng dụng" sau Vai trò như ảnh A. Admin hiện cả hai nhãn kèm khóa; người dùng thiếu DBY có nút viền đứt "+ DBY Finance".
+- Menu ⋮ có thêm "Phân quyền ứng dụng" giữa "Sửa thông tin" và "Đổi mật khẩu", đúng thứ tự trong ảnh A.
+- Hộp thoại khớp ảnh B: tiêu đề, avatar chữ cái + email + vai trò, hai thẻ ứng dụng có công tắc, cảnh báo vàng khi bật DBY Finance, nút "Hủy" / "Lưu quyền". Khác biệt có chủ ý: biểu tượng dùng Lucide (Home, Coins) thay cho icon vẽ trong ảnh; bảng phía sau ảnh B vẽ sai cột nên giữ bảng thật.
+- Lưu quyền đi qua xác nhận mật khẩu và RPC `admin_set_user_app_access`; máy chủ chặn ở `security_management_access_allowed` (Nhà trọ) và `dby_finance_assert_access` (DBY Finance).
+
+## Comparison history
+
+1. Lần đầu: hộp xác nhận mật khẩu (z 5000) bị hộp thoại phân quyền (z 10000) che. Đã hạ hộp thoại xuống z 4500.
+2. Bảng cần cuộn ngang ở màn ~1050 px vì min-width 1160 px. Đã giảm còn 940 px, chia lại độ rộng cột và thu nhỏ nhãn ứng dụng.
+Không còn lỗi P0/P1 đã biết; người dùng xác nhận "Xong rồi" trước khi deploy.
+
+---
+
 # Profile option 3 design QA
 
 Source visual truth: [docs/design/profile-directions/modern-3.png](G:/PHONG%20TRO/app/docs/design/profile-directions/modern-3.png), the user-approved modern option 3.
@@ -29,6 +50,32 @@ Initial pass found the desktop menu's lower sign-out row partially below the 720
 - Activity history can show audited device events after the backend audit log exists.
 
 final result: passed
+
+## Flutter stocks and funds tablet workspace — 2026-11-25
+
+Source visual truth: `generated_demos/stocks-funds-tablet-demo-20261125.png`.
+Implementation target: `ANDROI/flutter_app/lib/ui/investments/investments_page.dart` and `ANDROI/flutter_app/lib/ui/investments/investment_market_panel.dart`.
+
+The Flutter implementation now includes the tablet summary strip, touch-sized stock watchlist rows, enlarged chart/watchlist panels and responsive stacked layout. `flutter analyze --no-pub` passed with no issues. The first Windows build was blocked by a locked Rust DLL, then succeeded after closing the stale Flutter app process. Visual screenshot capture was not completed because the Windows Computer Use session was stopped by the user's Escape key.
+
+final result: blocked
+
+## Flutter investment screenshot correction — 2026-11-25
+
+User-provided evidence: `C:/Users/Admin/AppData/Local/Temp/codex-clipboard-a2578c6f-e359-43cb-8558-76b593bab248.png`.
+
+Fixed the concrete mismatches visible in the screenshot. The investment header now follows the navy theme, the stock chart uses the emerald accent, empty holdings has a visible CTA and icon, the add button text has readable contrast, and the investment sidebar width is wider for tablet labels. `flutter analyze --no-pub` passed and `flutter test test/investments_page_test.dart --no-pub` passed all 10 tests. A fresh screenshot recapture was not completed in this turn, so final visual QA remains blocked until the running Flutter window is captured at the same viewport.
+
+final result: blocked
+
+## Flutter investment modal and action controls — 2026-11-25
+
+Source visual truth: `generated_demos/investment-modal-redesign-20261125.png`.
+Implementation: `ANDROI/flutter_app/lib/ui/investments/investments_page.dart` and `ANDROI/flutter_app/lib/ui/investments/investment_trade_dialog.dart`.
+
+Applied the approved dark modal direction, 48px tablet controls, consistent navy/emerald tokens, step indicator, helper copy, responsive modal width, and standardized buy/sell action styling. `flutter analyze --no-pub` passed with no issues. Windows packaging is currently blocked by the local Visual Studio toolchain missing `atls.lib` after the stale Flutter process was closed. No visual screenshot recapture was completed in this iteration.
+
+final result: blocked
 
 ## Mandatory security gate — 2026-10-10
 
@@ -356,3 +403,122 @@ Replaced the investment purchase native dialog with a reusable async confirmatio
 51 financial/history/cloud tests and Electron/PWA typechecks passed. Eight purchase form fixtures passed custom confirmation/cancellation and exact-shortfall checks. Escape, close, backdrop, unmount, focus trap and inert restoration checked. 390x844 and320x568 have no horizontal overflow and retain visible actions. No production financial writes; native Electron window and installer packaging not exercised.
 
 final result: passed
+
+
+---
+
+# Account menu responsive QA — 20/11/2026
+
+Source visual truth: `docs/design/account-menu-responsive-2026-11-20/compact-menu.png`, explicitly approved by the user.
+
+Implementation: actual Electron and PWA AccountMenu components with their production CSS, rendered through a local fixture at http://127.0.0.1:4195/. Fixture callbacks record navigation actions without accessing customer data or signing out a real account.
+
+## Evidence
+
+- Source: 1044×1506 pixels, normalized to the supplied 509×734 viewport (approximately 2.05× source density).
+- Implementation: 509×734 CSS/pixel viewport, scale 1, account menu open; `implementation-509.jpg` and `implementation-desktop-509.jpg`.
+- Combined source/implementation comparison: `comparison.png`. Both menus are normalized to 350px width; left is the approved image, right is the rendered component. Background and title bar use fixture content, not generated app data.
+- Responsive captures: `implementation-320.jpg`, `implementation-390x844.jpg`, `implementation-1440x900.jpg`, `implementation-568x320.jpg`.
+
+## Results
+
+- Menu width reduced from 460px to 350px; 320px window uses 296px with 12px side gutters.
+- Normal menu height approximately 430px, compared with the original screenshot's roughly 640px. All five actions remain visible without scrolling at 320×568, 390×844, 509×734 and 1440×900.
+- At 568×320 the menu is constrained to 252px tall, top 56px and bottom 308px. Internal scrolling reaches the logout row; no horizontal overflow.
+- Brand artwork, avatar, identity, emerald role badge, pale mint 2FA row, red logout and content hierarchy match the approved direction. Existing raster assets and Lucide icons are retained.
+- All five callbacks verified in the browser fixture: profile, manage, security, activity and logout. Escape dismisses the menu. Keyboard focus remains visible with an inset outline.
+- Body action labels 14px, descriptions 12px, 2FA supporting copy 11px. All rows at least 44px high; the inner CTA is part of the full clickable 2FA row.
+- Browser console: no errors. Electron and PWA TypeScript checks passed.
+- CSS changes scoped to `.account-menu`, preserving the shared profile/security dialog layout. Both client CSS files contain the same compact overrides.
+
+## Findings and comparison history
+
+Initial render was approximately 468px tall, with more vertical padding than the approved compact target. Reduced header padding/avatar size and row padding; recaptured implementation at the same viewport. Final menu is approximately 430px tall, with no clipping or horizontal overflow. The combined final comparison shows no actionable P0/P1/P2 findings.
+
+P3: Slightly more vertical breathing room than the generated image to retain 44px minimum row targets and readable Vietnamese supporting copy. The original longer 2FA description remains available rather than removing functionality or context.
+
+Scope limits: fixture verifies the production component and callbacks, not real authenticated navigation, production deployment or a released installer. No server or authentication changes are part of this menu task.
+
+final result: passed
+
+# DBY Finance workspace switcher QA (2026-11-26)
+
+Source visual truth: [generated_demos/dby-finance/approved-logo-c.webp](generated_demos/dby-finance/approved-logo-c.webp), logo C chosen by the user. Scope agreed: only the logo is new; the investment screen keeps its current design.
+
+Implementation: icon cropped from the approved artwork, rounded corners, 128×128 palette PNG (3.7 KB) at `src/renderer/src/assets/dby_finance_logo.png` and the PWA assets folder. Clicking the AN KHANG HOME logo (admins only) opens "Chuyển không gian" with AN KHANG HOME and DBY Finance; DBY Finance swaps logo/title to "DBY Finance · Đầu tư cá nhân", hides rental navigation, notifications and settings, and shows the existing investment screen bound to the personal portfolio.
+
+Status: typecheck passes. Migration `20261126100000_dby_finance_personal_portfolio.sql` applied to production project k-map-house on 2026-11-26. Verified in a rolled-back transaction: admin reads an empty portfolio and commits a deposit; a non-admin is rejected (42501); an overdraft buy and an operating-wallet-sourced transaction are rejected (22023). Not yet compared with a screenshot of the running app.
+
+## DBY Finance wallet (direction B) and graphite theme (2026-11-26)
+
+Source visual truth: [wallet-b-neutral](generated_demos/dby-finance/wallet/wallet-b-neutral/dby_images_20261126_164558_001_354ede.png), approved direction B recolored to the Antigravity reference ([reference-antigravity-colors.png](generated_demos/dby-finance/wallet/reference-antigravity-colors.png)): graphite outer chrome (#1e1e1e title bar, sidebar and Windows controls), black inner panel (#0a0a0a) floating with 12px radius and a #2a2a2a frame on all sides, white pill primary buttons, color only for money (#4ade80 in, #f87171 out), grayscale DBY logo on the dark chrome.
+
+Implemented: `InvestmentWalletPanel` (account header, monthly in/out/count tiles, statement with 7/30/all filter, CSV export, running balance). Deliberate deviation: no invented account number ("DBY-INV-0001"); the header shows the wallet name instead, because there is no real account id to copy. "Tiền ra" shows 0 đ in neutral text instead of red when zero.
+
+Status: typecheck passes for web and node. Not yet compared against a screenshot of the running app; the Windows control color needs an app restart because it is set by the main process.
+
+### Revision: bank-green palette (2026-11-26)
+
+User rejected the graphite look ("xám xịt") and asked for Vietnamese bank colors, then pointed to the ACBS banner as the identity: not one flat green but deep forest green + lime + pale lime-cream in harmony. Implemented without a new demo at the user's explicit request: forest-green frame #0e3b1c (title bar, sidebar, Windows controls), lime #c6f24e for the active nav item, primary wallet action and selected chip text, pale lime-cream content panel #f4f8ea with white cards (#e1ebd2 borders), forest/mid greens #1f6b22/#2f8f1f for primary buttons and positive money, red #d63c3c for outflows. Wallet account header uses a forest→lime gradient with a lime glow. DBY logo on the title bar is a lime tile with forest-green coins. Not yet verified against a screenshot of the running app.
+
+### Revision: calm Vietcombank palette with motifs (2026-11-26)
+
+Approved demo: [wallet-vcb-motif](generated_demos/dby-finance/wallet/wallet-vcb-motif/dby_images_20261126_170229_001_286fc8.png) (after the user found the earlier lime/forest palette too glaring). Implemented: muted deep green frame #0F3D2A (title bar, sidebar, Windows controls), active nav #1C5A3E with a 3px #8DC63F left marker, off-white panel #F7F9F7 with white cards (#E6ECE7 borders), deep green #1F5C3C buttons/chips, positive #2E7D4A, negative #C24545. Motifs are inline SVG data URIs (no image files): silk ribbons at the sidebar bottom, faint concentric arcs top-right + fading dot grid bottom-right + soft wave along the bottom of the content panel, translucent arcs and a lime highlight curve on the wallet account card. Logo tile #8DC63F with #0F3D2A coins. All SVGs parse; typecheck passes. Not yet compared against a screenshot of the running app.
+
+## DBY Finance – khớp demo wallet-vcb-motif, lần 3 (26/11/2026)
+
+Ảnh duyệt: `generated_demos/dby-finance/wallet/wallet-vcb-motif/dby_images_20261126_170229_001_286fc8.png`
+
+| Hạng mục | Demo | Đã làm |
+|---|---|---|
+| Màu khung (thanh tiêu đề + sidebar) | #084632 | Đổi từ #0f3d2a sang #084632 (CSS + overlay nút cửa sổ ở main process, cần khởi động lại app) |
+| Hình khối đáy sidebar | Dải lụa sáng chéo | Dùng ảnh cắt trực tiếp từ demo (`investment-trackers/assets/sidebar-silk.webp`, 272×358) |
+| Mục menu đang chọn | Thanh full-width #145d3f, vạch lime bên trái | Bỏ bo góc và viền focus vàng của Windows, vạch lime 4px |
+| Thẻ Ví đầu tư | #084632 → #0d5137 → #216c46 | Cập nhật gradient |
+| Nút | Nạp tiền / Rút tiền | Đổi nhãn (demo cũ ghi "Nạp vốn") |
+
+Thêm: hộp xác nhận xóa trong app thay cho `window.confirm`, hộp mật khẩu màu xanh lá, nút làm mới, "+ Mua thêm", giá vàng mua/bán đổi sang màu đậm dễ đọc. Chưa so ảnh chụp app thật.
+
+## DBY Finance – hộp Mua/Bán/Nhập cổ phiếu, quỹ, trái phiếu (26/11/2026)
+
+Ảnh duyệt: `generated_demos/dby-finance/wallet/stock-sheet-a/dby_images_20261126_172830_001_10680a.png` (bố cục) và `stock-sheet-b/dby_images_20261126_172857_001_a4e639.png` (3 màu).
+
+| Hạng mục | Demo | Đã làm |
+|---|---|---|
+| Bố cục | Một cột, bỏ khung tóm tắt bên phải | `TransactionModal` nhánh cổ phiếu/quỹ/trái phiếu dùng `trade-sheet` (CSS `investment-trackers/trade-sheet.css`) |
+| Dải màu | Tab Mua/Bán/Nhập hiện có, tổng tiền lớn | Xanh #17704A / đỏ #E0353F / vàng cam #D08A12; tab "Nhập hiện có" chỉ ở DBY Finance |
+| Mã | Ô mã + hàng chip nhỏ | Ô gõ mã (demo vẽ dạng dropdown – giữ ô gõ để nhập mã bất kỳ) |
+| Giá | Ô nổi bật nhất | 56px, chữ 26px đậm |
+| Số lượng | Gọn một hàng | − ô + và chip 100/500/1.000/5.000 |
+| Dải ví | Ví trước/sau giao dịch; Bán: đang có | Theo demo A (nền nhạt theo màu loại) |
+
+Áp dụng cho cả Trái phiếu (đơn vị CCQ). Chưa so ảnh chụp app thật.
+
+## DBY Finance logo — 2026-11-26
+
+Approved image: `generated_demos/dby-finance/logo/logo-c/dby_images_20261126_173034_001_7b447b.png` (option C, chosen by user).
+
+| Check | Approved image | Implementation | Result |
+| --- | --- | --- | --- |
+| Shape | Rounded square tile, three mint coin stacks in a V, lime arrow + sparkle | `dby-finance/assets/dby_finance_logo.png` cropped from the approved image, 256px, transparent corners | Match |
+| Colors | Forest green tile, mint `#21D38A` coins, lime `#76C41F` arrow | Same pixels (no recolor) | Match |
+| Title bar | — | Same file, 36px, faint white ring so the tile edge shows on the green bar | Readable |
+| Workspace menu | — | Same file replaces the old blue logo | Match |
+
+Old logos backed up in `generated_demos/dby-finance/logo/old/`. Not yet checked in the running Electron app.
+
+## DBY Finance – hộp Sổ tiết kiệm bấm nhanh (26/11/2026)
+
+Ảnh duyệt: `generated_demos/dby-finance/wallet/savings-sheet-a/dby_images_20261126_173825_001_67fc3a.png`, `savings-sheet-b/dby_images_20261126_173854_001_63ae60.png`.
+
+| Hạng mục | Demo | Đã làm |
+|---|---|---|
+| Loại sổ | Tab Mở sổ mới / Nhập sổ có sẵn | Có; tab chỉ hiện ở DBY Finance, phòng trọ chỉ Mở sổ mới |
+| Ngân hàng | Lưới 2×4 có huy hiệu chữ | Có; "Khác" mở ô gõ tên |
+| Số tiền | Ô to + chip 10 tr…1 tỷ | Có, ô hiển thị dấu chấm |
+| Kỳ hạn | Chip 1–36 th | Có; đổi kỳ hạn tự đổi lãi suất tham khảo cho tới khi người dùng sửa |
+| Khi đáo hạn | 3 nút | Có (chỉ khi mở sổ mới) |
+| Ngày gửi (nhập) | Chip 1/3/6 tháng trước + chọn ngày | Có |
+| Dải màu | Lãi dự kiến + ngày đáo hạn | Có; xanh mở mới, vàng cam nhập |
+
+Tất toán sổ và sửa giao dịch cũ vẫn dùng form cũ. Chưa so ảnh chụp app thật.

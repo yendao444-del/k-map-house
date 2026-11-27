@@ -64,15 +64,27 @@ export type TransactionRecord = InvestmentTransaction
 // the other and can never fund the investment wallet a second time.
 const rpcError = (error: { message: string; code?: string }) => Object.assign(new Error(error.message), { code: error.code })
 
-export async function readInvestmentStore(): Promise<{ data: InvestmentStore; importedFrom?: string }> {
-  const { data, error } = await supabase.rpc('admin_pwa_investment_read')
+// 'property' is the shared rental portfolio funded by the operating wallet.
+// 'personal' is DBY Finance: one private portfolio per admin, external money only.
+export type InvestmentPortfolio = 'property' | 'personal'
+const RPC = {
+  property: { read: 'admin_pwa_investment_read', commit: 'admin_pwa_investment_commit' },
+  personal: { read: 'dby_finance_investment_read', commit: 'dby_finance_investment_commit' }
+} as const
+
+export async function readInvestmentStore(portfolio: InvestmentPortfolio = 'property'): Promise<{ data: InvestmentStore; importedFrom?: string }> {
+  // The DB pre-request hook treats every POST as a write needing a fresh
+  // step-up; DBY Finance reads via GET (read-only transaction) instead.
+  const { data, error } = portfolio === 'personal'
+    ? await supabase.rpc(RPC.personal.read, {}, { get: true })
+    : await supabase.rpc(RPC.property.read)
   if (error) throw rpcError(error)
   return { data: parseInvestmentSnapshot(data).data }
 }
 
-export async function writeInvestmentStore(data: InvestmentStore): Promise<void> {
+export async function writeInvestmentStore(data: InvestmentStore, portfolio: InvestmentPortfolio = 'property'): Promise<void> {
   const result = await commitCloudInvestment({ store: data, requestId: crypto.randomUUID(), send: async payload => {
-    const { data: snapshot, error } = await supabase.rpc('admin_pwa_investment_commit', payload)
+    const { data: snapshot, error } = await supabase.rpc(RPC[portfolio].commit, payload)
     if (error) throw rpcError(error)
     return snapshot
   } })

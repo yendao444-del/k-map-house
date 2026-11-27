@@ -68,6 +68,11 @@ const profileQuery = (profile, calls) => ({
   maybeSingle: async () => { calls.push('profile'); return { data: profile, error: null } }
 })
 for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
+  test(base + ' server risk challenge overrides an older AAL2 JWT', async () => {
+    const h = harness(base, { level: 'aal2' })
+    await assert.rejects(h.mfa.requireSessionMfa({ state: 'totp', factor_id: 'test-factor' }), error => error instanceof h.mfa.MfaChallengeRequired)
+    assert.deepEqual(h.calls, ['factors', ['challenge', 'test-factor']])
+  })
   test(base + ' enrollment remains closed until the deployed service explicitly declares readiness', async () => {
     for (const options of [{}, { readinessError: true }, { readiness: { enrollment_enabled: false } }, { readiness: { enrollment_enabled: 'true' } }]) {
       assert.equal(await harness(base, options).mfa.isTotpEnrollmentAvailable(), false)
@@ -139,7 +144,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       },
       securityState: async () => { calls.push('security'); throw new Error('Security must not be queried after expiry') },
       requireSessionMfa: async () => { calls.push('mfa') },
-      authorizeSecuritySession: async () => { calls.push('authorize') },
+      authorizeSecuritySession: async () => { calls.push('authorize') }, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => { calls.push('verify') },
       managementLogin: async () => ({ access_token: 'fixture', refresh_token: 'fixture' }),
       buildAppUser: value => value,
@@ -164,7 +169,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       } },
       securityState: async () => ({ state: 'ready', expires_at: expiry }),
       requireSessionMfa: async () => { calls.push('aal2') },
-      authorizeSecuritySession: async () => { calls.push('authorize') },
+      authorizeSecuritySession: async () => { calls.push('authorize') }, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => { calls.push('verify'); throw new Error('A restored AAL2 session must not start a new challenge') },
       managementLogin: async () => ({ access_token: 'fixture', refresh_token: 'fixture' }),
       buildAppUser: value => value,
@@ -196,7 +201,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       } },
       securityState: async () => ({ state: 'ready', expires_at: '2032-01-02T09:04:05.000Z' }),
       requireSessionMfa: async () => {},
-      authorizeSecuritySession: async () => {},
+      authorizeSecuritySession: async () => {}, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => {},
       managementLogin: async () => ({ access_token: 'fixture', refresh_token: 'fixture' }),
       buildAppUser: value => value,
@@ -218,7 +223,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       } },
       securityState: async () => ({ state: 'ready', expires_at: expiry }),
       requireSessionMfa: async () => { calls.push('aal2') },
-      authorizeSecuritySession: async () => { calls.push('authorize') },
+      authorizeSecuritySession: async () => { calls.push('authorize') }, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => { calls.push('verify') },
       managementLogin: async () => ({ access_token: 'fixture', refresh_token: 'fixture' }),
       buildAppUser: value => value,
@@ -229,6 +234,27 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
     assert.deepEqual(await context.exports.completeMfaLogin('factor', 'challenge', '123456'), profile)
     assert.ok(calls.indexOf('verify') < calls.findIndex(call => Array.isArray(call) && call[0] === 'record'))
     assert.deepEqual(calls.filter(call => Array.isArray(call) && call[0] === 'record'), [['record', expiry]])
+  })
+  test(base + ' stores the 30-day server deadline after remembering before exposing the profile', async () => {
+    const calls = []
+    const profile = { id: 'fixture-user', role: 'admin', status: 'active' }
+    const expiry = '2032-01-02T09:04:05.000Z', trustedExpiry = '2032-02-01T09:04:05.000Z'
+    const context = loadDb(base, {
+      isManagementSessionExpired: () => false,
+      recordManagementSessionExpiry: value => calls.push(['record', value]), clearManagementSessionExpiry() {},
+      supabase: { from: () => profileQuery(profile, calls), auth: {
+        getSession: async () => ({ data: { session: session(profile.id) }, error: null }),
+        signOut: async () => ({ error: null })
+      } },
+      securityState: async () => ({ state: 'ready', expires_at: expiry }),
+      requireSessionMfa: async () => {}, authorizeSecuritySession: async () => {},
+      rememberVerifiedDevice: async () => { calls.push('remember'); return trustedExpiry },
+      verifyTotpChallenge: async () => {}, managementLogin: async () => ({}),
+      buildAppUser: value => value, assertManagementProfile() {}, normalizeRemoteErrorMessage: value => value
+    })
+    assert.deepEqual(await context.exports.getCurrentSessionUser(), profile)
+    assert.deepEqual(calls.filter(call => Array.isArray(call)), [['record', expiry], ['record', trustedExpiry]])
+    assert.ok(calls.indexOf('remember') < calls.indexOf('profile'))
   })
   test(base + ' never records a deadline from a password-only session awaiting TOTP', async () => {
     const calls = []
@@ -248,7 +274,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       } },
       securityState: async () => ({ state: 'totp', expires_at: '2032-01-02T09:04:05.000Z' }),
       requireSessionMfa: async () => { calls.push('mfa') },
-      authorizeSecuritySession: async () => { calls.push('authorize') },
+      authorizeSecuritySession: async () => { calls.push('authorize') }, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => { calls.push('verify') },
       managementLogin: async () => { calls.push('login'); return { access_token: 'fixture', refresh_token: 'fixture' } },
       buildAppUser: value => value,
@@ -277,7 +303,7 @@ for (const base of ['src/renderer/src', 'adminpwa/src/renderer/src']) {
       } },
       securityState: async () => ({ state: 'ready', expires_at: '2032-01-02T09:04:05.000Z' }),
       requireSessionMfa: async () => { calls.push('aal2') },
-      authorizeSecuritySession: async () => { calls.push('authorize') },
+      authorizeSecuritySession: async () => { calls.push('authorize') }, rememberVerifiedDevice: async () => {},
       verifyTotpChallenge: async () => { calls.push('verify') },
       managementLogin: async () => ({ access_token: 'fixture', refresh_token: 'fixture' }),
       buildAppUser: value => { calls.push('build'); return value },

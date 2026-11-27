@@ -25,6 +25,7 @@ import {
 import type { ReportPeriod } from './BusinessReport'
 import { getInvoicePaymentFlow, INVOICE_REFUND_LABELS } from '../lib/invoice-payment-flow'
 import { resolveWalletMethod } from '../lib/wallet-accounting'
+import { CashFlowNoteRow } from './CashFlowNoteRow'
 
 const formatVND = (value: number) => new Intl.NumberFormat('vi-VN').format(Math.round(value || 0))
 const dateKey = (date: Date) => {
@@ -208,8 +209,9 @@ function ReportLedgerPanel({
           const isManual = item.source === 'manual' && !['wallet_transfer', 'investment_transfer'].includes(item.category)
           const target = getCashTargetLabel(item, roomById)
           return (
-            <div
+            <CashFlowNoteRow
               key={item.id}
+              note={item.note}
               className="grid h-10 grid-cols-[92px_minmax(0,1fr)_112px_126px] items-center gap-2 px-3 transition hover:bg-slate-50"
             >
               <div className="text-xs font-medium text-slate-500">
@@ -221,7 +223,7 @@ function ReportLedgerPanel({
                 >
                   <i className={`fa-solid ${isIncome ? 'fa-arrow-down' : 'fa-bolt'} text-[11px]`} />
                 </span>
-                <div className="flex min-w-0 items-center gap-1 overflow-hidden" title={item.note || undefined}>
+                <div className="flex min-w-0 items-center gap-1 overflow-hidden">
                   <div className="truncate text-xs font-bold text-slate-800">
                     {categoryLabel(item.category, categoryOptions)}
                   </div>
@@ -267,7 +269,7 @@ function ReportLedgerPanel({
                   </span>
                 )}
               </div>
-            </div>
+            </CashFlowNoteRow>
           )
         })}
         {rows.length === 0 && (
@@ -1144,7 +1146,7 @@ export function CashFlowTab({
               </thead>
               <tbody className="divide-y divide-[#D8EADF]">
                 {filtered.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-[#F4F8F6]">
+                  <CashFlowNoteRow as="tr" key={item.id} note={item.note} className="transition-colors hover:bg-[#F4F8F6]">
                     <td className="px-4 py-3 font-semibold text-gray-700">
                       <TransactionDate item={item} />
                     </td>
@@ -1206,7 +1208,6 @@ export function CashFlowTab({
                     )}
                     <td
                       className="min-w-[280px] max-w-[520px] px-4 py-3 align-top leading-5 text-gray-500 whitespace-normal break-words"
-                      title={item.note || undefined}
                     >
                       {item.note || '—'}
                     </td>
@@ -1248,7 +1249,7 @@ export function CashFlowTab({
                         )}
                       </div>
                     </td>
-                  </tr>
+                  </CashFlowNoteRow>
                 ))}
                 {filtered.length === 0 && (
                   <tr>

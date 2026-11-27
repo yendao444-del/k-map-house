@@ -11,6 +11,7 @@ import {
   WalletCards
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
+import { DEFAULT_APPS, getUserAppAccess } from './lib/app-access'
 import {
   getRooms,
   getTenants,
@@ -62,6 +63,7 @@ import { findDebtToConfirm, isOutstandingInvoice } from './lib/invoiceDebt'
 import { useSepayEmailNotifications } from './lib/use-sepay-email-notifications'
 import type { ContractDraft } from './lib/contract-draft'
 import logoNavbar from './assets/an_khang_home_logo.png'
+import { WorkspaceSwitcher, useWorkspace } from '@dby-finance'
 import { isPasswordRecoveryRedirect } from './lib/supabase'
 import { markAfterPaint, markStartup } from './lib/startup-perf'
 
@@ -1466,7 +1468,10 @@ const App: React.FC = () => {
       if (!disposed && needsValidation) void validate()
     }, 15_000)
     const deadline = getManagementSessionExpiry()
-    const deadlineTimer = deadline === null ? 0 : window.setTimeout(expire, Math.max(0, deadline - Date.now()))
+    // setTimeout overflows above ~24.8 days and fires at once; a 30-day trusted
+    // session would sign out immediately. Long deadlines rely on the 15 s check.
+    const delay = deadline === null ? Number.NaN : Math.max(0, deadline - Date.now())
+    const deadlineTimer = Number.isFinite(delay) && delay <= 2_000_000_000 ? window.setTimeout(expire, delay) : 0
     const foreground = () => { if (isManagementSessionExpired()) expire(); else if (!document.hidden) void validate() }
     const retry = () => { void validate() }
     document.addEventListener('visibilitychange', foreground)
@@ -1697,8 +1702,22 @@ const App: React.FC = () => {
   const [financeSubTab, setFinanceSubTab] = useState<
     'wallet' | 'investments' | 'debt'
   >('wallet')
+  // DBY Finance (personal investments) lives in /dby-finance; admins only.
+  // App access for this account (admins: both). Until it loads a staff account
+  // keeps the historic default, AN KHANG HOME only; the server enforces it too.
+  const isManagementStaff = currentUser?.role === 'user'
+  const { data: myAppAccess } = useQuery({
+    queryKey: ['user-app-access', 'me', currentUser?.id],
+    queryFn: async () => (await getUserAppAccess())[currentUser!.id] ?? DEFAULT_APPS,
+    enabled: Boolean(currentUser?.id && isManagementStaff),
+    staleTime: 60_000
+  })
+  const canUseDbyFinance = currentUser?.role === 'admin' || Boolean(isManagementStaff && myAppAccess?.includes('dby-finance'))
+  const canUseHome = !isManagementStaff || !myAppAccess || myAppAccess.includes('property')
+  const hasNoApp = isManagementStaff && Boolean(myAppAccess) && !canUseHome && !canUseDbyFinance
+  const { isDbyWorkspace, setWorkspace } = useWorkspace(canUseDbyFinance, canUseHome)
   const isInvestmentView = Boolean(
-    currentUser && activeTab === 'finance' && financeSubTab === 'investments'
+    currentUser && ((activeTab === 'finance' && financeSubTab === 'investments') || isDbyWorkspace)
   )
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
@@ -1817,6 +1836,7 @@ const App: React.FC = () => {
       return
     }
 
+    setWorkspace('home')
     setActiveTab(tab)
   }
 
@@ -2977,19 +2997,20 @@ const App: React.FC = () => {
           className={`app-titlebar-drag relative z-20 flex h-14 w-full shrink-0 items-center justify-between border-b border-[#e5eee8] bg-white px-4 pr-40 font-sans text-[#15231d] shadow-sm ${isInvestmentView ? 'investment-titlebar' : ''}`}
         >
           <div className="app-no-drag flex min-w-0 items-center space-x-4">
-            <div className="group flex shrink-0 cursor-pointer items-center space-x-2">
-              <div className="investment-titlebar-logo flex h-9 w-9 items-center justify-center rounded-lg border border-[#e5eee8] bg-white p-1 shadow-sm transition-transform group-hover:scale-105">
-                <img src={logoNavbar} alt="DB Logo" className="h-full w-full object-contain" />
-              </div>
-              <div className="flex flex-col leading-none">
-                <span className="investment-titlebar-brand text-sm font-bold tracking-tight text-[#15231d]">AN KHANG HOME</span>
-                <span className="investment-titlebar-subtitle text-[9px] font-medium uppercase tracking-wider text-[#718079]">
-                  Quản lý phòng trọ
-                </span>
-              </div>
-            </div>
+            <WorkspaceSwitcher
+              homeLogo={logoNavbar}
+              canUseDbyFinance={canUseDbyFinance}
+              canUseHome={canUseHome}
+              isDbyWorkspace={isDbyWorkspace}
+              onSelect={(next) => {
+                if (next === 'home') { setWorkspace('home'); return }
+                // Leaving a dirty new contract must still be confirmed first.
+                if (newContractRoom && contractPageDirtyRef.current) return
+                setWorkspace('dby')
+              }}
+            />
 
-            <nav className="ml-4 flex h-14 min-w-0 overflow-x-auto scrollbar-hide">
+            <nav className={`ml-4 h-14 min-w-0 overflow-x-auto scrollbar-hide ${isDbyWorkspace ? 'hidden' : 'flex'}`}>
               {headerNavItems.map((item) => {
                 const Icon = item.icon
                 const isActive = activeTab === item.id
@@ -3204,7 +3225,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="app-no-drag flex shrink-0 items-center space-x-4">
-            <div className="relative" ref={notificationMenuRef}>
+            <div className={isDbyWorkspace ? 'hidden' : 'relative'} ref={notificationMenuRef}>
               <button
                 type="button"
                 onClick={() => setIsNotificationOpen((prev) => !prev)}
@@ -3278,7 +3299,7 @@ const App: React.FC = () => {
               )}
             </div>
 
-            <button
+            {!isDbyWorkspace && <button
               onClick={() => {
                 setSettingsInitialTab('general')
                 requestActiveTab('settings')
@@ -3287,7 +3308,7 @@ const App: React.FC = () => {
               title="Cài đặt hệ thống"
             >
               <SettingsIcon size={18} />
-            </button>
+            </button>}
 
             <div className="relative" ref={accountMenuRef}>
               <button
@@ -3384,10 +3405,21 @@ const App: React.FC = () => {
 
         {/* MAIN SCROLLABLE CONTENT */}
         <div
-          key={activeTab}
+          key={isDbyWorkspace ? 'dby-finance' : activeTab}
           className="min-h-0 flex-1 flex flex-col overflow-hidden animate-[fadeIn_0.15s_ease-out]"
         >
-          {newContractRoom ? (
+          {hasNoApp ? (
+            <div className="flex flex-1 items-center justify-center p-8 text-center">
+              <div className="max-w-sm">
+                <p className="text-lg font-black text-[#10233f]">Tài khoản chưa được cấp ứng dụng nào</p>
+                <p className="mt-2 text-sm text-slate-500">Hãy nhờ quản trị viên bật Nhà trọ hoặc DBY Finance cho tài khoản này trong Cài đặt → Tài khoản hệ thống.</p>
+              </div>
+            </div>
+          ) : isDbyWorkspace && currentUser ? (
+            <Suspense fallback={<TabLoading />}>
+              <InvestmentsTab key="dby-finance" userRole={currentUser.role} portfolio="personal" />
+            </Suspense>
+          ) : newContractRoom ? (
             <Suspense fallback={<TabLoading />}>
               <NewContractPage
                 room={newContractRoom}

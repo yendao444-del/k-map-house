@@ -112,63 +112,74 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Investment / DBY Finance title bar: deep forest-green frame with white text,
+   white dropdown menus (ACBS/Vietcombank-style harmony). */
 .investment-titlebar {
-  background: #0b1727 !important;
-  border-bottom-color: #26364a !important;
-  color: #e7eef7 !important;
+  background: #084632 !important;
+  border-bottom-color: #084632 !important;
+  color: #ffffff !important;
   box-shadow: none !important;
 }
 
 .investment-titlebar .investment-titlebar-logo {
-  background: #f7faf8 !important;
-  border-color: #35485d !important;
+  background: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
 }
 
-.investment-titlebar .investment-titlebar-brand { color: #e7eef7 !important; }
-.investment-titlebar .investment-titlebar-subtitle { color: #91a8bb !important; }
+.investment-titlebar .investment-titlebar-logo.is-dby {
+  background: transparent !important;
+  border: 0 !important;
+  /* Forest-green tile on a forest-green bar: a faint ring keeps its edge visible. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+  padding: 0 !important;
+}
+
+.investment-titlebar .investment-titlebar-brand { color: #ffffff !important; }
+.investment-titlebar .investment-titlebar-subtitle { color: rgba(255, 255, 255, 0.75) !important; }
 
 .investment-titlebar nav button:not(.brand-nav-active),
 .investment-titlebar .investment-titlebar-action {
-  color: #b8c9d9 !important;
+  color: rgba(255, 255, 255, 0.88) !important;
 }
 
 .investment-titlebar nav button:not(.brand-nav-active):hover,
 .investment-titlebar .investment-titlebar-action:hover {
-  background: #1c3245 !important;
-  color: #f1f7ff !important;
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
 }
 
 .investment-titlebar .investment-titlebar-avatar {
-  border-color: #35485d !important;
-  background: #162235 !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  background: #ffffff !important;
 }
 
 .investment-titlebar .investment-titlebar-menu,
 .investment-titlebar-menu-active {
-  background: #111e2e !important;
-  border-color: #2b4056 !important;
-  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32) !important;
+  background: #ffffff !important;
+  border-color: #e6ece7 !important;
+  box-shadow: 0 18px 40px rgba(20, 60, 15, 0.18) !important;
 }
 
 .investment-titlebar .investment-titlebar-menu button:not(.brand-nav-active),
 .investment-titlebar-menu-active button:not(.brand-nav-active) {
-  color: #c3d0df !important;
+  color: #1e3428 !important;
 }
 
 .investment-titlebar .investment-titlebar-menu button:not(.brand-nav-active):hover,
 .investment-titlebar-menu-active button:not(.brand-nav-active):hover {
-  background: #1c3245 !important;
-  color: #f1f7ff !important;
+  background: #eef4ef !important;
+  color: #1f5c3c !important;
 }
 
 .investment-titlebar-menu-active .text-slate-800,
 .investment-titlebar-menu-active .text-slate-600,
 .investment-titlebar-menu-active .text-slate-500 {
-  color: #c3d0df !important;
+  color: #3e5548 !important;
 }
 
-.investment-titlebar-menu-active .bg-slate-50 {
-  background: #162235 !important;
+.investment-titlebar-menu-active .bg-slate-50,
+.investment-titlebar .investment-titlebar-menu .bg-slate-50 {
+  background: #eef4ef !important;
 }
 
 .app-system-font,

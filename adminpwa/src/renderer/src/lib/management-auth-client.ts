@@ -1,5 +1,12 @@
 const endpoint = '/api/management-auth'
 
+function storedDeviceToken(): string | null {
+  try {
+    const token = window.localStorage.getItem('ankhang-management-device')
+    return token && /^[a-f0-9]{64}\.[a-f0-9]{64}$/.test(token) ? token : null
+  } catch { return null }
+}
+
 async function request(body: Record<string, string>) {
   const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000), cache: 'no-store', credentials: 'omit' })
   const data = await response.json().catch(() => null)
@@ -8,7 +15,7 @@ async function request(body: Record<string, string>) {
 }
 
 export async function managementLogin(login: string, password: string): Promise<{ access_token: string; refresh_token: string }> {
-  const deviceToken = window.localStorage.getItem('ankhang-management-device')
+  const deviceToken = storedDeviceToken()
   const data = await request({ action: 'login', login, password, ...(deviceToken ? { device_token: deviceToken } : {}) })
   if (typeof data.session?.access_token !== 'string' || typeof data.session?.refresh_token !== 'string') throw new Error('Phiên đăng nhập không hợp lệ.')
   return data.session

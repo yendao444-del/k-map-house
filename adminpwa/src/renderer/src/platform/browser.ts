@@ -31,7 +31,9 @@ window.api = {
       if (error) throw new Error('Chưa tải được NAV trực tuyến. Nhập NAV công bố thực tế.')
       if (!data?.ok) throw new Error(data?.error || 'Nguồn NAV chưa phản hồi.')
       return data.data
-    }
+    },
+    myHanhGold: async () => (await import('./my-hanh-gold')).fetchMyHanhGoldPrices(),
+    myHanhGoldHistory: async () => (await import('./my-hanh-gold')).fetchMyHanhGoldHistory()
   },
   marketData: {
     getSnapshot: propertyAddress => bridge('market-snapshot', { propertyAddress }),

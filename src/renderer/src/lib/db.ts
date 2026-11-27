@@ -6,7 +6,7 @@ import { normalizeEmailNotificationPreferences, type EmailNotificationPreference
 import { fetchAllPages } from './paged-query'
 import { assertTenantEmail, normalizeTenantEmail } from './tenant-email'
 import { getInvoicePaymentFlow } from './invoice-payment-flow'
-import { requireSessionMfa, verifyTotpChallenge, securityState, authorizeSecuritySession, SecurityStepUpRequired } from './mfa'
+import { requireSessionMfa, verifyTotpChallenge, securityState, authorizeSecuritySession, SecurityStepUpRequired, rememberVerifiedDevice } from './mfa'
 import { clearManagementSessionExpiry, isManagementSessionExpired, recordManagementSessionExpiry } from './auth-storage'
 import { assertSingleWalletExpense, resolveWalletMethod, summarizeWalletEntries, type WalletMethod, type WalletCheckpoint, type WalletAccountingBasis } from './wallet-accounting'
 
@@ -2062,59 +2062,8 @@ export const recordInvoicePayment = async (
   if (!rpcResult?.invoice) throw new Error('Không nhận được kết quả ghi nhận thanh toán.')
 
   const updated = rpcResult.invoice
-  const transitionedToPaid = rpcResult.transitioned_to_paid === true
-
-  if (transitionedToPaid && updated.room_id && updated.is_settlement) {
-    const [{ data: room }, { data: activeContract }] = await Promise.all([
-      supabase.from('rooms').select('id,status').eq('id', updated.room_id).maybeSingle(),
-      supabase
-        .from('contracts')
-        .select('id,tenant_id')
-        .eq('room_id', updated.room_id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    ])
-
-    const canFinalizeMoveOut =
-      room?.status === 'ending' &&
-      activeContract?.id &&
-      (!activeContract.tenant_id || activeContract.tenant_id === updated.tenant_id)
-
-    if (canFinalizeMoveOut) {
-      await safeQuery(() =>
-        supabase
-          .from('rooms')
-          .update({
-            status: 'vacant',
-            tenant_name: null,
-            tenant_phone: null,
-            move_in_date: null,
-            expected_end_date: null,
-            electric_old: updated.electric_new,
-            electric_new: updated.electric_new,
-            water_old: updated.water_new,
-            water_new: updated.water_new,
-            has_move_in_receipt: false
-          } as any)
-          .eq('id', updated.room_id)
-      )
-
-      await safeQuery(() =>
-        supabase
-          .from('contracts')
-          .update({
-            status: 'terminated',
-            end_date: updated.invoice_date || data.payment_date,
-            end_note: updated.damage_note || updated.adjustment_note || undefined,
-            final_electric: updated.electric_new,
-            final_water: updated.water_new
-          } as any)
-          .eq('id', activeContract.id)
-      )
-    }
-  }
+  // A paid settlement finishes the move-out in the database trigger
+  // finalize_settlement_move_out, in the same transaction as the payment.
 
   return updated
 }
@@ -3144,6 +3093,10 @@ export const getCurrentSessionUser = async (): Promise<AppUser | null> => {
   }
   if (security.state !== 'ready') await authorizeSecuritySession()
   recordManagementSessionExpiry(security.expires_at)
+  // Save the device before entering the workspace so closing the app cannot
+  // race the first trust request. Remembering failure never fails the login.
+  const rememberedExpiry = await rememberVerifiedDevice(security, String(security.expires_at || '') + ':' + user.id)
+  if (rememberedExpiry) recordManagementSessionExpiry(rememberedExpiry)
 
   const { data: profile, error: profileError } = await supabase
     .from('users')
@@ -3235,7 +3188,8 @@ export const resetPasswordFromRecoveryLink = async (newPassword: string): Promis
 }
 
 export const signOutUser = async (): Promise<void> => {
-  const { error } = await supabase.auth.signOut()
+  // Only this device: signing out the desktop app must not end the web session.
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
   if (error) throw new Error(normalizeRemoteErrorMessage(error.message))
 }
 

@@ -77,3 +77,186 @@
   .gold-trade-total > span { font-size: 15px; }
   .gold-trade-total > strong { font-size: 25px; }
 }
+
+/* Bank-green light theme (2026-11-26). Overrides the dark sheet above. */
+.gold-trade-overlay { background: rgb(6 30 20 / 45%); backdrop-filter: blur(4px); }
+.gold-trade-overlay .gold-trade-dialog { --gold-action: #1f5c3c; --gold-action-text: #ffffff; border-color: #e6ece7; background: #ffffff; color: #13261c; box-shadow: 0 28px 80px rgb(10 35 25 / 28%); color-scheme: light; }
+.gold-trade-overlay .gold-trade-dialog.gold-trade-sell { --gold-action: #c24545; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading { background: linear-gradient(120deg, #084632 0%, #0d5137 50%, #216c46 100%); color: #ffffff; }
+.gold-trade-overlay .gold-trade-heading p { color: rgb(255 255 255 / 72%); }
+.gold-trade-overlay .gold-trade-heading h2 { color: #ffffff; }
+.gold-trade-overlay .gold-trade-close { color: #ffffff; }
+.gold-trade-overlay .gold-trade-close:hover { background: rgb(255 255 255 / 14%); }
+.gold-trade-overlay .gold-trade-product,
+.gold-trade-overlay .gold-trade-footer { border-color: #e6ece7; }
+.gold-trade-overlay .gold-trade-product > i { color: #c98a1b; }
+.gold-trade-overlay .gold-trade-date,
+.gold-trade-overlay .gold-trade-stock,
+.gold-trade-overlay .gold-trade-label-row > span,
+.gold-trade-overlay .gold-trade-range-labels,
+.gold-trade-overlay .gold-trade-price-field > span,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-hint,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-source,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-key-hint { color: #5f7167; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-quote-warning { color: #b45309; }
+.gold-trade-overlay .gold-trade-stepper button { border-color: var(--gold-action); background: var(--gold-action); color: #ffffff; }
+.gold-trade-overlay .gold-trade-stepper button:disabled { border-color: #d5e2d8; background: #eef4ef; color: #8a9c91; opacity: 1; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-stepper input,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input { border-color: #d5e2d8 !important; background: #ffffff !important; color: #13261c !important; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input::placeholder { color: #a3b3a9; }
+.gold-trade-overlay .gold-trade-dialog input.gold-trade-slider { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-presets button { border-color: #d5e2d8; color: #3e5548; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-presets button:hover:not(:disabled) { border-color: #b5cdbd; background: #f4f8f5; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-presets button:disabled { color: #a3b3a9; opacity: 1; }
+.gold-trade-overlay .gold-trade-presets button[aria-pressed='true'] { border-color: var(--gold-action); background: #eef4ef; color: var(--gold-action); }
+.gold-trade-overlay .gold-trade-sell .gold-trade-presets button[aria-pressed='true'] { background: #fdeeee; }
+.gold-trade-overlay .gold-trade-source strong { color: #1f5c3c; }
+.gold-trade-overlay .gold-trade-total > strong { color: var(--gold-action); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-submit { background: var(--gold-action); color: #ffffff; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-submit:disabled { background: #d9e6dc; color: #6f8277; opacity: 1; }
+.gold-trade-overlay .gold-trade-key-hint kbd { border-color: #cfdcd3; }
+.gold-trade-overlay .gold-trade-error { color: #c24545; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input[type='date'] { font-size: 18px; padding-right: 16px; }
+
+/* Three transaction types, three colours: buy = bank green, sell = red,
+   import existing gold = amber/gold. Header, actions and switcher follow. */
+.gold-trade-overlay .gold-trade-dialog { --gold-head: linear-gradient(120deg, #084632 0%, #0d5137 50%, #216c46 100%); --gold-soft: #eef4ef; }
+.gold-trade-overlay .gold-trade-dialog.gold-trade-sell { --gold-action: #c24545; --gold-soft: #fdeeee; --gold-head: linear-gradient(120deg, #6e1d24 0%, #9c2f36 50%, #c24545 100%); }
+.gold-trade-overlay .gold-trade-dialog.gold-trade-import { --gold-action: #a86b08; --gold-soft: #fdf4e3; --gold-head: linear-gradient(120deg, #6b4204 0%, #94600a 50%, #c08516 100%); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading { background: var(--gold-head); transition: background .2s ease; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading h2,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading #gold-trade-title { color: #ffffff !important; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading p { color: rgb(255 255 255 / 75%) !important; }
+.gold-trade-overlay .gold-trade-presets button[aria-pressed='true'],
+.gold-trade-overlay .gold-trade-sell .gold-trade-presets button[aria-pressed='true'] { background: var(--gold-soft); }
+
+.gold-trade-modes { display: flex; gap: 6px; margin-bottom: 18px; padding: 4px; border: 1px solid #e6ece7; border-radius: 14px; background: #f4f7f5; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode { flex: 1; min-height: 40px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #5f7167; font-size: 14px; font-weight: 700; transition: background .15s ease, color .15s ease; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode:hover:not([aria-checked='true']):not(:disabled) { background: #ffffff; color: #13261c; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode[aria-checked='true'] { color: #ffffff; box-shadow: 0 2px 8px rgb(15 50 35 / 18%); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-buy[aria-checked='true'] { background: #1f5c3c; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-sell[aria-checked='true'] { background: #c24545; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-import[aria-checked='true'] { background: #a86b08; }
+
+/* Same size for Mua / Bán / Nhập: switching type must not make the sheet
+   jump. Fixed height; only the body scrolls if a type has more fields. */
+.gold-trade-overlay .gold-trade-dialog { height: min(860px, calc(100dvh - 32px)); }
+.gold-trade-overlay .gold-trade-body { flex: 1 1 auto; scrollbar-gutter: stable; }
+@media (max-width: 480px) {
+  .gold-trade-overlay .gold-trade-dialog { height: calc(100dvh - 20px); }
+}
+
+/* Voucher layout (like "Thêm chứng từ"): the whole top of the sheet takes the
+   type colour, tabs are a white pill on a tinted track, the total sits large
+   in white, and the form is a white card overlapping the colour band. */
+.gold-trade-overlay .gold-trade-dialog { --gold-band: #17704a; --gold-band-deep: #0d5137; --gold-action: #17704a; --gold-soft: #e8f3ec; max-width: 560px; background: #ffffff; border: 0; border-radius: 24px; }
+.gold-trade-overlay .gold-trade-dialog.gold-trade-sell { --gold-band: #e0353f; --gold-band-deep: #b8222c; --gold-action: #e0353f; --gold-soft: #fdecec; }
+.gold-trade-overlay .gold-trade-dialog.gold-trade-import { --gold-band: #d08a12; --gold-band-deep: #a86b08; --gold-action: #c27d0c; --gold-soft: #fdf3e1; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading {
+  display: block;
+  padding: 18px 22px 52px;
+  background: linear-gradient(160deg, var(--gold-band) 0%, var(--gold-band-deep) 100%);
+  color: #ffffff;
+  transition: background .2s ease;
+}
+.gold-trade-overlay .gold-trade-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading h2,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading #gold-trade-title { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: 0; color: #ffffff !important; }
+.gold-trade-overlay .gold-trade-close { width: 34px; height: 34px; border-radius: 999px; background: rgb(255 255 255 / 20%); color: #ffffff; }
+.gold-trade-overlay .gold-trade-close:hover { background: rgb(255 255 255 / 30%); }
+
+.gold-trade-overlay .gold-trade-modes { display: flex; gap: 4px; margin: 18px 0 0; padding: 4px; border: 0; border-radius: 14px; background: rgb(0 0 0 / 14%); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: rgb(255 255 255 / 85%); font-size: 14px; font-weight: 800; box-shadow: none; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode:hover:not([aria-checked='true']):not(:disabled) { background: rgb(255 255 255 / 12%); color: #ffffff; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode[aria-checked='true'],
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-buy[aria-checked='true'],
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-sell[aria-checked='true'],
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode.is-import[aria-checked='true'] { background: #ffffff; color: var(--gold-action); box-shadow: 0 2px 8px rgb(0 0 0 / 14%); }
+
+.gold-trade-overlay .gold-trade-hero { display: grid; justify-items: center; gap: 4px; margin-top: 18px; text-align: center; }
+.gold-trade-overlay .gold-trade-hero > span { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgb(255 255 255 / 78%); }
+.gold-trade-overlay .gold-trade-hero > strong { font-size: 34px; font-weight: 800; line-height: 1.15; letter-spacing: -.03em; font-variant-numeric: tabular-nums; color: #ffffff; }
+.gold-trade-overlay .gold-trade-hero > small { font-size: 12px; color: rgb(255 255 255 / 78%); }
+
+.gold-trade-overlay .gold-trade-body {
+  position: relative;
+  margin: -34px 16px 0;
+  padding: 18px 18px 6px;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgb(15 40 30 / 14%);
+}
+.gold-trade-overlay .gold-trade-product { padding-bottom: 14px; }
+.gold-trade-overlay .gold-trade-quantity-section { margin-top: 14px; }
+.gold-trade-overlay .gold-trade-price-section { margin-top: 16px; }
+.gold-trade-overlay .gold-trade-label-row,
+.gold-trade-overlay .gold-trade-price-section > label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #5f7167; }
+
+.gold-trade-overlay .gold-trade-footer { margin: 0; padding: 16px 16px 14px; border: 0; }
+.gold-trade-overlay .gold-trade-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-cancel { height: 50px; border: 0; border-radius: 14px; background: #eef2ef; color: #3e5548; font-size: 15px; font-weight: 800; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-cancel:hover:not(:disabled) { background: #e2e9e4; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-submit { height: 50px; border-radius: 14px; font-size: 15px; background: var(--gold-action); color: #ffffff; box-shadow: 0 6px 16px color-mix(in srgb, var(--gold-action) 30%, transparent); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-submit:disabled { background: color-mix(in srgb, var(--gold-action) 35%, #ffffff); color: #ffffff; box-shadow: none; opacity: 1; }
+.gold-trade-overlay .gold-trade-presets button[aria-pressed='true'],
+.gold-trade-overlay .gold-trade-sell .gold-trade-presets button[aria-pressed='true'] { border-color: var(--gold-action); background: var(--gold-soft); color: var(--gold-action); }
+
+/* Price first and prominent; quantity compact. */
+.gold-trade-overlay .gold-trade-body > .gold-trade-price-section:first-of-type { margin-top: 14px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input { height: 58px; font-size: 26px; font-weight: 800; border-width: 1.5px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input[type='date'] { height: 46px; font-size: 16px; font-weight: 600; border-width: 1px; }
+.gold-trade-overlay .gold-trade-quantity-section { margin-top: 16px; }
+.gold-trade-overlay .gold-trade-stepper { grid-template-columns: 40px minmax(0, 1fr) 40px; gap: 8px; }
+.gold-trade-overlay .gold-trade-stepper button,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-stepper input { height: 40px; border-radius: 10px; }
+.gold-trade-overlay .gold-trade-stepper button svg { width: 18px; height: 18px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-stepper input { font-size: 18px; font-weight: 700; }
+.gold-trade-overlay .gold-trade-dialog input.gold-trade-slider { margin: 10px 0 0; }
+.gold-trade-overlay .gold-trade-presets { gap: 8px; margin-top: 10px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-presets button { min-height: 34px; border-radius: 9px; font-size: 13px; }
+
+/* Compact pass, same sizes and Inter weights as trade-sheet.css. */
+.gold-trade-overlay .gold-trade-dialog { max-width: 520px; height: min(700px, calc(100dvh - 32px)); }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading { padding: 16px 20px 44px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading h2,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-heading #gold-trade-title { font-size: 16px; font-weight: 700; }
+.gold-trade-overlay .gold-trade-close { width: 32px; height: 32px; }
+.gold-trade-overlay .gold-trade-modes { margin-top: 12px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-mode { min-height: 34px; font-size: 13px; font-weight: 600; }
+.gold-trade-overlay .gold-trade-hero { gap: 2px; margin-top: 12px; }
+.gold-trade-overlay .gold-trade-hero > span { font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+.gold-trade-overlay .gold-trade-hero > strong { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+.gold-trade-overlay .gold-trade-body { margin-top: -30px; padding: 14px 16px 4px; scrollbar-gutter: auto; }
+.gold-trade-overlay .gold-trade-product { gap: 12px; padding-bottom: 10px; }
+.gold-trade-overlay .gold-trade-product > i { flex-basis: 28px; font-size: 22px; }
+.gold-trade-overlay .gold-trade-product-name { font-size: 15px; font-weight: 700; }
+.gold-trade-overlay .gold-trade-date,
+.gold-trade-overlay .gold-trade-stock { margin-top: 2px; font-size: 12px; }
+.gold-trade-overlay .gold-trade-price-section,
+.gold-trade-overlay .gold-trade-body > .gold-trade-price-section:first-of-type { margin-top: 10px; }
+.gold-trade-overlay .gold-trade-quantity-section { margin-top: 10px; }
+.gold-trade-overlay .gold-trade-label-row,
+.gold-trade-overlay .gold-trade-price-section > label { margin-bottom: 5px; font-size: 11px; font-weight: 600; letter-spacing: .06em; color: #6f8277; }
+.gold-trade-overlay .gold-trade-label-row > span { font-size: 11px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input { height: 46px; font-size: 22px; font-weight: 700; border-width: 1px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-price-field input[type='date'] { height: 38px; font-size: 14px; font-weight: 500; }
+.gold-trade-overlay .gold-trade-price-field > span { font-size: 16px; font-style: normal; font-weight: 500; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-hint,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-source,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-quote-warning { margin-top: 4px; font-size: 11.5px; line-height: 1.4; }
+.gold-trade-overlay .gold-trade-source strong { font-weight: 600; }
+.gold-trade-overlay .gold-trade-stepper { grid-template-columns: 34px 84px 34px; gap: 6px; }
+.gold-trade-overlay .gold-trade-stepper button,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-stepper input { height: 34px; }
+.gold-trade-overlay .gold-trade-stepper button svg { width: 16px; height: 16px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-stepper input { font-size: 15px; font-weight: 600; }
+.gold-trade-overlay .gold-trade-dialog input.gold-trade-slider { height: 14px; margin: 8px 0 0; }
+.gold-trade-overlay .gold-trade-range-labels { font-size: 10.5px; font-weight: 500; }
+.gold-trade-overlay .gold-trade-presets { gap: 6px; margin-top: 8px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-presets button { min-height: 28px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.gold-trade-overlay .gold-trade-error { font-size: 12.5px; font-weight: 600; }
+.gold-trade-overlay .gold-trade-footer { padding: 12px 16px 12px; }
+.gold-trade-overlay .gold-trade-actions { gap: 10px; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-cancel,
+.gold-trade-overlay .gold-trade-dialog .gold-trade-submit { height: 44px; border-radius: 12px; font-size: 14px; font-weight: 700; }
+.gold-trade-overlay .gold-trade-dialog .gold-trade-key-hint { margin-top: 6px; font-size: 10.5px; }

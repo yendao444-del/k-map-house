@@ -1,13 +1,13 @@
 export const authStorageKey = 'ankhang-management-auth'
 const sessionExpiryKey = 'ankhang-management-session-expiry'
 
-// The server enforces the six-hour ceiling. Local persistence only lets a
-// verified session survive a browser restart before that server deadline.
+// The server owns the absolute deadline (up to 30 days for trusted devices).
+// Local persistence only restores a session before that verified deadline.
 export const authStorage = {
   getItem(key: string): string | null {
     const stored = window.localStorage.getItem(key)
     if (stored !== null) return stored
-    // Move an older tab-only login into the six-hour session policy on update.
+    // Move an older tab-only login into persistent session storage on update.
     const legacy = window.sessionStorage.getItem(key)
     if (legacy === null) return null
     window.localStorage.setItem(key, legacy)
@@ -54,7 +54,7 @@ export function clearManagementSessionExpiry(): void {
 }
 
 // The desktop client previously used Supabase's default persistent key. Move
-// that session once into the six-hour management-session storage.
+// that session once into the management-session storage.
 export function migrateLegacyAuthStorage(supabaseUrl: string): void {
   const project = new URL(supabaseUrl).hostname.split('.')[0]
   const legacyKey = `sb-${project}-auth-token`

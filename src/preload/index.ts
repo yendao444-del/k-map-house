@@ -7,6 +7,11 @@ const electronAPI = {
 
 // Custom APIs for renderer - Database IPC
 const api = {
+  trustedDevice: {
+    read: (): Promise<string | null> => ipcRenderer.invoke('trustedDevice:read'),
+    write: (token: string): Promise<boolean> => ipcRenderer.invoke('trustedDevice:write', token),
+    clear: (): Promise<boolean> => ipcRenderer.invoke('trustedDevice:clear')
+  },
   devDevice: {
     credential: (): Promise<string | null> => ipcRenderer.invoke('devDevice:credential')
   },

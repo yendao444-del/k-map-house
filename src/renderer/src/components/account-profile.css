@@ -1,5 +1,5 @@
 .account-surface { --account-ink:#102038; --account-muted:#66748a; --account-green:#008f62; font-family:Inter,system-ui,sans-serif; color:var(--account-ink); background:#fff; border:1px solid #e6e4df; border-radius:28px; overflow:hidden; box-shadow:0 14px 44px #1020381c; text-align:left; }
-.account-menu { position:fixed; top:64px; right:16px; z-index:80; width:460px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 80px); overflow-y:auto; overscroll-behavior:contain; }
+.account-menu { position:fixed; top:64px; right:16px; z-index:80; width:350px; max-width:calc(100vw - 24px); max-height:calc(100dvh - 80px); overflow-y:auto; overscroll-behavior:contain; }
 .account-identity { padding:24px 32px 26px; background-color:#102038; background-size:cover; background-position:center; color:white; border-radius:0 0 28px 28px; }
 .account-brand { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:700; letter-spacing:.2px; }
 .account-brand img { width:28px; height:26px; object-fit:contain; }
@@ -438,4 +438,44 @@
   .account-password-panel .account-form { gap:8px; }
   .account-password-panel .account-form > div:first-child p { margin-bottom:4px; }
   .account-email-verification h3 { margin-top:8px; }
+}
+
+/* Approved compact account dropdown. Scope to the menu: profile dialogs keep
+   their own header sizes and responsive rules. */
+.account-menu { box-sizing:border-box; border-radius:20px; }
+.account-menu .account-identity { padding:14px 22px 16px; border-radius:0 0 20px 20px; }
+.account-menu .account-brand { gap:8px; font-size:14px; }
+.account-menu .account-brand img { width:24px; height:23px; }
+.account-menu .account-person { gap:14px; margin-top:12px; }
+.account-menu .account-avatar { box-sizing:border-box; width:60px; height:60px; border-width:3px; border-radius:20px; }
+.account-menu .account-person h2 { margin-bottom:6px; font-size:20px; letter-spacing:-.5px; }
+.account-menu .account-role { gap:5px; padding:4px 8px; font-size:10px; }
+.account-menu .account-role svg { width:12px; height:12px; }
+.account-menu .account-actions { padding:8px 10px; }
+.account-menu .account-row { box-sizing:border-box; gap:13px; min-height:52px; padding:7px 12px; }
+.account-menu .account-row > svg:first-child { width:23px; height:23px; }
+.account-menu .account-row > svg:last-child { width:17px; height:17px; }
+.account-menu .account-row strong { font-size:14px; letter-spacing:-.2px; }
+.account-menu .account-row small { margin-top:2px; font-size:12px; line-height:1.4; overflow-wrap:anywhere; }
+.account-menu .account-security-row { flex-wrap:nowrap; width:100%; gap:9px; margin:6px 0; padding:8px 9px; border-radius:13px; }
+.account-menu .account-security-row > span:not(.account-security-icon):not(.account-security-cta) { min-width:0; }
+.account-menu .account-security-row small { font-size:11px; }
+.account-menu .account-security-icon { width:36px; height:36px; }
+.account-menu .account-security-icon svg { width:21px; height:21px; }
+.account-menu .account-security-cta { box-sizing:border-box; min-height:40px; gap:3px; margin-left:0; padding:9px 10px; border-radius:10px; font-size:12px; white-space:nowrap; }
+.account-menu .account-signout { min-height:44px; }
+.account-menu button:focus-visible { outline-width:2px; outline-offset:-2px; border-radius:10px; }
+@media(max-width:360px) {
+  .account-menu .account-identity { padding:14px 16px 16px; }
+  .account-menu .account-person { gap:12px; }
+  .account-menu .account-avatar { width:56px; height:56px; border-radius:17px; }
+  .account-menu .account-person h2 { font-size:18px; }
+  .account-menu .account-row { gap:10px; padding-inline:8px; }
+  .account-menu .account-security-row { gap:7px; padding-inline:7px; }
+  .account-menu .account-security-cta { padding-inline:8px; }
+}
+@media(max-height:520px) {
+  .account-menu { top:56px; max-height:calc(100dvh - 68px); }
+  .account-menu .account-identity { padding-block:12px; }
+  .account-menu .account-person { margin-top:10px; }
 }

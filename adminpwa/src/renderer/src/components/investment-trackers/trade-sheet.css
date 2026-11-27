@@ -1,0 +1,164 @@
+/* Buy / sell / import sheet for stocks, funds and bonds (approved demo
+   generated_demos/dby-finance/wallet/stock-sheet-a|b). Same voucher layout
+   as the gold sheet: colour band by type, white form card, Hủy + Xác nhận. */
+.trade-sheet-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(6 30 20 / 45%); backdrop-filter: blur(4px); }
+.trade-sheet {
+  --band: #17704a; --band-deep: #0d5137; --action: #17704a; --soft: #e8f3ec; --soft-border: #b9d8c4;
+  display: flex; flex-direction: column; width: 100%; max-width: 540px;
+  height: min(820px, calc(100dvh - 32px));
+  overflow: hidden; border-radius: 24px; background: #ffffff; color: #13261c;
+  box-shadow: 0 28px 80px rgb(10 35 25 / 30%); color-scheme: light;
+}
+.trade-sheet--sell { --band: #e0353f; --band-deep: #b8222c; --action: #d42f39; --soft: #fdecec; --soft-border: #f3b9bd; }
+.trade-sheet--import { --band: #d08a12; --band-deep: #a86b08; --action: #b97a0b; --soft: #fdf3e1; --soft-border: #ecd09a; }
+
+.trade-sheet__band { flex-shrink: 0; padding: 18px 22px 52px; background: linear-gradient(160deg, var(--band) 0%, var(--band-deep) 100%); color: #ffffff; transition: background .2s ease; }
+.trade-sheet__title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trade-sheet .trade-sheet__title-row h2 { margin: 0; font-size: 17px; font-weight: 800; color: #ffffff !important; }
+.trade-sheet__close { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 999px; background: rgb(255 255 255 / 20%); color: #ffffff; }
+.trade-sheet__close:hover { background: rgb(255 255 255 / 30%); }
+.trade-sheet__tabs { display: flex; gap: 4px; margin-top: 16px; padding: 4px; border-radius: 14px; background: rgb(0 0 0 / 14%); }
+.trade-sheet__tabs button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border-radius: 10px; color: rgb(255 255 255 / 86%); font-size: 14px; font-weight: 800; }
+.trade-sheet__tabs button:hover:not([aria-checked='true']):not(:disabled) { background: rgb(255 255 255 / 12%); color: #ffffff; }
+.trade-sheet__tabs button[aria-checked='true'] { background: #ffffff; color: var(--action); box-shadow: 0 2px 8px rgb(0 0 0 / 14%); }
+.trade-sheet__hero { display: grid; justify-items: center; gap: 4px; margin-top: 16px; text-align: center; }
+.trade-sheet__hero > span { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: rgb(255 255 255 / 80%); }
+.trade-sheet__hero > strong { font-size: 34px; font-weight: 800; line-height: 1.15; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.trade-sheet__hero > small { font-size: 12px; color: rgb(255 255 255 / 80%); font-variant-numeric: tabular-nums; }
+
+.trade-sheet__card {
+  position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable;
+  display: grid; align-content: start; gap: 14px;
+  margin: -34px 16px 0; padding: 18px; border-radius: 18px; background: #ffffff;
+  box-shadow: 0 10px 28px rgb(15 40 30 / 14%);
+}
+.trade-sheet__field { display: grid; gap: 6px; }
+.trade-sheet__field > label,
+.trade-sheet__label { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #5f7167; }
+.trade-sheet input { width: 100%; height: 42px; padding: 0 12px; border: 1px solid #d5e2d8; border-radius: 11px; background: #ffffff; color: #13261c; font-size: 15px; font-weight: 600; outline: none; }
+.trade-sheet input:focus { border-color: var(--action) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--action) 16%, transparent) !important; }
+.trade-sheet input:disabled { background: #f4f7f5 !important; color: #5f7167; }
+.trade-sheet .trade-sheet__symbol-input { height: 46px; font-size: 18px; font-weight: 800; letter-spacing: .02em; }
+.trade-sheet__hint { margin: 0; min-height: 18px; font-size: 12px; color: #6f8277; }
+
+.trade-sheet__segment { display: flex; gap: 4px; padding: 3px; border: 1px solid #e6ece7; border-radius: 12px; background: #f4f7f5; }
+.trade-sheet__segment button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 6px; min-height: 34px; border-radius: 9px; color: #5f7167; font-size: 13px; font-weight: 700; }
+.trade-sheet__segment button[aria-pressed='true'] { background: #ffffff; color: var(--action); box-shadow: 0 1px 4px rgb(15 50 35 / 12%); }
+.trade-sheet__segment button:disabled { cursor: default; }
+
+.trade-sheet__chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.trade-sheet__chips button { min-height: 30px; padding: 0 12px; border: 1px solid transparent; border-radius: 999px; background: #f1f5f2; color: #3e5548; font-size: 13px; font-weight: 700; }
+.trade-sheet__chips button:hover { background: #e7eee9; }
+.trade-sheet__chips button[aria-pressed='true'] { border-color: var(--soft-border); background: var(--soft); color: var(--action); }
+
+.trade-sheet__money { position: relative; }
+.trade-sheet .trade-sheet__money input { height: 56px; padding-right: 40px; font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; border-width: 1.5px; }
+.trade-sheet__money > span { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); color: #6f8277; font-size: 18px; font-weight: 700; }
+.trade-sheet input[type='number']::-webkit-inner-spin-button,
+.trade-sheet input[type='number']::-webkit-outer-spin-button { margin: 0; appearance: none; }
+
+.trade-sheet__qty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.trade-sheet__qty > button { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid #d5e2d8; border-radius: 10px; background: #ffffff; color: #3e5548; }
+.trade-sheet__qty > button:hover:not(:disabled) { border-color: var(--soft-border); background: var(--soft); color: var(--action); }
+.trade-sheet__qty > button:disabled { opacity: .45; cursor: not-allowed; }
+.trade-sheet .trade-sheet__qty > input { width: 96px; height: 38px; text-align: center; font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.trade-sheet__presets { display: flex; flex: 1; justify-content: flex-end; gap: 6px; }
+.trade-sheet__presets button { min-height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 999px; background: #f1f5f2; color: #3e5548; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trade-sheet__presets button[aria-pressed='true'] { border-color: var(--soft-border); background: var(--soft); color: var(--action); }
+
+.trade-sheet__more { justify-self: start; font-size: 12px; font-weight: 700; color: var(--action); text-decoration: underline; text-underline-offset: 3px; }
+.trade-sheet__wallet { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 11px 14px; border-radius: 12px; background: var(--soft); color: #3e5548; font-size: 13px; }
+.trade-sheet__wallet strong { color: #13261c; font-variant-numeric: tabular-nums; }
+.trade-sheet__note { margin: 0; font-size: 12px; font-weight: 600; color: #8a5a06; }
+.trade-sheet__error { margin: 0; font-size: 13px; font-weight: 700; color: #c24545; }
+
+.trade-sheet__actions { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; padding: 16px; }
+.trade-sheet__cancel { height: 50px; border-radius: 14px; background: #eef2ef; color: #3e5548; font-size: 15px; font-weight: 800; }
+.trade-sheet__cancel:hover:not(:disabled) { background: #e2e9e4; }
+.trade-sheet__submit { height: 50px; border-radius: 14px; background: var(--action); color: #ffffff; font-size: 15px; font-weight: 800; box-shadow: 0 6px 16px color-mix(in srgb, var(--action) 30%, transparent); }
+.trade-sheet__submit:hover:not(:disabled) { filter: brightness(1.06); }
+.trade-sheet__submit:disabled { background: color-mix(in srgb, var(--action) 35%, #ffffff); box-shadow: none; cursor: not-allowed; }
+.trade-sheet button:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+.trade-sheet__band button:focus-visible { outline-color: #ffffff; }
+
+@media (max-width: 520px) {
+  .trade-sheet { height: calc(100dvh - 20px); border-radius: 20px; }
+  .trade-sheet__presets { justify-content: flex-start; }
+  .trade-sheet__hero > strong { font-size: 28px; }
+}
+
+/* Compact pass (26/11/2026): fit without scrolling, lighter Inter weights
+   like the approved demo. */
+.trade-sheet { height: auto; max-height: calc(100dvh - 32px); max-width: 520px; }
+.trade-sheet__band { padding: 16px 20px 44px; }
+.trade-sheet .trade-sheet__title-row h2 { font-size: 16px; font-weight: 700; }
+.trade-sheet__close { width: 32px; height: 32px; }
+.trade-sheet__tabs { margin-top: 12px; }
+.trade-sheet__tabs button { min-height: 34px; font-size: 13px; font-weight: 600; }
+.trade-sheet__hero { gap: 2px; margin-top: 12px; }
+.trade-sheet__hero > span { font-size: 10px; font-weight: 600; letter-spacing: .12em; }
+.trade-sheet__hero > strong { font-size: 30px; font-weight: 700; letter-spacing: -.02em; }
+.trade-sheet__hero > small { font-size: 12px; }
+
+.trade-sheet__card { gap: 10px; margin-top: -30px; padding: 14px 16px; overflow-y: auto; scrollbar-gutter: auto; }
+.trade-sheet__field { gap: 5px; }
+.trade-sheet__field > label,
+.trade-sheet__label,
+.trade-sheet__label-row label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6f8277; }
+.trade-sheet__label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.trade-sheet__label-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: #6f8277; }
+.trade-sheet input { height: 38px; font-size: 14px; font-weight: 500; }
+.trade-sheet .trade-sheet__symbol-input { height: 40px; font-size: 16px; font-weight: 700; }
+.trade-sheet .trade-sheet__money input { height: 46px; font-size: 22px; font-weight: 700; border-width: 1px; }
+.trade-sheet__money > span { font-size: 16px; font-weight: 500; }
+.trade-sheet__hint { min-height: 0; font-size: 11.5px; }
+
+.trade-sheet__segment button { min-height: 30px; font-size: 13px; font-weight: 600; }
+.trade-sheet__chips { gap: 5px; }
+.trade-sheet__chips button { min-height: 26px; padding: 0 10px; font-size: 12px; font-weight: 600; }
+.trade-sheet__qty > button { width: 34px; height: 34px; }
+.trade-sheet .trade-sheet__qty > input { width: 84px; height: 34px; font-size: 15px; font-weight: 600; }
+.trade-sheet__presets button { min-height: 28px; font-size: 12px; font-weight: 600; }
+.trade-sheet__more { font-size: 12px; font-weight: 500; text-decoration: none; }
+.trade-sheet__more:hover { text-decoration: underline; }
+.trade-sheet__wallet { padding: 8px 12px; font-size: 12.5px; }
+.trade-sheet__wallet strong { font-weight: 600; }
+.trade-sheet__note { font-size: 11.5px; font-weight: 500; }
+.trade-sheet__error { font-size: 12.5px; font-weight: 600; }
+
+.trade-sheet__actions { gap: 10px; padding: 12px 16px 16px; }
+.trade-sheet__cancel,
+.trade-sheet__submit { height: 44px; border-radius: 12px; font-size: 14px; font-weight: 700; }
+/* Same height on every tab so switching Mua/Bán/Nhập never makes it jump. */
+.trade-sheet { height: min(700px, calc(100dvh - 32px)); }
+
+/* Savings sheet (approved demo savings-sheet-a|b). */
+.trade-sheet--savings { height: min(740px, calc(100dvh - 32px)); }
+.savings-banks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.savings-banks button { position: relative; display: flex; align-items: center; gap: 7px; min-width: 0; min-height: 38px; padding: 0 8px; border: 1px solid #e3eae5; border-radius: 10px; background: #ffffff; color: #13261c; font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.savings-banks button:hover { border-color: #c9d9ce; background: #f7faf8; }
+.savings-banks button i { display: grid; flex-shrink: 0; width: 22px; height: 22px; place-items: center; border-radius: 999px; color: #ffffff; font-size: 9.5px; font-style: normal; font-weight: 700; }
+.savings-banks button[aria-checked='true'] { border-color: var(--action); background: var(--soft); box-shadow: inset 0 0 0 1px var(--action); }
+.trade-sheet__chips--fill { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+.trade-sheet__chips--fill button { padding: 0 4px; }
+.savings-inline-field { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 6px 10px; }
+.savings-inline-field > label,
+.savings-inline-field > .trade-sheet__label { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6f8277; }
+.savings-inline-field > small { grid-column: 2; font-size: 11.5px; color: #6f8277; }
+.savings-rate { display: flex; align-items: center; gap: 8px; }
+.trade-sheet .savings-rate input { width: 96px; height: 36px; font-size: 16px; font-weight: 700; text-align: center; }
+.savings-rate span { font-size: 13px; color: #6f8277; }
+.savings-maturity button { font-size: 12.5px; }
+.savings-maturity button[aria-pressed='true'] { background: var(--action); color: #ffffff; }
+.savings-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 1.3fr; gap: 6px; }
+.trade-sheet .savings-dates input { height: 30px; padding: 0 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+
+/* Real bank logos in the savings tiles. */
+.savings-banks button { justify-content: center; min-height: 46px; padding: 6px 8px; }
+.savings-banks button img { display: block; max-width: 92%; max-height: 26px; object-fit: contain; pointer-events: none; user-select: none; }
+.savings-banks button svg { color: #6f8277; }
+
+/* Phones: keep the three mode tabs on one line. */
+@media (max-width: 420px) {
+  .trade-sheet__tabs button { gap: 4px; padding-inline: 4px; font-size: 12px; white-space: nowrap; }
+}

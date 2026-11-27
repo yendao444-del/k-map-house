@@ -21,7 +21,15 @@ export default defineConfig(({ mode }) => {
       ['import.meta.env.VITE_CONTRACT_DB_SCHEMA', JSON.stringify(current.VITE_CONTRACT_DB_SCHEMA || 'public')],
       ['import.meta.env.VITE_APP_VERSION', JSON.stringify(version)]
     ]),
-    resolve: { alias: { '@renderer': fileURLToPath(new URL('./src/renderer/src', import.meta.url)) } },
+    resolve: {
+      alias: {
+        '@renderer': fileURLToPath(new URL('./src/renderer/src', import.meta.url)),
+        // DBY Finance is shared with Electron from the repo root.
+        '@dby-finance': fileURLToPath(new URL('../dby-finance/src', import.meta.url))
+      },
+      // dby-finance sits outside this package; keep a single React instance.
+      dedupe: ['react', 'react-dom']
+    },
     css: { postcss: { plugins: [tailwindcss(), autoprefixer()] } },
     server: { host: '127.0.0.1', port: 4178, strictPort: true, proxy: { '/api/management-auth': { target: 'https://app.phongtroankhang.com', changeOrigin: true } } },
     build: { sourcemap: false, target: 'es2022' }

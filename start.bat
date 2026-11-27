@@ -44,7 +44,9 @@ if not exist "node_modules\electron\dist\electron.exe" (
 echo   [OK] Dependencies va Electron runtime da san sang.
 
 :start_app
-echo   [>>] Dang khoi dong Electron app...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\check-dev-instance.ps1"
+if errorlevel 1 goto :startup_failed
+echo   [^>^>] Dang khoi dong Electron app...
 echo.
 call npm run dev
 if errorlevel 1 goto :startup_failed

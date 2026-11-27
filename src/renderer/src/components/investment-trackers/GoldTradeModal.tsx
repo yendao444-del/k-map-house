@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactElement } from 'react'
-import { Minus, Plus, X } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, Minus, PackagePlus, Plus, X } from 'lucide-react'
 import { fetchMyHanhPrices, suggestedMyHanhPricePerChi } from '../../lib/goldApi'
 import type { MyHanhGoldPrices } from '../../../../shared/my-hanh-gold'
 import type { InvestmentHolding } from '../../lib/investment-store'
 import { validateFunding, type FundingBalances, type FundingMethod } from '../../lib/investment-funding'
 import { formatVndPriceInput, normalizeVndPriceInput } from '../../lib/vnd-price-input'
 import { planInvestmentTopUp, InvestmentFundingCancelled } from '../../lib/investment-auto-funding'
+import { useInvestmentPortfolio } from '@dby-finance'
 import './gold-trade-modal.css'
 
 const GOLD_PRODUCT = { symbol: 'MH9999', name: 'Vàng MH 9999 · Mỹ Hạnh' } as const
 
 const money = (value: number): string => `${new Intl.NumberFormat('vi-VN').format(Math.round(value))} đ`
 const today = (): string => new Date().toLocaleDateString('vi-VN')
+const localIsoDate = (): string => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10) }
 const holdingQuantity = (holding: InvestmentHolding): number => {
   const match = holding.quantity.match(/^\s*([\d.,]+)/)
   return match ? Number(match[1].replace(',', '.')) || 0 : 0
@@ -21,7 +23,7 @@ export type GoldTradeInput = {
   category: 'gold'
   symbol: string
   name: string
-  type: 'buy' | 'sell'
+  type: 'buy' | 'sell' | 'import-existing'
   amount: number
   quantity: number
   unit: 'chỉ'
@@ -30,15 +32,17 @@ export type GoldTradeInput = {
   paymentMethod: FundingMethod
 }
 
+export type GoldTradeMode = 'buy' | 'sell' | 'import'
+
 export function GoldTradeModal({
-  mode,
+  mode: initialMode,
   holdings,
   walletSummary,
   operatingWalletSummary,
   onClose,
   onSave
 }: {
-  mode: 'buy' | 'sell'
+  mode: GoldTradeMode
   holdings: InvestmentHolding[]
   walletSummary: FundingBalances
   operatingWalletSummary: FundingBalances
@@ -49,15 +53,32 @@ export function GoldTradeModal({
     () => new Map(holdings.filter((holding) => holding.category === 'gold').map((holding) => [holding.symbol.toUpperCase(), holdingQuantity(holding)])),
     [holdings]
   )
+  const [mode, setMode] = useState<GoldTradeMode>(initialMode)
   const [quantityDraft, setQuantityDraft] = useState('1')
   const [priceDraft, setPriceDraft] = useState<string | null>(null)
   const [prices, setPrices] = useState<MyHanhGoldPrices | null>(null)
   const [loadingPrice, setLoadingPrice] = useState(true)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
+  const personal = useInvestmentPortfolio() === 'personal'
   const quantityInputRef = useRef<HTMLInputElement>(null)
   const previousFocusRef = useRef(typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null)
   const [error, setError] = useState('')
+  const importing = mode === 'import'
+  const modeOptions: Array<{ id: GoldTradeMode; label: string; icon: typeof Plus }> = [
+    { id: 'buy', label: 'Mua', icon: ArrowDownLeft },
+    { id: 'sell', label: 'Bán', icon: ArrowUpRight },
+    ...(personal ? [{ id: 'import' as const, label: 'Nhập hiện có', icon: PackagePlus }] : [])
+  ]
+  const chooseMode = (next: GoldTradeMode) => {
+    if (next === mode || savingRef.current) return
+    setMode(next)
+    // Each type has its own price basis (shop buy, shop sell, own cost).
+    setPriceDraft(null)
+    setQuantityDraft('1')
+    setError('')
+  }
+  const [dateDraft, setDateDraft] = useState(localIsoDate)
   const paymentMethod: FundingMethod = walletSummary.bankBalance > 0 ? 'transfer' : 'cash'
 
   useEffect(() => {
@@ -78,16 +99,18 @@ export function GoldTradeModal({
 
   const product = GOLD_PRODUCT
   const stock = available.get(product.symbol) || 0
-  const maxQuantity = mode === 'sell' ? Math.floor(stock) : 100
+  const maxQuantity = mode === 'sell' ? Math.floor(stock) : importing ? 10000 : 100
   const quantity = Math.min(maxQuantity || 1, Math.max(1, Math.floor(Number(quantityDraft) || 1)))
   const rangeMax = mode === 'sell' ? Math.max(1, maxQuantity) : 10
-  const suggestedPrice = suggestedMyHanhPricePerChi(prices, mode)
+  // An import records the user's own historical cost, never today's quote.
+  const suggestedPrice = importing ? 0 : suggestedMyHanhPricePerChi(prices, mode)
   const hasLiveQuote = suggestedPrice > 0
   const unitPrice = Number(priceDraft ?? suggestedPrice) || 0
   const total = unitPrice * quantity
   // Wallet checks belong to the explicit submit, not the normal form display.
   // The save pipeline still rechecks current funds and confirms any operating-wallet top-up.
-  const canSubmit = !loadingPrice && !saving && maxQuantity > 0 && Number.isFinite(total) && unitPrice > 0
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(dateDraft) && dateDraft <= localIsoDate()
+  const canSubmit = (importing || !loadingPrice) && !saving && maxQuantity > 0 && Number.isFinite(total) && unitPrice > 0 && (!importing || validDate)
   const chooseQuantity = (next: number, focusInput = true) => {
     setQuantityDraft(String(Math.min(maxQuantity || 1, Math.max(1, next))))
     setError('')
@@ -126,19 +149,21 @@ export function GoldTradeModal({
     try {
       if (mode === 'buy') {
         const shortfall = Math.max(0, total - walletSummary.totalBalance)
-        if (shortfall > 0) planInvestmentTopUp(shortfall, operatingWalletSummary, paymentMethod)
+        // DBY Finance records the shortfall as an external deposit on save.
+        if (shortfall > 0 && personal) { /* funded from outside */ }
+        else if (shortfall > 0) planInvestmentTopUp(shortfall, operatingWalletSummary, paymentMethod)
         else validateFunding(walletSummary, [{ paymentMethod, amount: -total }])
       }
       await onSave({
         category: 'gold',
         symbol: product.symbol,
         name: product.name,
-        type: mode,
-        amount: total,
+        type: importing ? 'import-existing' : mode,
+        amount: Math.round(total),
         quantity,
         unit: 'chỉ',
-        date: new Date().toISOString().slice(0, 10),
-        note: `${product.name} · ${money(unitPrice)}/chỉ`,
+        date: importing ? dateDraft : new Date().toISOString().slice(0, 10),
+        note: importing ? `Vàng đang có trước khi dùng DBY Finance · giá vốn ${money(unitPrice)}/chỉ` : `${product.name} · ${money(unitPrice)}/chỉ`,
         paymentMethod
       })
     } catch (cause) {
@@ -153,11 +178,21 @@ export function GoldTradeModal({
     <div className="gold-trade-overlay" onMouseDown={() => { if (!savingRef.current) onClose() }}>
       <form role="dialog" aria-modal="true" aria-labelledby="gold-trade-title" onSubmit={(event) => void submit(event)} onKeyDown={handleKeyDown} onMouseDown={(event) => event.stopPropagation()} className={`gold-trade-dialog gold-trade-${mode}`}>
         <header className="gold-trade-heading">
-          <div>
-            <p>Danh mục đầu tư</p>
-            <h2 id="gold-trade-title">{mode === 'buy' ? 'Mua vàng' : 'Bán vàng'}</h2>
+          <div className="gold-trade-heading-row">
+            <h2 id="gold-trade-title">{importing ? 'Nhập vàng hiện có' : mode === 'buy' ? 'Mua vàng' : 'Bán vàng'}</h2>
+            <button type="button" aria-label="Đóng" onClick={onClose} disabled={saving} className="gold-trade-close"><X size={18} /></button>
           </div>
-          <button type="button" aria-label="Đóng" onClick={onClose} disabled={saving} className="gold-trade-close"><X size={23} /></button>
+          <div className="gold-trade-modes" role="radiogroup" aria-label="Loại giao dịch">
+            {modeOptions.map(option => {
+              const Icon = option.icon
+              return <button key={option.id} type="button" role="radio" aria-checked={mode === option.id} className={`gold-trade-mode is-${option.id}`} disabled={saving} onClick={() => chooseMode(option.id)}><Icon size={16} />{option.label}</button>
+            })}
+          </div>
+          <div className="gold-trade-hero" aria-live="polite">
+            <span>{importing ? 'Tổng giá vốn' : mode === 'buy' ? 'Tổng tiền mua' : 'Tổng tiền thu về'}</span>
+            <strong>{money(total)}</strong>
+            <small>{importing ? 'Không trừ tiền Ví đầu tư' : `${quantity} chỉ × ${unitPrice ? money(unitPrice) : '—'}`}</small>
+          </div>
         </header>
 
         <div className="gold-trade-body">
@@ -165,9 +200,25 @@ export function GoldTradeModal({
             <i aria-hidden="true" className="fa-solid fa-ring" />
             <div>
               <p className="gold-trade-product-name">{product.name}</p>
-              <p className="gold-trade-date">Ngày {mode === 'buy' ? 'mua' : 'bán'} tự động · {today()}</p>
+              {importing
+                ? <p className="gold-trade-date">Ghi số vàng bạn đang giữ từ trước. Ví đầu tư và sao kê không thay đổi.</p>
+                : <p className="gold-trade-date">Ngày {mode === 'buy' ? 'mua' : 'bán'} tự động · {today()}</p>}
               {mode === 'sell' && <p className="gold-trade-stock">Đang có: {stock} chỉ Mỹ Hạnh</p>}
             </div>
+          </div>
+
+          <div className="gold-trade-price-section">
+            <label htmlFor="gold-trade-price">{importing ? 'Giá vốn / chỉ' : `Giá ${mode === 'buy' ? 'mua' : 'bán'} / chỉ`}</label>
+            <div className="gold-trade-price-field">
+              <input id="gold-trade-price" type="text" inputMode="numeric" aria-describedby="gold-trade-price-hint" value={formatVndPriceInput(priceDraft ?? (suggestedPrice || ''))} onChange={(event) => {
+                const digits = normalizeVndPriceInput(event.target.value)
+                if (digits !== null) { setPriceDraft(digits); setError('') }
+              }} placeholder={importing ? 'Giá bạn đã mua mỗi chỉ' : 'Giá mỗi chỉ'} disabled={(!importing && loadingPrice) || saving} />
+              <span aria-hidden="true">đ</span>
+            </div>
+            <p id="gold-trade-price-hint" className="gold-trade-hint">{importing ? `Dùng để tính lãi/lỗ.${prices ? ` Giá tiệm mua vào hôm nay: ${suggestedMyHanhPricePerChi(prices, 'sell') ? money(suggestedMyHanhPricePerChi(prices, 'sell')) : 'chưa có'}/chỉ.` : ''}` : loadingPrice ? 'Đang tải giá vàng hiện tại…' : 'Giá tham khảo, có thể chỉnh sửa'}</p>
+            {importing ? null : hasLiveQuote ? <p className="gold-trade-source"><strong>Nguồn:</strong> ước tính theo nhẫn PNJ Hà Nội{prices?.quotedAt ? ` · ${new Date(prices.quotedAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}, ${new Date(prices.quotedAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}` : ''}</p>
+              : !loadingPrice && <p className="gold-trade-quote-warning">Chưa lấy được giá hiện tại. Hãy nhập giá thực tế mỗi chỉ.</p>}
           </div>
 
           <section className="gold-trade-quantity-section" aria-labelledby="gold-trade-quantity-label">
@@ -185,26 +236,22 @@ export function GoldTradeModal({
             {mode === 'sell' && maxQuantity < 1 && <p className="gold-trade-error">Chưa có vàng Mỹ Hạnh đủ 1 chỉ trong danh mục để bán.</p>}
           </section>
 
-          <div className="gold-trade-price-section">
-            <label htmlFor="gold-trade-price">Giá {mode === 'buy' ? 'mua' : 'bán'} / chỉ</label>
+          {importing && <div className="gold-trade-price-section">
+            <label htmlFor="gold-trade-date">Ngày mua</label>
             <div className="gold-trade-price-field">
-              <input id="gold-trade-price" type="text" inputMode="numeric" aria-describedby="gold-trade-price-hint" value={formatVndPriceInput(priceDraft ?? (suggestedPrice || ''))} onChange={(event) => {
-                const digits = normalizeVndPriceInput(event.target.value)
-                if (digits !== null) { setPriceDraft(digits); setError('') }
-              }} placeholder="Giá mỗi chỉ" disabled={loadingPrice || saving} />
-              <span aria-hidden="true">đ</span>
+              <input id="gold-trade-date" type="date" max={localIsoDate()} value={dateDraft} onChange={(event) => { setDateDraft(event.target.value); setError('') }} disabled={saving} />
             </div>
-            <p id="gold-trade-price-hint" className="gold-trade-hint">{loadingPrice ? 'Đang tải giá vàng hiện tại…' : 'Giá tham khảo, có thể chỉnh sửa'}</p>
-            {hasLiveQuote ? <p className="gold-trade-source"><strong>Nguồn:</strong> ước tính theo nhẫn PNJ Hà Nội{prices?.quotedAt ? ` · ${new Date(prices.quotedAt).toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' })}, ${new Date(prices.quotedAt).toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}` : ''}</p>
-              : !loadingPrice && <p className="gold-trade-quote-warning">Chưa lấy được giá hiện tại. Hãy nhập giá thực tế mỗi chỉ.</p>}
-          </div>
+            {!validDate && <p className="gold-trade-error">Chọn ngày mua không muộn hơn hôm nay.</p>}
+          </div>}
         </div>
 
         <footer className="gold-trade-footer">
-          <div className="gold-trade-total"><span>{mode === 'buy' ? 'Tổng tiền' : 'Tổng tiền thu về'}</span><strong>{money(total)}</strong></div>
           {error && <p role="alert" className="gold-trade-error">{error}</p>}
-          <button type="submit" disabled={!canSubmit} className="gold-trade-submit">{saving ? 'Đang lưu…' : mode === 'buy' ? 'Mua vàng' : 'Bán vàng'}</button>
-          <p className="gold-trade-key-hint"><kbd>Enter</kbd> để {mode === 'buy' ? 'mua' : 'bán'} nhanh</p>
+          <div className="gold-trade-actions">
+            <button type="button" onClick={onClose} disabled={saving} className="gold-trade-cancel">Hủy</button>
+            <button type="submit" disabled={!canSubmit} className="gold-trade-submit">{saving ? 'Đang lưu…' : importing ? 'Xác nhận nhập' : mode === 'buy' ? 'Xác nhận mua' : 'Xác nhận bán'}</button>
+          </div>
+          <p className="gold-trade-key-hint"><kbd>Enter</kbd> để {importing ? 'nhập' : mode === 'buy' ? 'mua' : 'bán'} nhanh</p>
         </footer>
       </form>
     </div>

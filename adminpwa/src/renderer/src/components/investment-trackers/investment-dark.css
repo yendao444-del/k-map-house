@@ -508,6 +508,146 @@
 .investment-dark .security-holdings-actions button:first-child:hover { border-color: var(--security-accent); color: var(--security-accent); }
 .investment-dark .security-holdings-actions button:last-child:hover { border-color: #ff8c99; color: #ff8c99; }
 .investment-dark .security-holdings-empty { display: grid; min-height: 130px; place-items: center; gap: 12px; padding: 28px; color: var(--investment-muted); font-size: 13px; text-align: center; }
+
+/* Investment-only presentation layer. Data, funding and transaction paths stay
+   in the existing components while this layer aligns the tablet UI. */
+.investment-dark .investment-page-actions { align-items: stretch; }
+.investment-dark .investment-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  margin-bottom: 16px;
+  border: 1px solid var(--investment-border);
+  border-radius: 16px;
+  background: var(--investment-panel);
+}
+.investment-dark .investment-summary-item {
+  display: flex;
+  min-height: 86px;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-right: 1px solid var(--investment-border);
+}
+.investment-dark .investment-summary-item:last-child { border-right: 0; }
+.investment-dark .investment-summary-icon {
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--investment-accent);
+  background: rgb(33 211 138 / 13%);
+}
+.investment-dark .investment-summary-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--investment-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.investment-dark .investment-summary-item strong {
+  display: block;
+  color: var(--investment-text);
+  font-size: clamp(18px, 1.8vw, 25px);
+  font-weight: 900;
+  letter-spacing: -.02em;
+  white-space: nowrap;
+}
+.investment-dark .investment-summary-item strong.positive { color: var(--investment-accent); }
+.investment-dark .investment-page-actions > button {
+  min-height: 44px !important;
+  border-radius: 12px !important;
+  padding-inline: 16px !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.investment-dark .investment-page-actions > button:first-child {
+  background: var(--investment-accent) !important;
+  color: #052217 !important;
+  border-color: var(--investment-accent) !important;
+}
+.investment-dark .investment-page-actions > button:nth-child(2) {
+  background: transparent !important;
+  color: #ff9aaa !important;
+  border-color: #7b4050 !important;
+}
+.investment-dark .investment-page-actions > button:nth-child(3) {
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-modal {
+  overflow: hidden !important;
+  border: 1px solid var(--investment-accent) !important;
+  border-radius: 20px !important;
+  background: var(--investment-panel) !important;
+  color: var(--investment-text) !important;
+  box-shadow: 0 28px 90px rgb(0 0 0 / 58%) !important;
+}
+.investment-dark .investment-modal-header {
+  min-height: 112px;
+  padding: 22px 26px !important;
+  background: linear-gradient(135deg, #123d3a 0%, #0e2638 100%) !important;
+  border-bottom: 1px solid var(--investment-border);
+}
+.investment-dark .investment-modal-header h2 { font-size: 22px !important; letter-spacing: -.02em; }
+.investment-dark .investment-modal label { color: var(--investment-muted) !important; }
+.investment-dark .investment-modal input,
+.investment-dark .investment-modal select,
+.investment-dark .investment-modal textarea {
+  min-height: 46px;
+  border-radius: 12px !important;
+  background: #0a1726 !important;
+  border-color: #36516a !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark .investment-modal input:focus,
+.investment-dark .investment-modal select:focus,
+.investment-dark .investment-modal textarea:focus {
+  border-color: var(--investment-accent) !important;
+  box-shadow: 0 0 0 3px rgb(33 211 138 / 15%) !important;
+  outline: none;
+}
+.investment-dark .investment-modal .security-trade-summary {
+  background: var(--investment-panel-soft) !important;
+  border-color: var(--investment-border) !important;
+}
+.investment-dark .investment-modal .security-trade-total { color: var(--investment-accent) !important; }
+.investment-dark .investment-modal .security-trade-actions > button {
+  min-height: 46px !important;
+  border-radius: 12px !important;
+}
+.investment-dark .investment-modal .security-trade-actions > button:last-child {
+  background: var(--investment-accent) !important;
+  color: #052217 !important;
+  border-color: var(--investment-accent) !important;
+}
+.investment-dark .investment-modal .security-trade-actions > button:first-child {
+  color: var(--investment-text) !important;
+  border-color: var(--investment-border) !important;
+  background: transparent !important;
+}
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button {
+  min-height: 44px;
+  border-radius: 11px;
+  padding-inline: 14px;
+}
+@media (max-width: 900px) {
+  .investment-dark .investment-page-actions { width: 100%; }
+  .investment-dark .investment-page-actions > button { flex: 1 1 150px; }
+}
+@media (max-width: 640px) {
+  .investment-dark .investment-summary-strip { grid-template-columns: 1fr; }
+  .investment-dark .investment-summary-item { border-right: 0; border-bottom: 1px solid var(--investment-border); }
+  .investment-dark .investment-summary-item:last-child { border-bottom: 0; }
+  .investment-dark .investment-modal-header { padding: 18px !important; }
+  .investment-dark .investment-modal .security-trade-body { grid-template-columns: 1fr !important; }
+  .investment-dark .investment-page-actions > button { flex-basis: 100%; }
+}
 .investment-dark [role='dialog'] {
   background: var(--investment-panel) !important;
   color: var(--investment-text) !important;
@@ -591,3 +731,389 @@
 @media (max-width: 767px) {
   .investment-dark main { padding: 14px !important; }
 }
+
+/* Row edit/delete actions: same quiet outlined square, distinct hover intent. */
+.investment-row-action {
+  display: inline-flex;
+  height: 32px;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--investment-border);
+  border-radius: 10px;
+  background: var(--investment-panel-soft);
+  color: var(--investment-muted);
+  transition: color .15s ease, background-color .15s ease, border-color .15s ease;
+}
+.investment-row-action:hover {
+  border-color: rgb(33 211 138 / 45%);
+  background: rgb(33 211 138 / 10%);
+  color: var(--investment-accent);
+}
+.investment-row-action--danger:hover {
+  border-color: rgb(255 113 137 / 45%);
+  background: rgb(255 113 137 / 12%);
+  color: #ff8fa3;
+}
+.investment-row-action:focus-visible {
+  outline: 2px solid var(--investment-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------------
+   Bank-green theme (2026-11-26), calm Vietcombank-style palette: muted deep
+   green frame (title bar + sidebar) with silk-ribbon motifs, off-white content
+   panel with faint arcs/waves, white cards, deep-green primary actions and a
+   single lime accent. Declared last so it overrides the older dark tokens
+   while the layout rules above stay untouched.
+   ------------------------------------------------------------------------ */
+.investment-dark {
+  --investment-frame: #084632;
+  --investment-frame-deep: #0b2f20;
+  --investment-lime: #76c41f;
+  --investment-bg: #f7f9f7;
+  --investment-panel: #ffffff;
+  --investment-panel-raised: #eef4ef;
+  --investment-panel-soft: #fafcfa;
+  --investment-border: #e6ece7;
+  --investment-text: #13261c;
+  --investment-muted: #5f7167;
+  --investment-accent: #1f5c3c;
+  --investment-accent-deep: #174a30;
+  --investment-positive: #2e7d4a;
+  --investment-negative: #c24545;
+  --color-text-muted: #8a9c91;
+  --color-bg-gradient: var(--investment-bg);
+  --color-bg-sidebar: var(--investment-frame);
+  --color-bg-input: #ffffff;
+  --color-border-hover: #b5cdbd;
+  --color-primary-hover: #174a30;
+  --color-primary-glow: rgb(31 92 60 / 14%);
+  --color-soft-button-text: #1f5c3c;
+  --color-soft-button-bg: #eef4ef;
+  --color-soft-button-border: #cfe0d4;
+  --color-gold-bg: #fff6e5;
+  --color-gold-border: #f0c36a;
+  --color-red-bg: #fdeeee;
+  --color-red-border: #f2b8b8;
+  --color-chart-grid: #e6ece7;
+  --color-chart-axis: #8a9c91;
+  color-scheme: light;
+  color: var(--investment-text);
+  background: var(--investment-frame) !important;
+}
+.investment-dark .text-slate-600 { color: #3e5548 !important; }
+.investment-dark .text-slate-700,
+.investment-dark .text-slate-800 { color: #1e3428 !important; }
+
+/* Frame: green sidebar, white text, white pill for the active item. */
+.investment-dark aside {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--investment-frame) !important;
+  border-color: transparent !important;
+  color: #ffffff;
+}
+/* Silk ribbons at the bottom of the sidebar: cropped from the approved demo
+   (wallet-vcb-motif) so the shapes match it exactly; frame colour is the
+   demo's #084632 so the crop blends without a seam. */
+.investment-dark aside::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  aspect-ratio: 272 / 358;
+  z-index: -1;
+  pointer-events: none;
+  background: url('./assets/sidebar-silk.webp') bottom / 100% 100% no-repeat;
+}
+.investment-dark aside h2 { color: #ffffff !important; }
+.investment-dark aside p.text-emerald-200\/70 { color: rgb(255 255 255 / 70%) !important; }
+.investment-dark aside nav { margin-inline: -12px; }
+.investment-dark aside nav button {
+  border-radius: 0 !important;
+  padding-left: 24px !important;
+  min-height: 46px;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  outline: none;
+}
+.investment-dark aside button:not(.bg-white) { color: rgb(255 255 255 / 88%) !important; }
+.investment-dark aside button:hover { background: rgb(255 255 255 / 8%) !important; color: #ffffff !important; }
+.investment-dark aside nav button.bg-\[\#21d38a\],
+.investment-dark aside nav button.bg-white {
+  background: #145d3f !important;
+  color: #ffffff !important;
+  box-shadow: inset 4px 0 0 var(--investment-lime) !important;
+}
+/* Windows paints focus rings in the system accent colour (gold/yellow). */
+.investment-dark aside nav button:focus-visible { box-shadow: inset 0 0 0 2px rgb(255 255 255 / 55%) !important; }
+/* Inner panel floats on the green frame. */
+.investment-dark > main,
+.investment-dark main {
+  background-color: var(--investment-bg) !important;
+  /* Faint concentric arcs (top right), dot grid (bottom right), soft wave (bottom). */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 620 420'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23DDEBE1' stop-opacity='.9'/%3E%3Cstop offset='1' stop-color='%23DDEBE1' stop-opacity='0'/%3E%3C/linearGradient%3E%3ClinearGradient id='h' x1='1' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23CFE3D5' stop-opacity='.75'/%3E%3Cstop offset='1' stop-color='%23CFE3D5' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ccircle cx='560' cy='20' r='260' fill='url(%23g)'/%3E%3Ccircle cx='600' cy='140' r='170' fill='%23E6F0E9' fill-opacity='.7'/%3E%3Cpath d='M180 0 C320 70 420 170 620 190 L620 0Z' fill='url(%23h)'/%3E%3Cpath d='M330 0 C420 60 500 110 620 120 L620 0Z' fill='%23D6E8DB' fill-opacity='.45'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='120'%3E%3Cdefs%3E%3Cpattern id='d' width='14' height='14' patternUnits='userSpaceOnUse'%3E%3Ccircle cx='2' cy='2' r='1.3' fill='%23B9CFC0'/%3E%3C/pattern%3E%3ClinearGradient id='f' x1='1' y1='1' x2='0' y2='0'%3E%3Cstop offset='0' stop-color='white'/%3E%3Cstop offset='1' stop-color='white' stop-opacity='0'/%3E%3C/linearGradient%3E%3Cmask id='m'%3E%3Crect width='180' height='120' fill='url(%23f)'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='180' height='120' fill='url(%23d)' mask='url(%23m)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 160' preserveAspectRatio='none'%3E%3Cpath d='M0 110 C260 40 520 150 800 80 C960 40 1080 70 1200 50 L1200 160 L0 160Z' fill='%23EAF2EC'/%3E%3Cpath d='M0 140 C300 90 600 170 900 110 C1020 88 1120 104 1200 92 L1200 160 L0 160Z' fill='%23E2EDE5'/%3E%3C/svg%3E") !important;
+  background-position: right -140px top -150px, right 20px bottom 20px, left bottom !important;
+  background-size: 620px auto, 180px 120px, 100% 150px !important;
+  background-repeat: no-repeat !important;
+  margin: 0 8px 8px 0;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 14px;
+}
+.investment-dark [class~="xl:hidden"] button.bg-\[\#064a31\],
+.investment-dark [class~="xl:hidden"] button.bg-\[\#21d38a\] {
+  background: var(--investment-accent) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+/* Primary actions in bank green; text on green is white. */
+.investment-dark .bg-\[\#00ab60\],
+.investment-dark .bg-\[\#21d38a\] { background: var(--investment-accent) !important; color: #ffffff !important; }
+.investment-dark .bg-\[\#00ab60\]:hover,
+.investment-dark .bg-\[\#21d38a\]:hover { background: var(--investment-accent-deep) !important; }
+.investment-dark .text-\[\#00ab60\],
+.investment-dark .text-\[\#21d38a\] { color: var(--investment-accent) !important; }
+.investment-dark .border-\[\#21d38a\],
+.investment-dark .border-\[\#00ab60\] { border-color: var(--investment-accent) !important; }
+.investment-dark .security-trade-actions > button:last-child,
+.investment-dark .security-trade-sell .security-trade-actions > button:last-child,
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button { color: #ffffff; }
+.investment-dark .investment-page-actions > button:first-child,
+.investment-dark .investment-modal .security-trade-actions > button:last-child { color: #ffffff !important; }
+.investment-dark .investment-page-actions > button:nth-child(2) { color: var(--investment-negative) !important; border-color: #f2b8b8 !important; }
+
+/* Modals: white body, green header like a bank confirmation sheet. */
+.investment-dark .bg-\[\#064a31\],
+.investment-dark .investment-modal-header {
+  background: linear-gradient(120deg, var(--investment-frame) 0%, #1f5c3c 55%, #2f6b4a 100%) !important;
+  color: #ffffff !important;
+  border-bottom: 0 !important;
+}
+.investment-dark .investment-modal-header h2,
+.investment-dark .investment-modal-header p { color: #ffffff !important; }
+.investment-dark .investment-modal { border-color: var(--investment-border) !important; box-shadow: 0 28px 80px rgb(10 35 25 / 28%) !important; }
+
+/* Form fields. */
+.investment-dark input,
+.investment-dark select,
+.investment-dark textarea,
+.investment-dark .investment-modal input,
+.investment-dark .investment-modal select,
+.investment-dark .investment-modal textarea {
+  background: #ffffff !important;
+  border-color: #d5e2d8 !important;
+  color: var(--investment-text) !important;
+}
+.investment-dark option,
+.investment-dark select option { background: #ffffff !important; color: var(--investment-text) !important; }
+.investment-dark input::placeholder { color: #8a9c91 !important; }
+.investment-dark input:focus,
+.investment-dark select:focus,
+.investment-dark textarea:focus,
+.investment-dark .investment-modal input:focus,
+.investment-dark .investment-modal select:focus,
+.investment-dark .investment-modal textarea:focus { border-color: var(--investment-accent) !important; box-shadow: 0 0 0 3px rgb(31 92 60 / 14%) !important; }
+
+/* Money and status colors on a light surface. */
+.investment-dark .text-emerald-700,
+.investment-dark .text-emerald-800,
+.investment-dark .investment-tracker-copy .text-emerald-800 { color: var(--investment-positive) !important; }
+.investment-dark .text-rose-600,
+.investment-dark .text-rose-700,
+.investment-dark .investment-tracker-copy .text-rose-700,
+.investment-dark .security-holdings-panel td.negative { color: var(--investment-negative) !important; }
+.investment-dark .bg-emerald-50 { background: #eef4ef !important; }
+.investment-dark .bg-rose-50 { background: #fdeeee !important; }
+.investment-dark .bg-amber-50 { background: #fff6e5 !important; }
+.investment-dark .border-amber-400 { border-color: #f0c36a !important; }
+.investment-dark .text-amber-700 { color: #b45309 !important; }
+.investment-dark .investment-tracker-copy table th { background: var(--investment-panel-raised) !important; }
+.investment-dark .investment-tracker-copy .mini-bar { background: #e6ece7 !important; }
+
+/* Row edit/delete actions on white cards. */
+.investment-row-action { border-color: var(--investment-border); background: #ffffff; color: var(--investment-muted); }
+.investment-row-action:hover { border-color: #b5cdbd; background: #eef4ef; color: var(--investment-accent); }
+.investment-row-action--danger:hover { border-color: #f2b8b8; background: #fdeeee; color: var(--investment-negative); }
+.investment-row-action:focus-visible { outline-color: var(--investment-accent); }
+
+/* Leftovers from the old dark theme, recoloured for the light bank-green look.
+   Gold rules use .investment-dark.investment-gold-screen to beat
+   gold-workspace.css, which is imported after this file. */
+.investment-dark .refresh-button {
+  background: #ffffff !important;
+  border: 1px solid var(--investment-border) !important;
+  color: var(--investment-accent) !important;
+}
+.investment-dark .refresh-button:hover:not(:disabled) { background: #eef4ef !important; border-color: #b5cdbd !important; }
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button { background: var(--investment-accent) !important; color: #ffffff !important; }
+.investment-dark .security-holdings-heading button:hover,
+.investment-dark .security-holdings-empty button:hover { background: var(--investment-accent-deep) !important; }
+.investment-dark main > p[role='alert'] { border-color: #f2b8b8 !important; background: #fdeeee; color: var(--investment-negative) !important; }
+
+.investment-dark.investment-gold-screen .gold-quote-tile > span { color: var(--investment-positive); }
+.investment-dark.investment-gold-screen .gold-quote-sell > span { color: #b7791f; }
+.investment-dark.investment-gold-screen .gold-quote-tile > strong { color: var(--investment-positive); }
+.investment-dark.investment-gold-screen .gold-quote-sell > strong { color: #b7791f; }
+.investment-dark.investment-gold-screen .gold-quote-tile p,
+.investment-dark.investment-gold-screen .gold-history-note,
+.investment-dark.investment-gold-screen .gold-valuation-note,
+.investment-dark.investment-gold-screen .gold-portfolio-empty span { color: var(--investment-muted); }
+.investment-dark.investment-gold-screen .gold-quote-spread span { color: var(--investment-muted); }
+.investment-dark.investment-gold-screen .gold-quote-spread strong { color: var(--investment-text); }
+.investment-dark.investment-gold-screen .gold-portfolio-tabs button { color: var(--investment-muted); }
+.investment-dark.investment-gold-screen .gold-portfolio-tabs button:hover { color: var(--investment-accent); background: #eef4ef; }
+.investment-dark.investment-gold-screen .gold-portfolio-tabs button:first-child > svg { color: #c98a1b; }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-buy { background: var(--investment-accent); border-color: var(--investment-accent); color: #ffffff; }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-buy:hover { background: var(--investment-accent-deep); border-color: var(--investment-accent-deep); }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-sell { color: var(--investment-negative); border-color: #f2b8b8; }
+.investment-dark.investment-gold-screen .gold-page-actions button:hover { border-color: #b5cdbd; }
+
+/* In-app confirm (replaces window.confirm). Portaled to <body>, so colours are literal. */
+.investment-confirm { position: fixed; inset: 0; z-index: 5000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgb(6 30 20 / 45%); backdrop-filter: blur(3px); }
+.investment-confirm__card { width: 100%; max-width: 460px; overflow: hidden; border: 1px solid #e6ece7; border-radius: 18px; background: #ffffff; color: #13261c; box-shadow: 0 28px 80px rgb(10 35 25 / 28%); }
+.investment-confirm__head { display: flex; align-items: center; gap: 12px; padding: 18px 20px 6px; }
+.investment-confirm__head h2 { flex: 1; margin: 0; font-size: 17px; font-weight: 700; }
+.investment-confirm__icon { display: inline-flex; width: 40px; height: 40px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 12px; background: #eef4ef; color: #1f5c3c; }
+.investment-confirm__icon.is-danger { background: #fdeeee; color: #c24545; }
+.investment-confirm__close { display: inline-flex; padding: 6px; border-radius: 999px; color: #5f7167; }
+.investment-confirm__close:hover { background: #eef4ef; }
+.investment-confirm__message { margin: 0; padding: 8px 20px 20px 72px; font-size: 14px; line-height: 1.55; color: #3e5548; }
+.investment-confirm__actions { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid #e6ece7; background: #fafcfa; }
+.investment-confirm__btn { min-height: 40px; padding: 0 18px; border: 1px solid #d5e2d8; border-radius: 10px; background: #ffffff; font-size: 14px; font-weight: 700; color: #3e5548; }
+.investment-confirm__btn:hover { background: #eef4ef; }
+.investment-confirm__btn.is-primary { border-color: #1f5c3c; background: #1f5c3c; color: #ffffff; }
+.investment-confirm__btn.is-primary:hover { background: #174a30; }
+.investment-confirm__btn.is-danger { border-color: #c24545; background: #c24545; }
+.investment-confirm__btn.is-danger:hover { background: #a83a3a; }
+.investment-confirm__btn:focus-visible,
+.investment-confirm__close:focus-visible { outline: 2px solid #1f5c3c; outline-offset: 2px; }
+
+/* Buy/sell asset sheet (cổ phiếu, quỹ, trái phiếu, tiết kiệm, nạp/rút ví). */
+.investment-dark .security-trade-dialog { --trade-accent: #1f5c3c; --trade-surface: #084632; }
+.investment-dark .security-trade-sell { --trade-accent: #c24545; --trade-surface: #084632; }
+.investment-dark .investment-modal { border: 1px solid var(--investment-border) !important; }
+.investment-dark .investment-modal-header,
+.investment-dark .security-trade-dialog .security-trade-heading {
+  min-height: 0;
+  background: linear-gradient(120deg, #084632 0%, #0d5137 50%, #216c46 100%) !important;
+  border-top: 0 !important;
+}
+.investment-dark .security-trade-dialog .security-trade-heading h2,
+.investment-dark .investment-modal-header h2 { color: #ffffff !important; }
+.investment-dark .security-trade-dialog .security-trade-heading p,
+.investment-dark .investment-modal-header p { color: rgb(255 255 255 / 78%) !important; }
+.investment-dark .investment-modal-header button { color: #ffffff; }
+.investment-dark .text-emerald-600,
+.investment-dark .text-emerald-200 { color: var(--investment-accent) !important; }
+.investment-dark .investment-modal-header .text-emerald-200 { color: rgb(255 255 255 / 72%) !important; }
+.investment-dark .investment-modal .border-slate-200 { border-color: #d5e2d8 !important; }
+.investment-dark .investment-modal button.border-slate-200:hover:not(:disabled) { background: #f4f8f5; border-color: #b5cdbd !important; }
+.investment-dark .security-asset-choice,
+.investment-dark .security-symbol-choice,
+.investment-dark .security-mode-choice { border-color: #d5e2d8; background: #ffffff; }
+.investment-dark .security-asset-choice:hover,
+.investment-dark .security-asset-choice.selected,
+.investment-dark .security-symbol-choice:hover,
+.investment-dark .security-symbol-choice.selected,
+.investment-dark .security-mode-choice:hover,
+.investment-dark .security-mode-choice.selected { border-color: var(--trade-accent); background: #eef4ef; color: var(--investment-text); }
+.investment-dark .security-symbol-choice strong { color: var(--trade-accent); }
+
+/* Summary card styled like the wallet card: deep green, white text. */
+.investment-dark .investment-modal .security-trade-summary {
+  border: 0 !important;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 420' preserveAspectRatio='xMaxYMax slice'%3E%3Ccircle cx='380' cy='60' r='200' fill='%23ffffff' fill-opacity='.05'/%3E%3Cpath d='M0 420 C120 380 240 280 360 150' fill='none' stroke='%2376C41F' stroke-opacity='.5' stroke-width='1.4'/%3E%3C/svg%3E") right bottom / cover no-repeat,
+    linear-gradient(150deg, #084632 0%, #0d5137 55%, #216c46 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 14px 34px rgb(10 45 30 / 22%);
+}
+.investment-dark .investment-modal .security-trade-summary h3,
+.investment-dark .investment-modal .security-trade-summary p { color: #ffffff !important; }
+.investment-dark .investment-modal .security-trade-summary .border-t { border-color: rgb(255 255 255 / 22%) !important; }
+.investment-dark .investment-modal .security-trade-summary .security-trade-symbol { color: #ffffff; background: rgb(255 255 255 / 14%); border-color: rgb(255 255 255 / 30%); }
+.investment-dark .investment-modal .security-trade-summary [role='alert'] { color: #ffd2d2 !important; }
+.investment-dark .investment-modal .security-trade-actions > button:first-child { color: #ffffff !important; border: 1px solid rgb(255 255 255 / 60%) !important; background: transparent !important; }
+.investment-dark .investment-modal .security-trade-actions > button:first-child:hover { background: rgb(255 255 255 / 12%) !important; }
+.investment-dark .investment-modal .security-trade-actions > button:last-child { background: #ffffff !important; border-color: #ffffff !important; color: #1f5c3c !important; }
+.investment-dark .investment-modal.security-trade-sell .security-trade-actions > button:last-child { color: #c24545 !important; }
+.investment-dark .investment-modal .security-trade-actions > button:last-child:disabled { background: rgb(255 255 255 / 45%) !important; border-color: transparent !important; color: rgb(8 70 50 / 70%) !important; }
+.investment-dark .investment-modal .security-trade-price-row .security-trade-total { color: var(--investment-accent) !important; }
+
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-import { color: var(--investment-accent); border-color: #b5cdbd; background: #eef4ef; }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-import:hover { background: #e2eee5; border-color: var(--investment-accent); }
+
+/* Page action buttons and fonts unified with the Tiết kiệm screen ("Mở sổ mới"):
+   40px tall, 10px radius, 14px semibold text, green gradient for the main
+   action; white outlined buttons for sell (red) and secondary actions. */
+.investment-dark .investment-page-actions > button,
+.investment-dark.investment-gold-screen .gold-page-actions > button,
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button,
+.investment-dark .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px !important;
+  padding: 0 16px !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0;
+  transition: background .2s ease, box-shadow .2s ease, transform .2s ease, border-color .2s ease;
+}
+.investment-dark .investment-page-actions > button:first-child,
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-buy,
+.investment-dark .security-holdings-heading button,
+.investment-dark .security-holdings-empty button,
+.investment-dark .primary-button {
+  border: 0 !important;
+  background: linear-gradient(135deg, #00ab60 0%, #005430 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgb(0 120 60 / 28%) !important;
+}
+.investment-dark .investment-page-actions > button:first-child:hover:not(:disabled),
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-buy:hover,
+.investment-dark .security-holdings-heading button:hover,
+.investment-dark .security-holdings-empty button:hover,
+.investment-dark .primary-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #00994f 0%, #00482a 100%) !important;
+  box-shadow: 0 6px 20px rgb(0 120 60 / 36%) !important;
+  transform: translateY(-1px);
+}
+.investment-dark .investment-page-actions > button:nth-child(2),
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-sell {
+  border: 1px solid #f2b8b8 !important;
+  background: #ffffff !important;
+  color: #c24545 !important;
+  box-shadow: 0 1px 3px rgb(15 50 35 / 6%) !important;
+}
+.investment-dark .investment-page-actions > button:nth-child(2):hover:not(:disabled),
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-sell:hover { background: #fdeeee !important; }
+.investment-dark .investment-page-actions > button:nth-child(n+3),
+.investment-dark.investment-gold-screen .gold-page-actions > button:not(.gold-action-buy):not(.gold-action-sell):not(.gold-action-import) {
+  border: 1px solid #e6ece7 !important;
+  background: #ffffff !important;
+  color: #13261c !important;
+  box-shadow: 0 1px 3px rgb(15 50 35 / 6%) !important;
+}
+.investment-dark .investment-page-actions > button:nth-child(n+3):hover,
+.investment-dark.investment-gold-screen .gold-page-actions > button:not(.gold-action-buy):not(.gold-action-sell):not(.gold-action-import):hover { border-color: #b5cdbd !important; background: #f4f8f5 !important; }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-import { border: 1px solid #ecd09a !important; background: #fdf3e1 !important; color: #a86b08 !important; }
+.investment-dark.investment-gold-screen .gold-page-actions .gold-action-import:hover { background: #fbe9c6 !important; }
+.investment-dark .investment-page-actions > button:disabled { opacity: .5 !important; transform: none; cursor: not-allowed; }
+
+/* Lighter type like the savings screen: no 900 weights in content. */
+.investment-dark main .font-black { font-weight: 700 !important; }
+.investment-dark main h1 { font-weight: 800 !important; letter-spacing: -.01em; }
+.investment-dark .security-holdings-heading h2 { font-size: 16px; font-weight: 700; }
+.investment-dark .security-holdings-heading p { font-size: 12.5px; }
+.investment-dark .security-holdings-heading { padding: 14px 18px; }

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { isDepositOnlyInvoice, type AppSettings, type Invoice, type Room } from '../lib/db';
 import { buildInvoiceTransferDescription } from '../lib/invoiceTransfer';
 import { tryVietQrSvgDataUrl } from '../../../shared/vietqr';
+import { collectDocumentCss } from '../lib/export-styles';
 import logoNgang from '../assets/an_khang_home_logo_ngang.png';
 import logoMark from '../assets/an_khang_home_logo.png';
 
@@ -300,10 +301,12 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 <head>
   <meta charset="utf-8" />
   <title>Hóa đơn - ${room?.name || ''}</title>
+  <style>${collectDocumentCss()}</style>
   <style>
     * { box-sizing: border-box; }
     ::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
-    body { margin: 0; background: #fff; font-family: Inter, Arial, sans-serif; color: #111827; }
+    html, body { height: auto !important; min-height: 0 !important; overflow: visible !important; }
+    body { margin: 0; background: #fff !important; font-family: Inter, Arial, sans-serif; color: #111827; }
     .capture-page { max-width: 1120px; margin: 0 auto; }
     .invoice-wrap { position: relative; max-width: 768px; margin: 0 auto; background: #fff; border: 3px solid #064a31 !important; overflow: hidden; }
     .hidden { display: none !important; }
@@ -326,8 +329,10 @@ export const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 <html>
 <head>
   <meta charset="utf-8" />
+  <style>${collectDocumentCss()}</style>
   <style>
-    body { margin: 0; background: #fff; font-family: Inter, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { height: auto !important; overflow: visible !important; }
+    body { margin: 0; background: #fff !important; font-family: Inter, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .invoice-wrap { max-width: 768px; margin: 0 auto; border: 3px solid #064a31 !important; overflow: hidden; }
   </style>
 </head>

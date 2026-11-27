@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, clipboard, dialog, ClipboardItem } from 'electron'
+import { app, shell, BrowserWindow, clipboard, dialog, ClipboardItem, nativeImage } from 'electron'
 import { registerTrustedRenderer, trustedIpcMain as ipcMain } from './trusted-ipc'
 import { pathToFileURL } from 'node:url'
 import 'dotenv/config'
@@ -19,6 +19,7 @@ import { reportTelegramError } from './telegram-reporter'
 import { registerTenantIdentityHandlers } from './tenant-identity-handlers'
 import { registerContractTestLauncher } from './contract-test-launcher'
 import { registerDevDevice } from './dev-device'
+import { registerTrustedDevice } from './trusted-device'
 
 type MarketScanRequest = {
   propertyAddress: string
@@ -309,11 +310,133 @@ async function waitForWebContentsReady(
 }
 
 function secureExportHtml(html: string): string {
-  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src data: blob: file:; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'; object-src 'none'"
+  const csp = "default-src 'none'; script-src 'none'; connect-src 'none'; img-src data: blob: file:; style-src 'unsafe-inline'; font-src data: file: http://localhost:*; base-uri 'none'; form-action 'none'; object-src 'none'"
   if (!/<head(?:\s[^>]*)?>/i.test(html)) throw new Error('Nội dung tài liệu thiếu phần head.')
   return html.replace(/<head(?:\s[^>]*)?>/i, (head) =>
     `${head}<meta http-equiv="Content-Security-Policy" content="${csp}">`
   )
+}
+
+function stitchImagesVertically(images: Electron.NativeImage[]): Electron.NativeImage {
+  if (images.length === 1) return images[0]
+  // Work in physical pixels so HiDPI captures are not resampled.
+  const scaleFactor = images[0].getScaleFactors()[0] || 1
+  const width = Math.min(...images.map((image) => image.getSize(scaleFactor).width))
+  const rows: Buffer[] = []
+  let height = 0
+  for (const image of images) {
+    const size = image.getSize(scaleFactor)
+    const bitmap = image.toBitmap({ scaleFactor }) // BGRA, 4 bytes per pixel
+    for (let y = 0; y < size.height; y += 1) {
+      rows.push(bitmap.subarray(y * size.width * 4, (y * size.width + width) * 4))
+    }
+    height += size.height
+  }
+  return nativeImage.createFromBitmap(Buffer.concat(rows), { width, height, scaleFactor })
+}
+
+async function captureHtmlImage(
+  rawHtml: string,
+  htmlPath: string
+): Promise<Electron.NativeImage> {
+  const captureWindow = new BrowserWindow({
+    width: 820,
+    height: 1180,
+    show: false,
+    frame: false,
+    webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
+  })
+
+  try {
+    writeFileSync(htmlPath, secureExportHtml(rawHtml), 'utf-8')
+    await captureWindow.loadFile(htmlPath)
+    await waitForWebContentsReady(captureWindow.webContents)
+
+    const contentSize = (await captureWindow.webContents.executeJavaScript(`
+      (() => {
+        window.scrollTo(0, 0)
+        const doc = document.documentElement
+        const body = document.body
+        const exportRoot = document.querySelector('.capture-page') || body
+        const rootRect = exportRoot.getBoundingClientRect()
+        const width = Math.max(
+          Math.ceil(rootRect.width + 24),
+          doc?.scrollWidth || 0,
+          doc?.clientWidth || 0,
+          body?.scrollWidth || 0,
+          body?.offsetWidth || 0
+        )
+        const height = Math.max(
+          Math.ceil(rootRect.height + 4),
+          doc?.scrollHeight || 0,
+          doc?.clientHeight || 0,
+          body?.scrollHeight || 0,
+          body?.offsetHeight || 0
+        )
+        return { width, height }
+      })()
+    `)) as { width?: number; height?: number }
+
+    const captureWidth = Math.min(
+      2200,
+      Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12)
+    )
+    const captureHeight = Math.min(
+      9000,
+      Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4)
+    )
+
+    captureWindow.setContentSize(captureWidth, captureHeight)
+    await waitForWebContentsReady(captureWindow.webContents, 300)
+
+    const actualBounds = captureWindow.getContentBounds()
+    const viewportWidth = Math.max(1, actualBounds.width)
+    const viewportHeight = Math.max(1, actualBounds.height)
+
+    if (viewportHeight >= captureHeight - 8) {
+      return await captureWindow.webContents.capturePage({
+        x: 0,
+        y: 0,
+        width: viewportWidth,
+        height: viewportHeight
+      })
+    }
+
+    // Windows caps a hidden window at the screen's work area, so a tall
+    // invoice (with the payment QR at the bottom) does not fit in one shot.
+    // Scroll through it and stitch the slices at full size instead of
+    // shrinking the whole page.
+    const totalHeight = Number(
+      await captureWindow.webContents.executeJavaScript(
+        `(() => { document.documentElement.style.overflow = 'hidden'; return Math.ceil(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)) })()`
+      )
+    ) || captureHeight
+    const slices: Electron.NativeImage[] = []
+    for (let top = 0; top < totalHeight; top += viewportHeight) {
+      const scrolled = Number(
+        await captureWindow.webContents.executeJavaScript(
+          `(() => { window.scrollTo(0, ${top}); return window.scrollY })()`
+        )
+      )
+      await waitForWebContentsReady(captureWindow.webContents, 300)
+      // The last slice cannot scroll past the end: keep only the part not
+      // already captured by the previous slice.
+      const skip = Math.max(0, top - scrolled)
+      const height = Math.min(viewportHeight, totalHeight - top)
+      if (height <= 0) break
+      slices.push(
+        await captureWindow.webContents.capturePage({
+          x: 0,
+          y: skip,
+          width: viewportWidth,
+          height: Math.min(height, viewportHeight - skip)
+        })
+      )
+    }
+    return stitchImagesVertically(slices)
+  } finally {
+    captureWindow.destroy()
+  }
 }
 
 function setupZaloHandlers(): void {
@@ -334,28 +457,13 @@ function setupZaloHandlers(): void {
       const imagePath = join(tempDir, `${baseName}.png`)
       const htmlPath = join(tempDir, `${baseName}.html`)
 
-      const captureWindow = new BrowserWindow({
-        width: 820,
-        height: 1180,
-        show: false,
-        frame: false,
-        webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
-      })
-
-      try {
-        writeFileSync(htmlPath, secureExportHtml(payload.html), 'utf-8')
-        await captureWindow.loadFile(htmlPath)
-        await waitForWebContentsReady(captureWindow.webContents)
-        const image = await captureWindow.webContents.capturePage()
-        writeFileSync(imagePath, image.toPNG())
-        await clipboard.write([
-          new ClipboardItem({
-            'image/png': new Blob([image.toPNG() as unknown as BlobPart], { type: 'image/png' })
-          })
-        ])
-      } finally {
-        captureWindow.destroy()
-      }
+      const image = await captureHtmlImage(payload.html, htmlPath)
+      writeFileSync(imagePath, image.toPNG())
+      await clipboard.write([
+        new ClipboardItem({
+          'image/png': new Blob([image.toPNG() as unknown as BlobPart], { type: 'image/png' })
+        })
+      ])
 
       if (payload.message) {
         clipboard.writeText(payload.message)
@@ -381,86 +489,8 @@ function setupInvoiceHandlers(): void {
       tempDir,
       `invoice_temp_${Date.now()}_${Math.random().toString(36).slice(2)}.html`
     )
-
-    const captureWindow = new BrowserWindow({
-      width: 820,
-      height: 1180,
-      show: false,
-      frame: false,
-      webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true }
-    })
-
-    try {
-      writeFileSync(htmlPath, secureExportHtml(rawHtml), 'utf-8')
-      await captureWindow.loadFile(htmlPath)
-      await waitForWebContentsReady(captureWindow.webContents)
-
-      const contentSize = (await captureWindow.webContents.executeJavaScript(`
-        (() => {
-          window.scrollTo(0, 0)
-          const doc = document.documentElement
-          const body = document.body
-          const exportRoot = document.querySelector('.capture-page') || body
-          const rootRect = exportRoot.getBoundingClientRect()
-          const width = Math.max(
-            Math.ceil(rootRect.width + 24),
-            doc?.scrollWidth || 0,
-            doc?.clientWidth || 0,
-            body?.scrollWidth || 0,
-            body?.offsetWidth || 0
-          )
-          const height = Math.max(
-            Math.ceil(rootRect.height + 4),
-            doc?.scrollHeight || 0,
-            doc?.clientHeight || 0,
-            body?.scrollHeight || 0,
-            body?.offsetHeight || 0
-          )
-          return { width, height }
-        })()
-      `)) as { width?: number; height?: number }
-
-      const captureWidth = Math.min(
-        2200,
-        Math.max(820, Math.ceil(Number(contentSize?.width || 820)) + 12)
-      )
-      const captureHeight = Math.min(
-        9000,
-        Math.max(400, Math.ceil(Number(contentSize?.height || 400)) + 4)
-      )
-
-      captureWindow.setContentSize(captureWidth, captureHeight)
-      await waitForWebContentsReady(captureWindow.webContents, 300)
-
-      const actualBounds = captureWindow.getContentBounds()
-      const viewportWidth = Math.max(1, actualBounds.width)
-      const viewportHeight = Math.max(1, actualBounds.height)
-
-      if (viewportHeight < captureHeight - 8) {
-        const scale = Math.max(0.45, Math.min(1, (viewportHeight - 16) / captureHeight))
-        await captureWindow.webContents.executeJavaScript(`
-          (() => {
-            const s = ${scale}
-            document.documentElement.style.overflow = 'hidden'
-            document.body.style.transformOrigin = 'top left'
-            document.body.style.transform = 'scale(' + s + ')'
-            document.body.style.width = (100 / s) + '%'
-            document.body.style.margin = '0'
-          })()
-        `)
-        await waitForWebContentsReady(captureWindow.webContents, 300)
-      }
-
-      const image = await captureWindow.webContents.capturePage({
-        x: 0,
-        y: 0,
-        width: viewportWidth,
-        height: viewportHeight
-      })
-      writeFileSync(targetPath, image.toJPEG(92))
-    } finally {
-      captureWindow.destroy()
-    }
+    const image = await captureHtmlImage(rawHtml, htmlPath)
+    writeFileSync(targetPath, image.toJPEG(92))
   }
 
   ipcMain.handle(
@@ -1239,8 +1269,8 @@ function setupWindowThemeHandlers(): void {
     const window = BrowserWindow.fromWebContents(event.sender)
     if (!window || process.platform !== 'win32' || process.env.KMAP_SAFE_WINDOW === '1') return
     window.setTitleBarOverlay({
-      color: active === true ? '#0b1727' : '#ffffff',
-      symbolColor: active === true ? '#e7eef7' : '#334155',
+      color: active === true ? '#084632' : '#ffffff',
+      symbolColor: active === true ? '#ffffff' : '#334155',
       height: 40
     })
   })
@@ -1476,6 +1506,7 @@ if (hasSingleInstanceLock) app.whenReady().then(() => {
   registerTenantIdentityHandlers()
   registerContractTestLauncher()
   registerDevDevice()
+  registerTrustedDevice()
   writeStartupMark('all-ipc-ready')
   createWindow()
   writeStartupMark('window-created')

@@ -33,10 +33,26 @@ export async function onRequest({ request, env }) {
     const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.ADMIN_PWA_AUTH_GATEWAY_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
     const digest = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(address))
     const ip = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')
+    // Familiar-network hash (IPv4 /24, IPv6 /48) so a trusted device on the
+    // same home/office network is not asked for 2FA after a DHCP change.
+    const network = networkPrefix(address)
+    const networkHash = network ? Array.from(new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`net:${network}`))), b => b.toString(16).padStart(2, '0')).join('') : ''
     const sessionToken = request.headers.get('x-management-session') || ''
     if (sessionToken.length > 4096) return reply(400, { ok: false })
-    const result = await fetch(env.ADMIN_PWA_AUTH_EDGE_URL, { method: 'POST', headers: { Authorization: `Bearer ${env.ADMIN_PWA_AUTH_GATEWAY_SECRET}`, 'Content-Type': 'application/json', 'x-management-ip': ip, 'x-management-agent': request.headers.get('user-agent') || '', ...(sessionToken ? { 'x-management-session': sessionToken } : {}) }, body, signal: AbortSignal.timeout(25000) })
+    const result = await fetch(env.ADMIN_PWA_AUTH_EDGE_URL, { method: 'POST', headers: { Authorization: `Bearer ${env.ADMIN_PWA_AUTH_GATEWAY_SECRET}`, 'Content-Type': 'application/json', 'x-management-ip': ip, ...(networkHash ? { 'x-management-network': networkHash } : {}), 'x-management-agent': request.headers.get('user-agent') || '', ...(sessionToken ? { 'x-management-session': sessionToken } : {}) }, body, signal: AbortSignal.timeout(25000) })
     const data = await result.json()
     return reply(result.status, data)
   } catch { return reply(503, { ok: false, error: 'Dịch vụ đăng nhập chưa phản hồi. Hãy thử lại.' }) }
+}
+
+function networkPrefix(address) {
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/.exec(address)
+  if (v4) return `v4:${v4[1]}.${v4[2]}.${v4[3]}`
+  if (!address.includes(':')) return ''
+  const [head, tail = ''] = address.toLowerCase().split('::')
+  const left = head ? head.split(':') : []
+  const right = tail ? tail.split(':') : []
+  const groups = address.includes('::') ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill('0'), ...right] : left
+  if (groups.length < 3 || groups.slice(0, 3).some(g => !/^[0-9a-f]{1,4}$/.test(g))) return ''
+  return `v6:${groups.slice(0, 3).map(g => parseInt(g, 16).toString(16)).join(':')}`
 }

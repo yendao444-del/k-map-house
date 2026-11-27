@@ -234,6 +234,11 @@ declare global {
       }
     }
     api: {
+      trustedDevice?: {
+        read: () => Promise<string | null>
+        write: (token: string) => Promise<boolean>
+        clear: () => Promise<boolean>
+      }
       devDevice: {
         credential: () => Promise<string | null>
       }
