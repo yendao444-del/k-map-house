@@ -1,0 +1,8 @@
+version: 1.0.104
+files:
+  - url: DBYHOME-1.0.104-setup.exe
+    sha512: OeKZ+BkholAotnRJ07ILrNW5GJ/jNMIqcG5oJhAGzH2gpeFjwrPLc/Fs+TIQ5iW7L788V/JNvvw6oX0wg3P34w==
+    size: 151804297
+path: DBYHOME-1.0.104-setup.exe
+sha512: OeKZ+BkholAotnRJ07ILrNW5GJ/jNMIqcG5oJhAGzH2gpeFjwrPLc/Fs+TIQ5iW7L788V/JNvvw6oX0wg3P34w==
+releaseDate: '2026-11-27T04:40:48.099Z'

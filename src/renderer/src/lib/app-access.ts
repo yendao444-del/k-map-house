@@ -12,9 +12,10 @@ const normalize = (value: unknown): AppKey[] =>
 const friendly = (error: { message?: string } | null, fallback: string): Error =>
   new Error(error?.message && /[À-ỹ]/.test(error.message) ? error.message : fallback)
 
-// Admin: every management account. Others: only their own row.
+// Admin: every management account. Others: only their own row. GET keeps this
+// read out of the pre-request step-up (POST RPCs need a fresh password).
 export async function getUserAppAccess(): Promise<Record<string, AppKey[]>> {
-  const { data, error } = await supabase.rpc('user_app_access_read')
+  const { data, error } = await supabase.rpc('user_app_access_read', {}, { get: true })
   if (error) throw friendly(error, 'Chưa tải được quyền ứng dụng.')
   const result: Record<string, AppKey[]> = {}
   for (const row of (data || []) as Array<{ user_id: string; apps: unknown }>) result[row.user_id] = normalize(row.apps)
